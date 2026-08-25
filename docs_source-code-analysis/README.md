@@ -12,6 +12,7 @@
 | 04 | bundle 包判定与 Cordis 插件系统的实现 | [04-bundle-package-and-plugin-system.md](04-bundle-package-and-plugin-system.md) |
 | 05 | macOS 无 Landlock 的影响与平台沙箱机制 | [05-landlock-macos-sandbox-impact.md](05-landlock-macos-sandbox-impact.md) |
 | 06 | 源码 dev 日常使用产生的磁盘数据全清单 | [06-disk-cache-inventory.md](06-disk-cache-inventory.md) |
+| 07 | pnpm 缺失定位、corepack 安装机制与本机残留清理 | [07-pnpm-install-and-corepack.md](07-pnpm-install-and-corepack.md) |
 
 ## 阅读顺序建议
 
