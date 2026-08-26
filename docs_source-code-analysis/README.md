@@ -13,6 +13,7 @@
 | 05 | macOS 无 Landlock 的影响与平台沙箱机制 | [05-landlock-macos-sandbox-impact.md](05-landlock-macos-sandbox-impact.md) |
 | 06 | 源码 dev 日常使用产生的磁盘数据全清单 | [06-disk-cache-inventory.md](06-disk-cache-inventory.md) |
 | 07 | pnpm 缺失定位、corepack 安装机制与本机残留清理 | [07-pnpm-install-and-corepack.md](07-pnpm-install-and-corepack.md) |
+| 08 | upstream 更新合并进 dev 后，让「从源码运行」持续生效的操作序列 | [08-upstream-merge-and-source-run-refresh.md](08-upstream-merge-and-source-run-refresh.md) |
 
 ## 阅读顺序建议
 
