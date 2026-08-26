@@ -2,7 +2,7 @@
 
 ## 背景
 
-2026-08-26 在 Web UI 用「添加自定义提供方」录入了第三方 provider（Provider ID 为 `b-ai`）后，发现界面上没有任何设置推理强度的地方。本文记录源码层面的原因、正确的配置入口，以及 `llm-pi-ai` 推理档位声明的完整语义；同日按本文方案声明推理档位后出现了新的 400 报错，完整原因链与修复见第七节；界面把模型上下文窗口显示为 262k 的来源与改成 1M 的方法见第八节。
+2026-08-26 在 Web UI 用「添加自定义提供方」录入了第三方 provider（Provider ID 为 `b-ai`）后，发现界面上没有任何设置推理强度的地方。本文记录源码层面的原因、正确的配置入口，以及 `llm-pi-ai` 推理档位声明的完整语义；同日按本文方案声明推理档位后出现了新的 400 报错，完整原因链与修复见第七节；界面把模型上下文窗口显示为 262k 的来源与改成 1M 的方法见第八节。同日稍晚，一个跑在该路由上的长会话又在思考模式 + 工具调用下出现 `reasoning_content` 回传 400，完整取证、原因链，以及 `requiresReasoningContentOnAssistantMessages` 与 `maxTokensField` 两个开关的准确语义和一次巧合性恢复的甄别，见第九、十节。
 
 ## 一、为什么界面上没有推理强度控件（设计使然）
 
@@ -155,6 +155,80 @@ llm-pi-ai:
 
 `contextWindow` 参与请求尺寸计算：输出上限会被 clamp 进上下文余量内（pi-ai `clampMaxTokensToContext`），token 计量与界面的占用比例也以它为分母。声明小了浪费可用窗口、过早触发压缩；声明大了则会在会话变长后被提供方中途拒单，而消息已经落盘，会话会不断重复发出无法成功的请求。生效时机同全文：下一次请求即生效、无需重启，界面显示随之更新。
 
+## 九、实战案例：思考模式 + 工具会话中途 400（`reasoning_content` 未回传）
+
+### 现象
+
+2026-08-26 一个小说修订长会话（session-36300dca…，b-ai/`deepseek-v4-flash`，推理强度 max）在 turn 3 step 5 突然失败：
+
+```text
+400: {"message":"The `reasoning_content` in the thinking mode must be passed back to the API.","type":"invalid_request_error","param":"","code":"invalid_request_error"}
+```
+
+请求体被直接拒收（无任何流式输出，usage 为 0/0）；错误归类为 `INVALID_REQUEST`，不在重试策略白名单内，整轮立即终止。该会话走的是 `llm-pi-ai`（pi-ai@0.82.1 的 openai-completions 协议），不是自带 CoT 回传逻辑的 `llm-deepseek` 适配器。
+
+### 官方规则：tools 在场时 reasoning_content 必须全程往返
+
+DeepSeek 思考模式指南（api-docs.deepseek.com/guides/thinking_mode）的规则按「两条 user 消息之间」划界：
+
+| 请求是否带 `tools` | 中间 assistant 消息的 `reasoning_content` |
+|---|---|
+| 不带 | 无需传回；传了也会被忽略，不报错 |
+| 带 | **必须在其后的所有请求中原样传回——即使该轮没有发起工具调用**；否则 400 |
+
+校验范围不是只查最后一条消息，而是该窗口内的全部中间 assistant 消息。
+
+### 取证方法
+
+- 会话日志位于 `$DSH_HOME/sessions/<工作目录串化名>/session-<id>/session.jsonl.zstd`（zstd 压缩 JSONL；增量压缩的分片事件以 `seq0`/`time0` 字段标识）。
+- `request/header` 事件在每个 turn 开始落一条，携带当次完整 `config`（provider/model/reasoningEffort/maxTokens）与系统提示词全文——是检测「会话中途换模型」的权威证据。
+- wire 请求可离线重放：pi-ai 导出了 `convertMessages`（dist/api/openai-completions.js），把日志重建的消息喂进去即得等价的请求体，再对成功步与失败步逐条差分。
+
+### 原因链：三个缺口叠加
+
+**缺口 1：会话中途换模型，跨模型重放把思考内容降级为正文（主因）。** turn 1 用的是 `deepseek-v4-flash-vision-exp`，turn 2 起换成 `deepseek-v4-flash`（user 消息原文「我切换了下模型」，两份 `request/header` 证实）。pi-ai 重建历史时按 provider+api+model 三元组判断同源（transform-messages.js L68-70），不同源时把 thinking 块转成普通文本并入 content（L87-90，为跨厂商可移植性设计）。于是 turn 1 全部 27 条 assistant 消息的 `reasoning_content` 在 wire 上不可逆丢失——例如 turn1-step16 那条 8441 字符的思考内容，在 wire 上成为同长度的正文文本。
+
+**缺口 2：零思考输出轮次天然无 CoT 可回传。** 该会话有 6 条 assistant 消息流式阶段就没收到任何 `reasoning_content`（纯工具调用轮：t1s5、t1s22、t1s27、t2s4、t2s28、t3s3），即使同源也没有字段可发；失败前一步正是其中之一（t3s3 的一次 edit 调用）。
+
+**缺口 3：兜底开关未开启。** pi-ai 只对 provider 为 `deepseek` 或 baseURL 含 `deepseek.com` 的路由自动补空串（见第十节）；b-ai 不在检测范围，而 profile compat 当时只设了 `supportsDeveloperRole: false`。
+
+正常路径本身是通的：流式端把 DeepSeek 返回的 `reasoning_content` delta 以 `thinkingSignature: "reasoning_content"` 记进 replay 元数据并随消息持久化，回放时原样恢复、序列化时以签名为字段名发出——同源且当轮有思考内容的消息都能正确往返。
+
+三项缺口的合计后果：失败请求的 59 条 assistant 消息中 30 条带 tool_calls 却无 `reasoning_content`（27 条来自 turn 1 跨模型降级，其中 3 条本就零思考；另 3 条为后续同源的零思考轮次）。
+
+### 校验器行为的不一致性（诚实的保留项）
+
+离线差分显示一个悖论：step 4（成功）与 step 5（失败）的请求体几乎相同——前者缺字段的消息一样多，后者反而是往已通过的 body 末尾追加了一条格式完好、带 `reasoning_content` 的新消息后失败。纯函数式校验无法解释这个方向，说明网关（或其上游）的校验是不完全或滞后的（只查尾部窗口、按增量缓存边界延迟一轮、或负载均衡下异质节点各查各的）。确切的服务端判定粒度从外部无法证明；但不影响结论——两次请求都客观违反官方契约，违规点在失败前早已持续存在。
+
+### 后果与修复方向
+
+违规消息随历史持久化，此后每轮请求都带着它们，命中严格校验路径时整段会话反复「变砖」。可选方向：
+
+1. 给 b-ai 加 compat `requiresReasoningContentOnAssistantMessages: true`（推荐的保险，机制见第十节）；
+2. 思考模式 + tools 的会话不要中途换模型——旧轮 CoT 一旦降级不可恢复；
+3. 向 pi-ai 上游反馈跨模型降级与 DeepSeek 往返契约的冲突；
+4. 已变砖的会话放弃续用，新开会话。
+
+## 十、`requiresReasoningContentOnAssistantMessages` 与 `maxTokensField` 的准确语义
+
+### requiresReasoningContentOnAssistantMessages：补空串的兜底开关
+
+pi-ai 序列化每条历史 assistant 消息的收尾处（openai-completions.js L924-928）：当请求处于推理模式（`model.reasoning` 为真）且这条消息最终不会带 `reasoning_content` 字段时，补一个空字符串。DeepSeek 校验器检查的是字段存在性，空串即可通过；官方语义上应传回真实 CoT，空串只是满足校验层的最小实现。自动开启条件只有 provider 为 `deepseek` 或 baseURL 含 `deepseek.com`（L1143），其余路由一律手动声明。它修补的是每次请求的 wire 形状，不改动会话日志中的任何持久化数据。
+
+### maxTokensField：只决定上限字段的拼写
+
+唯一作用点在 buildParams（openai-completions.js L531-538）：仅当请求真的携带输出上限（`options.maxTokens` 非空）时，决定写旧版通用的 `max_tokens` 还是 OpenAI 较新的 `max_completion_tokens`。默认值由端点检测给出（L1141、L1151）：chutes/moonshot/cloudflare-gateway/together/nvidia/ant-ling 等强制 `max_tokens`，其余未识别提供商（含 b-ai）默认 `max_completion_tokens`。它与 `reasoning_content` 校验没有任何交互。
+
+### 「加了 maxTokensField 后发『继续』就恢复」的证据链
+
+会话日志的两份 `request/header` 显示 `config` 只有 provider/model/reasoningEffort 三个键、`adapterDefaults` 为 null——本次运行从未配置任何 token 上限。逐层核实：agent 循环只在显式配置时填 `maxTokens`（agent-loop/src/agent.ts L446）；服务层的 `defaultMaxTokens` 兜底要求 profile 配置过 `maxTokens`（llm/src/index.ts L784-785 与 llm-pi-ai/src/adapter.ts L298-306），同样不存在。于是 pi-ai 的 `if (options?.maxTokens)` 分支整个跳过，wire 上从未出现过任何一个上限字段——`maxTokensField` 在此配置下是惰性开关，一个字节都没改变请求体，不可能是恢复的原因。
+
+真正同时发生的是两件事：(1) 新的 user 消息开启了新轮次——失败的请求以 assistant + tool-result 对结尾，而新 user 消息追加后，对话末段变成「user 收尾、中间零条 assistant」，DeepSeek 规则按「两条 user 消息之间」划界，尾部窗口式校验此时无东西可查；(2) 网关校验本身不一致（第九节悖论已证），同一 body 此时被拒、彼时被收。结论：时间相关的巧合性恢复，不是因果修复。
+
+### 结论与建议姿态
+
+历史中 30 条缺 `reasoning_content` 的消息仍然永久存在，目前网关容忍，再次命中严格路径就会复发。建议：仍给 b-ai 加 `requiresReasoningContentOnAssistantMessages: true` 作为保险；`maxTokensField: max_tokens` 可以留着——无害，且将来真配了 `maxTokens` 输出上限时，DeepSeek 系上游用 `max_tokens` 才是对的名字。
+
 ---
 
 ## 证据文件
@@ -165,4 +239,11 @@ llm-pi-ai:
 - `docs/user/guide/providers.zh.md` —— 自定义提供方表单字段（L23-27）；表单没有的字段走 `$DSH_HOME/settings.yaml` 的总原则与排错清单（L82-133）。
 - `packages/core/agent/src/model-selection.ts` —— 会话选择的 `reasoningEffort?` 可选字段（L15-16）。
 - `node_modules/.pnpm/@earendil-works+pi-ai@0.82.1_*/…/dist/api/simple-options.js` —— `adjustMaxTokensForThinking` 的默认四档预算 1024/2048/8192/16384；第八节的 `clampMaxTokensToContext` 以 `model.contextWindow − 已估算上下文 − 4096 安全余量` 收缩输出上限。
-- `node_modules/.pnpm/@earendil-works+pi-ai@0.82.1_*/…/dist/api/openai-completions.js` —— 第七节原因链的落点：L787 `const useDeveloperRole = model.reasoning && compat.supportsDeveloperRole`；L1148 未知端点的检测默认（非 OpenRouter 即支持 developer 角色）；L1194 模型 compat 覆盖检测值的合并点。
+- `node_modules/.pnpm/@earendil-works+pi-ai@0.82.1_*/…/dist/api/openai-completions.js` —— 第七节原因链的落点：L787 `const useDeveloperRole = model.reasoning && compat.supportsDeveloperRole`；L1148 未知端点的检测默认（非 OpenRouter 即支持 developer 角色）；L1194 模型 compat 覆盖检测值的合并点。第九、十节的落点：L353-377 流式端把 `reasoning_content` delta 以其字段名记为 thinkingSignature；L531-538 上限字段拼写分支（`if (options?.maxTokens)` 整体跳过时两字段都不发）；L848-877 序列化端按首个思考块的 thinkingSignature 发出 `reasoning_content`；L924-928 `requiresReasoningContentOnAssistantMessages` 兜底空串；L1141/L1151 `useMaxTokens` 名单与 `maxTokensField` 检测默认；L1143 `isDeepSeek` 自动判定。
+- `node_modules/.pnpm/@earendil-works+pi-ai@0.82.1_*/…/dist/api/transform-messages.js` —— 第九节缺口 1 的落点：L68-70 同源判定三元组（provider+api+model）；L72-91 思考块的同源保留与跨模型降级为正文。
+- `packages/llm/llm-pi-ai/src/replay.ts` —— replay 信封的校验与重建（`replayedAssistant` L179-222 按索引对齐恢复 thinkingSignature）、不可用时的降级路径（`foreignAssistant` L144-176）。
+- `packages/core/agent-loop/src/agent.ts` —— L446 `maxTokens = this.options.maxTokens`：上限只在显式配置时进入请求。
+- `packages/core/agent-loop/src/invariant.ts` —— L47 断言实际调用选项与会话日志 `request/header.config` 一致，是「header 即权威证据」的依据。
+- `packages/llm/llm/src/index.ts` —— L784-785 服务层 `defaultMaxTokens` 兜底（profile 未配则无兜底）。
+- `docs/config-catalog.md` —— L1187 `requiresReasoningContentOnAssistantMessages` 的目录文档（「replayed assistant messages need an empty reasoning_content while reasoning is on」）。
+- DeepSeek 官方思考模式指南：<https://api-docs.deepseek.com/guides/thinking_mode>（tools 在场时 `reasoning_content` 全程往返规则与 400 行为的原文出处）。
