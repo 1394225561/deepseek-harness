@@ -14,6 +14,8 @@
 | 06 | 源码 dev 日常使用产生的磁盘数据全清单 | [06-disk-cache-inventory.md](06-disk-cache-inventory.md) |
 | 07 | pnpm 缺失定位、corepack 安装机制与本机残留清理 | [07-pnpm-install-and-corepack.md](07-pnpm-install-and-corepack.md) |
 | 08 | upstream 更新合并进 dev 后，让「从源码运行」持续生效的操作序列 | [08-upstream-merge-and-source-run-refresh.md](08-upstream-merge-and-source-run-refresh.md) |
+| 09 | 第三方提供方（自定义 provider）的推理强度设置 | [09-custom-provider-reasoning-effort.md](09-custom-provider-reasoning-effort.md) |
+| 10 | 让 dsh 出站请求走本地 HTTP 代理（NODE_USE_ENV_PROXY） | [10-outbound-http-proxy.md](10-outbound-http-proxy.md) |
 
 ## 阅读顺序建议
 
