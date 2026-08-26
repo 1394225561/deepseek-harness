@@ -2,7 +2,7 @@
 
 ## 背景
 
-2026-08-26 在 Web UI 用「添加自定义提供方」录入了第三方 provider（Provider ID 为 `b-ai`）后，发现界面上没有任何设置推理强度的地方。本文记录源码层面的原因、正确的配置入口，以及 `llm-pi-ai` 推理档位声明的完整语义；同日按本文方案声明推理档位后出现了新的 400 报错，完整原因链与修复见第七节。
+2026-08-26 在 Web UI 用「添加自定义提供方」录入了第三方 provider（Provider ID 为 `b-ai`）后，发现界面上没有任何设置推理强度的地方。本文记录源码层面的原因、正确的配置入口，以及 `llm-pi-ai` 推理档位声明的完整语义；同日按本文方案声明推理档位后出现了新的 400 报错，完整原因链与修复见第七节；界面把模型上下文窗口显示为 262k 的来源与改成 1M 的方法见第八节。
 
 ## 一、为什么界面上没有推理强度控件（设计使然）
 
@@ -127,14 +127,42 @@ llm-pi-ai:
 
 两点一般性结论：compat 开关是对端点的断言而非检查，多设一个网关其实不需要的开关只是改变请求形状、无副作用；生效时机同全文——下一次请求即生效，无需重启。
 
+## 八、模型上下文窗口：界面显示 262k 的来源与改成 1M
+
+### 为什么是 262k
+
+262k 不是从端点查到的，而是 dsh 对「目录与配置都没说大小的手工声明模型」的兜底默认值：`DEFAULT_CONTEXT_WINDOW = 262_144`（config.ts L61），输出上限同理由 `DEFAULT_MAX_TOKENS = 32_768` 兜底（L64）。表单不采集容量字段，手工录入的模型因此全部落到这个默认；界面上显示的就是这个配置值。
+
+harness 没有任何环节去询问端点的真实窗口（与图片模态同一逻辑：不存在可询问的标准端点）。「实际是 200k 还是 1M」只能由提供方文档给答案，再由配置显式声明——与 compat 一样，这是对端点的断言，不是探测结果。
+
+### 设置为 1M
+
+```yaml
+llm-pi-ai:
+  providers:
+    b-ai:
+      models:
+        - id: your-model-id
+          contextWindow: 1000000     # 按 b.ai 官方文档的确切数值填；若 1M 指 2^20 则填 1048576
+          maxTokens: 32768           # 可选：输出上限，缺省同为 32768
+          reasoningEfforts:
+            …                        # 已有的推理档位声明保持不变
+```
+
+路由级回退写法：该路由下手工声明的模型全是 1M 时，可只写一次 `defaultContextWindow: 1000000`（与 `apiKeyEnv` 平级）。注意它是**回退值**——只对条目自己没写 `contextWindow` 的模型生效，条目显式写的逐字段优先。
+
+### 为什么值得配准
+
+`contextWindow` 参与请求尺寸计算：输出上限会被 clamp 进上下文余量内（pi-ai `clampMaxTokensToContext`），token 计量与界面的占用比例也以它为分母。声明小了浪费可用窗口、过早触发压缩；声明大了则会在会话变长后被提供方中途拒单，而消息已经落盘，会话会不断重复发出无法成功的请求。生效时机同全文：下一次请求即生效、无需重启，界面显示随之更新。
+
 ---
 
 ## 证据文件
 
-- `packages/llm/llm-pi-ai/src/config.ts` —— `PiAiProviderProfile`（L88 起，含 `reasoning` L150、`thinkingBudgets` L152）；模型条目字段 `modelFields.reasoningEfforts` 为 `union([const(false), dict])` 并注明 absent 必须可与 `false` 区分（L284-297）；`reasoningEfforts` schema 注释解释 `off:` 留空为何能通过 schemastery（L268-281）；`assertServiceable` 把校验挂在 settings 写入点（L349）。
+- `packages/llm/llm-pi-ai/src/config.ts` —— `PiAiProviderProfile`（L88 起，含 `reasoning` L150、`thinkingBudgets` L152、容量字段 `defaultContextWindow`/`defaultMaxTokens` L128-134）；第八节的兜底默认 `DEFAULT_CONTEXT_WINDOW = 262_144`（L61）与 `DEFAULT_MAX_TOKENS = 32_768`（L64），schema 默认值挂接在 L315-316；模型条目字段 `modelFields.reasoningEfforts` 为 `union([const(false), dict])` 并注明 absent 必须可与 `false` 区分（L284-297）；`reasoningEfforts` schema 注释解释 `off:` 留空为何能通过 schemastery（L268-281）；`assertServiceable` 把校验挂在 settings 写入点（L349）。
 - `packages/llm/llm-pi-ai/src/catalog.ts` —— `THINKING_LEVEL_GATE` 七个档位（L74-85）；`PiAiReasoningEfforts = Partial<Record<ModelThinkingLevel, string | null>>`（L198）；`THINKING_FORMAT_GATE` 十种 thinkingFormat（L98-112）。
 - `packages/llm/llm-pi-ai/README.zh.md` —— 「按模型的推理（reasoning）档位」「协议兼容开关」两节（L88-99）；无元数据模型不公开 reasoning、`UNSUPPORTED_REASONING_EFFORT`、「描述不失败」语义（L123-127）；分层合并无删除语义的 Known Limitation（L207）。
 - `docs/user/guide/providers.zh.md` —— 自定义提供方表单字段（L23-27）；表单没有的字段走 `$DSH_HOME/settings.yaml` 的总原则与排错清单（L82-133）。
 - `packages/core/agent/src/model-selection.ts` —— 会话选择的 `reasoningEffort?` 可选字段（L15-16）。
-- `node_modules/.pnpm/@earendil-works+pi-ai@0.82.1_*/…/dist/api/simple-options.js` —— `adjustMaxTokensForThinking` 的默认四档预算 1024/2048/8192/16384。
+- `node_modules/.pnpm/@earendil-works+pi-ai@0.82.1_*/…/dist/api/simple-options.js` —— `adjustMaxTokensForThinking` 的默认四档预算 1024/2048/8192/16384；第八节的 `clampMaxTokensToContext` 以 `model.contextWindow − 已估算上下文 − 4096 安全余量` 收缩输出上限。
 - `node_modules/.pnpm/@earendil-works+pi-ai@0.82.1_*/…/dist/api/openai-completions.js` —— 第七节原因链的落点：L787 `const useDeveloperRole = model.reasoning && compat.supportsDeveloperRole`；L1148 未知端点的检测默认（非 OpenRouter 即支持 developer 角色）；L1194 模型 compat 覆盖检测值的合并点。
