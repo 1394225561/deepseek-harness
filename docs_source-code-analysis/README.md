@@ -17,6 +17,8 @@
 | 09 | 第三方提供方（自定义 provider）的推理强度设置 | [09-custom-provider-reasoning-effort.md](09-custom-provider-reasoning-effort.md) |
 | 10 | 让 dsh 出站请求走本地 HTTP 代理（NODE_USE_ENV_PROXY） | [10-outbound-http-proxy.md](10-outbound-http-proxy.md) |
 | 11 | 子代理并发数不可配的现状与 tool-subagent 插件详解 | [11-subagent-concurrency-and-tool-subagent.md](11-subagent-concurrency-and-tool-subagent.md) |
+| 12 | 会话数据落盘机制：sessions 目录结构与 JSONL.zstd 格式详解 | [12-session-jsonl-zstd-storage.md](12-session-jsonl-zstd-storage.md) |
+| 13 | SQLite 使用现状：内置机制齐全，默认组合下不承担任何存储 | [13-sqlite-usage-status.md](13-sqlite-usage-status.md) |
 
 ## 阅读顺序建议
 
@@ -24,7 +26,8 @@
 - 02、03 深入"包解析"机制（symlink、`workspace:^`、tsconfig paths）；
 - 04 讲插件与组合（bundle、profile、Loader）；
 - 05 讲沙箱（Landlock / Seatbelt / fail-closed）；
-- 06 是运行期磁盘数据清单（`$DSH_HOME` 下各落盘点 + 临时目录 + 构建产物）。
+- 06 是运行期磁盘数据清单（`$DSH_HOME` 下各落盘点 + 临时目录 + 构建产物）；
+- 12、13 分别深入会话日志的目录/格式/读写路径，以及 SQLite 三包「内置但默认不用」的现状。
 
 ## 速览
 
@@ -34,3 +37,4 @@
 - **bundle 包** = package.json 带 `dsh.bundle.patch`；**profile** = 带 `dsh.profile.bundles`；插件系统 = Cordis 组合树 + Loader 动态 import。
 - **Landlock 只在 Linux 链上是回退**；macOS 用原生 Seatbelt（`sandbox-exec`），同为 `full` 强制级别，无 Landlock 无实际影响。
 - **运行期磁盘数据**全部收拢在 `$DSH_HOME`（默认 `~/.dsh`）单根下：会话日志（`sessions/`）、身份（`.anonymous-user-id`）、设置/凭据/附件、profiles 清单；另有 `os.tmpdir()` 下的 spill/子进程/sandbox 临时目录（见 06 篇）。
+- **会话日志** = 每会话一个 `session.jsonl.zstd`（Zstandard 多帧拼接的追加式 JSONL，文件夹名是 session id 而非哈希）；仓库内置 SQLite 机制但默认组合下不承担任何存储（见 12、13 篇）。
