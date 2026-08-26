@@ -2,7 +2,7 @@
 
 ## 背景
 
-2026-08-26 在 Web UI 用「添加自定义提供方」录入了第三方 provider（Provider ID 为 `b-ai`）后，发现界面上没有任何设置推理强度的地方。本文记录源码层面的原因、正确的配置入口，以及 `llm-pi-ai` 推理档位声明的完整语义。
+2026-08-26 在 Web UI 用「添加自定义提供方」录入了第三方 provider（Provider ID 为 `b-ai`）后，发现界面上没有任何设置推理强度的地方。本文记录源码层面的原因、正确的配置入口，以及 `llm-pi-ai` 推理档位声明的完整语义；同日按本文方案声明推理档位后出现了新的 400 报错，完整原因链与修复见第七节。
 
 ## 一、为什么界面上没有推理强度控件（设计使然）
 
@@ -73,7 +73,59 @@ llm-pi-ai:
 
 - **分层合并对字典键没有删除语义**：settings seam 把组合 base 与用户层按键递归合并。只有当 cordis.yml entry config 为用户层正在编辑的同一模型声明了按模型推理字段时才会触发；受支持的姿态是把 `reasoningEfforts` 这类字段留给 settings 文档（shipped 组合以休眠方式挂载该适配器），且 `models` 数组整体替换是带内的解决办法。
 - **`models` 列表是替换不是扩充**：一旦声明，该路由要继续服务的每个模型都必须出现在列表中（每项哪怕只写 `id` 也够）；只想改单个 catalog 模型时用 `modelOverrides`。
-- **排错速查**：只有推理模型失败 → 先试 `compat.supportsDeveloperRole: false`；密钥地址都对但全被拒 → 先试 `supportsDeveloperRole: false` + `maxTokensField: max_tokens`（见 providers 指南排错节）。
+- **排错速查**：只有推理模型失败 → 先试 `compat.supportsDeveloperRole: false`；密钥地址都对但全被拒 → 先试 `supportsDeveloperRole: false` + `maxTokensField: max_tokens`（见 providers 指南排错节；实例见第七节）。
+
+## 七、实战案例：声明推理强度后请求 400（`role: "developer"` 被拒）
+
+### 现象
+
+按第二、三节给 b-ai 的模型声明 `reasoningEfforts` 后，从 dsh 发起对话报错：
+
+```text
+400: {"message":"Failed to deserialize the JSON body into the target type:
+messages[0].role: unknown variant `developer`, expected one of
+`system`, `user`, `assistant`, `tool`, `latest_reminder`
+at line 1 column 60","type":"invalid_request_error",...}
+```
+
+而 b.ai 官方调用示例里系统提示词走的是普通 `system` 角色。（顺带的旁证：合法角色集里有非 OpenAI 标准的 `latest_reminder`——该端点本就不是原生 OpenAI 服务，请求形状断言更不能依赖 pi-ai 对 URL 的猜测。）
+
+### 原因链
+
+声明推理强度这个动作本身触发了请求形状升级，三个条件缺一不可：
+
+1. `reasoningEfforts` 声明使模型带上推理能力（`model.reasoning` 非空）；
+2. baseURL 不在 pi-ai 已安装目录内 → pi-ai 的检测把端点当作 OpenAI 本身对待 → `supportsDeveloperRole` 默认为 `true`；
+3. pi-ai 分派源码 `openai-completions.js:787`：
+
+   ```js
+   const useDeveloperRole = model.reasoning && compat.supportsDeveloperRole;
+   ```
+
+   于是系统提示词从官方示例的 `role: "system"` 升级为 OpenAI 推理模型专用的 `role: "developer"`，而 b.ai 的反序列化只认 `system` / `user` / `assistant` / `tool`，直接拒收。
+
+即：为开启推理控件所做的声明，连带把整个请求换成了「OpenAI o 系模型」的说话方式。
+
+### 修复
+
+路由级 compat 关闭 developer 角色并顺手对齐输出上限字段：
+
+```yaml
+llm-pi-ai:
+  providers:
+    b-ai:
+      compat:
+        supportsDeveloperRole: false   # 系统提示词回退 role: "system"
+        maxTokensField: max_tokens     # 见下
+      models:
+        - id: your-model-id
+          reasoningEfforts:
+            …                          # 推理档位声明保持不变
+```
+
+第二个开关的依据：官方示例输出上限写 `max_tokens: 1000`，而 pi-ai 对未知端点默认发 `max_completion_tokens`——修好角色问题后大概率轮到它报 400，一次配齐。
+
+两点一般性结论：compat 开关是对端点的断言而非检查，多设一个网关其实不需要的开关只是改变请求形状、无副作用；生效时机同全文——下一次请求即生效，无需重启。
 
 ---
 
@@ -85,3 +137,4 @@ llm-pi-ai:
 - `docs/user/guide/providers.zh.md` —— 自定义提供方表单字段（L23-27）；表单没有的字段走 `$DSH_HOME/settings.yaml` 的总原则与排错清单（L82-133）。
 - `packages/core/agent/src/model-selection.ts` —— 会话选择的 `reasoningEffort?` 可选字段（L15-16）。
 - `node_modules/.pnpm/@earendil-works+pi-ai@0.82.1_*/…/dist/api/simple-options.js` —— `adjustMaxTokensForThinking` 的默认四档预算 1024/2048/8192/16384。
+- `node_modules/.pnpm/@earendil-works+pi-ai@0.82.1_*/…/dist/api/openai-completions.js` —— 第七节原因链的落点：L787 `const useDeveloperRole = model.reasoning && compat.supportsDeveloperRole`；L1148 未知端点的检测默认（非 OpenRouter 即支持 developer 角色）；L1194 模型 compat 覆盖检测值的合并点。
