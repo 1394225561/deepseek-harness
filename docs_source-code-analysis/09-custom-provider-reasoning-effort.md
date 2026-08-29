@@ -2,7 +2,7 @@
 
 ## 背景
 
-2026-08-26 在 Web UI 用「添加自定义提供方」录入了第三方 provider（Provider ID 为 `b-ai`）后，发现界面上没有任何设置推理强度的地方。本文记录源码层面的原因、正确的配置入口，以及 `llm-pi-ai` 推理档位声明的完整语义；同日按本文方案声明推理档位后出现了新的 400 报错，完整原因链与修复见第七节；界面把模型上下文窗口显示为 262k 的来源与改成 1M 的方法见第八节。同日稍晚，一个跑在该路由上的长会话又在思考模式 + 工具调用下出现 `reasoning_content` 回传 400，完整取证、原因链，以及 `requiresReasoningContentOnAssistantMessages` 与 `maxTokensField` 两个开关的准确语义和一次巧合性恢复的甄别，见第九、十节。
+2026-08-26 在 Web UI 用「添加自定义提供方」录入了第三方 provider（Provider ID 为 `b-ai`）后，发现界面上没有任何设置推理强度的地方。本文记录源码层面的原因、正确的配置入口，以及 `llm-pi-ai` 推理档位声明的完整语义；同日按本文方案声明推理档位后出现了新的 400 报错，完整原因链与修复见第七节；界面把模型上下文窗口显示为 262k 的来源与改成 1M 的方法见第八节。同日稍晚，一个跑在该路由上的长会话又在思考模式 + 工具调用下出现 `reasoning_content` 回传 400，完整取证、原因链，以及 `requiresReasoningContentOnAssistantMessages` 与 `maxTokensField` 两个开关的准确语义和一次巧合性恢复的甄别，见第九、十节。2026-08-29 同一路由又出现两次 `Invalid request body` 400：上游对大请求体的间歇性拒收叠加 1M 容量声明下压缩永不触发，`retryPolicy` 有界重试与请求体尺寸治理见第十一、十二节。
 
 ## 一、为什么界面上没有推理强度控件（设计使然）
 
@@ -231,6 +231,109 @@ pi-ai 序列化每条历史 assistant 消息的收尾处（openai-completions.js
 
 ---
 
+## 十一、实战案例：两次 `Invalid request body` 400——大请求体的间歇性拒收与 `retryPolicy` 有界重试（2026-08-29）
+
+### 现象
+
+session-75ace70c（b-ai/`glm-5.3-flash`，reasoningEffort max，长会话上下文约 25.8 万 tokens）两次整轮失败：
+
+```text
+400: {"code":"invalid_request","message":"Invalid request body. (request id: 20260829130740392131676c955d56871RTcfnp)","type":"api_error"}
+400: {"code":"invalid_request","message":"Invalid request body. (request id: 20260829134740537813149c955d568CIHeFKzN)","type":"api_error"}
+```
+
+两次 request id 时间戳（13:07:40 / 13:47:40 UTC）**恰好相差 40 分 00 秒**。第 1 次的完整序列（session 日志 L7118-7131）：第一次请求已被上游受理并正常流式返回（reasoning 与正文 delta 均到达），文本中途连接死亡——undici 扁平化错误 `terminated`，归类 `TRANSPORT`（可重试）；`llm-retry`（normal 策略）约 0.5 秒后**原样重发同一请求**（失败步没有任何 `assistant/message` 落账，历史零变更），约 52–67 秒后收到 400 → `INVALID_REQUEST` 不在重试白名单 → 整轮立即终止。
+
+### 判定：不是请求体构造错误，是上游对大请求体的间歇性拒收
+
+决定性证据：同一份对话历史（之后还多出一条用户消息）在紧接着的轮次里**连续成功**（usage：cacheRead ≈ 254,464 + input ≈ 3,369 tokens）。同一请求体"先受理流式 → 重试被 400 → 随后又被受理"，只有上游侧的不确定行为能解释。旁证：整场会话共 5 次 `TRANSPORT` 故障（3 次 `Connection error.`、2 次 `terminated`，分布在 turn 1/2/3/5）；两个 request id 尾部同含 `c955d568`（同一网关节点/路由）；错误消息格式（`code/type` 大写下划线风格）与第九节 b.ai 的 `invalid_request_error` 不同——本组 400 出自上游网关的另一条校验/转发路径。
+
+与第九节的甄别对照（两节 400 缓解手段完全不同）：第九节是**请求体形状违规**（缺 `reasoning_content`，请求即拒、usage 0/0，靠 compat 开关修 wire 形状）；本节是**受理后的间歇性拒收**（重试前已在流式、响应延迟数十秒），只能靠有界重试扛过或缩请求体。第十节"同一 body 此时被拒、彼时被收"的网关不一致性悖论，在本节以更直接的证据（受理→拒→再受理）再次复现。
+
+### 为什么默认策略扛不过去
+
+- 归类点 `packages/llm/llm-pi-ai/src/stream.ts:41-67`：L48 `/\b400\b|invalid.?request/i → INVALID_REQUEST`；L57-64 `terminated → TRANSPORT`。L45-47 注释的设计假设是"400 = 重发也不可能成功 → 非瞬态"——**该假设对当前网关不成立**（同一请求随后即成功），默认策略因此把本可重试扛过的瞬态故障升级为整轮失败。
+- `packages/llm/llm-retry/src/index.ts:156-208`：L177-179 `retryableCodes` 白名单（默认仅 `EMPTY_RESPONSE/RATE_LIMIT/SERVER/TIMEOUT/TRANSPORT`）之外的 code 直接放弃；L190 normal 模式受 `maxRetries`（默认 5）约束。
+
+### 修复：provider 级 `retryPolicy`（有界重试纳入 `INVALID_REQUEST`）
+
+`retryPolicy` 是 **provider 拥有**的配置——`llm-retry` 插件显式拒绝该键（`llm-retry/src/index.ts:32-34` "retryPolicy belongs under each provider configuration"），由 `llm-pi-ai` 的 provider profile 内嵌（`config.ts:177-178` 字段、L457 `resolveRetryPolicy` 解析）。两种载体：
+
+1. **用户设置（推荐，免重启）**：`$DSH_HOME/settings.yaml → llm-pi-ai.providers.b-ai.retryPolicy`。该节经 `installSettingsSection` 挂接（`llm-pi-ai/src/index.ts:295-328`），与插件 Config 同构；写入前双重校验（Config schema + `assertServiceable`），**非法节在写入处即被拒绝**、旧配置继续服务。
+2. **组合配置**：插件条目 `- name: '@deepseek-ai/dsh-llm-pi-ai'` 的 `config.providers.<路由>.retryPolicy`（`llm-pi-ai/src/index.ts:12-53` 官方 YAML 示例）。
+
+热生效机制：profile 事实逐请求解析；**注册期捕获**的只有路由集合与每路由 `retryPolicy`（`registrationFacts()`，L98-109），二者任一变化触发 `registration.replace(routes)` **原地原子重注册**（L270-293）——所以改 settings.yaml 保存后下一次请求即用新策略。
+
+Schema 与校验（`packages/llm/llm/src/retry-policy.ts`）：
+
+| 项 | 规则 |
+|---|---|
+| `mode: 'normal'` | 有界瞬态重试：`maxRetries`（默认 5，非负整数）、`retryableCodes`（默认 5 个瞬态码，L18-24）、`backoff` |
+| `mode: 'always'` | 无上限重试（仅 `backoff`） |
+| `backoff` | `initialDelayMs=500`、`maxDelayMs=10000`、`jitterRatio=0.1`；均为正数、`initialDelayMs ≤ maxDelayMs`、`jitterRatio ∈ [0,1]` |
+| 键校验 | 严格白名单：policy 仅 `mode/maxRetries/retryableCodes/backoff`，未知键抛错；`retryableCodes` 禁空串/重复，元素为自由字符串（可加 `INVALID_REQUEST`） |
+
+本机推荐配置（`C:\Users\Admin\.dsh\settings.yaml` 的 `b-ai` 节内、与 `compat`/`models` 平级）：
+
+```yaml
+      retryPolicy:
+        mode: normal
+        maxRetries: 2        # 永久性 400 时最多白打 2 发；想更保守可回默认 5
+        retryableCodes:
+          - EMPTY_RESPONSE
+          - RATE_LIMIT
+          - SERVER
+          - TIMEOUT
+          - TRANSPORT
+          - INVALID_REQUEST   # 本节的全部目的：扛过网关对大请求体的间歇性拒收
+        backoff:
+          initialDelayMs: 500
+          maxDelayMs: 10000
+          jitterRatio: 0.1
+```
+
+验证：再次 400 时 session 日志应出现 `llm/retry`（`data.failure.code == "INVALID_REQUEST"`、`data.retry` 递增）而非直接 `turn/end` error；若重试 2 次仍 400，说明该次是确定性拒绝，转第十二节缩请求体。
+
+## 十二、请求体尺寸治理：1M 容量声明下压缩永不触发，与两条收缩路线
+
+### 因果链：为什么 800K 压力线形同虚设
+
+压缩后端 `dsh-compaction-basic` 默认 `thresholdRatio = 0.8`、`retainRatio = 0.16`（`packages/compaction/compaction-basic/src/config.ts:20-23`）；触发预算按路由模型**声明容量**换算（`resolveCompactSpec()`，L133-167：`thresholdTokens = floor(contextWindow × thresholdRatio)`）。第八节把容量声明改为 1M 后，压力线 = **800,000 tokens**——事故会话约 25.8 万 tokens，永远到不了 `agent/pre-step` 压力检查（`docs/agent-lifecycle.md:76`），请求体只能随会话自然增长，最终撞上第十一节的间歇性拒收。**两节互为因果**：容量声明是"对端点的断言"（第八节结论），断言过大 = 压缩永不介入。
+
+### 路线 B1（推荐）：容量改口——settings.yaml 一行，热生效
+
+两个粒度（均在 `llm-pi-ai.providers.b-ai` 内）：
+
+1. **路由级**：`defaultContextWindow: 262144`（替换现有 `1000000`），作用于该路由全部未单独声明容量的模型。262144 正是 config.ts L61 的兜底默认 `DEFAULT_CONTEXT_WINDOW`——第八节记录它"声明小了浪费窗口"，本节的教训是它的另一面：**声明大了会在网关侧撞墙**。
+2. **模型级（更外科）**：只给出问题的模型声明，其余维持 1M：
+
+```yaml
+      models:
+        - id: glm-5.3-flash
+          name: glm-5.3-flash
+          contextWindow: 262144     # 压缩压力线变为 0.8 × 262144 ≈ 210K tokens
+          reasoningEfforts:
+            …                        # 既有档位声明保持不变
+```
+
+效果与代价：压力压缩约 21 万 tokens 触发（最旧历史压成摘要、最新 16% 逐字保留）；上下文溢出恢复（`agent/request-error`）判定同步收紧；保存即生效（容量属逐请求解析的 profile 事实）。代价：压缩本身花一次额外模型请求，且会比"必须"更早压缩——正是缓解 400 的目的。与第八节的关系：两个数值服务两个目标——官方窗口回答"端点宣称能接受多少"，本节的数值回答"网关在多大请求体下仍稳定受理"；冲突时以稳定性为准。
+
+### 路线 B2：compaction-basic 策略面与预设覆盖规则（较重）
+
+完整策略键（`compaction-basic/src/config.ts:38-49`）：`thresholdRatio`、`retainRatio` / `retainTokens`（**互斥**，L240-242）、`summarizationProvider` + `summarizationModel`（必须成对设空或非空，L254-275）、`maxTokens`（默认 8192，摘要请求输出上限）、`compactionRetries`（默认 1）、`maxOverflowRetries`（默认 1）、`modelPolicies`（按 `provider`+`model` 精确覆盖的数组、去重）、`auto`（默认 true）。
+
+本会话的挂载位置是 **`standard` agent 预设组合**（`packages/preset/agent-presets/presets/standard/agent.cordis.yml:126-155`）：`compaction` 组内 `id: compaction-basic` 条目**未携带任何 config**（同组 `command-compact` 与 `tool-result-pruner`，后者带 `thresholdChars: 8192 / headChars: 4096 / tailChars: 1024`）。覆盖约束（`packages/preset/agent-presets/src/preset.ts:53-72`）：预设根顺序为 shipped system root 在前、`$DSH_HOME/.agent-presets`（`discovery.ts:51` `USER_PRESET_DIR`）追加在后，**同名 id 系统侧胜出**——不能用同名 `standard` 目录覆盖。现实途径：在 `C:\Users\Admin\.dsh\.agent-presets\<新id>\agent.cordis.yml` 放一份改过 compaction 配置的预设副本，**新会话**选用（已存在会话的 `agentPreset` 建会话时固定，本会话为 `standard`）。
+
+### 零配置即时手段
+
+`standard` 预设已挂载 `dsh-command-compact`：被 400 卡住的当下手动 `/compact` 立即缩减派生历史；`tool-result-pruner`（已挂载）会在压缩确认后先修剪超大工具输出。压缩只作用于派生历史——系统提示词、工具 schema、会话前缀与单个不可分单元（如一次超大工具调用）不可缩减。
+
+### 与第十一节的分工
+
+`retryPolicy` 解决"400 把整轮打死"（有界重试扛过瞬态拒收）；容量/压缩解决"请求体大到容易触发 400"（从源头减小请求）。前者一行、热生效；后者一行（B1）或需预设副本（B2）。
+
+---
+
 ## 证据文件
 
 - `packages/llm/llm-pi-ai/src/config.ts` —— `PiAiProviderProfile`（L88 起，含 `reasoning` L150、`thinkingBudgets` L152、容量字段 `defaultContextWindow`/`defaultMaxTokens` L128-134）；第八节的兜底默认 `DEFAULT_CONTEXT_WINDOW = 262_144`（L61）与 `DEFAULT_MAX_TOKENS = 32_768`（L64），schema 默认值挂接在 L315-316；模型条目字段 `modelFields.reasoningEfforts` 为 `union([const(false), dict])` 并注明 absent 必须可与 `false` 区分（L284-297）；`reasoningEfforts` schema 注释解释 `off:` 留空为何能通过 schemastery（L268-281）；`assertServiceable` 把校验挂在 settings 写入点（L349）。
@@ -247,3 +350,14 @@ pi-ai 序列化每条历史 assistant 消息的收尾处（openai-completions.js
 - `packages/llm/llm/src/index.ts` —— L784-785 服务层 `defaultMaxTokens` 兜底（profile 未配则无兜底）。
 - `docs/config-catalog.md` —— L1187 `requiresReasoningContentOnAssistantMessages` 的目录文档（「replayed assistant messages need an empty reasoning_content while reasoning is on」）。
 - DeepSeek 官方思考模式指南：<https://api-docs.deepseek.com/guides/thinking_mode>（tools 在场时 `reasoning_content` 全程往返规则与 400 行为的原文出处）。
+- `packages/llm/llm-pi-ai/src/stream.ts` —— 第十一节归类落点：L45-48「400=非瞬态」假设注释与 `/\b400\b|invalid.?request/i → INVALID_REQUEST`；L57-64 `terminated → TRANSPORT`。
+- `packages/llm/llm/src/retry-policy.ts` —— 第十一节 retryPolicy schema 真源：L14-24 默认值（5 次/500ms/10s/0.1 与白名单五码）、L37-57 两模式类型、L81-103 schema、L105-119 严格键白名单、L149-195 `resolveRetryPolicy`（retryableCodes 禁空串/重复、backoff 约束）。
+- `packages/llm/llm-retry/src/index.ts` —— L32-34「retryPolicy belongs under each provider configuration」；L156-208 `recover()`：L177-179 白名单外直接放弃、L190 `maxRetries` 上限、重试=对同一 step 原样重发（失败步无 message 落账）。
+- `packages/llm/llm-pi-ai/src/index.ts` —— L12-53 官方 YAML 示例（providers/retryPolicy/models.contextWindow）；L98-109 `registrationFacts` 含 retryPolicy；L270-293 变更触发 `registration.replace` 原地重注册；L295-328 settings 节挂接与写入前校验（`assertServiceable`）。
+- `packages/llm/llm-pi-ai/src/config.ts` —— L177-178 provider profile 的 `retryPolicy` 字段；L457 `resolveRetryPolicy` 挂接点。
+- `packages/compaction/compaction-basic/src/config.ts` —— 第十二节策略面真源：L20-23 默认 0.8/0.16；L38-49 完整键表；L67-97 解析默认（maxTokens 8192、compactionRetries 1、maxOverflowRetries 1、auto true）；L133-167 `thresholdTokens = floor(contextWindow × thresholdRatio)`；L240-242 retainRatio/retainTokens 互斥；L254-275 摘要目标成对校验。
+- `packages/preset/agent-presets/presets/standard/agent.cordis.yml` —— L126-155：compaction 组（`compaction-basic` 无 config、`command-compact`、`tool-result-pruner` 的 thresholdChars/headChars/tailChars 默认值）。
+- `packages/preset/agent-presets/src/preset.ts` —— L53-72 预设根顺序（shipped system root 在前、同名 id 系统侧胜出）；`discovery.ts` L51 `USER_PRESET_DIR = '.agent-presets'`。
+- `docs/agent-lifecycle.md` L76 与 `docs/subsystems/compaction.md` L86 —— 压缩触发点：压力检查在 `agent/pre-step`、溢出恢复在 `agent/request-error`、pruner 先于范围选择。
+- 本机配置现状（2026-08-29 只读核对）：`C:\Users\Admin\.dsh\settings.yaml`——`llm-pi-ai.providers.b-ai` 含 `defaultContextWindow: 1000000` 与 compat/modelPolicies 相关项，**无 `retryPolicy`**；`C:\Users\Admin\.dsh\profiles\web\cordis.patch.yml` 为空数组 `[]`。
+- session-75ace70c 会话日志（用户提供副本）：L7118-7131 第 1 次 400 全序列（流式中断→`llm/retry`→400 finish→turn/end error）；L7365/7397/7654 同期 `SANDBOX_UNAVAILABLE`（沙盒临时目录丢失，与本节 400 无因果）；turn 4/5 成功步 usage（cacheRead≈254,464）为「同一请求体随后被受理」的证据。
