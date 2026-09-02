@@ -2,7 +2,7 @@
 
 ## 背景
 
-2026-08-26 在 Web UI 用「添加自定义提供方」录入了第三方 provider（Provider ID 为 `b-ai`）后，发现界面上没有任何设置推理强度的地方。本文记录源码层面的原因、正确的配置入口，以及 `llm-pi-ai` 推理档位声明的完整语义；同日按本文方案声明推理档位后出现了新的 400 报错，完整原因链与修复见第七节；界面把模型上下文窗口显示为 262k 的来源与改成 1M 的方法见第八节。同日稍晚，一个跑在该路由上的长会话又在思考模式 + 工具调用下出现 `reasoning_content` 回传 400，完整取证、原因链，以及 `requiresReasoningContentOnAssistantMessages` 与 `maxTokensField` 两个开关的准确语义和一次巧合性恢复的甄别，见第九、十节。2026-08-29 同一路由又出现两次 `Invalid request body` 400：上游对大请求体的间歇性拒收叠加 1M 容量声明下压缩永不触发，`retryPolicy` 有界重试与请求体尺寸治理见第十一、十二节。
+2026-08-26 在 Web UI 用「添加自定义提供方」录入了第三方 provider（Provider ID 为 `b-ai`）后，发现界面上没有任何设置推理强度的地方。本文记录源码层面的原因、正确的配置入口，以及 `llm-pi-ai` 推理档位声明的完整语义；同日按本文方案声明推理档位后出现了新的 400 报错，完整原因链与修复见第七节；界面把模型上下文窗口显示为 262k 的来源与改成 1M 的方法见第八节。同日稍晚，一个跑在该路由上的长会话又在思考模式 + 工具调用下出现 `reasoning_content` 回传 400，完整取证、原因链，以及 `requiresReasoningContentOnAssistantMessages` 与 `maxTokensField` 两个开关的准确语义和一次巧合性恢复的甄别，见第九、十节。2026-08-29 同一路由又出现两次 `Invalid request body` 400：上游对大请求体的间歇性拒收叠加 1M 容量声明下压缩永不触发，`retryPolicy` 有界重试与请求体尺寸治理见第十一、十二节。2026-09-02 在另一路由 ox-alpha 上读图报 `does not declare image input`：输入模态声明的缺省逻辑、`input` 的完整语义与视频输入的边界见第十三节。
 
 ## 一、为什么界面上没有推理强度控件（设计使然）
 
@@ -334,6 +334,82 @@ Schema 与校验（`packages/llm/llm/src/retry-policy.ts`）：
 
 ---
 
+## 十三、实战案例：读图报 `does not declare image input`——输入模态声明与视频输入的边界（2026-09-02）
+
+### 现象
+
+ox-alpha 路由（GLM 开放平台 `open.bigmodel.cn`，`api: openai-responses`）上的 `glm-5.3-flash` 被用户确认支持图片输入，但发起 `read_image` 报：
+
+```text
+Error: cannot read "<path>.png" as an image: model "glm-5.3-flash" does not declare image input; switch to an image-capable model to read images
+```
+
+### 拒绝点与判定链
+
+拒绝点在 `read_image` 工具执行前的路由门禁 `assertImageCapableRoute`（`packages/fs/tool-fs/src/read-image.ts:119-131`）：解析会话当前 provider/model 后调 `llm.resolveModelInfo()`，要求 `inputModalities` **显式包含** `'image'`；`inputModalities === undefined || 不含 image` 一律拒绝（L128-129 抛错）。整个门禁在任何文件系统 I/O 之前运行（L232-249 的预读闸门注释），所以报错不涉及文件本身。
+
+`llm` 服务层只是透传：`resolveModelInfo` 把适配器返回的 `inputModalities` 原样校验/分离后返回（`packages/llm/llm/src/index.ts:712-727`，L757-758 注释明确「显式省略 = 下游预检按负能力处理」——这是刻意的 fail-closed 设计）。真正的数据来源是 `llm-pi-ai` 适配器：`inputModalities: [...resolvedModel.input]`（`packages/llm/llm-pi-ai/src/adapter.ts:306`）。
+
+### 根因：`model.input` 的三级回退落在 `['text']` 兜底
+
+`model.input` 的解析优先级（`packages/llm/llm-pi-ai/src/catalog.ts:889`，`resolveRouteModels`）：
+
+```text
+entry.input（模型条目声明的 input）  ??  base?.input（pi-ai 内置目录条目）  ??  defaultInput（路由默认）
+```
+
+本例三级全部落在兜底：
+
+1. **模型条目没声明**：settings.yaml 中 ox-alpha 的 `glm-5.3-flash` 只有 `id/name/reasoningEfforts`，无 `input` 字段。
+2. **无 catalog 条目可继承**：路由键 `ox-alpha` 不是 pi-ai 内置 provider，`catalogModels()` 对未知 provider 返回空表（catalog.ts L186-190），`base` 不存在。
+3. **路由默认 `['text']`**：`DEFAULT_INPUT = ['text']`（`packages/llm/llm-pi-ai/src/config.ts:76`；schema 默认挂接 L324 `defaultInput`）。
+
+config.ts L66-76 的 JSDoc 解释了为什么兜底是 text 而不是猜测：没有任何端点可查询模态；少声明 = 图片在写入前被拒、指名模型；多声明 = 消息已落盘后才被 provider 中途拒绝，会话反复重放无法成功的请求。两种错误的代价不对称，未知一律按 text。
+
+### 为什么模型发现帮不上忙
+
+Models 页「获取可用模型」对 OpenAI 兼容端点走 `GET /models`，但解析只取 `id/name/contextWindow/max_tokens` 四个字段（`packages/llm/llm-pi-ai/src/discovery.ts:138-162` 的 `ListingEntry`/`readListing`）——模型列表响应不携带模态信息，发现结果永远不会带入 `input`。这是第八节同一结论（容量与模态都无法探测，只能显式声明）在模态上的又一次体现。
+
+### 同一根因的其他表现（不止 read_image）
+
+- **聊天直接上传/拖入图片**：会话端同样按 `resolveModelInfo().inputModalities` 预检，不含 image 即拒绝（`packages/api/session-controller/src/commands.ts:316-325`，报 `Model "glm-5.3-flash" does not support image input.`，错误码 `MODEL_DOES_NOT_SUPPORT_IMAGES`）。
+- **运行时投影**：即使历史里已有图片块，llm 核心发往纯文本模型前会把图片块替换为文本占位符（`packages/llm/llm/src/index.ts:996-1002`，`projectImagesForTextModel`），保证请求不会带一个网关必拒的块。
+- MCP 工具结果取图（`packages/mcp/mcp-client/src/tools.ts:417`）与 ACP 内容写入（`packages/acp/acp/src/content.ts:77`）有同款门禁。
+
+### 修复：显式声明 `input`
+
+settings.yaml 两种粒度（热生效，模型条目声明优先于路由默认）：
+
+```yaml
+    ox-alpha:
+      # …（apiKeyEnv/api/baseURL/retryPolicy 保持不变）
+      models:
+        - id: glm-5.3-flash
+          name: glm-5.3-flash
+          input: [text, image]          # 方案 A（推荐）：按模型精确声明
+          reasoningEfforts:
+            off: null
+            high: high
+            max: max
+      # 方案 B（路由级）：defaultInput: [text, image]
+      #   作用于该路由下所有未声明 input 的模型；不能写空列表（resolution 拒绝，
+      #   config.ts L444-446），且不收窄 catalog 模型自身的模态。
+```
+
+两点边界：`input` 与 compat/容量一样是**对端点的断言而非校验**——它只打开 DSH 侧闸门，多模态能否成功仍由 `open.bigmodel.cn` 的 `openai-responses` 端点实际兑现；若路由下某模型实际拒图，不要为它开 image。另外 b-ai 路由下的同名模型（当时 `agent-default-model` 指向处）同样没声明 `input`，需要读图就同样补一行。
+
+### 视频输入：当前链路不可声明
+
+用户确认 glm-5.3-flash 支持文本、图片、**视频**输入，但 `video` 写进 `input` 会在 settings 写入/解析处直接被拒绝：
+
+- DSH 的模态集合是封闭二元集：`MODALITY_GATE = { text: true, image: true }`（catalog.ts L47-53），`input` schema 用 `z.array(z.union(MODALITIES))` 校验（config.ts L298）。注释说明这是漂移门禁：上游 pi-ai 增删模态会让本包编译失败，逼人显式同步，而不是静默收窄可声明集。
+- 上游同样没有 video：pi-ai@0.84.2 的 `Model` 接口就是 `input: ("text" | "image")[]`（`dist/types.d.ts` L682）。
+- 再往下是链路性缺口：pi-ai 消息内容类型只有文本与 `ImagesInputContent`（无视频块），DSH 的会话历史、附件体系（attachment 服务只收 PNG/JPEG/WebP/GIF）、工具结果取图也都只有图片通道。即使上游补了模态字面量，还需要会话/附件/序列化整条链路支持视频内容块。
+
+因此 `[text, image]` 就是 DSH 当前能表达的**最大**输入能力集合；视频理解需在 DSH 之外抽帧为图片后走 `read_image`/图片上传路径。
+
+---
+
 ## 证据文件
 
 - `packages/llm/llm-pi-ai/src/config.ts` —— `PiAiProviderProfile`（L88 起，含 `reasoning` L150、`thinkingBudgets` L152、容量字段 `defaultContextWindow`/`defaultMaxTokens` L128-134）；第八节的兜底默认 `DEFAULT_CONTEXT_WINDOW = 262_144`（L61）与 `DEFAULT_MAX_TOKENS = 32_768`（L64），schema 默认值挂接在 L315-316；模型条目字段 `modelFields.reasoningEfforts` 为 `union([const(false), dict])` 并注明 absent 必须可与 `false` 区分（L284-297）；`reasoningEfforts` schema 注释解释 `off:` 留空为何能通过 schemastery（L268-281）；`assertServiceable` 把校验挂在 settings 写入点（L349）。
@@ -361,3 +437,13 @@ Schema 与校验（`packages/llm/llm/src/retry-policy.ts`）：
 - `docs/agent-lifecycle.md` L76 与 `docs/subsystems/compaction.md` L86 —— 压缩触发点：压力检查在 `agent/pre-step`、溢出恢复在 `agent/request-error`、pruner 先于范围选择。
 - 本机配置现状（2026-08-29 只读核对）：`C:\Users\Admin\.dsh\settings.yaml`——`llm-pi-ai.providers.b-ai` 含 `defaultContextWindow: 1000000` 与 compat/modelPolicies 相关项，**无 `retryPolicy`**；`C:\Users\Admin\.dsh\profiles\web\cordis.patch.yml` 为空数组 `[]`。
 - session-75ace70c 会话日志（用户提供副本）：L7118-7131 第 1 次 400 全序列（流式中断→`llm/retry`→400 finish→turn/end error）；L7365/7397/7654 同期 `SANDBOX_UNAVAILABLE`（沙盒临时目录丢失，与本节 400 无因果）；turn 4/5 成功步 usage（cacheRead≈254,464）为「同一请求体随后被受理」的证据。
+- `packages/fs/tool-fs/src/read-image.ts` —— 第十三节拒绝点：L119-131 `assertImageCapableRoute`（路由解析 request header config → agent options 回落，L127 `resolveModelInfo`，L128-129 模态检查与抛错）；L7-10 模块注释说明路由门禁刻意严于宿主上传预检；L232-249 预读闸门（模态门禁先于任何文件 I/O 与附件写入）。
+- `packages/llm/llm/src/index.ts` —— 第十三节服务层透传：L712-727 `resolveModelInfo`/`resolveModelInfoFor`/`normalizeModelInfo`；L757-758「显式省略 = 负能力，下游预检（图片准入）据此行动」注释；L996-1002 发往纯文本模型前把请求中的图片块投影为文本占位符（`projectImagesForTextModel`）。
+- `packages/llm/llm-pi-ai/src/adapter.ts` —— L306 `inputModalities: [...resolvedModel.input]`：pi-ai 适配器的模态逐字取自模型条目的 `input` 字段；L251-258 未配置模型在 `models.getModel` 处报 `UNKNOWN_MODEL`。
+- `packages/llm/llm-pi-ai/src/catalog.ts` —— 第十三节：L47-53 `MODALITY_GATE = { text, image }` 封闭二元模态与漂移门禁注释（`MODALITIES` 由此导出）；L64-66 `declaredInput` 把省略与空数组同读作「未表态」；L186-190 未知 provider 的目录为空表（无 `base` 可继承）；L889 三级回退 `entry.input ?? base?.input ?? [...request.defaultInput]`；L563-574 `PiAiModelProfile.input` 的契约 JSDoc。
+- `packages/llm/llm-pi-ai/src/config.ts` —— 第十三节：L66-76 `DEFAULT_INPUT = ['text']` 的 fail-closed 代价权衡 JSDoc（少声明 vs 多声明不对称）；L298 `input` schema `z.array(z.union(MODALITIES))`（无显式默认，absent 物化为 `[]`）；L324 路由 `defaultInput` schema 默认挂接 `[...DEFAULT_INPUT]`；L443-446 路由级空 `defaultInput` 拒绝。
+- `packages/llm/llm-pi-ai/src/discovery.ts` —— L138-162 `readListing`/`ListingEntry`：OpenAI 兼容 `GET /models` 解析只取 `id/name/context_window|context_length/max_output_tokens|max_tokens`，模态信息无处可来，发现结果永远不携带 `input`。
+- `packages/api/session-controller/src/commands.ts` —— L316-325 聊天上传图片的会话端同款门禁（`resolveModelInfo` 后不含 image 即拒绝，`MODEL_DOES_NOT_SUPPORT_IMAGES`）。
+- `packages/mcp/mcp-client/src/tools.ts` L417、`packages/acp/acp/src/content.ts` L77 —— 同一 `does not declare image input` 语义在 MCP 工具结果取图与 ACP 内容写入上的另两处落点。
+- `node_modules/.pnpm/@earendil-works+pi-ai@0.84.2_*/…/dist/types.d.ts` —— L682 `Model.input: ("text" | "image")[]`：上游无 video 模态的落点（llm-pi-ai 声明 `^0.84.2`，pnpm-lock 实际解析 0.84.2；旧节引用的 0.82.1 为历史版本）。
+- 本机配置现状（2026-09-02 只读核对，macOS `~/.dsh/settings.yaml`）：`llm-pi-ai.providers.ox-alpha`（displayName GLM、`api: openai-responses`、baseURL `https://open.bigmodel.cn/api/v1`）的 `glm-5.3-flash` 条目仅 `id/name/reasoningEfforts`，无 `input`，路由层亦无 `defaultInput`——第十三节三级回退落到 `['text']` 的直接配置证据；`agent-default-model` 指向 `b-ai` 路由的 `glm-5.3-flash`（同样未声明 `input`）。
