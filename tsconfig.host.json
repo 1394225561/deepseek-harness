@@ -323,6 +323,8 @@
     { "path": "./packages/workspace/workspace" },
     { "path": "./packages/session/session-title" },
     { "path": "./packages/session/working-directory" },
+    { "path": "./packages/experimental/worktree" },
+    { "path": "./packages/experimental/tool-worktree" },
     { "path": "./packages/session/tool-working-directory" },
     { "path": "./packages/session/session-title-llm" },
     { "path": "./packages/session/session-title-first-prompt-llm" },

@@ -1,0 +1,107 @@
+---
+description: "Create and enter a retained Git worktree under the calling Session file policy."
+kind: "package-reference"
+---
+
+# @deepseek-ai/dsh-experimental-worktree
+
+English | [中文](README.zh.md)
+
+## Summary
+
+Create an isolated checkout from a local commit and continue the same Session in it. Each operation creates a new named branch and leaves the source checkout intact. The existing sandbox governs all writes. Leaving the checkout retains its files and branch.
+
+## Table of Contents
+
+- [Use this package](#use-this-package)
+- [Understand the implementation](#understand-the-implementation)
+- [Further Exploration](#further-exploration)
+- [Model Experience](#model-experience)
+- [Known Limitations and Deferred Work](#known-limitations-and-deferred-work)
+- [Dev Note](#dev-note)
+
+-----
+
+<a id="use-this-package"></a>
+## Use this package
+
+Mount the service alongside `workingDirectory`, `fs`, `subprocess`, `sandbox`, and `sandboxPolicy` providers. Add the tool package when models need the operation.
+
+```yaml
+- name: '@deepseek-ai/dsh-experimental-worktree'
+- name: '@deepseek-ai/dsh-experimental-tool-worktree'
+```
+
+`ctx.worktrees.create(agent, { name?, from? }, signal?)` creates a new branch and checkout, then enters the canonical checkout directory through `ctx.workingDirectory.set`. `from` resolves to a local commit before creation and defaults to `HEAD`; staged, unstaged, untracked, and ignored source files are not copied. An existing branch or checkout path is an error. The returned record contains `path`, `branch`, `baseCommit`, and `repositoryRoot`.
+
+The default checkout directory is `<repository root>/.agents/worktrees/<name>`. Omitted names use `worktree-` plus a UUID. A newly created pool gets a `.gitignore` containing `*` and a trailing newline; existing pools and ignore files retain their contents. Relative `directory`, generated `namePrefix`, executable choices, and process limits are configurable in the [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-experimental-worktree).
+
+### Try from a source checkout
+
+The [source overlay](../../../apps/cli/config/examples/worktree/cordis.yml) adds both experimental plugins to the headless profile without changing its permission policy. From the repository root with dependencies installed, inspect the resulting composition:
+
+```sh
+pnpm dsh --profile headless --patch apps/cli/config/examples/worktree/cordis.yml --dump-config
+```
+
+The output includes `experimental-worktree` and `experimental-tool-worktree` rows. To run a model task, replace `--dump-config` with task text; the profile needs its normal provider credentials. Ask the model to create a new worktree from a local revision. Its existing write permissions must cover the destination and shared Git administration directory.
+
+-----
+
+<a id="understand-the-implementation"></a>
+## Understand the implementation
+
+<details>
+<summary>Implementation internals — click to expand</summary>
+
+Git and directory allocation run through the mounted subprocess and sandbox providers with the calling Session's existing file policy. Creation does not widen write access to the destination or shared Git administration directory. Directory creation claims the destination exclusively; cancellation and failed setup can leave retained artifacts, whose path appears in the error. Service disposal aborts pending operations and waits for their settlement.
+
+| Source | Responsibility |
+|---|---|
+| [`src/index.ts`](src/index.ts) | Resolve the source revision, create the checkout, and publish the new working directory |
+| [`src/process.ts`](src/process.ts) | Confine literal argv, cap output, and await process termination |
+| [`src/directory.ts`](src/directory.ts) | Claim the destination and initialize a newly created pool's ignore file |
+
+No runtime invariant companion is published: Git owns checkout registration and the working-directory service owns the Session directory; this package retains no independent projection of either.
+
+</details>
+
+-----
+
+<a id="further-exploration"></a>
+## Further Exploration
+
+- [Worktree subsystem](../../../docs/subsystems/worktrees.md) — request, result, and service reference.
+- [Working directory](../../session/working-directory/README.md) — recorded Session directory and directory changes.
+- [Worktree tool](../tool-worktree/README.md) — model-facing creation.
+- [Subprocess](../../subprocess/subprocess/README.md) — process ownership and execution worlds.
+- [Creation decision](../../../.agents/notes/implemented/feature/2026-09-13-explicit-worktree-creation.md) — retained checkouts and existing write grants.
+
+-----
+
+<a id="model-experience"></a>
+## Model Experience
+
+Indirectly, through the worktree tool's creation result and the working-directory service's recorded Session context.
+
+#### KV Cache effect
+
+This package contributes no prompt text. Its consumers own the appended tool result and recorded directory context.
+
+## Known Limitations and Deferred Work
+
+<a id="known-limitations-and-deferred-work"></a>
+
+- **Retained artifacts** — leaving a worktree keeps its branch and files. Setup failures can also retain partial artifacts; removal, pruning, and branch deletion belong to the user or another consumer.
+- **Local revisions only** — creation does not fetch commits or missing partial-clone objects, initialize submodules, install dependencies, or copy uncommitted files. Missing local objects cause creation to fail.
+- **Execution requirements** — the subprocess provider must offer Git 2.45 or newer and Node in the same execution world as the filesystem provider. Git must support `--no-lazy-fetch`; unsupported executables fail before directory allocation. The existing sandbox must permit all checkout and shared Git metadata writes.
+
+<a id="dev-note"></a>
+### Dev Note
+
+<details>
+<summary>Working context for maintainers — click to expand</summary>
+
+None.
+
+</details>

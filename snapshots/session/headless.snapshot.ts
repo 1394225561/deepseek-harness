@@ -496,6 +496,14 @@ const workspaceSetups: Record<string, (cwd: string) => Promise<void>> = {
     await symlink(process.execPath, join(cwd, 'office-node'))
     await symlink(join(repoRoot, 'packages/skill/skill-office/node_modules/@deepseek-ai/libreoffice-kit/lib/cli.js'), join(cwd, 'office-cli.js'))
   },
+  async 'git-worktree'(cwd) {
+    snapshotGit(cwd, ['init', '--initial-branch=main', '--object-format=sha1'])
+    snapshotGit(cwd, ['add', 'tracked.txt'])
+    snapshotGit(cwd, ['commit', '-m', 'Snapshot seed'])
+    await writeFile(join(cwd, '.git', 'info', 'exclude'), '/.dsh/\n/.snapshot-patches/\n')
+    await writeFile(join(cwd, 'tracked.txt'), 'DIRTY SOURCE\n')
+    await writeFile(join(cwd, 'local.txt'), 'UNTRACKED SOURCE\n')
+  },
   async 'editing-cordis-skill'(cwd) {
     const target = join(cwd, '.dsh', 'skills', 'editing-cordis-compositions', 'SKILL.md')
     await mkdir(dirname(target), { recursive: true })
@@ -723,6 +731,41 @@ function verifyWorkingDirectory(log: string, cwd: string): void {
     `The working directory changed from ${JSON.stringify(join(cwd, 'selected'))} to ${JSON.stringify(join(cwd, 'second'))}.`,
     `The working directory ${JSON.stringify(join(cwd, 'second'))} is unavailable. The working directory is now ${JSON.stringify(cwd)}.`,
   ])
+}
+
+/** Run fixture Git with deterministic commit identity and no user hooks or configuration. */
+function snapshotGit(cwd: string, args: string[]): string {
+  const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.autocrlf=false', '-c', 'commit.gpgSign=false', ...args], {
+    cwd,
+    encoding: 'utf8',
+    env: {
+      ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))),
+      GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null',
+      GIT_AUTHOR_NAME: 'DSH Snapshot', GIT_COMMITTER_NAME: 'DSH Snapshot',
+      GIT_AUTHOR_EMAIL: 'snapshot@example.invalid', GIT_COMMITTER_EMAIL: 'snapshot@example.invalid',
+      GIT_AUTHOR_DATE: '2000-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2000-01-01T00:00:00Z',
+    },
+  })
+  if (result.status !== 0) throw new Error(`snapshot Git failed: ${result.stderr}`)
+  return result.stdout.trim()
+}
+
+/** Verify Git-owned state independently of the Session and exclude only its volatile administration files from the file oracle. */
+async function verifyWorktree(log: string, cwd: string): Promise<void> {
+  const checkout = join(cwd, '.agents', 'worktrees', 'isolated')
+  expect(await readFile(join(checkout, 'tracked.txt'), 'utf8')).toBe('COMMITTED CONTENT\n')
+  expect(await readFile(join(checkout, 'result.txt'), 'utf8')).toBe('WORKTREE RESULT\n')
+  expect(existsSync(join(checkout, 'local.txt'))).toBe(false)
+  expect(await readFile(join(cwd, '.agents', 'worktrees', '.gitignore'), 'utf8')).toBe('*\n')
+  expect(snapshotGit(cwd, ['branch', '--show-current'])).toBe('main')
+  expect(snapshotGit(checkout, ['branch', '--show-current'])).toBe('isolated')
+  expect(snapshotGit(checkout, ['rev-parse', 'HEAD'])).toBe(snapshotGit(cwd, ['rev-parse', 'HEAD']))
+  expect(snapshotGit(cwd, ['worktree', 'list', '--porcelain'])).toContain(`worktree ${checkout}`)
+  expect(snapshotGit(cwd, ['check-ignore', '.agents/worktrees/isolated/result.txt'])).toBe('.agents/worktrees/isolated/result.txt')
+  const events = records(log)
+  expect(events.filter(event => event.type === 'working-directory/change').map(event => (event.data as JsonObject).cwd))
+    .toEqual([checkout, cwd])
+  expect(events.filter(event => event.type === 'system/message')).toHaveLength(1)
 }
 
 /** Exercise provider-cwd adoption through the shipped launcher without normalizing away the observation. */
@@ -1128,6 +1171,8 @@ describe('headless recorded-session snapshots', () => {
       const task = taskFromSession(primaryFixture) ?? scenario.manifest.input?.task
       if (task === undefined) throw new Error(`${scenario.name}: no accepted or exceptional task input`)
       const pin = pinOf(scenario)
+      const ignoredWorkspaceEntries = scenario.manifest.workspace?.setup === 'git-worktree'
+        ? [...RUNTIME_WORKSPACE_ENTRIES, '.git'] : RUNTIME_WORKSPACE_ENTRIES
       let model: { provider: string; model: string }
       try {
         model = modelFromSession(primaryFixture)
@@ -1214,7 +1259,7 @@ describe('headless recorded-session snapshots', () => {
             }
             await seedWorkspace(scenario, cwd)
             initialWorkspace = await captureWorkspaceSnapshot(cwd, {
-              ignoredRootEntries: RUNTIME_WORKSPACE_ENTRIES,
+              ignoredRootEntries: ignoredWorkspaceEntries,
             })
           },
           inspect: async (cwd) => {
@@ -1251,8 +1296,11 @@ describe('headless recorded-session snapshots', () => {
             if (scenario.name === 'working-directory') {
               verifyWorkingDirectory(actualLogs[0]!.content, await realpath(cwd))
             }
+            if (scenario.name === 'worktree') {
+              await verifyWorktree(actualLogs[0]!.content, await realpath(cwd))
+            }
             finalWorkspace = await captureWorkspaceSnapshot(cwd, {
-              ignoredRootEntries: RUNTIME_WORKSPACE_ENTRIES,
+              ignoredRootEntries: ignoredWorkspaceEntries,
             })
           },
         })

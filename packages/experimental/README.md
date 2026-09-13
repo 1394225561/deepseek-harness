@@ -47,6 +47,8 @@ Experimental prototypes may change their contracts and carry no support promise.
 | [`session-inspector`](session-inspector/README.md) | Sidebar tables for raw Session logs and Chat nodes | — |
 | [`inspector-profile`](inspector-profile/README.md) | Optional Web bundle for Session log and Chat node inspection | — |
 | [`tool-agent-team`](tool-agent-team/README.md) | Nine tools that let the model create, message, and coordinate teammates | registers scoped tools on `ctx.tools` |
+| [`worktree`](worktree/README.md) | Creates a named Git worktree and changes the calling Session directory | `ctx.worktrees` |
+| [`tool-worktree`](tool-worktree/README.md) | Lets the model create and enter a worktree | `ctx.tools` |
 | [`webworker-packer`](webworker-packer/README.md) | Builds the gzip-compressed VFS image consumed by the browser worker preview | library and CLI — no ctx key |
 | [`webworker-runtime`](webworker-runtime/README.md) | Runs the harness plugin tree inside a dedicated browser worker | library and worker entry — no ctx key |
 
@@ -56,6 +58,7 @@ Experimental prototypes may change their contracts and carry no support promise.
 ## Related documentation
 
 - [Experimental publication reference](../../scripts/experimental-package-policy.ts) — public defaults and private exceptions.
+- [Worktrees](../../docs/subsystems/worktrees.md) — explicit branch and checkout creation.
 - [Computer use](../../docs/subsystems/computer-use.md) — desktop provider choices.
 - [Browser use](../../docs/subsystems/browser-use.md) — browser provider choices and Session ownership.
 - [Agent Teams subsystem](../../docs/subsystems/agent-team.md) — durable Team types and the `ctx.agentTeams` service API.
