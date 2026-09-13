@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { provideWorkingDirectoryFixture } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-instructions'
@@ -27,7 +28,6 @@ import SessionStore, {
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SubagentRuntime, {
   NO_START_CAPABILITIES,
-  resolveChildCwd,
   snapshotSubagentDescriptor,
   type ResolvedSubagentStartRequest,
 } from '@deepseek-ai/dsh-subagent'
@@ -131,6 +131,7 @@ async function harness(
   permissionConfig: NonNullable<Parameters<typeof PermissionPresetService.Config>[0]> = { presets: PRESETS, defaultPreset: 'workspace-write' },
 ): Promise<{ ctx: Context; adapter: RecordingAdapter; auto: PluginFiber }> {
   const ctx = new Context()
+  provideWorkingDirectoryFixture(ctx)
   contexts.push(ctx)
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(SessionStore)
@@ -1291,11 +1292,7 @@ describe('out-of-process delegation boundary', () => {
     expect(timeline).toEqual(['review:deny', 'review:allow', 'provider:start'])
     expect(adapter.requests).toHaveLength(2)
     expect(providerRequest?.parent).toBe(agent)
-    expect(resolveChildCwd(
-      'remote-boundary',
-      undefined,
-      providerRequest?.parent.session.header.cwd,
-    )).toBe(process.cwd())
+    expect(providerRequest?.cwd).toBe(process.cwd())
     expect(providerRequest?.agentOptions).toBeUndefined()
     expect(providerRequest?.maxDepth).toBeUndefined()
     expect(providerRequest?.persona).toBeUndefined()
@@ -1520,6 +1517,7 @@ describe('cancellation and integration teardown', () => {
 
   it('publishes Auto without validating the preset table at load', async () => {
     const invalid = new Context()
+    provideWorkingDirectoryFixture(invalid)
     contexts.push(invalid)
     await invalid.plugin(LlmRuntime)
     await invalid.plugin(SessionStore)
@@ -1708,7 +1706,8 @@ describe('logged-fact failures', () => {
     }), 'auto-review: the session has no working directory')
 
     expect(probe.runs()).toBe(0)
-    expect(adapter.requests).toHaveLength(0)
+    expect(adapter.requests).toHaveLength(1)
+    expect(JSON.stringify(adapter.requests[0]?.messages)).toContain(process.cwd())
   })
 
   it('fails closed for missing, ambiguous, or conflicting PTC facts', async () => {

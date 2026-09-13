@@ -499,6 +499,11 @@
     },
     {
       "doc": "docs/subsystems/system-prompt.md",
+      "symbol": "AssembledContext",
+      "source": "packages/core/system-prompt/src/index.ts"
+    },
+    {
+      "doc": "docs/subsystems/system-prompt.md",
       "symbol": "PromptSection",
       "source": "packages/core/system-prompt/src/index.ts"
     },

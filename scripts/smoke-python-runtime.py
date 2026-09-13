@@ -2277,8 +2277,8 @@ def build_minimal_snapshot_files(
     kept verbatim: they carry what the deployment actually shows the model, so a plugin
     that contributes an unintended system section or user message cannot pass unnoticed.
     Assistant and tool payloads keep only their call identity because their text differs
-    across the platforms this expected output must replay on. The shipped profile omits
-    dynamic runtime context, so every message it emits is compared.
+    across the platforms this expected output must replay on. Required working-directory
+    context remains visible even when the profile disables optional runtime context.
     """
     snapshot = []
     for body in requests:
