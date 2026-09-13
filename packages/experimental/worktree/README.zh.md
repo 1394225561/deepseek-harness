@@ -34,17 +34,7 @@ kind: "package-reference"
 
 `ctx.worktrees.create(agent, { name?, from? }, signal?)` 创建新分支与检出目录，再通过 `ctx.workingDirectory.set` 进入规范化的检出目录。`from` 在创建前解析为本地提交，默认是 `HEAD`；暂存、未暂存、未跟踪以及被忽略的源文件均不复制。分支或检出路径已存在时会报错。返回记录包含 `path`、`branch`、`baseCommit` 和 `repositoryRoot`。
 
-默认检出目录是 `<repository root>/.agents/worktrees/<name>`。省略名称时，使用 `worktree-` 加 UUID。新创建的工作树父目录会得到内容为 `*` 加换行符的 `.gitignore`；已有目录与忽略文件保持原有内容。相对路径 `directory`、生成名称使用的 `namePrefix`、可执行程序与进程限制可在[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-experimental-worktree)中查阅。
-
-### 从源码检出目录尝试
-
-[源码叠加配置](../../../apps/cli/config/examples/worktree/cordis.yml)将两个实验插件加入 headless profile，不改变其权限策略。在已安装依赖的仓库根目录中查看最终组合：
-
-```sh
-pnpm dsh --profile headless --patch apps/cli/config/examples/worktree/cordis.yml --dump-config
-```
-
-输出包含 `experimental-worktree` 与 `experimental-tool-worktree` 配置项。运行模型任务时，用任务文本替换 `--dump-config`；profile 需要正常的提供方凭据。可要求模型从本地版本创建新工作树。现有写权限必须覆盖目标目录与共享 Git 管理目录。
+默认检出目录是 `<current checkout root>/.agents/worktrees/<name>`。返回的 `repositoryRoot` 是调用方当前检出目录的顶层目录；如果它是链接检出目录，工作树父目录就嵌套在其中。省略名称时，使用 `worktree-` 加 UUID。仅当服务的分配操作创建了父目录时，服务才会写入内容为 `*` 加换行符的 `.gitignore`；已有文件与忽略规则保持不变。相对路径 `directory`、生成名称使用的 `namePrefix`、可执行程序与进程限制可在[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-experimental-worktree)中查阅。
 
 -----
 
@@ -102,6 +92,6 @@ Git 与目录分配通过挂载的子进程及沙箱提供方执行，沿用调�
 <details>
 <summary>维护者的工作上下文——点击展开</summary>
 
-无。
+沙箱内的 Node 子进程提供[文件系统服务](../../fs/fs/src/index.ts)未公开的独占目录创建能力，并确定父目录是否由本服务创建。文件系统契约允许 [fs-local](../../fs/fs-local/src/index.ts) 等普通提供方在写入时忽略 `sandboxPolicy`；`createIfAbsent` 保护文件，但既不执行权限约束，也不确定目录由谁创建。将目录分配和忽略文件创建放在与 Git 相同的进程沙箱内，可保留对已有检出路径的拒绝行为，并落实创建 `.gitignore` 的条件。
 
 </details>

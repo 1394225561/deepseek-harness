@@ -15,7 +15,7 @@ export interface ProcessConfig {
   maxOutputBytes: number
 }
 
-/** Git environment selectors cannot redirect an operation away from its explicit cwd. */
+/** Clear inherited repository and command-line Git configuration selectors. */
 const GIT_ENV: NodeJS.ProcessEnv = Object.fromEntries([
   'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY',
   'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT',

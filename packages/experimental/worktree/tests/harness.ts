@@ -54,6 +54,7 @@ export async function repository(parent = tmpdir()): Promise<string> {
   const path = await realpath(await mkdtemp(join(parent, 'dsh-worktree-')))
   try {
     await git(path, 'init', '-b', 'main')
+    await git(path, 'config', 'core.autocrlf', 'false')
     await git(path, 'config', 'user.name', 'Worktree fixture')
     await git(path, 'config', 'user.email', 'worktree@example.invalid')
     await git(path, 'config', 'commit.gpgSign', 'false')

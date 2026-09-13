@@ -1,11 +1,28 @@
 import { mkdir, readFile, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
+import { SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
+import LocalSandbox from '@deepseek-ai/dsh-sandbox-local'
 import { git, harness, repository, testAgent } from './harness.ts'
 
 let ctx: Context | undefined
 let root: string | undefined
+
+const sandboxUsable = await (async () => {
+  if (process.platform !== 'darwin' && process.platform !== 'linux') return false
+  const probe = new Context()
+  try {
+    await probe.plugin(LocalSandbox)
+    await probe.sandbox.confine([process.execPath, '--version'], { mode: 'read-only', workspaceRoot: process.cwd() })
+    return true
+  } catch (error: unknown) {
+    if (error instanceof SandboxUnavailableError) return false
+    throw error
+  } finally {
+    await probe.fiber.dispose()
+  }
+})()
 
 afterEach(async () => {
   await ctx?.fiber.dispose()
@@ -15,7 +32,8 @@ afterEach(async () => {
 })
 
 // The local sandbox's POSIX kernel runners are covered here; Windows ACL enforcement has its own native lane.
-describe.runIf(process.platform === 'darwin' || process.platform === 'linux')('worktree standing sandbox policy', () => {
+// Source-tree repositories stay outside the temporary directories independently writable under workspace-write.
+describe.skipIf(!sandboxUsable)('worktree standing sandbox policy', () => {
   it('refuses creation under read-only policy without changing the Session directory', async () => {
     root = await repository(process.cwd())
     const pool = join(root, '.agents', 'worktrees')

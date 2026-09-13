@@ -35,6 +35,11 @@ export interface Config {
 
 type ResolvedConfig = Required<Config> & ProcessConfig
 
+interface WorktreeSpec {
+  branch: string
+  revision: string
+}
+
 declare module '@deepseek-ai/cordis' {
   interface Context {
     worktrees: WorktreeService
@@ -99,7 +104,8 @@ export class WorktreeService extends Service {
    */
   async create(agent: Agent, request: CreateWorktreeRequest = {}, signal?: AbortSignal): Promise<CreatedWorktree> {
     const operationSignal = signal === undefined ? this.lifetime.signal : AbortSignal.any([this.lifetime.signal, signal])
-    const operation = this.createCheckout(agent, request, operationSignal)
+    operationSignal.throwIfAborted()
+    const operation = this.createCheckout(agent, this.resolve(request), operationSignal)
     this.pending.add(operation)
     try {
       return await operation
@@ -108,12 +114,15 @@ export class WorktreeService extends Service {
     }
   }
 
-  private async createCheckout(agent: Agent, request: CreateWorktreeRequest, signal: AbortSignal): Promise<CreatedWorktree> {
-    signal.throwIfAborted()
+  private resolve(request: CreateWorktreeRequest): WorktreeSpec {
     const branch = request.name ?? `${this.config.namePrefix}${randomUUID()}`
     if (!relativePath(branch) || branch.startsWith('-')) throw new Error('worktree name must be a relative Git branch name')
     const revision = request.from ?? 'HEAD'
     if (revision.length === 0) throw new Error('worktree from must name a local commit, branch, or tag')
+    return { branch, revision }
+  }
+
+  private async createCheckout(agent: Agent, { branch, revision }: WorktreeSpec, signal: AbortSignal): Promise<CreatedWorktree> {
     const cwd = await this.ctx.workingDirectory.ensure(agent, signal)
     const policy = this.ctx.sandboxPolicy.resolve({ session: agent.session })
     const run = (directory: string, args: string[], allowedExitCodes?: number[]) => runCommand(

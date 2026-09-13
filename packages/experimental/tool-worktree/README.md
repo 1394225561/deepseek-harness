@@ -66,7 +66,7 @@ No runtime invariant companion is published because the tool retains no state in
 
 #### What the model sees
 
-The [tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-experimental-tool-worktree) defines `create_worktree`. Each successful result contains the created checkout's canonical path, branch, base commit, and source repository root. Failed calls report the operation error.
+The [tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-experimental-tool-worktree) defines `create_worktree`. Each successful result contains the created checkout's canonical path, branch, base commit, and source checkout’s top-level directory. Failed calls report the operation error.
 
 #### Token effect
 

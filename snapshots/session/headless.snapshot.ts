@@ -498,6 +498,7 @@ const workspaceSetups: Record<string, (cwd: string) => Promise<void>> = {
   },
   async 'git-worktree'(cwd) {
     snapshotGit(cwd, ['init', '--initial-branch=main', '--object-format=sha1'])
+    snapshotGit(cwd, ['config', 'core.autocrlf', 'false'])
     snapshotGit(cwd, ['add', 'tracked.txt'])
     snapshotGit(cwd, ['commit', '-m', 'Snapshot seed'])
     await writeFile(join(cwd, '.git', 'info', 'exclude'), '/.dsh/\n/.snapshot-patches/\n')
@@ -1172,7 +1173,7 @@ describe('headless recorded-session snapshots', () => {
       if (task === undefined) throw new Error(`${scenario.name}: no accepted or exceptional task input`)
       const pin = pinOf(scenario)
       const ignoredWorkspaceEntries = scenario.manifest.workspace?.setup === 'git-worktree'
-        ? [...RUNTIME_WORKSPACE_ENTRIES, '.git'] : RUNTIME_WORKSPACE_ENTRIES
+        ? [...RUNTIME_WORKSPACE_ENTRIES.filter(entry => entry !== '.agents'), '.git'] : RUNTIME_WORKSPACE_ENTRIES
       let model: { provider: string; model: string }
       try {
         model = modelFromSession(primaryFixture)
@@ -1302,6 +1303,10 @@ describe('headless recorded-session snapshots', () => {
             finalWorkspace = await captureWorkspaceSnapshot(cwd, {
               ignoredRootEntries: ignoredWorkspaceEntries,
             })
+            if (scenario.name === 'worktree') {
+              // The linked checkout's .git pointer contains the temporary source path; Git assertions verify it separately.
+              finalWorkspace = finalWorkspace.filter(entry => entry.path !== '.agents/worktrees/isolated/.git')
+            }
           },
         })
       } finally {

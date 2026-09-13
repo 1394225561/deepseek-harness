@@ -1,8 +1,0 @@
-# Source-checkout overlay: pnpm dsh supplies the TypeScript loader.
-# The source paths keep experimental packages out of stable CLI dependencies.
-
-- insert:
-    - id: experimental-worktree
-      name: '../../../../../packages/experimental/worktree/src/index.ts'
-    - id: experimental-tool-worktree
-      name: '../../../../../packages/experimental/tool-worktree/src/index.ts'

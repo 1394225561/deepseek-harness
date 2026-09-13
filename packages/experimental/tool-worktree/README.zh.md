@@ -66,7 +66,7 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-[工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-experimental-tool-worktree)定义 `create_worktree`。每个成功结果包含已创建检出目录的规范路径、分支、基准提交与源仓库根目录。失败调用报告操作错误。
+[工具目录](../../../docs/tool-catalog.zh.md#deepseek-aidsh-experimental-tool-worktree)定义 `create_worktree`。每个成功结果包含已创建检出目录的规范路径、分支、基准提交与源检出目录的顶层目录。失败调用报告操作错误。
 
 #### Token 影响
 

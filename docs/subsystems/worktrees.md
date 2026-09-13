@@ -8,9 +8,9 @@ The experimental [`dsh-experimental-worktree`](../../packages/experimental/workt
 
 The calling Session's current directory selects the source repository. Creation pins the requested local commit, branch, or tag before allocating the checkout; omission selects `HEAD`. Each name must identify a new branch and an unused checkout path. The operation neither fetches missing objects nor copies staged, unstaged, untracked, or ignored files from the source checkout.
 
-The default destination is `<repository root>/.agents/worktrees/<name>`. The tool adds a `.gitignore` containing `*` and a trailing newline only when it creates the configured directory that contains the worktrees. Existing files and ignore rules are preserved. The calling Session's existing sandbox policy must permit writes to the destination and shared Git administration directory. Successful Git setup precedes the working-directory change.
+The default destination is `<current checkout root>/.agents/worktrees/<name>`. `repositoryRoot` is the top-level directory of the caller’s current checkout; a linked checkout therefore contains its own pool. The service writes a `.gitignore` containing `*` and a trailing newline only when its allocation creates the configured pool directory. Existing files and ignore rules are preserved. The calling Session’s existing sandbox policy must permit writes to the destination and shared Git administration directory. Successful Git setup precedes the working-directory change.
 
-Leaving through `working_directory({ cd: path })` retains the checkout and branch. Cancellation or failure can also retain partial artifacts; the error identifies their location. The service aborts and drains pending operations on disposal. The [package README](../../packages/experimental/worktree/README.md) owns configuration, Git requirements, and the source example.
+Leaving through `working_directory({ cd: path })` retains the checkout and branch. Cancellation or failure can also retain partial artifacts; the error identifies their location. The service aborts and drains pending operations on disposal. The [package README](../../packages/experimental/worktree/README.md) owns configuration and Git requirements.
 
 ## Request and result
 

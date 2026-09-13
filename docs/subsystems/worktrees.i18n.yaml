@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/subsystems/worktrees.md
-worktrees.md: c194159193e8787619e44010ed1903bb558b90fd
-worktrees.zh.md: 95f88fc322398aca30e1607468044d6d536857cc
+worktrees.md: eea56a5eb3f145df42b22bd12d552f62da0122f2
+worktrees.zh.md: 1c76fb5187fbb757ce9af82258d66b2387433f62

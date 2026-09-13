@@ -34,17 +34,7 @@ Mount the service alongside `workingDirectory`, `fs`, `subprocess`, `sandbox`, a
 
 `ctx.worktrees.create(agent, { name?, from? }, signal?)` creates a new branch and checkout, then enters the canonical checkout directory through `ctx.workingDirectory.set`. `from` resolves to a local commit before creation and defaults to `HEAD`; staged, unstaged, untracked, and ignored source files are not copied. An existing branch or checkout path is an error. The returned record contains `path`, `branch`, `baseCommit`, and `repositoryRoot`.
 
-The default checkout directory is `<repository root>/.agents/worktrees/<name>`. Omitted names use `worktree-` plus a UUID. A newly created pool gets a `.gitignore` containing `*` and a trailing newline; existing pools and ignore files retain their contents. Relative `directory`, generated `namePrefix`, executable choices, and process limits are configurable in the [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-experimental-worktree).
-
-### Try from a source checkout
-
-The [source overlay](../../../apps/cli/config/examples/worktree/cordis.yml) adds both experimental plugins to the headless profile without changing its permission policy. From the repository root with dependencies installed, inspect the resulting composition:
-
-```sh
-pnpm dsh --profile headless --patch apps/cli/config/examples/worktree/cordis.yml --dump-config
-```
-
-The output includes `experimental-worktree` and `experimental-tool-worktree` rows. To run a model task, replace `--dump-config` with task text; the profile needs its normal provider credentials. Ask the model to create a new worktree from a local revision. Its existing write permissions must cover the destination and shared Git administration directory.
+The default checkout directory is `<current checkout root>/.agents/worktrees/<name>`. The returned `repositoryRoot` is the top-level directory of the caller’s current checkout; when it is a linked checkout, the pool is nested inside it. Omitted names use `worktree-` plus a UUID. The service writes a `.gitignore` containing `*` and a trailing newline only when its allocation creates the pool; existing files and ignore rules are preserved. Relative `directory`, generated `namePrefix`, executable choices, and process limits are configurable in the [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-experimental-worktree).
 
 -----
 
@@ -102,6 +92,6 @@ This package contributes no prompt text. Its consumers own the appended tool res
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-None.
+The sandboxed Node child supplies exclusive directory creation, which the [filesystem service](../../fs/fs/src/index.ts) does not expose, and identifies whether this service created the pool. The filesystem contract permits bare providers such as [fs-local](../../fs/fs-local/src/index.ts) to ignore `sandboxPolicy` on writes; `createIfAbsent` protects a file but neither enforces permissions nor identifies who created its directory. Keeping directory allocation and ignore-file creation under the same process sandbox as Git preserves refusal of existing checkout paths and the condition for creating `.gitignore`.
 
 </details>

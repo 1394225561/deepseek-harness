@@ -79,6 +79,56 @@ describe('creating and entering retained worktrees', () => {
     expect(await contents(join(root, 'checkouts/.gitignore'))).toBe('custom\n')
   })
 
+  it('creates from a linked checkout using its own commit and default pool', async () => {
+    const root = await repo()
+    const linked = join(root, 'linked')
+    await git(root, 'worktree', 'add', '-b', 'linked', linked)
+    await writeFile(join(linked, 'tracked.txt'), 'linked revision\n')
+    await git(linked, 'commit', '-am', 'linked revision')
+    const baseCommit = await git(linked, 'rev-parse', 'HEAD')
+    ctx = await harness(linked)
+    const agent = testAgent(ctx, linked)
+
+    const result = await ctx.worktrees.create(agent, { name: 'from-linked' })
+
+    expect(result).toEqual({
+      path: join(linked, '.agents/worktrees/from-linked'),
+      branch: 'from-linked', baseCommit, repositoryRoot: linked,
+    })
+    expect(await contents(join(result.path, 'tracked.txt'))).toBe('linked revision\n')
+    expect(await contents(join(root, 'tracked.txt'))).toBe('initial\n')
+    expect(await git(result.path, 'symbolic-ref', '--short', 'HEAD')).toBe('from-linked')
+    expect(await git(linked, 'symbolic-ref', '--short', 'HEAD')).toBe('linked')
+    expect(await git(root, 'worktree', 'list', '--porcelain')).toContain(`worktree ${result.path}`)
+    expect(ctx.workingDirectory.get(agent.session)).toBe(result.path)
+  })
+
+  it.each(['preflight', 'allocation'] as const)('refuses a regular file at the pool path during %s without replacing it or creating a branch', async (stage) => {
+    const root = await repo()
+    const pool = join(root, 'checkouts')
+    ctx = await harness(root, { directory: 'checkouts' })
+    const agent = testAgent(ctx, root)
+    if (stage === 'preflight') {
+      await writeFile(pool, 'retain this file\n')
+    } else {
+      const inspect = ctx.fs.lstat.bind(ctx.fs)
+      vi.spyOn(ctx.fs, 'lstat').mockImplementationOnce(async (...args) => {
+        const found = await inspect(...args)
+        await writeFile(pool, 'retain this file\n')
+        return found
+      })
+    }
+
+    await expect(ctx.worktrees.create(agent, { name: 'blocked' })).rejects.toThrow(stage === 'preflight'
+      ? 'a parent path segment is not a directory' : 'EEXIST')
+
+    expect(await contents(pool)).toBe('retain this file\n')
+    expect(await git(root, 'branch', '--list', 'blocked')).toBe('')
+    expect((await git(root, 'worktree', 'list', '--porcelain')).split('\n').filter(line => line.startsWith('worktree ')))
+      .toEqual([`worktree ${root}`])
+    expect(ctx.workingDirectory.get(agent.session)).toBe(root)
+  })
+
   it('keeps the resolved commit when HEAD advances before checkout allocation', async () => {
     const root = await repo()
     const baseCommit = await git(root, 'rev-parse', 'HEAD')

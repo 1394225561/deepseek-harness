@@ -44,6 +44,7 @@ describe('worktree tool through real Loader composition', () => {
       env: { ...process.env, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '', GIT_CONFIG_PARAMETERS: '', GIT_CONFIG_COUNT: '0', GIT_DIR: undefined, GIT_WORK_TREE: undefined, GIT_INDEX_FILE: undefined },
     })
     await git('init', '-b', 'main')
+    await git('config', 'core.autocrlf', 'false')
     await writeFile(join(repository, 'file.txt'), 'committed\n')
     await git('add', 'file.txt')
     await git('-c', 'user.name=Worktree fixture', '-c', 'user.email=worktree@example.invalid', '-c', 'commit.gpgSign=false', 'commit', '-m', 'initial')
