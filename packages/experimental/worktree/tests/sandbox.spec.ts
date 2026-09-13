@@ -1,4 +1,4 @@
-import { rm } from 'node:fs/promises'
+import { mkdir, readFile, readdir, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
@@ -18,14 +18,35 @@ afterEach(async () => {
 describe.runIf(process.platform === 'darwin' || process.platform === 'linux')('worktree standing sandbox policy', () => {
   it('refuses creation under read-only policy without changing the Session directory', async () => {
     root = await repository(process.cwd())
+    const pool = join(root, '.agents', 'worktrees')
+    await mkdir(pool, { recursive: true })
     ctx = await harness(root, {}, 'read-only')
     const agent = testAgent(ctx, root)
     const confine = vi.spyOn(ctx.sandbox, 'confine')
     await expect(ctx.worktrees.create(agent, { name: 'denied' })).rejects.toThrow(/permission denied|operation not permitted|read-only file system/i)
+    expect(await readdir(pool)).toEqual([])
     expect(ctx.workingDirectory.get(agent.session)).toBe(root)
     expect(await git(root, 'branch', '--list', 'denied')).toBe('')
     expect(confine.mock.calls.length).toBeGreaterThan(0)
     expect(confine.mock.calls.every(call => call[1].mode === 'read-only' && call[1].workspaceRoot === root)).toBe(true)
+  })
+
+  it('creates a checkout in the default pool under the source workspace-write grant', async () => {
+    root = await repository(process.cwd())
+    ctx = await harness(root, {}, 'workspace-write')
+    const agent = testAgent(ctx, root)
+    const confine = vi.spyOn(ctx.sandbox, 'confine')
+    const created = await ctx.worktrees.create(agent, { name: 'allowed' })
+    const checkout = join(root, '.agents', 'worktrees', 'allowed')
+
+    expect(created.path).toBe(checkout)
+    expect(await readFile(join(checkout, 'tracked.txt'), 'utf8')).toBe('initial\n')
+    expect(await git(checkout, 'branch', '--show-current')).toBe('allowed')
+    expect(await git(root, 'branch', '--show-current')).toBe('main')
+    expect(await git(root, 'worktree', 'list', '--porcelain')).toContain(`worktree ${checkout}`)
+    expect(ctx.workingDirectory.get(agent.session)).toBe(checkout)
+    expect(confine.mock.calls.length).toBeGreaterThan(0)
+    expect(confine.mock.calls.every(call => call[1].mode === 'workspace-write' && call[1].workspaceRoot === root)).toBe(true)
   })
 
   it('does not widen a linked-checkout grant to the shared Git administration directory', async () => {
