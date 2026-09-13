@@ -1,5 +1,5 @@
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Context } from '@deepseek-ai/cordis'
@@ -99,7 +99,7 @@ describe('creating and entering retained worktrees', () => {
     expect(await contents(join(root, 'tracked.txt'))).toBe('initial\n')
     expect(await git(result.path, 'symbolic-ref', '--short', 'HEAD')).toBe('from-linked')
     expect(await git(linked, 'symbolic-ref', '--short', 'HEAD')).toBe('linked')
-    expect(await git(root, 'worktree', 'list', '--porcelain')).toContain(`worktree ${result.path}`)
+    expect(await git(root, 'worktree', 'list', '--porcelain')).toContain(`worktree ${result.path.split(sep).join('/')}`)
     expect(ctx.workingDirectory.get(agent.session)).toBe(result.path)
   })
 
@@ -125,7 +125,7 @@ describe('creating and entering retained worktrees', () => {
     expect(await contents(pool)).toBe('retain this file\n')
     expect(await git(root, 'branch', '--list', 'blocked')).toBe('')
     expect((await git(root, 'worktree', 'list', '--porcelain')).split('\n').filter(line => line.startsWith('worktree ')))
-      .toEqual([`worktree ${root}`])
+      .toEqual([`worktree ${root.split(sep).join('/')}`])
     expect(ctx.workingDirectory.get(agent.session)).toBe(root)
   })
 
@@ -268,6 +268,23 @@ describe('creating and entering retained worktrees', () => {
     expect(await contents(join(root, '.agents/worktrees/retained/tracked.txt'))).toBe('initial\n')
   })
 
+  it('does not spawn Git when the sandbox refuses the standing workspace-write policy', async () => {
+    const root = await repo()
+    ctx = await harness(root, {}, 'workspace-write')
+    const agent = testAgent(ctx, root)
+    const failure = new Error('fixture sandbox refused confinement')
+    const confine = vi.spyOn(ctx.sandbox, 'confine').mockRejectedValue(failure)
+    const spawn = vi.spyOn(ctx.subprocess, 'spawn')
+
+    await expect(ctx.worktrees.create(agent, { name: 'denied-confinement' })).rejects.toBe(failure)
+
+    expect(confine).toHaveBeenCalledOnce()
+    expect(confine.mock.calls[0]?.[1]).toMatchObject({ mode: 'workspace-write', workspaceRoot: root })
+    expect(spawn).not.toHaveBeenCalled()
+    expect(ctx.workingDirectory.get(agent.session)).toBe(root)
+    expect(await readdir(root)).toEqual(['.git', 'tracked.txt'])
+  })
+
   it('does not reset the dirty source when shared Git configuration points at it', async () => {
     const root = await repo()
     await git(root, 'config', 'core.worktree', root)
@@ -278,7 +295,7 @@ describe('creating and entering retained worktrees', () => {
     expect(await contents(join(root, 'tracked.txt'))).toBe('dirty source\n')
     expect(await contents(join(root, '.git/config'))).toBe(config)
     expect(await contents(join(result.path, 'tracked.txt'))).toBe('initial\n')
-    expect(await git(result.path, 'rev-parse', '--show-toplevel')).toBe(result.path)
+    expect(await git(result.path, 'rev-parse', '--show-toplevel')).toBe(result.path.split(sep).join('/'))
   })
 
   it('rejects cancellation and invalid deployment config before allocating a checkout', async () => {
