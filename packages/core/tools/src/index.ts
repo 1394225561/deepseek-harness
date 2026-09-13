@@ -945,6 +945,8 @@ export class ToolRuntime extends Service {
   private requirePtcTransport(): ToolDefinition {
     this.ptcTransport ??= createRunCodeTool(this, {
       resolveWorkingDirectory: async (exec) => {
+        // Only Agent-owned PTC requires directory state; native registries
+        // and unowned programs can run without this service.
         if (exec.agent === undefined) return undefined
         const directories = this.ctx.get('workingDirectory')
         if (directories === undefined) throw new Error('dsh-tools: run_code with an Agent requires workingDirectory')

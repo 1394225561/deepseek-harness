@@ -73,6 +73,8 @@ ctx.systemPrompt.section({
 ctx.systemPrompt.variable('response_language', () => 'English')
 ```
 
+自定义 persona 模板不得依赖内置 `{{cwd}}` 变量：循环不注册它，因此无法解析的引用会在任何模型请求之前使提示词组装失败。请从 home、profile 或单次调用的 `personaSuffix` 设置以及 preset 的 `suffix` 字段中移除 `Your working directory is {{cwd}}.` 语句，保留无关文本。后缀没有其他内容时，可省略或清空该字段。[工作目录服务](../../session/working-directory/README.zh.md) 提供必需的当前目录上下文。
+
 ### 贡献工具 schema
 
 工具 schema 提供方在每次组装时求值，并贡献模型可见的 `ToolSchema` 集合；`ToolRuntime` 会自动注册自身，因此大多数工具在此无需手动接线。提供方返回限制后的可见集合，外加 `toolOrder` 使用的限制前名称全集。

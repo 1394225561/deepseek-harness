@@ -77,7 +77,7 @@ Directory transitions append context without replacing the stable system-prompt 
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- **Missing original project** — recovery fails when the original directory is unavailable; the service does not choose or recreate a repository. Existing shells retain their process-local directories.
+- **Missing original project** — when the current directory and the original project are both unavailable, prompt assembly rejects every model turn, including chat-only turns. The service does not choose or recreate a repository. Restore the original directory, or use SDK `setWorkingDirectory` (`set_working_directory` in Python) or `ctx.workingDirectory.set` to select an existing absolute directory before retrying. Existing shells retain their process-local directories.
 
 <a id="dev-note"></a>
 ### Dev Note
