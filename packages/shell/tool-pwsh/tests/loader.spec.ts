@@ -59,10 +59,10 @@ describe.skipIf(!hasPwsh)('tool-pwsh through a real Loader composition', () => {
       inspect: async (cwd) => {
         report = JSON.parse(await readFile(join(cwd, 'pwsh-loader-report.json'), 'utf8')) as PwshLoaderReport
         const expectedCwd = await realpath(cwd)
-        expect(report.foregroundCwd).toBe(expectedCwd)
-        expect(report.foregroundMeta).toEqual({ cwd: expectedCwd })
-        expect(report.backgroundCwd).toBe(expectedCwd)
-        expect(report.backgroundMeta).toEqual({ cwd: expectedCwd })
+        expect(await realpath(report.foregroundCwd)).toBe(expectedCwd)
+        expect(report.foregroundMeta).toEqual({ cwd: report.foregroundCwd })
+        expect(await realpath(report.backgroundCwd)).toBe(expectedCwd)
+        expect(report.backgroundMeta).toEqual({ cwd: report.backgroundCwd })
       },
     })
     expect(stderr).not.toContain('UNHANDLED')

@@ -13,7 +13,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import SubagentRuntime from '@deepseek-ai/dsh-subagent'
+import SubagentRuntime, { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent'
 import {
@@ -697,7 +697,35 @@ describe('dsh-subagent-dsh-sdk provider', () => {
       parent,
       signal: controller.signal,
     })).rejects.toThrow('This operation was aborted')
+    expect(() => ctx.subagents.getProvider('dsh-sdk')!.start({
+      ...request('p', controller.signal),
+      cwd: process.cwd(),
+      descriptor: snapshotSubagentDescriptor({ mode: 'one-shot', provider: 'dsh-sdk', label: 'cancelled startup' }),
+    })).toThrow('subagent request was aborted before the SDK child started')
+    expect(createdHarnessOptions).toEqual([])
     await ctx.fiber.dispose()
+  })
+
+  it('rejects a child directory removed after resolution without starting a runtime', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'subagent-dsh-sdk-removed-cwd-'))
+    const ctx = await setup()
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
+    try {
+      const resolved = {
+        ...request(),
+        cwd,
+        descriptor: snapshotSubagentDescriptor({ mode: 'one-shot', provider: 'dsh-sdk', label: 'removed directory' }),
+      }
+      rmSync(cwd, { recursive: true })
+      expect(() => ctx.subagents.getProvider('dsh-sdk')!.start(resolved))
+        .toThrow(expectedFailure('stage: initialize; category: configuration'))
+      expect(createdHarnessOptions).toEqual([])
+      expect(warn).toHaveBeenCalledWith('subagent-dsh-sdk "dsh-sdk": child start failed: %o', expect.any(Error))
+    } finally {
+      warn.mockRestore()
+      await ctx.fiber.dispose()
+      rmSync(cwd, { recursive: true, force: true })
+    }
   })
 
   it('rejects after reaping when the child dies before the handshake', async () => {

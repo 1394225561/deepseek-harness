@@ -63,12 +63,12 @@ describe('subagent working directories', () => {
     await run.dispose()
   })
 
-  it('retains an explicit relative directory when a continuable child cold-resumes', async () => {
+  it.each(['relative', 'absolute'])('retains an explicit %s directory when a continuable child cold-resumes', async (form) => {
     const { ctx, parent, origin, first, second } = await fixture()
     const selected = await realpath(second)
     const started = await ctx.subagents.startContinuable({
       provider: 'spawn', label: 'directory child',
-      request: { parent, cwd: 'second', prompt: [{ type: 'text', text: 'child' }] },
+      request: { parent, cwd: form === 'absolute' ? second : 'second', prompt: [{ type: 'text', text: 'child' }] },
       signal: new AbortController().signal,
     })
     await vi.waitFor(() => { expect(ctx.agents.get(started.childId)).toBeUndefined() })
@@ -81,5 +81,27 @@ describe('subagent working directories', () => {
     expect(observed.header.cwd).toBe(origin)
     const last = observed.events.findLast(event => event.type === 'working-directory/change')
     expect(last?.data).toMatchObject({ cwd: selected })
+  })
+
+  it('rolls back a continuable child whose setup realm has no directory service', async () => {
+    const { ctx, parent, second } = await fixture()
+    const childId = SessionId('missing-directory-service')
+    const create = ctx.agents.create.bind(ctx.agents)
+    const creation = vi.spyOn(ctx.agents, 'create').mockImplementation(options => create({
+      ...options,
+      setup: (childCtx, child) => options.setup?.(childCtx.isolate('workingDirectory'), child),
+    }))
+    try {
+      await expect(ctx.subagents.startContinuable({
+        provider: 'spawn', label: 'unavailable directory service', childId,
+        request: { parent, cwd: second, prompt: [{ type: 'text', text: 'child' }] },
+        signal: new AbortController().signal,
+      })).rejects.toThrow('continuable subagents require the working-directory service')
+
+      expect(ctx.agents.list().map(agent => agent.id)).toEqual([parent.id])
+      expect(parent.session.snapshotEvents().filter(event => event.type === 'subagent/catalog')).toEqual([])
+    } finally {
+      creation.mockRestore()
+    }
   })
 })

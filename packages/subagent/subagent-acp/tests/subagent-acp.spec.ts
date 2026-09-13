@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { PassThrough, type Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
-import SubagentRuntime from '@deepseek-ai/dsh-subagent'
+import SubagentRuntime, { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -641,6 +641,14 @@ describe('dsh-subagent-acp', () => {
       parent,
       signal: controller.signal,
     })).rejects.toThrow('This operation was aborted')
+    const spawn = vi.spyOn(ctx.subprocess, 'spawn')
+    expect(() => ctx.subagents.getProvider('acp')!.start({
+      ...request('p', controller.signal),
+      cwd: process.cwd(),
+      descriptor: snapshotSubagentDescriptor({ mode: 'one-shot', provider: 'acp', label: 'cancelled startup' }),
+    })).toThrow('subagent request was aborted before the ACP child started')
+    expect(spawn).not.toHaveBeenCalled()
+    await ctx.fiber.dispose()
   })
 
   it('reports an initialize-stage process exit without copying the transport error', async () => {

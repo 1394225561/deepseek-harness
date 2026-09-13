@@ -101,6 +101,7 @@ The tools are the executor; policy is an event gate. The tools inject no policy 
 | [`src/read-render.ts`](src/read-render.ts) | Cordis-free windowing and envelope formatting |
 | [`src/sandbox.ts`](src/sandbox.ts) | Escalation API shared by `write`/`edit`: policy resolution and denial-marker mapping |
 | [`src/error.ts`](src/error.ts) | Stable model-facing diagnostics for guarded-mutation failures |
+| [`src/mutation-result.ts`](src/mutation-result.ts) | Successful mutation observation and canonical result paths |
 
 ### Per-tool flow
 

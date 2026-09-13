@@ -1707,7 +1707,7 @@ describe('logged-fact failures', () => {
 
     expect(probe.runs()).toBe(0)
     expect(adapter.requests).toHaveLength(1)
-    expect(JSON.stringify(adapter.requests[0]?.messages)).toContain(process.cwd())
+    expect(requestSections(adapter.requests[0]!).ENVIRONMENT).toEqual({ cwd: process.cwd() })
   })
 
   it('fails closed for missing, ambiguous, or conflicting PTC facts', async () => {

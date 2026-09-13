@@ -25,7 +25,7 @@ import {
 } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import SubagentRuntime from '@deepseek-ai/dsh-subagent'
+import SubagentRuntime, { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type {
   SubprocessHandle,
@@ -649,7 +649,7 @@ describe('task admission and package contracts', () => {
       expect.any(Error),
     )
     expect(errorCause(warn.mock.calls[0]?.[1] as unknown)?.message)
-      .toContain('relative/SECRET_TOKEN')
+      .toContain(resolve('relative/SECRET_TOKEN'))
 
     const invalidCwdAbort = new AbortController()
     invalidCwdAbort.abort(new Error('cancel invalid cwd startup'))
@@ -657,6 +657,11 @@ describe('task admission and package contracts', () => {
       ...request(undefined, invalidCwdAbort.signal),
       parent: invalidCwdParent,
     })).rejects.toThrow('cancel invalid cwd startup')
+    await expect(ctx.subagents.getProvider('claude-diagnostic')!.start({
+      ...request(undefined, invalidCwdAbort.signal),
+      cwd: resolve('relative/SECRET_TOKEN'),
+      descriptor: snapshotSubagentDescriptor({ mode: 'one-shot', provider: 'claude-diagnostic', label: 'cancelled startup' }),
+    })).rejects.toThrow('request was aborted before SDK startup')
     expect(queryMock).not.toHaveBeenCalled()
     warn.mockClear()
 

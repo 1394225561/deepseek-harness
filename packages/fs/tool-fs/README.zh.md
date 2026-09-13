@@ -101,6 +101,7 @@ kind: "package-reference"
 | [`src/read-render.ts`](src/read-render.ts) | 不依赖 Cordis 的窗口构建与信封格式化 |
 | [`src/sandbox.ts`](src/sandbox.ts) | `write`/`edit` 共享的升权 API：策略解析与拒绝标记映射 |
 | [`src/error.ts`](src/error.ts) | 防护变更失败的稳定模型侧诊断 |
+| [`src/mutation-result.ts`](src/mutation-result.ts) | 成功变更的观察记录与规范化结果路径 |
 
 ### 各工具流程
 

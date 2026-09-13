@@ -380,6 +380,26 @@ describe('startInProcessRun', () => {
     expect(ctx.sessions.list()).toHaveLength(beforeSessions)
   })
 
+  it('rolls back child creation when its context has no directory service', async () => {
+    const ctx = new Context()
+    await mountAgentLoopTestDependencies(ctx)
+    await ctx.plugin(AgentLoop, { agents: [] })
+    const adapter = new MockAdapter([])
+    ctx.llm.registerAdapter(['mock'], adapter)
+    const parent = await ctx.agentLoop.create(SessionId('parent-without-directory-service'), { provider: 'mock', model: 'mock' })
+    const beforeAgents = ctx.agents.list().length
+    const beforeSessions = ctx.sessions.list().length
+    try {
+      await expect(startInProcessRun(request(parent), {}))
+        .rejects.toThrow('in-process subagents require the working-directory service')
+      expect(ctx.agents.list()).toHaveLength(beforeAgents)
+      expect(ctx.sessions.list()).toHaveLength(beforeSessions)
+      expect(adapter.requests).toEqual([])
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('treats abort after factory publication as a cancelled run with an id', async () => {
     const { ctx, parent } = await setup([])
     const controller = new AbortController()

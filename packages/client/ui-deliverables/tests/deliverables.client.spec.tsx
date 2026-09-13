@@ -274,6 +274,20 @@ describe('produced-file Turn data', () => {
     expect(producedForClosing(deliverablesOf(value))).toEqual([])
   })
 
+  it('opens an explicit absolute mutation target when its recorded path is unusable', () => {
+    const path = '/project/child/report.txt'
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      call(2, 'absolute', 'write', { file_path: path, content: 'new' }),
+      result(3, 'absolute', false, 1, { path: null }),
+    ])
+    const paths = producedForClosing(deliverablesOf(value))
+    expect(paths).toEqual([path])
+    const opened = vi.fn()
+    producedFileMentions(paths, opened, target => target).resolve('report.txt')?.open()
+    expect(opened).toHaveBeenCalledWith(path)
+  })
+
   it('folds successful first-party mutation paths from their raw arguments', () => {
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),

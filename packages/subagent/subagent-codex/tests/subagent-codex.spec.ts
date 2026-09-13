@@ -9,7 +9,7 @@ import * as yaml from 'js-yaml'
 import { describe, expect, it, vi } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import SubagentRuntime from '@deepseek-ai/dsh-subagent'
+import SubagentRuntime, { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type {
@@ -2142,7 +2142,7 @@ describe('run lifecycle and quiescence', () => {
     expect(invalidCwdError.message).not.toContain('relative/SECRET_TOKEN')
     expect(invalidCwdError.cause).toBeInstanceOf(Error)
     expect((invalidCwdError.cause as Error).message)
-      .toContain('relative/SECRET_TOKEN')
+      .toContain(resolve('relative/SECRET_TOKEN'))
     expect(spawn).not.toHaveBeenCalled()
 
     const invalidCwdAbort = new AbortController()
@@ -2152,6 +2152,11 @@ describe('run lifecycle and quiescence', () => {
       parent: invalidCwdParent,
       signal: invalidCwdAbort.signal,
     })).rejects.toThrow('cancel invalid cwd startup')
+    expect(() => ctx.subagents.getProvider('codex-diagnostic')!.start({
+      ...request(undefined, invalidCwdAbort.signal),
+      cwd: resolve('relative/SECRET_TOKEN'),
+      descriptor: snapshotSubagentDescriptor({ mode: 'one-shot', provider: 'codex-diagnostic', label: 'cancelled startup' }),
+    })).toThrow('request was aborted before app-server startup')
     expect(spawn).not.toHaveBeenCalled()
 
     const starting = ctx.subagents.start('codex-diagnostic', {

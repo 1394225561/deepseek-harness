@@ -12,6 +12,7 @@ import type { FsWriteOutcome } from '@deepseek-ai/dsh-fs'
 import type {} from '@deepseek-ai/dsh-fs'
 import { computeHunkDiffs, diffsFromMeta, pathFromMeta } from './diff.ts'
 import { remediateFsError } from './error.ts'
+import { mutationResult } from './mutation-result.ts'
 import { sessionResolveOptions } from './session-cwd.ts'
 import type { FsSandboxController } from './sandbox.ts'
 
@@ -127,13 +128,7 @@ export function applyWriteTool(ctx: Context, sandbox: FsSandboxController): void
         // stable model-facing diagnostic; anything else passes through.
         throw remediateFsError(sandbox.mapError(error, sandboxPolicy), target.displayPath)
       }
-      ctx.emit('fs/observed', target, { kind: 'present', version: outcome.version }, exec)
-      return {
-        path: ctx.fs.processPath(target),
-        operation: outcome.operation,
-        before: outcome.before,
-        after: outcome.after,
-      }
+      return mutationResult(ctx, target, outcome, exec)
     },
     // Pure display: a diff card. A call-time presenter has no access to prior
     // file content, so `oldText: null` also represents an overwrite here.

@@ -31,11 +31,10 @@ import {
   createDetachedRuns,
   DEFAULT_HOOK_TIMEOUT_MS,
   DEFAULT_STDERR_SUMMARY_MAX_CHARS,
-  matchesMatcher,
   mergeHookOutputs,
   runHook,
+  selectHookGroups,
   type HookOutput,
-  type MatcherGroup,
   type MergedHookOutcome,
 } from '@deepseek-ai/dsh-hook-protocol'
 // Pulls in the declaration-merged subagent events and the identity pairing their
@@ -147,8 +146,7 @@ export function apply(ctx: Context, config: Config): void {
     payload: Record<string, unknown>,
     opts: { agent?: Agent; turn?: number; readonly signal: AbortSignal },
   ): Promise<MergedHookOutcome> {
-    const groups: MatcherGroup[] = (parsed[point] ?? []).filter(group =>
-      group.hooks.length > 0 && matchesMatcher(group.matcher, matchQuery, 'claude-code'))
+    const groups = selectHookGroups(parsed[point], matchQuery, 'claude-code')
     if (groups.length === 0) return mergeHookOutputs([])
     const outputs: HookOutput[] = []
     const workdir = opts.agent === undefined ? undefined : await ctx.workingDirectory.ensure(opts.agent, opts.signal)
@@ -163,7 +161,7 @@ export function apply(ctx: Context, config: Config): void {
         if (session && opts.turn !== undefined) {
           appendHookInvoked(session, {
             turn: opts.turn, point, dialect: 'claude-code', handlerId,
-            ...group.matcher !== undefined ? { matcher: group.matcher } : {},
+            matcher: group.matcher,
           })
         }
         const { output, durationMs } = await runHook(ctx.shell, hook, {

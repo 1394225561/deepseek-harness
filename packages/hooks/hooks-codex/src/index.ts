@@ -34,11 +34,10 @@ import {
   createDetachedRuns,
   DEFAULT_HOOK_TIMEOUT_MS,
   DEFAULT_STDERR_SUMMARY_MAX_CHARS,
-  matchesMatcher,
   mergeHookOutputs,
   runHook,
+  selectHookGroups,
   type HookOutput,
-  type MatcherGroup,
   type MergedHookOutcome,
 } from '@deepseek-ai/dsh-hook-protocol'
 import { parseCodexConfig, type CodexHookConfig } from './config.ts'
@@ -128,8 +127,7 @@ export function apply(ctx: Context, config: Config): void {
       plainStdoutAsContext?: boolean
     },
   ): Promise<MergedHookOutcome> {
-    const groups: MatcherGroup[] = (parsed[point] ?? []).filter(group =>
-      group.hooks.length > 0 && matchesMatcher(group.matcher, matchQuery, 'codex'))
+    const groups = selectHookGroups(parsed[point], matchQuery, 'codex')
     if (groups.length === 0) return mergeHookOutputs([])
     const outputs: HookOutput[] = []
     const workdir = opts.agent === undefined ? undefined : await ctx.workingDirectory.ensure(opts.agent, opts.signal)
@@ -140,7 +138,7 @@ export function apply(ctx: Context, config: Config): void {
         if (session && opts.turn !== undefined) {
           appendHookInvoked(session, {
             turn: opts.turn, point, dialect: 'codex', handlerId,
-            ...group.matcher !== undefined ? { matcher: group.matcher } : {},
+            matcher: group.matcher,
           })
         }
         const { output, durationMs } = await runHook(ctx.shell, hook, {
