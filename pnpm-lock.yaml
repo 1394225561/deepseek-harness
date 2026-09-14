@@ -7538,6 +7538,9 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools
+      '@deepseek-ai/dsh-working-directory':
+        specifier: workspace:^
+        version: link:../../session/working-directory
 
   packages/experimental/browser-use-playwright-mcp:
     dependencies:
@@ -7581,6 +7584,9 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools
+      '@deepseek-ai/dsh-working-directory':
+        specifier: workspace:^
+        version: link:../../session/working-directory
 
   packages/experimental/browser-use-runtime:
     dependencies:
@@ -7612,6 +7618,9 @@ importers:
       '@deepseek-ai/dsh-browser-use':
         specifier: workspace:*
         version: link:../../browser-use/browser-use
+      '@deepseek-ai/dsh-fs-local':
+        specifier: workspace:^
+        version: link:../../fs/fs-local
       '@deepseek-ai/dsh-llm':
         specifier: workspace:*
         version: link:../../llm/llm
@@ -7642,6 +7651,9 @@ importers:
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools
+      '@deepseek-ai/dsh-working-directory':
+        specifier: workspace:^
+        version: link:../../session/working-directory
 
   packages/experimental/browser-use-stagehand-native:
     dependencies:

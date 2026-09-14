@@ -22,6 +22,8 @@ Live Session skill catalogs and file completion validate through the same direct
 
 Web sidebar terminal environment lookup reads the effective directory without filesystem validation or recovery, so a missing directory does not prevent reconnecting to a retained terminal. New terminal creation validates and recovers through the directory owner before spawning; the process keeps that directory independently of later Session changes.
 
+Playwright MCP and Chrome DevTools MCP validate the effective directory when acquiring a Session's MCP connection and use it to launch the server. Later directory changes do not restart the retained server or change its process directory.
+
 File links and command directory labels use result metadata captured when each operation runs, so historical rows remain correct after later directory changes.
 
 The [prompt-variables note](2026-07-05-prompt-variables-and-tool-guidance-ownership.md) retains strict interpolation, route-variable ownership, and tool-guidance ownership. The [environment-suffix note](../bug-fix/2026-09-06-environment-prompt-suffix.md) retains ordered prefix/suffix placement for deployment, Harness source, and Web guidance. This decision owns directory state and placement in user context.

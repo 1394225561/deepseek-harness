@@ -11,6 +11,7 @@ import { SessionResources } from './index.ts'
 import type {} from '@deepseek-ai/dsh-browser-use'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-system-prompt'
+import type {} from '@deepseek-ai/dsh-working-directory'
 
 /** Browser launch settings shared by the MCP integrations. */
 export interface BrowserMcpLaunchConfig {
@@ -94,7 +95,7 @@ interface ClientState {
  * Await one MCP client during each future Agent's creation.
  * A busy attachment leaves that activation without browser tools; its other turns continue.
  * Calls are serialized per Session; unload closes every server before releasing registration.
- * @param ctx - provider context supplying browser use, Agents, tools, and prompt assembly.
+ * @param ctx - provider context supplying browser use, Agents, tools, prompt assembly, and working directories.
  * @param options - provider identity, attachment exclusivity, and executable configuration.
  */
 export function mountSessionMcp(ctx: Context, options: SessionMcpOptions): void {
@@ -147,7 +148,7 @@ export function mountSessionMcp(ctx: Context, options: SessionMcpOptions): void 
             command: options.command,
             args: options.args,
             ...options.env === undefined ? {} : { env: options.env },
-            ...agent.session.header.cwd === undefined ? {} : { cwd: agent.session.header.cwd },
+            cwd: await ctx.workingDirectory.ensure(agent, signal),
             ...options.toolCallTimeoutMs === undefined ? {} : { toolCallTimeoutMs: options.toolCallTimeoutMs },
             failOnStartupError: true,
             reconnect: { enabled: false },
