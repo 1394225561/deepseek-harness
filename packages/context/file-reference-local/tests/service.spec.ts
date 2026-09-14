@@ -65,8 +65,10 @@ describe('LocalFileReferenceService', () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
     await ctx.plugin(AgentRegistry)
+    ctx.provide('workingDirectory', { ensure: vi.fn<WorkingDirectory['ensure']>() })
     await ctx.plugin(LocalFileReferenceService)
     try {
+      expect(ctx.fileReferences).toBeInstanceOf(LocalFileReferenceService)
       const { agent } = await stubAgent(ctx, 'deferred-prompt')
       expect(ctx.agents.get(agent.id)).toBe(agent)
       await ctx.plugin(SystemPrompt, { personaPrefix: '' })
