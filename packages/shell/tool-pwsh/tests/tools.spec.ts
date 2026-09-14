@@ -1228,13 +1228,13 @@ describe('resolved launch directory metadata', () => {
     const directory = mkdtempSync(join(tmpdir(), 'dsh-pwsh-cwd-meta-'))
     bash.handler = () => runResult('metadata-ok')
     bash.backgroundHandler = () => fakeProcess('metadata-ok')
-    const owner = registerFakeAgent(ctx, 'directory-metadata')
     const current = join(directory, 'current')
     const ensure = vi.spyOn(ctx.workingDirectory, 'ensure').mockResolvedValue(current)
     const resolve = ctx.shell.resolve.bind(ctx.shell)
     const resolving = vi.spyOn(ctx.shell, 'resolve').mockImplementation(request => ({ ...resolve(request), workdir: directory }))
     const launch = vi.spyOn(ctx.shell, background ? 'start' : 'run')
     try {
+      const owner = await registerFakeAgent(ctx, 'directory-metadata')
       const result = await call(ctx, 'pwsh', {
         command: "[Console]::Out.Write('metadata-ok')", description: 'Read launch metadata', run_in_background: background,
         ...workdir === undefined ? {} : { workdir },
