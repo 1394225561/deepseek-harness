@@ -302,7 +302,8 @@
             "run_code",
             "snapshot_double",
             "subagent",
-            "workflow"
+            "workflow",
+            "working_directory"
           ]
         },
         "reason": "series"
@@ -2037,7 +2038,8 @@
                 "run_code",
                 "snapshot_double",
                 "subagent",
-                "workflow"
+                "workflow",
+                "working_directory"
               ]
             },
             "reason": "series"

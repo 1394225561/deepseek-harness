@@ -56,8 +56,6 @@ Electron 使用 Electron Node 模式启动私有 Desktop Host。Host 调用共�
 
 ## 核心包
 
-以下是向 Cordis 树贡献内容的部分核心包。
-
 | 包 | 职责 | `ctx` 键 |
 |---|---|---|
 | [`core/session`](subsystems/session.zh.md) | 仅追加的 `SessionEvent` 日志和内存存储 | `ctx.sessions` |

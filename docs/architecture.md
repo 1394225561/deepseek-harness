@@ -56,8 +56,6 @@ Electron starts the private Desktop Host in Electron Node mode. The Host invokes
 
 ## Core packages
 
-Here are some core packages that contribute to the Cordis tree.
-
 | Package | Owns | `ctx` key |
 |---|---|---|
 | [`core/session`](subsystems/session.md) | The append-only `SessionEvent` log and in-memory store | `ctx.sessions` |
