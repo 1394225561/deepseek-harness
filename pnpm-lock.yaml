@@ -1574,6 +1574,9 @@ importers:
       '@deepseek-ai/dsh-util-crypto':
         specifier: workspace:*
         version: link:../../util/crypto
+      '@deepseek-ai/dsh-working-directory':
+        specifier: workspace:^
+        version: link:../../session/working-directory
 
   packages/api/workspace-controller:
     dependencies:

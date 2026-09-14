@@ -20,6 +20,8 @@ Subagents capture the parent's current directory or an explicit override and com
 
 Live Session skill catalogs and file completion validate through the same directory owner. These reads can commit recovery and queue its notice before discovery, keeping discovered files and subsequent operations tied to the committed Session directory. Cold skill catalogs read the recorded projection without activating an Agent.
 
+Web sidebar terminal environment lookup reads the effective directory without filesystem validation or recovery, so a missing directory does not prevent reconnecting to a retained terminal. New terminal creation validates and recovers through the directory owner before spawning; the process keeps that directory independently of later Session changes.
+
 File links and command directory labels use result metadata captured when each operation runs, so historical rows remain correct after later directory changes.
 
 The [prompt-variables note](2026-07-05-prompt-variables-and-tool-guidance-ownership.md) retains strict interpolation, route-variable ownership, and tool-guidance ownership. The [environment-suffix note](../bug-fix/2026-09-06-environment-prompt-suffix.md) retains ordered prefix/suffix placement for deployment, Harness source, and Web guidance. This decision owns directory state and placement in user context.
