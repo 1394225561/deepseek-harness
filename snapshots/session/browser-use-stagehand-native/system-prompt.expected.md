@@ -27,7 +27,9 @@ Use goal tools for one long-running completion objective in the current session.
 
 Use the workflow tool ONLY when the user explicitly asks for a workflow or for large multi-agent orchestration: you write a JavaScript script (the tool description documents the exact format) that fans work out across many subagents with phases and structured results. For one or two delegations, prefer plain subagent calls.
 
-Use subagent in the background by default. Start independent delegations together in one assistant message and continue useful work while they run. Set `run_in_background: false` only when your next action depends on that subagent's result. When a background run settles, the runtime sends you a notice containing its outcome and any final assistant message.
+Start independent delegations with subagent together in one assistant message and continue useful work while they run. The runtime notifies you when each subagent finishes.
+
+Start independent delegations with subagent_fork together in one assistant message and continue useful work while they run. The runtime notifies you when each subagent finishes.
 
 Stagehand browser tools control a browser owned by this Session or an explicitly configured existing browser. Use the tab ids returned by stagehand_tabs. Inspect current pages before acting after reconnecting, cancellation, or a resumed Session; browser state is not restored from the Session log. A completed action does not prove the requested outcome, so verify it from fresh page state.
 

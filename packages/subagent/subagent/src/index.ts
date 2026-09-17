@@ -11,20 +11,12 @@
  * (`@deepseek-ai/dsh-subagent-spawn-in-process`, `-fork`, `-acp`) and the model-facing
  * consumer (`@deepseek-ai/dsh-tool-subagent`) are separate packages.
  *
- * Public operations express caller intent: `start` returns one published owned
- * one-shot run, `startContinuable` establishes a durable continuable child, and
- * `sendMessage` steers between adjacent Agents without exposing whether a child
- * is resident. Continuable children never become a {@link SubagentRun}: the
- * continuation manager holds their `AgentHandle` directly and orders every turn
- * through the child's own inbox, so providers contribute only the detached
- * creation spec and see no handle, turn, or teardown. Child and descendant
- * discovery read the live session store and optional session persistence
- * directly and do not require that continuation runtime.
- *
- * Same-process providers are trusted typed collaborators. Requests, provider
- * descriptors, results, and lifecycle payloads are borrowed immutable values;
- * serialization and hostile-input validation belong at real process, worker,
- * persistence, and model boundaries.
+ * `startActivation` establishes every child under the activation manager, which
+ * owns execution, result delivery, and resource release. Local providers seed
+ * resumable Agents; external providers expose one execution through a shared
+ * adapter. `sendMessage` steers between adjacent local Agents without exposing
+ * whether a child is resident. Discovery combines real child Sessions with
+ * parent-owned records for external executions.
  *
  * @module @deepseek-ai/dsh-subagent
  */
@@ -54,13 +46,11 @@ import type {
 import type {
   ContinuableCreateRequest,
   ContinuableCreateSpec,
-  ContinuableStart,
-  ContinuableStartSpec,
-  ResolvedSubagentStartRequest,
   SubagentCapabilities,
+  SubagentActivation,
+  SubagentActivationSpec,
   SubagentInterruptAuthority,
   SubagentProvider,
-  SubagentRun,
   SubagentRunEndInfo,
   SubagentRunInfo,
   SubagentSendMessageOptions,
@@ -68,15 +58,15 @@ import type {
 } from './types.ts'
 import { SubagentError } from './error.ts'
 import { assertSubagentMaxDepth } from './depth.ts'
-import { createActivationObserver, createLifecycleEmitter, observeRun } from './lifecycle.ts'
+import { createActivationObserver, createLifecycleEmitter } from './lifecycle.ts'
 import type { ActivationObserver, LifecycleEmitter } from './lifecycle.ts'
 import SubagentContinuationManager from './continuation.ts'
 import type { SubagentDelivery } from './inbox.ts'
 import { listChildren as listSubagentChildren, listDescendants as listSubagentDescendants } from './list-children.ts'
 import type { SubagentDescendantListEntry, SubagentListEntry } from './list-children.ts'
-import { snapshotSubagentDescriptor } from './descriptor.ts'
 import { subagentIdentityProjectionDefinition, subagentTimingProjectionDefinition } from './projection.ts'
-import { establishCatalogChild, subagentCatalogProjectionDefinition } from './catalog.ts'
+import { subagentCatalogProjectionDefinition } from './catalog.ts'
+import { externalSubagentProjectionDefinition } from './external-records.ts'
 import { deliverSubagentPrompt } from './internal.ts'
 
 export type {} from './catalog.ts'
@@ -86,10 +76,10 @@ export { SubagentRunId } from './types.ts'
 export type {
   ContinuableCreateRequest,
   ContinuableCreateSpec,
-  ContinuableStart,
-  ContinuableStartSpec,
   ResolvedSubagentStartRequest,
   SubagentCapabilities,
+  SubagentActivation,
+  SubagentActivationSpec,
   SubagentInterruptAuthority,
   SubagentProvider,
   SubagentResult,
@@ -112,8 +102,8 @@ export type {
   SubagentDescriptorData,
   SubagentDescriptorInput,
 } from './descriptor.ts'
+export { STRUCTURED_OUTPUT_TOOL } from './structured.ts'
 export { SubagentError } from './error.ts'
-export { settleRun } from './run-settlement.ts'
 export { assertSubagentMaxDepth, delegationDepthOf } from './depth.ts'
 export {
   appendDelegatedPolicyOverrides,
@@ -194,7 +184,7 @@ export interface Config {
   maxDepth?: number
 }
 
-/** Named provider registry with one-shot runs, durable discovery, and continuable-child operations. */
+/** Named provider registry with managed activations, durable discovery, and local child messaging. */
 export class SubagentRuntime extends TypertRemoteService {
   static Config: z<Config> = z.object({
     maxDepth: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(1),
@@ -224,6 +214,10 @@ export class SubagentRuntime extends TypertRemoteService {
     this.emitLifecycle = createLifecycleEmitter(this.ctx, parent => scopeTarget(this, parent))
     ctx.inject(['agents'], (childCtx: Context) => {
       const manager = new SubagentContinuationManager(childCtx, {
+        startExternal: (name, request) => {
+          const provider = this.expectProvider(name) as SubagentProvider & Required<Pick<SubagentProvider, 'start'>>
+          return provider.start(request)
+        },
         prepareContinuable: (name, request) => this.prepareContinuable(name, request),
         observeActivation: (provider, childId, parent) => this.observeActivation(provider, childId, parent),
       }, () => (this.settingsSource() as Required<Config>).maxActiveSubagents)
@@ -235,6 +229,7 @@ export class SubagentRuntime extends TypertRemoteService {
     })
     ctx.inject(['sessionProjections'], (projectionCtx) => {
       projectionCtx.sessionProjections.register(subagentCatalogProjectionDefinition)
+      projectionCtx.sessionProjections.register(externalSubagentProjectionDefinition)
       projectionCtx.sessionProjections.register(subagentTimingProjectionDefinition)
       projectionCtx.sessionProjections.register(subagentIdentityProjectionDefinition)
     })
@@ -251,16 +246,34 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Establish one durable continuable child and deliver its initial prompt.
-   * Resolves when the child's inbox accepts that prompt, without waiting for the
-   * turn to start or for the message to reach the Session log; any earlier
-   * failure rejects with no ids and rolls back the child entirely.
-   * @param spec - provider, delegation request, and caller cancellation.
-   * @returns the durable child id and the accepted prompt's message id.
-   * @throws when continuation services are unavailable or materialization fails.
+   * Establish a managed child with backend-specific execution capabilities.
+   * @param spec - task, backend, and result recipient.
+   * @returns identities, execution result, and exact-activation disposal.
    */
-  async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart> {
-    return this.requireContinuations().startContinuable(spec)
+  async startActivation(spec: SubagentActivationSpec): Promise<SubagentActivation> {
+    const provider = this.expectProvider(spec.provider)
+    if (spec.childId !== undefined && provider.prepareContinuable === undefined) {
+      throw new SubagentError('reserved child ids require a local backend', 'UNSUPPORTED_CAPABILITY')
+    }
+    assertSubagentMaxDepth(spec.request.maxDepth)
+    this.assertCapabilities(provider, { ...spec.request, signal: spec.signal })
+    if (this.ctx.get('agents')?.get(spec.request.parent.id) !== spec.request.parent) {
+      throw new SubagentError('subagent creation requires the exact live parent agent', 'UNAUTHORIZED')
+    }
+    if (spec.request.outputSchema !== undefined) assertObjectJsonSchema(spec.request.outputSchema)
+    const manager = this.requireContinuations()
+    return provider.prepareContinuable === undefined
+      ? manager.startExternal(spec)
+      : manager.startContinuable(spec)
+  }
+
+  /**
+   * Wait for this live parent's currently owned child work without cancelling it.
+   * @param parent - the exact parent whose descendants should settle.
+   * @returns whether any work was observed; hosts recheck parent idle after true.
+   */
+  async waitForChildren(parent: Agent): Promise<boolean> {
+    return this.continuations?.waitForChildren(parent) ?? false
   }
 
   /**
@@ -312,13 +325,13 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Interrupt one live continuable child's current turn under a human parent
+   * Interrupt one live child's current execution under a human parent
    * address or an exact live ancestor Agent. Fire-and-return: the cancel
    * signal is issued before this returns, but the target may keep running
    * until it observes the signal. Unclaimed pending inbox work, the Activation,
    * and published descendants are preserved; claimed work is not requeued.
    * Once the interrupted driver is idle, a waking send resumes the parked FIFO
-   * queue. An absent target — including a one-shot or unknown id —
+   * queue. External backends stop their single execution. An absent target
    * is an accepted no-op, as is a manager-less composition, which cannot own a
    * live Activation.
    * @param targetSessionId - the durable child session id to interrupt.
@@ -331,40 +344,40 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Close continuable admission below exact live parent Agents, stop only their
+   * Close subagent admission below exact live parent Agents, stop only their
    * visible descendant Activations synchronously, then await admitted scoped
    * materializations and release those forests child-first. The scoped cutoff
    * lasts until each exact parent leaves the registry; unrelated parent trees
    * remain live.
    * @param parents - exact host-owned parent Agents entering teardown.
-   * @returns once every retained descendant Activation released its `AgentHandle`.
+   * @returns once every retained descendant activation released its driver.
    * @throws an aggregate error after all branches settle when any failed.
    */
-  async drainContinuableDescendants(parents: readonly Agent[]): Promise<void> {
+  async drainDescendants(parents: readonly Agent[]): Promise<void> {
     const manager = this.continuations
-    // Absent continuation services means nothing was ever materialized.
+    // An absent activation manager cannot own materialized children.
     if (manager === undefined) return
     await manager.drainDescendants(parents)
   }
 
   /**
-   * Release selected resident continuable direct children of one exact live
+   * Release selected resident direct children of one exact live
    * parent. Other children of the same parent remain admitted and resident.
    * Absent targets and a manager-less composition are accepted no-ops.
    * @param parent - exact live direct parent authorizing the selected release.
    * @param childIds - durable direct-child ids to release when resident.
-   * @returns once every selected Activation released its `AgentHandle`.
+   * @returns once every selected activation released its driver.
    * @throws {SubagentError} `UNAUTHORIZED` when a resident target belongs to a
    *   different parent or the supplied parent identity is stale.
    */
-  async drainContinuableChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void> {
+  async drainChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void> {
     const manager = this.continuations
     if (manager === undefined) return
     await manager.drainChildren(parent, childIds)
   }
 
   /**
-   * Enumerate the parent's direct session-backed subagents without loading or
+   * Enumerate the parent's direct local and external subagents without loading or
    * resuming an Agent. The Session query service supplies one live-preferred
    * corpus and shared point observations; the projection cache supplies
    * immutable descriptor hits without opening cold logs. The registered
@@ -380,8 +393,8 @@ export class SubagentRuntime extends TypertRemoteService {
    * @throws {@link SubagentError} when the projection registry or the session
    *   store is not mounted, or the caller cancels the listing.
    */
-  listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentListEntry[]> {
-    return listSubagentChildren(this.ctx, parentSessionId, signal)
+  async listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentListEntry[]> {
+    return (await listSubagentChildren(this.ctx, parentSessionId, signal)).map(entry => this.withActivity(entry))
   }
 
   /**
@@ -399,8 +412,13 @@ export class SubagentRuntime extends TypertRemoteService {
    *   stable pre-order.
    * @throws {@link SubagentError} under the same conditions as {@link listChildren}.
    */
-  listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]> {
-    return listSubagentDescendants(this.ctx, rootSessionId, signal)
+  async listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]> {
+    return (await listSubagentDescendants(this.ctx, rootSessionId, signal)).map(entry => this.withActivity(entry))
+  }
+
+  private withActivity<T extends SubagentListEntry>(entry: T): T {
+    if (entry.kind !== 'child' || !entry.external) return entry
+    return { ...entry, activity: this.continuations?.isActive(entry.id) ? 'running' : 'inactive' }
   }
 
   /**
@@ -577,50 +595,6 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Establish a published child on the named provider. Capability and semantic
-   * checks run before delegation. Provider ownership lasts until its promise
-   * fulfills; a rejection therefore has no run for the caller to dispose and
-   * emits no run lifecycle events. Post-publication turn and infrastructure
-   * failures settle through the returned run.
-   * A catalog append failure disposes the run and handles its result rejection;
-   * the caller receives the catalog error even if disposal also fails.
-   * @param name - the provider to use.
-   * @param request - child label, prompt, parent, signal, and optional capabilities.
-   * @returns the published holder-owned run.
-   */
-  async start(name: string, request: SubagentStartRequest): Promise<SubagentRun> {
-    const provider = this.expectProvider(name)
-    this.assertCapabilities(provider, request)
-    assertSubagentMaxDepth(request.maxDepth)
-    if (request.outputSchema !== undefined) assertObjectJsonSchema(request.outputSchema)
-    const descriptor = snapshotSubagentDescriptor({
-      mode: 'one-shot',
-      provider: name,
-      ...request.label !== undefined ? { label: request.label } : {},
-    })
-    const resolved: ResolvedSubagentStartRequest = { ...request, descriptor }
-    const run = await provider.start(resolved)
-    const child = run.localAgent?.session
-    if (child !== undefined) {
-      try {
-        establishCatalogChild(request.parent.session, child.header, descriptor)
-      } catch (error: unknown) {
-        // No caller receives this run; the catalog error owns the failed start.
-        void run.result.catch(() => undefined)
-        try {
-          await run.dispose()
-        } catch (cleanupError: unknown) {
-          this.ctx.logger.warn(
-            `subagent: disposal after catalog append failure also failed: ${String(cleanupError)}`,
-          )
-        }
-        throw error
-      }
-    }
-    return observeRun(this.emitLifecycle, name, request.parent, run)
-  }
-
-  /**
    * Resolve one provider's detached continuable-creation contribution. Method
    * presence on the provider IS the capability, so a provider without it is
    * rejected before the manager reserves any child resources.
@@ -629,14 +603,7 @@ export class SubagentRuntime extends TypertRemoteService {
     name: string,
     request: ContinuableCreateRequest,
   ): Promise<ContinuableCreateSpec> {
-    const provider = this.expectProvider(name)
-    if (provider.prepareContinuable === undefined) {
-      throw new SubagentError(
-        `subagent provider "${provider.name}" does not support continuable children `
-        + '(no prepareContinuable capability)',
-        'UNSUPPORTED_CAPABILITY',
-      )
-    }
+    const provider = this.expectProvider(name) as SubagentProvider & Required<Pick<SubagentProvider, 'prepareContinuable'>>
     return provider.prepareContinuable(request)
   }
 

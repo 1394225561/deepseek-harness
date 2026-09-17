@@ -148,6 +148,20 @@ describe('SubagentHeaderLineage', () => {
     expect(trigger.querySelector('[data-state="ongoing"]')).toBeNull()
   })
 
+  it('shows external execution status without opening a nonexistent child Session', () => {
+    const input = props(catalog({ entries: [{
+      kind: 'child', id: CHILD, mode: 'one-shot', external: true,
+      label: 'external worker', activity: 'running', hasChildren: false,
+    }] }))
+    render(<SubagentHeaderLineage {...input} />)
+    hoverCatalog(screen.getByRole('button'))
+    const row = screen.getByRole('treeitem', { name: /external worker.*结果保存在父会话中/ })
+    expect(row.getAttribute('aria-disabled')).toBe('true')
+    fireEvent.click(row)
+    fireEvent.keyDown(row, { key: 'Enter' })
+    expect(input.openChild).not.toHaveBeenCalled()
+  })
+
   it('renders healthy counts, stable rows, diagnostics, and catalog-addressed navigation', () => {
     const input = props(catalog())
     render(<SubagentHeaderLineage {...input} />)

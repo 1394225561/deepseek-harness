@@ -50,7 +50,7 @@ Node PTC 提供方的 `maxPendingCalls` 也限制工作流并发：子 agent 启
 
 ### 结果与失败
 
-脚本支持顶层 `await`；`meta` 和 `args` 作为 JSON 数据传入。每次 `agent()` 调用使用配置的 subagent 提供方及运行固定的父级。最终的无损 JSON 返回值成为运行结果；普通子 agent 失败使 `agent()` 以 `null` 兑现。
+脚本支持顶层 `await`；`meta` 和 `args` 作为 JSON 数据传入。每次 `agent()` 调用都会在本次运行的固定父 agent 下启动受管理的 subagent Activation，并等待其文本或结构化结果。工作流收集这些结果，不向父模型发送子 agent 结算通知。最终的无损 JSON 返回值成为运行结果；普通子 agent 失败使 `agent()` 以 `null` 兑现。
 
 无效元数据、无法解析的正文、不可用的提供方路由或高于上限的单次运行上限，在运行发布前被拒绝。执行期间，钩子误用与超出协作式上限会使工作流失败。进程失败、所需约束不可用，以及超出 PTC 输出或控制限制也会使运行失败。
 
@@ -91,7 +91,7 @@ Node PTC 提供方的 `maxPendingCalls` 也限制工作流并发：子 agent 启
 
 guest 在 PTC 传输前将出站值物化为无损 JSON。特殊原型、函数、symbol、循环、稀疏数组、非有限数与嵌套 `undefined` 被拒绝。子 agent 结果以 JSON 返回；同进程观察事件保留自身的克隆和回调异常隔离规则。
 
-Host 分别跟踪待完成的提供方启动与已发布子 agent。共享中止信号关闭这两条路径；取消后才就绪的子 agent 会被释放。每个已发布子 agent 的资源释放由所有清理路径共享。PTC 停止程序后，进行中的 Host 绑定仍由工作流适配器负责。
+Host 分别跟踪待完成的启动与已接受的 Activation。取消会中止待完成的启动并释放已接受的 Activation；取消后才就绪的子 agent 也会被释放。每个 Activation 的资源释放针对该次执行，并由所有清理路径共享。PTC 停止程序后，进行中的 Host 绑定仍由工作流适配器负责。
 
 ### 取消与结果
 

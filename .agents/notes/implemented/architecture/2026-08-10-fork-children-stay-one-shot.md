@@ -12,6 +12,8 @@ The earlier shipped composition avoided this mismatch by keeping forked children
 
 ## Decision
 
+The shared activation entry point, external execution ownership, and caller-versus-parent result delivery are governed by [Unified subagent activations](../simplification/2026-09-17-unified-subagent-activations.md). This record retains the independent rationale described below.
+
 The model-facing `send_message` tool is registered globally for every Agent in a composition. A continuable forked child therefore receives the same tool name, description, schema, and ordering as its parent. Its initial task is appended after the inherited Session seed, and the task includes the direct parent id plus guidance to return results with `send_message({ agent_id, message })` when that tool is visible to the child.
 
 The base bundle and the `cordis`, `standard`, and `ptc` CLI presets bind fork to the continuable lifecycle. Base-backed profiles, including headless, inherit that default. `ForkInProcessProvider.prepareContinuable()` and `ctx.subagents.startContinuable()` preserve the same request-prefix behavior across these compositions.

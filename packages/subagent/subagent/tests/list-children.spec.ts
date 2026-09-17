@@ -99,7 +99,8 @@ async function startChild(
   parent: Agent,
   label: string,
 ): Promise<SessionId> {
-  const started = await ctx.subagents.startContinuable({
+  const started = await ctx.subagents.startActivation({
+    delivery: 'parent',
     provider: 'spawn',
     label,
     request: { prompt: [{ type: 'text', text: `task: ${label}` }], parent },
@@ -294,15 +295,10 @@ describe('SubagentRuntime.listChildren', () => {
   })
 
   it('lists one-shot and continuable children under the same parent', async () => {
-    const { ctx, parent } = await setup([textResponse('once'), textResponse('again')])
-    const oneShot = await ctx.subagents.start('spawn', {
-      prompt: [{ type: 'text', text: 'finish once' }],
-      parent,
-      signal: new AbortController().signal,
-    })
-    const oneShotId = oneShot.id
-    await oneShot.result
-    await oneShot.dispose()
+    const { ctx, parent } = await setup([textResponse('again')])
+    const oneShotId = await authorChild(ctx, '00000000-0000-4000-8000-00000000ccc1', {
+      parentSession: parent.id, origin: 'subagent', createdAt: 1,
+    }, childEvents({ version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'one-shot', provider: 'spawn' }))
     const continuableId = await startChild(ctx, parent, 'continuable child')
 
     const entries = await ctx.subagents.listChildren(parent.id)
@@ -1232,7 +1228,7 @@ describe('SubagentRuntime.listDescendants', () => {
   })
 
   it('discovers continuable descendants below ordinary and one-shot intermediates', { timeout: 20_000 }, async () => {
-    const { ctx, parent } = await setup([textResponse('one shot')])
+    const { ctx, parent } = await setup([])
     // An ordinary fork has no descriptor: omitted itself, subtree still walked.
     const fork = ctx.sessions.fork(parent.session, undefined, SessionId('plain-fork'))
     await ctx.sessions.flush(fork)
@@ -1241,17 +1237,9 @@ describe('SubagentRuntime.listDescendants', () => {
       createdAt: 2,
       origin: 'subagent',
     }, childEvents(descriptorPayload('under the fork')))
-    // A real one-shot child, then a continuable authored below it.
-    const oneShot = await ctx.subagents.start('spawn', {
-      label: 'one-shot intermediate',
-      prompt: [{ type: 'text', text: 'one-shot task' }],
-      parent,
-      signal: testSignal,
-    })
-    await oneShot.result
-    await ctx.sessions.flush(oneShot.localAgent!.session)
-    const oneShotId = oneShot.id
-    await oneShot.dispose()
+    const oneShotId = await authorChild(ctx, '00000000-0000-4000-8000-00000000ccc2', {
+      parentSession: parent.id, origin: 'subagent', createdAt: 3,
+    }, childEvents({ version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'one-shot', provider: 'spawn', label: 'one-shot intermediate' }))
     const underOneShot = await authorChild(ctx, '00000000-0000-4000-8000-00000000bbb2', {
       parentSession: oneShotId,
       createdAt: 9_999_999_999_999,

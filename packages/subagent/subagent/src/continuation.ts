@@ -1,5 +1,5 @@
 /**
- * Continuable-subagent orchestration behind `ctx.subagents`: stable child ids,
+ * Subagent orchestration behind `ctx.subagents`: stable child ids,
  * descriptor persistence, provider preparation, cold resume, authorization,
  * and message routing. {@link ContinuableActivationRegistry} owns the mutable
  * process-local Activation graph and its settlement and disposal lifecycle.
@@ -7,8 +7,7 @@
  * A continuable child has one durable Session and at most one process-local
  * Activation. The Agent inbox is the only turn queue, so this manager owns
  * durable orchestration while the Agent loop owns all turn ordering and
- * execution. No continuable path creates a Task or an intermediate
- * result-bearing wrapper.
+ * execution. External drivers retain one backend execution per activation.
  *
  * @module @deepseek-ai/dsh-subagent
  */
@@ -40,15 +39,18 @@ import {
 import { assertSubagentMaxDepth } from './depth.ts'
 import { foldSubagentDescriptor, snapshotSubagentDescriptor } from './descriptor.ts'
 import { establishCatalogChild } from './catalog.ts'
+import { recordExternalStart } from './external-records.ts'
 import { SubagentError } from './error.ts'
 import { isAdjacentAgentSendMessageTool } from './internal.ts'
 import type { ActivationObserver } from './lifecycle.ts'
 import type {
   ContinuableCreateRequest,
   ContinuableCreateSpec,
-  ContinuableStart,
-  ContinuableStartSpec,
   SubagentInterruptAuthority,
+  SubagentActivationSpec,
+  SubagentActivation,
+  ResolvedSubagentStartRequest,
+  SubagentRun,
   SubagentSendMessageOptions,
 } from './types.ts'
 
@@ -67,6 +69,7 @@ type ChildDeliveryOptions =
 
 /** Package-private hooks supplied by the owning service. */
 interface ContinuationHost {
+  startExternal(name: string, request: ResolvedSubagentStartRequest): Promise<SubagentRun>
   /** Resolve one provider's detached continuable-creation contribution. */
   prepareContinuable(name: string, request: ContinuableCreateRequest): Promise<ContinuableCreateSpec>
   /** Build the lifecycle observer for one Activation residency epoch. */
@@ -74,10 +77,8 @@ interface ContinuationHost {
 }
 
 /**
- * The continuable-subagent orchestration service behind `ctx.subagents`. Tool
- * schema and host adapters are consumers of this one contract; foreground
- * one-shot delegation keeps calling `ctx.subagents.start()` and never enters
- * this lifecycle.
+ * Activation orchestration behind `ctx.subagents`: local conversations and
+ * external executions share admission, ownership, interruption, and release.
  */
 export class SubagentContinuationManager {
   private readonly activations: ContinuableActivationRegistry
@@ -101,11 +102,11 @@ export class SubagentContinuationManager {
    * @param spec - provider, delegation request, and caller cancellation.
    * @returns the durable child id and accepted initial prompt message id.
    */
-  async startContinuable(spec: ContinuableStartSpec): Promise<ContinuableStart> {
+  async startContinuable(spec: SubagentActivationSpec): Promise<SubagentActivation & { messageId: MessageId }> {
     const request = spec.request
     const parent = request.parent
     this.activations.assertAdmitting(parent)
-    const persistence = this.requirePersistence()
+    const persistence = spec.delivery === 'caller' ? this.ctx.get('sessionPersistence') : this.requirePersistence()
     assertSubagentMaxDepth(request.maxDepth)
     const childId = spec.childId ?? brandString<SessionId>(randomUUID())
     this.activations.assertChildIdAvailable(childId)
@@ -145,12 +146,13 @@ export class SubagentContinuationManager {
 
       const inheritedEventCount = SessionLogOffset(prepared.seed?.length ?? 0)
       const seed = prepared.seed
+      let established!: Activation
       const messageId = await this.activations.locks.run(childId, async () => {
         spec.signal.throwIfAborted()
         this.activations.assertAdmitting(parent)
         this.activations.assertChildIdAvailable(childId)
         if (spec.childId !== undefined) {
-          const persisted = await persistence.stat(childId, { signal: spec.signal })
+          const persisted = await persistence?.stat(childId, { signal: spec.signal })
           spec.signal.throwIfAborted()
           this.activations.assertAdmitting(parent)
           this.activations.assertChildIdAvailable(childId)
@@ -172,11 +174,15 @@ export class SubagentContinuationManager {
           agentOptions,
           composition: { persona: request.persona, toolFilter: request.toolFilter },
           signal: spec.signal,
+          delivery: spec.delivery,
+          outputSchema: spec.request.outputSchema,
         })
-        const childHeader = activation.handle.agent.session.header
+        established = activation
+        const child = this.localAgent(activation)
+        const childHeader = child.session.header
         return await this.submitMaterialized(
           activation,
-          isAdjacentAgentSendMessageTool(this.ctx.get('tools')?.get('send_message', activation.handle.agent))
+          spec.delivery !== 'caller' && isAdjacentAgentSendMessageTool(this.ctx.get('tools')?.get('send_message', child))
             ? withContinuableReturnGuidance(parent.id, request.prompt)
             : request.prompt,
           { source: { kind: 'user' }, signal: spec.signal, delivery: 'queue' },
@@ -184,10 +190,73 @@ export class SubagentContinuationManager {
           () => { establishCatalogChild(parent.session, childHeader, descriptor) },
         )
       })
-      return { childId, messageId }
+      return { ...this.receipt(established), childId, messageId }
     } catch (error: unknown) {
       releaseHold()
       throw error
+    }
+  }
+
+  /**
+   * Start an external backend under activation ownership.
+   * @param spec - task, provider, cancellation, and delivery policy.
+   * @returns the accepted activation and its result/disposal capabilities.
+   */
+  async startExternal(spec: SubagentActivationSpec): Promise<SubagentActivation> {
+    const parent = spec.request.parent
+    this.activations.assertAdmitting(parent)
+    const pendingId = brandString<SessionId>(randomUUID())
+    const releaseHold = this.activations.holdOwnership(parent, pendingId)
+    const descriptor = snapshotSubagentDescriptor({ mode: 'one-shot', provider: spec.provider, label: spec.label })
+    let activation: Activation | undefined
+    try {
+      activation = await this.activations.materialize({
+        childId: pendingId,
+        provider: spec.provider,
+        parent,
+        agentOptions: {},
+        composition: {},
+        signal: spec.signal,
+        delivery: spec.delivery,
+        external: signal => this.host.startExternal(spec.provider, {
+          ...spec.request, label: spec.label, descriptor, signal,
+        }),
+      })
+      this.activations.assertAdmitting(parent)
+      this.activations.authorizeLineage(parent, activation.childId, activation.parentSession)
+      spec.signal.throwIfAborted()
+      recordExternalStart(parent.session, activation.childId, spec.provider, spec.label)
+      this.activations.announce(activation)
+      return this.receipt(activation)
+    } catch (error: unknown) {
+      if (activation !== undefined) {
+        try {
+          await this.activations.dispose(activation)
+        } catch (cleanupError: unknown) {
+          this.ctx.logger.warn(`subagent "${activation.childId}" admission rollback failed: ${(cleanupError as SubagentError).message}`)
+        }
+      }
+      throw error
+    } finally {
+      releaseHold()
+    }
+  }
+
+  /**
+   * Whether the child owns an activation in this process.
+   * @param childId - child identity to inspect.
+   * @returns whether an activation is resident.
+   */
+  isActive(childId: SessionId): boolean {
+    return this.activations.get(childId) !== undefined
+  }
+
+  /** Return capabilities bound to an exact activation instead of a future same-id instance. */
+  private receipt(activation: Activation): SubagentActivation {
+    return {
+      childId: activation.childId,
+      result: activation.result.promise,
+      dispose: () => this.activations.dispose(activation),
     }
   }
 
@@ -216,7 +285,7 @@ export class SubagentContinuationManager {
     this.activations.assertAdmitting(sender)
     const senderActivation = this.activations.get(sender.id)
     if (senderActivation !== undefined
-      && senderActivation.handle.agent === sender
+      && senderActivation.driver.agent === sender
       && senderActivation.parentSession === targetId) {
       options.signal.throwIfAborted()
       return this.sendToParent(senderActivation, sender, content)
@@ -299,6 +368,7 @@ export class SubagentContinuationManager {
       const live = await this.activations.locks.run(childId, async () => {
         const activation = this.activations.get(childId)
         if (activation === undefined) return this.coldResume(parent, childId, content, options)
+        this.localAgent(activation)
         const disposal = activation.inbox.closing
         /* v8 ignore next 3 -- the send-versus-dispose cutoff needs a delivery to
          * observe the transaction inside the same critical section that opened it. */
@@ -306,14 +376,14 @@ export class SubagentContinuationManager {
           return disposal.then(() => undefined, () => undefined)
         }
         if (contentHasImage(content)) {
-          await this.assertImageCapable(activation.handle.agent, options.signal)
+          await this.assertImageCapable(this.localAgent(activation), options.signal)
           if (activation.inbox.closing !== undefined) {
             await Promise.allSettled([activation.inbox.closing])
             return undefined
           }
         }
         const messageId = this.submitAdmitted(activation, content, options, parent)
-        activation.announced = true
+        this.activations.announce(activation)
         return messageId
       })
       /* v8 ignore start -- only a delivery that lost the disposal cutoff retries. */
@@ -350,7 +420,7 @@ export class SubagentContinuationManager {
       )
     }
     const parent = this.ctx.agents.get(activation.parentSession)
-    if (parent === undefined) {
+    if (parent !== activation.parent) {
       throw new SubagentError(
         'direct parent is not live; the message was not delivered',
         'PARENT_UNAVAILABLE',
@@ -377,14 +447,23 @@ export class SubagentContinuationManager {
     }
   }
 
+  /**
+   * Wait for the parent's currently owned child work to release its resources.
+   * @param parent - exact live parent whose child work is observed.
+   * @returns whether any child work was observed.
+   */
+  waitForChildren(parent: Agent): Promise<boolean> {
+    return this.activations.waitForChildren(parent)
+  }
+
   /** Close manager-wide admission and release every live Activation. */
   async drain(): Promise<void> {
     await this.activations.drain()
   }
 
   /**
-   * Stop only the continuable descendants of exact live host-owned parents.
-   * @param parents - exact live roots whose continuable descendants must stop.
+   * Stop the managed descendants of exact live host-owned parents.
+   * @param parents - exact live roots whose managed descendants must stop.
    */
   async drainDescendants(parents: readonly Agent[]): Promise<void> {
     await this.activations.drainDescendants(parents)
@@ -455,6 +534,15 @@ export class SubagentContinuationManager {
     return await this.submitMaterialized(activation, content, options, parent)
   }
 
+  /** Resolve the local inbox owner or reject follow-up input to an external execution. */
+  private localAgent(activation: Activation): Agent {
+    const child = activation.driver.agent
+    if (child === undefined) {
+      throw new SubagentError(`subagent "${activation.childId}" does not accept follow-up input`, 'NOT_CONTINUABLE')
+    }
+    return child
+  }
+
   /** Admit a materialized child, commit its creation fact, and release it on failure. */
   private async submitMaterialized(
     activation: Activation,
@@ -465,14 +553,14 @@ export class SubagentContinuationManager {
   ): Promise<MessageId> {
     try {
       if (contentHasImage(content)) {
-        await this.assertImageCapable(activation.handle.agent, options.signal)
+        await this.assertImageCapable(this.localAgent(activation), options.signal)
         if (activation.inbox.closing !== undefined) {
           throw new SubagentError(`subagent "${activation.childId}" is closing`, 'ACTIVATION_CLOSING')
         }
       }
       const messageId = this.submitAdmitted(activation, content, options, parent)
       commit?.()
-      activation.announced = true
+      this.activations.announce(activation)
       return messageId
     } catch (error: unknown) {
       try {

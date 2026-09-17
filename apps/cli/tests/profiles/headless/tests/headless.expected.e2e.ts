@@ -748,12 +748,12 @@ describe('headless stream-json snapshots', () => {
         const parent = logs.find(log => typeof log.header.parentSession !== 'string')
         if (parent === undefined) throw new Error('Agent Teams snapshot did not persist its Lead')
         const rows = parseJsonl(parent.content)
-        const workflowChild = logs.find(log => parseJsonl(log.content).some(row => row.type === 'subagent/descriptor'
-          && (row.data as JsonObject).mode === 'one-shot'))
+        const workflowChild = logs.find(log => parseJsonl(log.content).some(row => row.type === 'user/message'
+          && JSON.stringify((row.data as JsonObject).content) === JSON.stringify([{ type: 'text', text: 'TEAM_WORKFLOW_CHILD' }])))
         if (workflowChild === undefined) throw new Error('Team profile did not persist its workflow child')
         const workflowRows = parseJsonl(workflowChild.content)
         expect(workflowRows.find(row => row.type === 'subagent/descriptor')?.data)
-          .toMatchObject({ mode: 'one-shot', provider: 'spawn' })
+          .toMatchObject({ mode: 'continuable', provider: 'spawn' })
         expect(workflowRows.filter(row => row.type === 'user/message'
           && ((row.data as JsonObject).source as JsonObject).kind === 'user').map(row => row.data))
           .toEqual([expect.objectContaining({ content: [{ type: 'text', text: 'TEAM_WORKFLOW_CHILD' }] })])

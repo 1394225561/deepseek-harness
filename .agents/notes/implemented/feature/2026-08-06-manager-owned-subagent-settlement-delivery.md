@@ -14,6 +14,8 @@ The signal already existed. `subagent/end` has carried `stopReason` and `lastAss
 
 ## Decision
 
+The shared activation entry point, external execution ownership, and caller-versus-parent result delivery are governed by [Unified subagent activations](../simplification/2026-09-17-unified-subagent-activations.md). This record retains the independent rationale described below.
+
 The continuation manager delivers the account itself, from inside the disposal transaction that ends the Activation.
 
 When a resident Activation settles, `notifySettlement()` resolves the child's durable direct parent and sends it one user-role message: the epoch's outcome as a sentence the parent can act on, then the text from the child's final assistant output, or a statement that it produced no closing text. Delivery is unconditional for every child whose id a caller actually received. It does not consult whether the child reported, and it keeps no bookkeeping that could make the promise conditional — that unconditionality is what lets `tool-subagent` promise a runtime notice containing `its outcome and any final assistant message`. A materialization rolled back before its first accepted message stays silent, because the caller was told that child was not established.

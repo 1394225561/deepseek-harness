@@ -18,6 +18,8 @@ Parent Agents need to send later work to the same live child without changing it
 
 ## Decision
 
+The shared activation entry point, external execution ownership, and caller-versus-parent result delivery are governed by [Unified subagent activations](../simplification/2026-09-17-unified-subagent-activations.md). This record retains the independent rationale described below.
+
 A continuable subagent has one durable Session and at most one process-local Activation:
 
 ```text

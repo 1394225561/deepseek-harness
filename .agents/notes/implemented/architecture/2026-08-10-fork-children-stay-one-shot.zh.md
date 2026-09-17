@@ -12,6 +12,8 @@ fork 与 spawn 的差异在于：fork 会用 parent 已完成轮次的前缀作�
 
 ## 决策
 
+共享 activation 入口、外部执行所有权，以及调用方与父级之间的结果投递选择由[统一 subagent activation](../simplification/2026-09-17-unified-subagent-activations.zh.md) 决策拥有。本记录保留下述独立理由。
+
 面向模型的 `send_message` 工具在组合中的每个 Agent 上全局注册。因此，可继续 fork child 获得与 parent 相同的工具名称、描述、schema 和顺序。其初始任务追加在继承的 Session 种子之后；当 child 可以看到该工具时，任务还会包含直接 parent id，以及使用 `send_message({ agent_id, message })` 返回结果的指引。
 
 base 组合包与 `cordis`、`standard` 和 `ptc` CLI preset 将 fork 绑定为可继续生命周期。基于 base 的 profile（包括 headless）继承这一默认值。`ForkInProcessProvider.prepareContinuable()` 与 `ctx.subagents.startContinuable()` 在这些组合中保持相同的请求前缀行为。

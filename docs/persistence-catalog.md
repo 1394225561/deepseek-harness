@@ -58,6 +58,8 @@ The [format references](persistence-changes/historical-formats/README.md) cover 
 | `event:step/start` | event | `4513e088d43e6c68425be30451b9f961cc264fe7318ca62681c41d4d78615986` | [`event:step/start`](#persistence-type-eventstepstart) |
 | `event:subagent/catalog` | event | `ae1f7110feeec697b8cab42b68f7709aa7b3279764099dfb53c25890d2e5c871` | [`event:subagent/catalog`](#persistence-type-eventsubagentcatalog) |
 | `event:subagent/descriptor` | event | `b79ada42962cad0190a9d465805260567621fa3a4abd757eb31e6016b52d5ab5` | [`event:subagent/descriptor`](#persistence-type-eventsubagentdescriptor) |
+| `event:subagent/external-end` | event | `186d78392e03b505c93e7be6fe6a9eb7025aa1e6401b600f6502d8e7860bf215` | [`event:subagent/external-end`](#persistence-type-eventsubagentexternal-end) |
+| `event:subagent/external-start` | event | `e144bc89d55c5f25971eaac9aecddd1549c48912f709af1f7167ae3895dfdf20` | [`event:subagent/external-start`](#persistence-type-eventsubagentexternal-start) |
 | `event:subagent/model-selection-policy` | event | `a6567ccb2e530606b775371eb4fa31468d72084339968e8b0440a516a23b39dc` | [`event:subagent/model-selection-policy`](#persistence-type-eventsubagentmodel-selection-policy) |
 | `event:system/message` | event | `69becfb6b2d3fd5da91518089454cae8ef33f1835637ec44dde35dd077fd4bae` | [`event:system/message`](#persistence-type-eventsystemmessage) |
 | `event:team/member` | event | `4fb59762612c3e3ac3a3bd4f84c9c148d3c3893bd422ba2b201cc039fabd49bc` | [`event:team/member`](#persistence-type-eventteammember) |
@@ -895,6 +897,34 @@ Source: [`packages/subagent/subagent/src/catalog.ts:40`](../packages/subagent/su
 ```
 
 Source: [`packages/subagent/subagent/src/descriptor.ts:38`](../packages/subagent/subagent/src/descriptor.ts)
+
+<a id="subagentexternal-end--log-only"></a>
+
+#### `subagent/external-end` — log-only
+
+```ts persistence-catalog
+/**
+ * An external child settled with its complete retained result.
+ * @param data - execution identity and terminal result.
+ */
+'subagent/external-end': ExternalSubagentEnd
+```
+
+Source: [`packages/subagent/subagent/src/external-records.ts:66`](../packages/subagent/subagent/src/external-records.ts)
+
+<a id="subagentexternal-start--log-only"></a>
+
+#### `subagent/external-start` — log-only
+
+```ts persistence-catalog
+/**
+ * An external child accepted its initial task without creating a DSH Session.
+ * @param data - parent-owned execution identity and creation label.
+ */
+'subagent/external-start': ExternalSubagentStart
+```
+
+Source: [`packages/subagent/subagent/src/external-records.ts:61`](../packages/subagent/subagent/src/external-records.ts)
 
 <a id="subagentmodel-selection-policy--log-only"></a>
 
@@ -2116,7 +2146,7 @@ Sources: [`packages/llm/llm/src/assistant-stream.ts:21`](../packages/llm/llm/src
 
 | Property | Presence | Type |
 |---|---|---|
-| `dt` | required | [`SessionEventEnvelope[39].sourceEventSeqs`](#persistence-type-sessioneventenvelope39sourceeventseqs) |
+| `dt` | required | [`SessionEventEnvelope[41].sourceEventSeqs`](#persistence-type-sessioneventenvelope41sourceeventseqs) |
 | `index` | required | `number` |
 | `texts` | required | [`event:assistant/attempt.data.stream[0][0].texts`](#persistence-type-eventassistantattemptdatastream00texts) |
 | `time0` | required | `number` |
@@ -2140,7 +2170,7 @@ Sources: [`packages/llm/llm/src/assistant-stream.ts:28`](../packages/llm/llm/src
 
 | Property | Presence | Type |
 |---|---|---|
-| `dt` | required | [`SessionEventEnvelope[39].sourceEventSeqs`](#persistence-type-sessioneventenvelope39sourceeventseqs) |
+| `dt` | required | [`SessionEventEnvelope[41].sourceEventSeqs`](#persistence-type-sessioneventenvelope41sourceeventseqs) |
 | `index` | required | `number` |
 | `texts` | required | [`event:assistant/attempt.data.stream[0][0].texts`](#persistence-type-eventassistantattemptdatastream00texts) |
 | `time0` | required | `number` |
@@ -2157,7 +2187,7 @@ Sources: [`packages/llm/llm/src/assistant-stream.ts:35`](../packages/llm/llm/src
 | Property | Presence | Type |
 |---|---|---|
 | `args` | required | [`event:assistant/attempt.data.stream[0][0].texts`](#persistence-type-eventassistantattemptdatastream00texts) |
-| `dt` | required | [`SessionEventEnvelope[39].sourceEventSeqs`](#persistence-type-sessioneventenvelope39sourceeventseqs) |
+| `dt` | required | [`SessionEventEnvelope[41].sourceEventSeqs`](#persistence-type-sessioneventenvelope41sourceeventseqs) |
 | `id` | required | `string` |
 | `index` | required | `number` |
 | `name` | optional | `string` |
@@ -2515,7 +2545,7 @@ Sources: [`packages/compaction/compaction/src/types.ts:82`](../packages/compacti
 | Property | Presence | Type |
 |---|---|---|
 | `shadowedRange` | required | [`event:compaction/prune.data.shadowedRange`](#persistence-type-eventcompactionprunedatashadowedrange) |
-| `shadowedSeqs` | required | [`SessionEventEnvelope[39].sourceEventSeqs`](#persistence-type-sessioneventenvelope39sourceeventseqs) |
+| `shadowedSeqs` | required | [`SessionEventEnvelope[41].sourceEventSeqs`](#persistence-type-sessioneventenvelope41sourceeventseqs) |
 | `shadowedTokenCount` | required | `number` |
 
 <a id="persistence-type-eventcompactionprunedatashadowedrange"></a>
@@ -2599,7 +2629,7 @@ SHA-256: `9ff2ad8dddb836f75e8f6197fff2371323dfc396c3c6fb667e6e0b42fda79a5c`
 | `provider` | required | `string` |
 | `rawOutput` | required | [`event:agent/inbox/spliced.data.inserted[0].content`](#persistence-type-eventagentinboxspliceddatainserted0content) |
 | `shadowedRange` | required | [`event:compaction/prune.data.shadowedRange`](#persistence-type-eventcompactionprunedatashadowedrange) |
-| `shadowedSeqs` | required | [`SessionEventEnvelope[39].sourceEventSeqs`](#persistence-type-sessioneventenvelope39sourceeventseqs) |
+| `shadowedSeqs` | required | [`SessionEventEnvelope[41].sourceEventSeqs`](#persistence-type-sessioneventenvelope41sourceeventseqs) |
 | `shadowedTokenCount` | required | `number` |
 | `sourceCommandId` | optional | `string` |
 | `summary` | required | [`event:agent/inbox/spliced.data.inserted[0].content`](#persistence-type-eventagentinboxspliceddatainserted0content) |
@@ -2619,7 +2649,7 @@ SHA-256: `3aa261c8516b5c955ed12080e6257a56cbe513f6c9f0ac9274c12e96c196ebca`
 | `provider` | required | `string` |
 | `rawOutput` | optional | [`event:agent/inbox/spliced.data.inserted[0].content`](#persistence-type-eventagentinboxspliceddatainserted0content) |
 | `shadowedRange` | required | [`event:compaction/prune.data.shadowedRange`](#persistence-type-eventcompactionprunedatashadowedrange) |
-| `shadowedSeqs` | required | [`SessionEventEnvelope[39].sourceEventSeqs`](#persistence-type-sessioneventenvelope39sourceeventseqs) |
+| `shadowedSeqs` | required | [`SessionEventEnvelope[41].sourceEventSeqs`](#persistence-type-sessioneventenvelope41sourceeventseqs) |
 | `shadowedTokenCount` | required | `number` |
 | `sourceCommandId` | optional | `string` |
 | `summary` | required | [`event:agent/inbox/spliced.data.inserted[0].content`](#persistence-type-eventagentinboxspliceddatainserted0content) |
@@ -3305,6 +3335,79 @@ SHA-256: `b79ada42962cad0190a9d465805260567621fa3a4abd757eb31e6016b52d5ab5`
 | `time` | required | `number` |
 | `type` | required | `"subagent/descriptor"` |
 
+<a id="persistence-type-eventsubagentexternal-end"></a>
+
+### `event:subagent/external-end`
+
+SHA-256: `186d78392e03b505c93e7be6fe6a9eb7025aa1e6401b600f6502d8e7860bf215`
+
+| Property | Presence | Type |
+|---|---|---|
+| `data` | required | [`packages/subagent/subagent/src/external-records.ts#ExternalSubagentEnd`](#persistence-type-packagessubagentsubagentsrcexternal-recordstsexternalsubagentend) |
+| `ignorable` | optional | `true` |
+| `seq` | required | `number` |
+| `time` | required | `number` |
+| `type` | required | `"subagent/external-end"` |
+
+<a id="persistence-type-eventsubagentexternal-enddataresultoutput"></a>
+
+### `event:subagent/external-end.data.result.output`
+
+SHA-256: `3766703bc2634fec566d283ed6b2d794722f2cd9b02b65ce39c11d374d3a28d1`
+
+Array of [`packages/subagent/subagent/src/external-records.ts#ExternalSubagentContent`](#persistence-type-packagessubagentsubagentsrcexternal-recordstsexternalsubagentcontent).
+
+<a id="persistence-type-eventsubagentexternal-enddataresultoutput0value5"></a>
+
+### `event:subagent/external-end.data.result.output[0].[value][5]`
+
+SHA-256: `72ec79127a9c0d0241b1106a74cc2b24c81ce467170f1c3c93f7b71a9496d227`
+
+Array of [`event:subagent/external-end.data.result.structured`](#persistence-type-eventsubagentexternal-enddataresultstructured).
+
+<a id="persistence-type-eventsubagentexternal-enddataresultoutput0value6"></a>
+
+### `event:subagent/external-end.data.result.output[0].[value][6]`
+
+SHA-256: `529e0ccd0e34079ab4ff21ed87f810cee0388246263bf22e8aba5986b56fae05`
+
+Sources: [`packages/util/values/src/index.ts:4`](../packages/util/values/src/index.ts)
+
+| Property | Presence | Type |
+|---|---|---|
+| [`string`] | index signature | [`event:subagent/external-end.data.result.structured`](#persistence-type-eventsubagentexternal-enddataresultstructured) |
+
+<a id="persistence-type-eventsubagentexternal-enddataresultstructured"></a>
+
+### `event:subagent/external-end.data.result.structured`
+
+SHA-256: `c592ce75aab73fcab19c1d7845684c72cf402b78d2e1f2833a58ecf9f3598ed6`
+
+Sources: [`packages/util/values/src/index.ts:4`](../packages/util/values/src/index.ts)
+
+One of:
+
+- [`event:subagent/external-end.data.result.output[0].[value][5]`](#persistence-type-eventsubagentexternal-enddataresultoutput0value5)
+- [`event:subagent/external-end.data.result.output[0].[value][6]`](#persistence-type-eventsubagentexternal-enddataresultoutput0value6)
+- `string`
+- `boolean`
+- `null`
+- `number`
+
+<a id="persistence-type-eventsubagentexternal-start"></a>
+
+### `event:subagent/external-start`
+
+SHA-256: `e144bc89d55c5f25971eaac9aecddd1549c48912f709af1f7167ae3895dfdf20`
+
+| Property | Presence | Type |
+|---|---|---|
+| `data` | required | [`packages/subagent/subagent/src/external-records.ts#ExternalSubagentStart`](#persistence-type-packagessubagentsubagentsrcexternal-recordstsexternalsubagentstart) |
+| `ignorable` | optional | `true` |
+| `seq` | required | `number` |
+| `time` | required | `number` |
+| `type` | required | `"subagent/external-start"` |
+
 <a id="persistence-type-eventsubagentmodel-selection-policy"></a>
 
 ### `event:subagent/model-selection-policy`
@@ -3350,7 +3453,7 @@ SHA-256: `69becfb6b2d3fd5da91518089454cae8ef33f1835637ec44dde35dd077fd4bae`
 | `data` | required | [`event:system/message.data`](#persistence-type-eventsystemmessagedata) |
 | `ignorable` | optional | `true` |
 | `seq` | required | `number` |
-| `sourceEventSeqs` | optional | [`SessionEventEnvelope[39].sourceEventSeqs`](#persistence-type-sessioneventenvelope39sourceeventseqs) |
+| `sourceEventSeqs` | optional | [`SessionEventEnvelope[41].sourceEventSeqs`](#persistence-type-sessioneventenvelope41sourceeventseqs) |
 | `surfaceOp` | required | [`packages/core/session/src/types.ts#SurfaceOp`](#persistence-type-packagescoresessionsrctypestssurfaceop) |
 | `time` | required | `number` |
 | `type` | required | `"system/message"` |
@@ -3694,7 +3797,7 @@ SHA-256: `29af48b840d0cd9e48b6f50bf3b354f8f6340607c5b99220a48e74f60beac9e2`
 | `data` | required | [`event:tool/result.data`](#persistence-type-eventtoolresultdata) |
 | `ignorable` | optional | `true` |
 | `seq` | required | `number` |
-| `sourceEventSeqs` | optional | [`SessionEventEnvelope[39].sourceEventSeqs`](#persistence-type-sessioneventenvelope39sourceeventseqs) |
+| `sourceEventSeqs` | optional | [`SessionEventEnvelope[41].sourceEventSeqs`](#persistence-type-sessioneventenvelope41sourceeventseqs) |
 | `surfaceOp` | required | [`packages/core/session/src/types.ts#SurfaceOp`](#persistence-type-packagescoresessionsrctypestssurfaceop) |
 | `time` | required | `number` |
 | `type` | required | `"tool/result"` |
@@ -3711,7 +3814,7 @@ Sources: [`packages/core/session/src/types.ts:355`](../packages/core/session/src
 |---|---|---|
 | `error` | optional | [`event:tool/ptc-dispatch.data.error`](#persistence-type-eventtoolptc-dispatchdataerror) |
 | `message` | required | [`packages/llm/llm/src/message.ts#ToolResultMessage`](#persistence-type-packagesllmllmsrcmessagetstoolresultmessage) |
-| `meta` | optional | [`event:tool/result.data.meta`](#persistence-type-eventtoolresultdatameta) |
+| `meta` | optional | [`event:subagent/external-end.data.result.structured`](#persistence-type-eventsubagentexternal-enddataresultstructured) |
 | `step` | required | `number` |
 | `turn` | required | `number` |
 
@@ -3724,43 +3827,6 @@ SHA-256: `8d6a011f3ef7096a4a922ef420458419ff6b20e1eaeece5d331db7585d2f08d6`
 | Position | Presence | Type |
 |---|---|---|
 | 0 | required | [`packages/llm/llm/src/types.ts#ToolResultBlock`](#persistence-type-packagesllmllmsrctypeststoolresultblock) |
-
-<a id="persistence-type-eventtoolresultdatameta"></a>
-
-### `event:tool/result.data.meta`
-
-SHA-256: `c592ce75aab73fcab19c1d7845684c72cf402b78d2e1f2833a58ecf9f3598ed6`
-
-Sources: [`packages/util/values/src/index.ts:4`](../packages/util/values/src/index.ts)
-
-One of:
-
-- [`event:tool/result.data.meta[5]`](#persistence-type-eventtoolresultdatameta5)
-- [`event:tool/result.data.meta[5][0][6]`](#persistence-type-eventtoolresultdatameta506)
-- `string`
-- `boolean`
-- `null`
-- `number`
-
-<a id="persistence-type-eventtoolresultdatameta5"></a>
-
-### `event:tool/result.data.meta[5]`
-
-SHA-256: `72ec79127a9c0d0241b1106a74cc2b24c81ce467170f1c3c93f7b71a9496d227`
-
-Array of [`event:tool/result.data.meta`](#persistence-type-eventtoolresultdatameta).
-
-<a id="persistence-type-eventtoolresultdatameta506"></a>
-
-### `event:tool/result.data.meta[5][0][6]`
-
-SHA-256: `529e0ccd0e34079ab4ff21ed87f810cee0388246263bf22e8aba5986b56fae05`
-
-Sources: [`packages/util/values/src/index.ts:4`](../packages/util/values/src/index.ts)
-
-| Property | Presence | Type |
-|---|---|---|
-| [`string`] | index signature | [`event:tool/result.data.meta`](#persistence-type-eventtoolresultdatameta) |
 
 <a id="persistence-type-eventturnend"></a>
 
@@ -3937,7 +4003,7 @@ SHA-256: `314765bdff29c7862fb6ce820f1773563ba3094a680d163ea21180a2591b8578`
 | `data` | required | [`packages/llm/llm/src/message.ts#UserMessage`](#persistence-type-packagesllmllmsrcmessagetsusermessage) |
 | `ignorable` | optional | `true` |
 | `seq` | required | `number` |
-| `sourceEventSeqs` | optional | [`SessionEventEnvelope[39].sourceEventSeqs`](#persistence-type-sessioneventenvelope39sourceeventseqs) |
+| `sourceEventSeqs` | optional | [`SessionEventEnvelope[41].sourceEventSeqs`](#persistence-type-sessioneventenvelope41sourceeventseqs) |
 | `surfaceOp` | required | [`packages/core/session/src/types.ts#SurfaceOp`](#persistence-type-packagescoresessionsrctypestssurfaceop) |
 | `time` | required | `number` |
 | `type` | required | `"user/message"` |
@@ -4482,7 +4548,7 @@ Sources: [`packages/compaction/compaction-image-offload/src/projection.ts:9`](..
 
 | Property | Presence | Type |
 |---|---|---|
-| `imageIndexes` | required | [`SessionEventEnvelope[39].sourceEventSeqs`](#persistence-type-sessioneventenvelope39sourceeventseqs) |
+| `imageIndexes` | required | [`SessionEventEnvelope[41].sourceEventSeqs`](#persistence-type-sessioneventenvelope41sourceeventseqs) |
 | `seq` | required | `number` |
 
 <a id="persistence-type-packagescontextagent-instructionssrcrendertsagentinstructionchange"></a>
@@ -5642,7 +5708,7 @@ Sources: [`packages/session/session-title-llm/src/index.ts:27`](../packages/sess
 | Property | Presence | Type |
 |---|---|---|
 | `maxTokens` | required | `number` |
-| `messageSeqs` | required | [`SessionEventEnvelope[39].sourceEventSeqs`](#persistence-type-sessioneventenvelope39sourceeventseqs) |
+| `messageSeqs` | required | [`SessionEventEnvelope[41].sourceEventSeqs`](#persistence-type-sessioneventenvelope41sourceeventseqs) |
 | `messages` | required | [`event:session/title-llm-request.data.messages`](#persistence-type-eventsessiontitle-llm-requestdatamessages) |
 | `route` | required | [`packages/session/session-title/src/types.ts#SessionTitleModelIdentity`](#persistence-type-packagessessionsession-titlesrctypestssessiontitlemodelidentity) |
 | `system` | required | `string` |
@@ -5658,7 +5724,7 @@ Sources: [`packages/session/session-title/src/types.ts:41`](../packages/session/
 
 | Property | Presence | Type |
 |---|---|---|
-| `messageSeqs` | required | [`SessionEventEnvelope[39].sourceEventSeqs`](#persistence-type-sessioneventenvelope39sourceeventseqs) |
+| `messageSeqs` | required | [`SessionEventEnvelope[41].sourceEventSeqs`](#persistence-type-sessioneventenvelope41sourceeventseqs) |
 | `source` | required | [`packages/session/session-title/src/types.ts#SessionTitleSource`](#persistence-type-packagessessionsession-titlesrctypestssessiontitlesource) |
 | `title` | required | `string` |
 
@@ -5807,6 +5873,63 @@ One of:
 
 - [`packages/subagent/subagent/src/descriptor.ts#ContinuableSubagentDescriptorData`](#persistence-type-packagessubagentsubagentsrcdescriptortscontinuablesubagentdescriptordata)
 - [`packages/subagent/subagent/src/descriptor.ts#OneShotSubagentDescriptorData`](#persistence-type-packagessubagentsubagentsrcdescriptortsoneshotsubagentdescriptordata)
+
+<a id="persistence-type-packagessubagentsubagentsrcexternal-recordstsexternalsubagentcontent"></a>
+
+### `packages/subagent/subagent/src/external-records.ts#ExternalSubagentContent`
+
+SHA-256: `93647745454737d83fd7e1225f3a815cc88b0258f7857031fddeee388b8c6ea0`
+
+Sources: [`packages/subagent/subagent/src/external-records.ts:26`](../packages/subagent/subagent/src/external-records.ts)
+
+| Property | Presence | Type |
+|---|---|---|
+| `type` | required | `string` |
+| [`string`] | index signature | [`event:subagent/external-end.data.result.structured`](#persistence-type-eventsubagentexternal-enddataresultstructured) |
+
+<a id="persistence-type-packagessubagentsubagentsrcexternal-recordstsexternalsubagentend"></a>
+
+### `packages/subagent/subagent/src/external-records.ts#ExternalSubagentEnd`
+
+SHA-256: `c3668fe2e95b1c13fda1f778aaeceb98d57edccc16039c3848e6ad2eec86230d`
+
+Sources: [`packages/subagent/subagent/src/external-records.ts:40`](../packages/subagent/subagent/src/external-records.ts)
+
+| Property | Presence | Type |
+|---|---|---|
+| `childId` | required | `string` |
+| `result` | required | [`packages/subagent/subagent/src/external-records.ts#ExternalSubagentResult`](#persistence-type-packagessubagentsubagentsrcexternal-recordstsexternalsubagentresult) |
+| `version` | required | `0` |
+
+<a id="persistence-type-packagessubagentsubagentsrcexternal-recordstsexternalsubagentresult"></a>
+
+### `packages/subagent/subagent/src/external-records.ts#ExternalSubagentResult`
+
+SHA-256: `e7506bc518049e7fb22ad0126cb23b5289c910f3e25b54d6d7fa62196b1b6687`
+
+Sources: [`packages/subagent/subagent/src/external-records.ts:32`](../packages/subagent/subagent/src/external-records.ts)
+
+| Property | Presence | Type |
+|---|---|---|
+| `diagnostic` | optional | `string` |
+| `output` | required | [`event:subagent/external-end.data.result.output`](#persistence-type-eventsubagentexternal-enddataresultoutput) |
+| `stopReason` | required | `string` |
+| `structured` | optional | [`event:subagent/external-end.data.result.structured`](#persistence-type-eventsubagentexternal-enddataresultstructured) |
+
+<a id="persistence-type-packagessubagentsubagentsrcexternal-recordstsexternalsubagentstart"></a>
+
+### `packages/subagent/subagent/src/external-records.ts#ExternalSubagentStart`
+
+SHA-256: `02efe7f06bbceef8ed9c4813f110d7e3fddbc7b378ebdf1d5de15694d87205d6`
+
+Sources: [`packages/subagent/subagent/src/external-records.ts:18`](../packages/subagent/subagent/src/external-records.ts)
+
+| Property | Presence | Type |
+|---|---|---|
+| `childId` | required | `string` |
+| `label` | required | `string` |
+| `provider` | required | `string` |
+| `version` | required | `0` |
 
 <a id="persistence-type-packagestodotool-todosrctypeststodoitem"></a>
 
@@ -6191,7 +6314,7 @@ SHA-256: `5776e5553ff2dfe3f5bc202dbb1e7c9f93e35a531aebb7764c23b2b6153b2ccc`
 
 One of:
 
-- [`SessionEventEnvelope[39]`](#persistence-type-sessioneventenvelope39)
+- [`SessionEventEnvelope[41]`](#persistence-type-sessioneventenvelope41)
 - [`SessionEventEnvelope[6]`](#persistence-type-sessioneventenvelope6)
 - [`SessionEventEnvelope[0]`](#persistence-type-sessioneventenvelope0)
 
@@ -6208,9 +6331,9 @@ SHA-256: `e3e77b26f0148755a505f5b8ea843a3be117827d4703bb5754d9dc8ddbef521f`
 | `time` | required | `number` |
 | `type` | required | `string` |
 
-<a id="persistence-type-sessioneventenvelope39"></a>
+<a id="persistence-type-sessioneventenvelope41"></a>
 
-### `SessionEventEnvelope[39]`
+### `SessionEventEnvelope[41]`
 
 SHA-256: `998f22585a5d73ec005365e203f07fc3b3a029e82323fdda3fd7f13b0a9639d0`
 
@@ -6218,14 +6341,14 @@ SHA-256: `998f22585a5d73ec005365e203f07fc3b3a029e82323fdda3fd7f13b0a9639d0`
 |---|---|---|
 | `ignorable` | optional | `true` |
 | `seq` | required | `number` |
-| `sourceEventSeqs` | optional | [`SessionEventEnvelope[39].sourceEventSeqs`](#persistence-type-sessioneventenvelope39sourceeventseqs) |
+| `sourceEventSeqs` | optional | [`SessionEventEnvelope[41].sourceEventSeqs`](#persistence-type-sessioneventenvelope41sourceeventseqs) |
 | `surfaceOp` | required | [`packages/core/session/src/types.ts#SurfaceOp`](#persistence-type-packagescoresessionsrctypestssurfaceop) |
 | `time` | required | `number` |
 | `type` | required | `string` |
 
-<a id="persistence-type-sessioneventenvelope39sourceeventseqs"></a>
+<a id="persistence-type-sessioneventenvelope41sourceeventseqs"></a>
 
-### `SessionEventEnvelope[39].sourceEventSeqs`
+### `SessionEventEnvelope[41].sourceEventSeqs`
 
 SHA-256: `5d03ba38734809bcbd2a55221bd938b3b3fc34b49bb686c6113e9e4931e3aa78`
 
@@ -6372,6 +6495,22 @@ SHA-256: `44c8c77aa9aa100b0d74d2deee85474b29faa6eee0ac0f662f7abe9931ddd7f2`
 SHA-256: `5ebce1317eacd2c148456627a09668e927ee15c204f0643f5ea76b46b54a2647`
 
 `"subagent/descriptor"`
+
+<a id="persistence-type-subagentexternal-end"></a>
+
+### `"subagent/external-end"`
+
+SHA-256: `32ee1cf94b611ba459e559ef461cfcc9c7df4009fd4f9f4adbb0ac3a624837a0`
+
+`"subagent/external-end"`
+
+<a id="persistence-type-subagentexternal-start"></a>
+
+### `"subagent/external-start"`
+
+SHA-256: `3a10ac79f441a31b4870fbc40df1a0a9678a54b7c498f9c6d4ad14076592fed3`
+
+`"subagent/external-start"`
 
 <a id="persistence-type-subagentmodel-selection-policy"></a>
 

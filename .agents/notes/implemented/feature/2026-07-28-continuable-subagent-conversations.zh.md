@@ -18,6 +18,8 @@ parent Agent 还需要在不改变当前轮次的前提下，向同一个在线 
 
 ## 决策
 
+共享 activation 入口、外部执行所有权，以及调用方与父级之间的结果投递选择由[统一 subagent activation](../simplification/2026-09-17-unified-subagent-activations.zh.md) 决策拥有。本记录保留下述独立理由。
+
 一个可继续 subagent 拥有一个持久化会话，并且至多拥有一个进程内激活：
 
 ```text

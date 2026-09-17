@@ -15,7 +15,6 @@ Types shared by long-running producers, `ctx.jobs`, and job controls. The [runti
  */
 interface JobKindMap {
   bash: 'bash'
-  subagent: 'subagent'
 }
 ```
 
@@ -32,7 +31,7 @@ interface JobKindMap {
  * execution resources while the runtime owns identity and lifecycle state.
  */
 interface JobStart {
-  /** Producer kind — also the id prefix (`bash`, `subagent`, …). */
+  /** Producer kind — also the id prefix (`bash`, …). */
   kind: JobKind
   /** One-line model-facing label (the command; the delegation description). */
   label: string

@@ -38,7 +38,7 @@ harness 可以通过 `dsh-tool-subagent` 将一个任务委派给一个子 agent
 
 ### 基础：subagent seam 上的结构化输出
 
-`SubagentStartRequest.outputSchema` 由 `dsh-subagent-in-process-driver` 为两个进程内后端实现。每个结构化子 agent 在 `child.ctx` 上获得自己的作用域捕获工具、指令和强制注册；并发子 agent 可以使用不同的 schema 而不共享可变策略，dispose 子 agent 时移除整个附件。
+`SubagentStartRequest.outputSchema` 由 `dsh-subagent` 为两个进程内后端实现。每个结构化子 agent 在 `child.ctx` 上获得自己的作用域捕获工具、指令和强制注册；并发子 agent 可以使用不同的 schema 而不共享可变策略，dispose 子 agent 时移除整个附件。
 
 输出 schema 使一次 schema 有效的已提交捕获成为子 agent 成功完成的必要条件。作用域运行时呈现捕获工具和指令，仅提交成功的最终结果（包括 SDK 调用时外层 `run_code` 的结果），在捕获变为 pending 后拒绝后续副作用，并在提交后不再进行模型步骤即停止子 agent。校验失败仍是可重试的工具错误；没有已提交捕获的正常完成以错误结算。
 

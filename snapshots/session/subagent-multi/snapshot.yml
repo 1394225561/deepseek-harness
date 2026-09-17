@@ -8,3 +8,5 @@ sessionFormat:
   coverage: [multi-hop, shipped-profile]
 header:
   class: default
+replay:
+  override: true

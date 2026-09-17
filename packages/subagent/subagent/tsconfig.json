@@ -60,9 +60,6 @@
       "path": "../../session-query/session-query"
     },
     {
-      "path": "../../jobs/jobs"
-    },
-    {
       "path": "../../typert/protocol"
     },
     {

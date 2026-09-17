@@ -12,6 +12,8 @@ The child descriptor remains necessary for recovery and composition, but it cann
 
 ## Decision
 
+The shared activation entry point, external execution ownership, and caller-versus-parent result delivery are governed by [Unified subagent activations](../simplification/2026-09-17-unified-subagent-activations.md). This record retains the independent rationale described below.
+
 The parent Session's required `subagent/catalog` events are the persistent authority for direct-child discovery. Each event is one successful creation fact containing `childId`, `childCreatedAt`, mode, and the mode-discriminated label. Remote one-shot runs without a local Session remain outside this catalog. Invalid own facts, including unsupported payload versions, reject projection restoration because silently dropping a required fact would return an incomplete catalog.
 
 Creation publishes only successful facts. A one-shot run appends the catalog event after its provider returns a local child and before the run reaches its caller. A continuable run admits the initial prompt, appends the catalog event, then returns the child id. If admission or catalog append fails, creation fails and releases the activation; there is no compensating catalog event or rollback protocol.

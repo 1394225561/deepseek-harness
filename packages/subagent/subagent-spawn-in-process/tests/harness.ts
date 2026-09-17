@@ -1,3 +1,5 @@
+import { join } from 'node:path'
+import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
@@ -33,6 +35,7 @@ export async function spawnHarness(workdir: string): Promise<Context> {
   await ctx.plugin(BashEnvPlugin)
   await ctx.plugin(LocalBashExecutor, { cwd: workdir, timeoutMs: 30_000 })
   await ctx.plugin(ToolBash)
+  await ctx.plugin(JsonlSessionPersistence, { root: join(workdir, '.sessions') })
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(Spawn, { providerName: 'spawn' })
   // The model-facing subagent tool, bound to the spawn backend.
@@ -40,13 +43,8 @@ export async function spawnHarness(workdir: string): Promise<Context> {
   return ctx
 }
 
-export function waitForIdle(ctx: Context, agent: Agent): Promise<void> {
-  return new Promise((resolve) => {
-    const dispose = ctx.on('agent/status', ({ agent: subject, status }) => {
-      if (subject === agent && status === 'idle') {
-        dispose()
-        resolve()
-      }
-    })
-  })
+export async function waitForIdle(ctx: Context, agent: Agent): Promise<void> {
+  do {
+    await agent.whenIdle()
+  } while (await ctx.subagents.waitForChildren(agent))
 }

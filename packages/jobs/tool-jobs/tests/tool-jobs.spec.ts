@@ -14,6 +14,12 @@ import type { JobHooks, JobOutcome, JobSnapshot, JobStart } from '@deepseek-ai/d
 import * as ToolJobs from '@deepseek-ai/dsh-tool-jobs'
 import { statusLine } from '@deepseek-ai/dsh-tool-jobs'
 
+declare module '@deepseek-ai/dsh-jobs' {
+  interface JobKindMap {
+    'test-task': 'test-task'
+  }
+}
+
 const testToolSignal = new AbortController().signal
 
 const agentRegistryDisposers = new WeakMap<Agent, () => Promise<void>>()
@@ -198,13 +204,13 @@ describe('job_output', () => {
 
   it('returns the final output of a settled final-output job', async () => {
     const { ctx } = await setup()
-    const p = producer({ kind: 'subagent', label: 'research' })
+    const p = producer({ kind: 'test-task', label: 'research' })
     ctx.jobs.start(p.spec)
-    expect(text(await call(ctx, 'job_output', { job_id: 'subagent-1' }))).toBe('(no new output)\n[status: running]')
+    expect(text(await call(ctx, 'job_output', { job_id: 'test-task-1' }))).toBe('(no new output)\n[status: running]')
 
     p.settle({ status: 'completed', detail: 'completed', output: 'the answer' })
     await tick()
-    expect(text(await call(ctx, 'job_output', { job_id: 'subagent-1' }))).toBe('the answer\n[status: completed, completed]')
+    expect(text(await call(ctx, 'job_output', { job_id: 'test-task-1' }))).toBe('the answer\n[status: completed, completed]')
   })
 
   it('applies a producer limit to the complete body and status result', async () => {
@@ -321,10 +327,10 @@ describe('job_output', () => {
 
   it('wait: true blocks until settlement and reports the terminal state', async () => {
     const { ctx } = await setup()
-    const p = producer({ kind: 'subagent', label: 'research' })
+    const p = producer({ kind: 'test-task', label: 'research' })
     ctx.jobs.start(p.spec)
 
-    const pending = call(ctx, 'job_output', { job_id: 'subagent-1', wait: true })
+    const pending = call(ctx, 'job_output', { job_id: 'test-task-1', wait: true })
     p.settle({ status: 'completed', output: 'done deal' })
     expect(text(await pending)).toBe('done deal\n[status: completed]')
   })
@@ -355,7 +361,7 @@ describe('job_list', () => {
 
     const alice = await fakeAgent(ctx, 'sess-alice')
     ctx.jobs.start(producer({ owner: alice, label: 'pnpm test' }).spec)
-    ctx.jobs.start(producer({ kind: 'subagent', label: 'open research' }).spec)
+    ctx.jobs.start(producer({ kind: 'test-task', label: 'open research' }).spec)
     const p = producer({ owner: alice, label: 'build' })
     ctx.jobs.start(p.spec)
     p.settle({ status: 'completed', detail: 'exit code: 0' })
@@ -373,12 +379,12 @@ describe('job_list', () => {
     }
     expect(text(listed)).toBe([
       'bash-1 [bash] running — pnpm test',
-      'subagent-1 [subagent] running — open research',
+      'test-task-1 [test-task] running — open research',
       'bash-2 [bash] completed — build',
     ].join('\n'))
     // A different caller sees only the unowned job.
     const bob = await fakeAgent(ctx, 'sess-bob')
-    expect(text(await call(ctx, 'job_list', {}, bob))).toBe('subagent-1 [subagent] running — open research')
+    expect(text(await call(ctx, 'job_list', {}, bob))).toBe('test-task-1 [test-task] running — open research')
   })
 })
 
@@ -500,8 +506,8 @@ describe('tool-owned UI presentation (presentCall)', () => {
       .toEqual({ card: 'generic', title: 'Read output from background job bash-1', kind: 'read', rawInput: 'bash-1' })
     expect(ctx.tools.get('job_list')?.presentCall?.({}))
       .toEqual({ card: 'generic', title: 'List background jobs', kind: 'read' })
-    expect(ctx.tools.get('job_kill')?.presentCall?.({ job_id: 'subagent-2' }))
-      .toEqual({ card: 'generic', title: 'Kill background job subagent-2', kind: 'execute', rawInput: 'subagent-2' })
+    expect(ctx.tools.get('job_kill')?.presentCall?.({ job_id: 'test-task-2' }))
+      .toEqual({ card: 'generic', title: 'Kill background job test-task-2', kind: 'execute', rawInput: 'test-task-2' })
   })
 })
 
@@ -711,7 +717,7 @@ describe('completion notices', () => {
     const owner = await fakeAgent(ctx, 'sess-1', { inject })
     const first = producer({
       owner,
-      kind: 'subagent',
+      kind: 'test-task',
       label: 'x'.repeat(1_000),
       outputLimitBytes: 61,
     })
@@ -724,21 +730,21 @@ describe('completion notices', () => {
       {
         id: expect.any(String) as unknown,
         role: 'user',
-        content: [{ type: 'text', text: 'background job subagent-1\nDone; job_output.' }],
+        content: [{ type: 'text', text: 'background job test-task-1\nDone; job_output.' }],
         // The label and status detail are unbounded caller text, so the durable
         // one-line account caps itself rather than committing their full length.
         source: {
           kind: 'plugin',
           plugin: 'tool-jobs',
           form: 'notice',
-          summary: `subagent ${'x'.repeat(110)}…`,
+          summary: `test-task ${'x'.repeat(109)}…`,
         },
       },
     )
 
     const second = producer({
       owner,
-      kind: 'subagent',
+      kind: 'test-task',
       label: 'x'.repeat(1_000),
       outputLimitBytes: 80,
     })
@@ -749,7 +755,7 @@ describe('completion notices', () => {
     const content = (inject.mock.calls[1]?.[0] as { content?: Array<{ type: string; text?: string }> } | undefined)?.content
     const notice = content?.[0]?.text ?? ''
     expect(Buffer.byteLength(notice)).toBeLessThanOrEqual(80)
-    expect(notice).toContain('background job subagent-2 (subagent: xxxx')
+    expect(notice).toContain('background job test-task-2 (test-task: xxxx')
     expect(notice).toContain('[notice truncated]\nDone; job_output.')
   })
 
@@ -818,10 +824,10 @@ describe('completion notices', () => {
     const { ctx } = await setup()
     const inject = vi.fn()
     const owner = await fakeAgent(ctx, 'sess-1', { inject })
-    const p = producer({ owner, kind: 'subagent' })
+    const p = producer({ owner, kind: 'test-task' })
     ctx.jobs.start(p.spec)
 
-    const pending = call(ctx, 'job_output', { job_id: 'subagent-1', wait: true }, owner)
+    const pending = call(ctx, 'job_output', { job_id: 'test-task-1', wait: true }, owner)
     p.settle({ status: 'completed', output: 'answer' })
     expect(text(await pending)).toContain('answer')
     expect(inject).not.toHaveBeenCalled()

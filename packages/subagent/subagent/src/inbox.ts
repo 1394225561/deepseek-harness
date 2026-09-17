@@ -1,10 +1,10 @@
 /**
- * Activation-local admission around one continuable subagent's Agent inbox.
+ * Admission and closure for one activation execution driver.
  *
  * @module @deepseek-ai/dsh-subagent/inbox
  */
 
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { ActivationDriver } from './activation-driver.ts'
 import type { UserMessage } from '@deepseek-ai/dsh-session'
 import type { SubagentPromptRequest } from './control-types.ts'
 import { SubagentError } from './error.ts'
@@ -12,15 +12,15 @@ import { SubagentError } from './error.ts'
 /** One Agent inbox destination, as the wire request selects it. */
 export type SubagentDelivery = SubagentPromptRequest['delivery']
 
-/** Delegate Queue and Steer to one live Agent until its Activation starts closing. */
+/** Admit driver input until the activation starts closing. */
 export class SubagentInbox {
   private closingPromise: Promise<void> | undefined
 
   /**
-   * Wrap one live continuable Agent.
-   * @param agent - the Agent whose inbox receives accepted deliveries.
+   * Wrap one activation driver.
+   * @param driver - execution receiving accepted input.
    */
-  constructor(private readonly agent: Agent) {}
+  constructor(private readonly driver: ActivationDriver) {}
 
   /**
    * Read the Activation's close transaction.
@@ -35,7 +35,7 @@ export class SubagentInbox {
    * @returns whether either Agent inbox destination is non-empty.
    */
   get hasPending(): boolean {
-    return this.agent.inbox.nextTurn.length > 0 || this.agent.inbox.nextStep.length > 0
+    return this.driver.hasPending
   }
 
   /**
@@ -46,12 +46,11 @@ export class SubagentInbox {
   deliver(message: UserMessage, delivery: SubagentDelivery): void {
     if (this.closingPromise !== undefined) {
       throw new SubagentError(
-        `subagent "${this.agent.id}" activation is being disposed; the message was not accepted`,
+        'subagent activation is being disposed; the message was not accepted',
         'ACTIVATION_CLOSING',
       )
     }
-    if (delivery === 'steer') this.agent.steer(message)
-    else this.agent.followup(message)
+    this.driver.deliver(message, delivery)
   }
 
   /**

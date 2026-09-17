@@ -48,14 +48,23 @@ export type SubagentListEntry =
     readonly hasChildren: boolean
   } & (
     | {
-      /** A terminal one-shot child. */
+      /** A historical one-shot child with its own Session. */
       readonly mode: 'one-shot'
+      readonly external?: undefined
       /** Optional durable creation label from the child's descriptor. */
       readonly label?: string
     }
     | {
+      /** One execution whose records belong to the direct parent's log. */
+      readonly mode: 'one-shot'
+      readonly external: true
+      /** Label required by the parent's external execution record. */
+      readonly label: string
+    }
+    | {
       /** A resumable conversation. */
       readonly mode: 'continuable'
+      readonly external?: undefined
       /** Durable creation label from the child's descriptor. */
       readonly label: string
     }

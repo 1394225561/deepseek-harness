@@ -1,6 +1,6 @@
 /**
  * The globally named `list_agents` tool: a thin model-facing adapter over
- * the continuable projection of `ctx.subagents.listChildren()` and, for the
+ * the managed-child projection of `ctx.subagents.listChildren()` and, for the
  * `descendants` scope, `ctx.subagents.listDescendants()`. It stays separately
  * loadable from the root `send_message` plugin so a deployment can register
  * continuation delivery without exposing discovery.
@@ -32,7 +32,8 @@ type ListAgentsEntry =
     readonly kind: 'child'
     readonly id: SessionId
     readonly label: string
-    readonly status: 'running' | 'idle' | 'ready'
+    readonly status: 'running' | 'idle' | 'ready' | 'finished'
+    readonly continuable?: false
     readonly parent?: SessionId
     readonly depth?: number
   }
@@ -62,7 +63,7 @@ function statusOf(agents: { get(id: SessionId): Agent | undefined }, id: Session
   return agent.status === 'running' ? 'running' : 'idle'
 }
 
-/** Project one service row into the model-facing entry, or omit a one-shot child. */
+/** Project current managed executions and resumable children; omit legacy one-shot Sessions. */
 function project(
   agents: { get(id: SessionId): Agent | undefined },
   entry: SubagentListEntry,
@@ -72,8 +73,13 @@ function project(
   if (entry.kind === 'diagnostic') {
     return { kind: 'diagnostic', id: entry.id, reason: entry.reason, ...at }
   }
-  // One-shot children cannot be continued by send_message, so the model
-  // never selects them; discovery still traversed them for descendants.
+  if (entry.external) {
+    return {
+      kind: 'child', id: entry.id, label: entry.label,
+      status: entry.activity === 'running' ? 'running' : 'finished',
+      continuable: false, ...at,
+    }
+  }
   if (entry.mode !== 'continuable') return undefined
   return {
     kind: 'child',
@@ -92,13 +98,13 @@ export function apply(ctx: Context): void {
   ctx.tools.register(defineTool({
     name: 'list_agents',
     description:
-      'List your continuable background subagents by durable id and label. Use it to recall which ones '
+      'List your subagents by id and label. Use it to recall which ones '
       + 'you started, not to poll for completion — you are told when one finishes. Status comes from the live '
       + 'registry: running means the agent is working right now, idle means it is loaded but between turns '
       + '(it may be waiting on agents it started), and ready means it exists only in storage — resumable, not '
       + 'terminal, and not a result waiting to be collected; a `send_message` steers a running child at its nearest '
       + 'step boundary or starts a turn for an idle or ready child, and a direct child remains a `send_message` '
-      + 'candidate in every status. The snapshot is not a delivery '
+      + 'candidate in every local status. External executions carry `continuable: false`, are running or finished, and cannot receive follow-ups. The snapshot is not a delivery '
       + 'promise — `send_message` performs the authoritative check and may still fail. Children that could '
       + 'not be read are reported as diagnostics instead of being silently dropped. Scope `descendants` '
       + 'walks the whole tree below you in stable pre-order, annotating each entry with its durable direct-parent '
@@ -123,7 +129,8 @@ export function apply(ctx: Context): void {
                 kind: { type: 'string', required: true, enum: ['child'] },
                 id: { type: 'string', required: true },
                 label: { type: 'string', required: true },
-                status: { type: 'string', required: true, enum: ['running', 'idle', 'ready'] },
+                status: { type: 'string', required: true, enum: ['running', 'idle', 'ready', 'finished'] },
+                continuable: { type: 'boolean', const: false },
                 parent: { type: 'string' },
                 depth: { type: 'number' },
               },
@@ -156,7 +163,7 @@ export function apply(ctx: Context): void {
                 ? ` parent=${String(entry.parent)} depth=${String(entry.depth)}`
                 : ''
               return entry.kind === 'child'
-                ? `${entry.id} [${entry.status}]${at} — ${entry.label}`
+                ? `${entry.id} [${entry.status}]${at} — ${entry.label}${entry.continuable === false ? '; cannot receive follow-ups' : ''}`
                 : `${entry.id} [diagnostic: ${entry.reason}]${at}`
             }).join('\n'),
         }]

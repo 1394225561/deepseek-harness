@@ -29,6 +29,7 @@ import { SessionQueryError } from '@deepseek-ai/dsh-session-query'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 import type {} from '@deepseek-ai/dsh-cmdline'
 import type {} from '@deepseek-ai/dsh-session-query'
+import type {} from '@deepseek-ai/dsh-subagent'
 import { internals } from './runner-internals.ts'
 import { projectJsonRun, boundJsonLine } from './json-stream.ts'
 
@@ -366,7 +367,10 @@ async function run(ctx: Context, config: Config, io: HeadlessIo): Promise<void> 
         content: [{ type: 'text', text: task }],
         source: { kind: 'user' },
       }))
-      await agent.whenIdle()
+      const subagents = ctx.get('subagents')
+      do {
+        await agent.whenIdle()
+      } while (await subagents?.waitForChildren(agent))
     } finally {
       stopReasoning?.()
     }

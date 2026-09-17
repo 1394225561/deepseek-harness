@@ -501,9 +501,8 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
         structured: () => { /* deliberately outside lossless JSON */ },
         stopReason: 'completed',
       } as unknown as SubagentResult
-      const start = vi.spyOn(ctx.subagents, 'start').mockResolvedValue({
-        id: SessionId('raw-invalid-child'),
-        localAgent: undefined,
+      const start = vi.spyOn(ctx.subagents, 'startActivation').mockResolvedValue({
+        childId: SessionId('raw-invalid-child'),
         result: Promise.resolve(invalid),
         dispose: () => Promise.resolve(),
       })
@@ -764,7 +763,7 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
       await ctx.plugin(SessionProjectionRegistry)
       await mountPtcRuntime(ctx)
       await ctx.plugin(SubagentRuntime)
-      const aborted: string[] = []
+      let aborted = false
       const provider: SubagentProvider = {
         name: 'signal-only',
         capabilities: { agentOptions: true, outputSchema: true, depthLimit: true, toolFilter: true, persona: false },
@@ -773,7 +772,7 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
           let settle!: (result: SubagentResult) => void
           const result = new Promise<SubagentResult>((resolve) => { settle = resolve })
           request.signal.addEventListener('abort', () => {
-            aborted.push(String(request.signal.reason))
+            aborted = true
             settle({ output: [], stopReason: 'aborted' })
           }, { once: true })
           return {
@@ -795,12 +794,7 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
       })
       const result = await handle.result
       expect(result.stopReason, result.error).toBe('completed')
-      // BEFORE dispose(): the settlement itself must have aborted the signal —
-      // without it this child would stay live until dispose's terminate. This
-      // is a HOST-PROMPTNESS claim, not a cold-start race — a tight explicit
-      // bound (unlike the file default) so a multi-second reap regression
-      // cannot pass by outlasting the wait.
-      await waitFor(() => { expect(aborted).toEqual(['workflow settled']) }, 1000)
+      expect(aborted).toBe(true)
       await handle.dispose()
     })
 

@@ -47,12 +47,15 @@ class GatedAdapter extends LlmAdapter {
 const testToolSignal = new AbortController().signal
 
 const roots: string[] = []
-afterEach(() => {
+const contexts: Context[] = []
+afterEach(async () => {
+  for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose()
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
 async function setupWith(adapter: MockAdapter | GatedAdapter) {
   const ctx = new Context()
+  contexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
   const root = mkdtempSync(join(tmpdir(), 'dsh-tool-list-agents-'))
   roots.push(root)
@@ -128,7 +131,8 @@ describe('dsh-tool-subagent-control/list-agents', () => {
 
   it('renders children and diagnostics in array order with registry-derived statuses', async () => {
     const { ctx, parent } = await setup([textResponse('done')])
-    const started = await ctx.subagents.startContinuable({
+    const started = await ctx.subagents.startActivation({
+      delivery: 'parent',
       provider: 'spawn',
       label: 'real child',
       request: { prompt: [{ type: 'text', text: 'child task' }], parent },
@@ -202,26 +206,42 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     expect(listChildren).toHaveBeenCalledWith(parent.id, signal)
   })
 
-  it('lists a real settled continuable child and omits a real one-shot sibling', async () => {
-    const { ctx, parent } = await setup([textResponse('once'), textResponse('done')])
-    const oneShot = await ctx.subagents.start('spawn', {
-      label: 'finished once',
-      prompt: [{ type: 'text', text: 'one-shot task' }],
-      parent,
-      signal: new AbortController().signal,
+  it('lists local children and running or finished external executions', async () => {
+    const { ctx, parent } = await setup([textResponse('done')])
+    const completion = Promise.withResolvers<import('@deepseek-ai/dsh-subagent').SubagentResult>()
+    ctx.subagents.registerProvider({
+      name: 'external',
+      inheritsParentContext: false,
+      capabilities: { agentOptions: false, outputSchema: false, depthLimit: false, toolFilter: false, persona: false },
+      async start() {
+        return { id: SessionId('external-child'), localAgent: undefined, result: completion.promise, async dispose() {} }
+      },
     })
-    await oneShot.result
-    await oneShot.dispose()
-    const started = await ctx.subagents.startContinuable({
-      provider: 'spawn',
-      label: 'summarize the doc',
-      request: { prompt: [{ type: 'text', text: 'child task' }], parent },
-      signal: testToolSignal,
+    const external = await ctx.subagents.startActivation({
+      provider: 'external', label: 'external task',
+      request: { prompt: [{ type: 'text', text: 'work' }], parent },
+      signal: testToolSignal, delivery: 'caller',
     })
-    await waitNoActivation(ctx, started.childId)
-    const result = await callTool(ctx, 'list_agents', {}, parent)
-    expect(result.isError).toBe(false)
-    expect(text(result)).toBe(`${started.childId} [ready] — summarize the doc`)
+    try {
+      const started = await ctx.subagents.startActivation({
+        delivery: 'parent', provider: 'spawn', label: 'summarize the doc',
+        request: { prompt: [{ type: 'text', text: 'child task' }], parent }, signal: testToolSignal,
+      })
+      await waitNoActivation(ctx, started.childId)
+      const running = await callTool(ctx, 'list_agents', {}, parent)
+      expect(running.isError).toBe(false)
+      expect(text(running)).toContain('external-child [running] — external task; cannot receive follow-ups')
+      expect(text(running)).toContain(`${started.childId} [ready] — summarize the doc`)
+      completion.resolve({ output: [{ type: 'text', text: 'done' }], stopReason: 'completed' })
+      await external.result
+      await external.dispose()
+      const finished = await callTool(ctx, 'list_agents', {}, parent)
+      expect(text(finished)).toContain('external-child [finished] — external task; cannot receive follow-ups')
+    } finally {
+      completion.resolve({ output: [], stopReason: 'completed' })
+      await external.dispose()
+      await ctx.fiber.dispose()
+    }
   })
 
   it('describes ready as resumable and pins the status vocabulary', async () => {
@@ -235,7 +255,7 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     // scanning prose that legitimately reads "not to poll for completion".
     const variants = ctx.tools.get('list_agents')?.output.schema.items?.oneOf ?? []
     const child = variants.find(variant => variant.properties?.kind?.enum?.includes('child'))
-    expect(child?.properties?.status?.enum).toEqual(['running', 'idle', 'ready'])
+    expect(child?.properties?.status?.enum).toEqual(['running', 'idle', 'ready', 'finished'])
   })
 
   it('fails loud when invoked without a calling agent', async () => {
@@ -247,6 +267,7 @@ describe('dsh-tool-subagent-control/list-agents', () => {
 
   it('unregisters with its plugin fiber (HMR safety)', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(SubagentRuntime)
@@ -271,7 +292,8 @@ describe('dsh-tool-subagent-control/list-agents', () => {
       { chunks: textResponse('grandchild'), gate: releaseGrandchild.promise },
     ])
     const { ctx, parent } = await setupWith(adapter)
-    const started = await ctx.subagents.startContinuable({
+    const started = await ctx.subagents.startActivation({
+      delivery: 'parent',
       provider: 'spawn',
       label: 'waiting branch',
       request: { prompt: [{ type: 'text', text: 'branch work' }], parent },
@@ -279,7 +301,8 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     })
     await vi.waitFor(() => { expect(adapter.requests).toHaveLength(1) })
     const child = ctx.agents.get(started.childId)!
-    const grandchild = await ctx.subagents.startContinuable({
+    const grandchild = await ctx.subagents.startActivation({
+      delivery: 'parent',
       provider: 'spawn',
       label: 'nested leaf',
       request: { prompt: [{ type: 'text', text: 'leaf work' }], parent: child },

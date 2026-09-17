@@ -7,9 +7,10 @@
  * an unseeded durable projection-cache row, and one shared Session observation
  * otherwise. A seeded header deliberately lacks its exact inherited cut, so
  * it takes the body-bearing observation path before classifying an identity.
- * The projection fold is the single classification
- * authority — this module parses no descriptor
- * itself. Absent persistence, enumeration is live-only: a cold child is
+ * External executions come from the direct parent's `subagentExternal`
+ * projection and need no child Session. Projection folds own interpretation;
+ * this module parses neither descriptors nor execution events. Absent
+ * persistence, enumeration is live-only: a cold child is
  * unreachable for resume anyway, so its absence is capability absence, not an
  * error. The module owns no catalog state and does not consult Activation,
  * Agent-registry, continuation-manager, or provider state.
@@ -26,6 +27,7 @@ import type { SessionObservation, SessionQueryEngine } from '@deepseek-ai/dsh-se
 import type { SubagentListEntry } from './control-types.ts'
 import { SubagentError } from './error.ts'
 import type { SubagentIdentityProjection } from './projection-types.ts'
+import type { ExternalSubagentRecord } from './external-records.ts'
 
 export type { SubagentListEntry } from './control-types.ts'
 
@@ -56,7 +58,10 @@ interface ListingRuntime {
   readonly cache: SessionProjectionCache | undefined
   readonly corpus: ReadonlyMap<SessionId, CorpusRecord>
   readonly subagentParents: ReadonlySet<SessionId>
+  readonly observations: Map<SessionId, Promise<ListingObservation>>
 }
+
+type ListingObservation = Pick<SessionObservation, 'header' | 'inheritedEventCount' | 'projections'>
 
 interface PositionedCandidate {
   readonly record: CorpusRecord
@@ -91,7 +96,13 @@ export async function listChildren(
       && record.header.origin === 'subagent')
     .sort(compareCorpusRecords)
   const rows = await resolveCandidateRows(candidates, listing, signal)
-  return rows.filter((row): row is SubagentListEntry => row !== undefined)
+  const external = await resolveExternalRecords(parentSessionId, listing, signal, true)
+  const times = new Map(candidates.map(candidate => [candidate.header.id, candidate.header.createdAt]))
+  for (const record of external) times.set(record.childId, record.createdAt)
+  return [
+    ...rows.filter((row): row is SubagentListEntry => row !== undefined),
+    ...external.map(externalRow),
+  ].sort((a, b) => (times.get(a.id) as number) - (times.get(b.id) as number) || a.id.localeCompare(b.id))
 }
 
 /**
@@ -113,7 +124,16 @@ export async function listDescendants(
   signal?: AbortSignal,
 ): Promise<SubagentDescendantListEntry[]> {
   const listing = await prepareListing(ctx, signal)
-  const positioned = descendantCandidates(listing.corpus, rootSessionId)
+  const tree = descendantCandidates(listing.corpus, rootSessionId)
+  const externalByParent = new Map<SessionId, ExternalSubagentRecord[]>()
+  const parents = [rootSessionId, ...tree.map(position => position.record.header.id)]
+  const queue = [...parents]
+  await Promise.all(Array.from({ length: Math.min(COLD_READ_CONCURRENCY, queue.length) }, async () => {
+    for (let parent = queue.shift(); parent !== undefined; parent = queue.shift()) {
+      externalByParent.set(parent, await resolveExternalRecords(parent, listing, signal, parent === rootSessionId))
+    }
+  }))
+  const positioned = tree.filter(position => position.record.header.origin === 'subagent')
   const rows = await resolveCandidateRows(
     positioned.map(candidate => candidate.record),
     listing,
@@ -123,10 +143,21 @@ export async function listDescendants(
   positioned.forEach((position, index) => {
     const row = rows[index]
     if (row !== undefined) {
-      entries.push({ ...row, parentId: position.parentId, depth: position.depth })
+      entries.push({
+        ...row,
+        ...row.kind === 'child' && (externalByParent.get(row.id) as ExternalSubagentRecord[]).length > 0 ? { hasChildren: true } : {},
+        parentId: position.parentId,
+        depth: position.depth,
+      })
     }
   })
-  return entries
+  const depths = new Map([[rootSessionId, 0], ...tree.map(position => [position.record.header.id, position.depth] as const)])
+  for (const [parentId, records] of externalByParent) {
+    for (const record of records) {
+      entries.push({ ...externalRow(record), parentId, depth: (depths.get(parentId) as number) + 1 })
+    }
+  }
+  return orderDescendants(entries, tree, externalByParent, rootSessionId)
 }
 
 /** Resolve listing services once and build one live-preferred session corpus. */
@@ -190,7 +221,7 @@ async function prepareListing(
       subagentParents.add(record.header.parentSession)
     }
   }
-  return { projections, query, cache, corpus, subagentParents }
+  return { projections, query, cache, corpus, subagentParents, observations: new Map() }
 }
 
 /** Resolve projection-backed rows for aligned candidates with bounded cold reads. */
@@ -199,7 +230,7 @@ async function resolveCandidateRows(
   listing: ListingRuntime,
   signal: AbortSignal | undefined,
 ): Promise<(SubagentListEntry | undefined)[]> {
-  const { projections, query, cache, subagentParents } = listing
+  const { projections, subagentParents } = listing
   const rows: (SubagentListEntry | undefined)[] = Array.from({ length: candidates.length })
   const coldReads: { index: number; header: SessionHeader }[] = []
   candidates.forEach((candidate, index) => {
@@ -208,11 +239,14 @@ async function resolveCandidateRows(
       coldReads.push({ index, header: candidate.header })
       return
     }
-    // Read only the identity unit. A live child without an identity yet is the
+    // A live child without an identity yet is the
     // creation window before the establishing provider appends its descriptor.
     let identity: SubagentIdentityProjection | null | undefined
+    let externalChildren = false
     try {
-      identity = projections.snapshot(candidate.live, ['subagent']).values.subagent
+      const snapshot = projections.snapshot(candidate.live, ['subagent', 'subagentExternal'])
+      identity = snapshot.values.subagent
+      externalChildren = (snapshot.values.subagentExternal?.length ?? 0) > 0
     } catch {
       // A rejecting identity fold is deterministic data damage in this child;
       // contain it as one diagnostic instead of failing the whole listing.
@@ -223,7 +257,7 @@ async function resolveCandidateRows(
     // only mean the key was dropped at a JSON boundary. Both are no value.
     if (identity === undefined || identity === null
       || !candidate.live.isOwnSeq(identity.seq)) return
-    rows[index] = childRow(childId, identity, 'running', subagentParents.has(childId))
+    rows[index] = childRow(childId, identity, 'running', subagentParents.has(childId) || externalChildren)
   })
 
   // Cold candidates came from the query corpus and are resolved concurrently.
@@ -234,7 +268,7 @@ async function resolveCandidateRows(
       async () => {
         for (let job = queue.shift(); job !== undefined; job = queue.shift()) {
           rows[job.index] = await resolveColdIdentity(
-            query, cache, job.header,
+            listing, job.header,
             subagentParents.has(job.header.id), signal,
           )
         }
@@ -272,7 +306,7 @@ function descendantCandidates(
     const id = position.record.header.id
     if (visited.has(id)) continue
     visited.add(id)
-    if (position.record.header.origin === 'subagent') positioned.push(position)
+    positioned.push(position)
     const descendants = children.get(id) ?? []
     for (const record of [...descendants].reverse()) {
       stack.push({ record, parentId: id, depth: position.depth + 1 })
@@ -295,21 +329,24 @@ function compareCorpusRecords(a: CorpusRecord, b: CorpusRecord): number {
  * throw — are final, so they report `corrupt`.
  */
 async function resolveColdIdentity(
-  query: SessionQueryEngine,
-  cache: SessionProjectionCache | undefined,
+  listing: ListingRuntime,
   header: SessionHeader,
   hasChildren: boolean,
   signal: AbortSignal | undefined,
 ): Promise<SubagentListEntry> {
   const childId = header.id
+  const { cache } = listing
   // A header deliberately exposes only whether a fork cut exists, not its
   // integer. An unseeded lifecycle has the exact cut 0 and may use the cache;
   // a seeded lifecycle must read the body before an identity seq can be
   // classified as inherited or owned.
   if (cache !== undefined && !header.isSeeded) {
     let cached: SubagentIdentityProjection | null | undefined
+    let externalChildren = false
     try {
-      cached = cache.cachedSnapshot(header, SessionLogOffset(0), ['subagent'])?.values.subagent
+      const snapshot = cache.cachedSnapshot(header, SessionLogOffset(0), ['subagent', 'subagentExternal'])
+      cached = snapshot?.values.subagent
+      externalChildren = (snapshot?.values.subagentExternal?.length ?? 0) > 0
     } catch {
       // Unlike the preparation fold below, a throwing cache read renders no
       // verdict: the cache is derived data, so its damage (a poisoned stored
@@ -321,15 +358,13 @@ async function resolveColdIdentity(
     // sentinel, whose verdict belongs to the authoritative re-fold, not to a
     // derived row.
     if (cached !== undefined && cached !== null) {
-      return childRow(childId, cached, 'inactive', hasChildren)
+      return childRow(childId, cached, 'inactive', hasChildren || externalChildren)
     }
   }
   assertListingNotCancelled(signal)
-  let observation: SessionObservation
+  let observation: ListingObservation
   try {
-    observation = await query.observeSession(childId, {
-      ...(signal === undefined ? {} : { signal }),
-    })
+    observation = await observeCandidate(listing, childId, signal)
   } catch (error: unknown) {
     // Per-child isolation: durable corruption is stable; absence and backend
     // failures remain retryable. Either way, the listing itself still succeeds.
@@ -343,20 +378,125 @@ async function resolveColdIdentity(
         : 'unavailable',
     }
   }
-  using ownedObservation = observation
   assertListingNotCancelled(signal)
   // A session id names a slot, not a lifecycle: a child deleted and
   // re-published under another owner between the enumeration and this read
   // must not leak into the old parent's listing.
-  if (!sameLifecycle(ownedObservation.header, header)) {
+  if (!sameLifecycle(observation.header, header)) {
     return { kind: 'diagnostic', id: childId, reason: 'corrupt' }
   }
-  const identity = ownedObservation.projections?.values.subagent
+  const identity = observation.projections?.values.subagent
   if (identity === undefined || identity === null
-    || identity.seq < ownedObservation.inheritedEventCount) {
+    || identity.seq < observation.inheritedEventCount) {
     return { kind: 'diagnostic', id: childId, reason: 'corrupt' }
   }
-  return childRow(childId, identity, 'inactive', hasChildren)
+  return childRow(childId, identity, 'inactive', hasChildren || (observation.projections?.values.subagentExternal?.length ?? 0) > 0)
+}
+
+/** Share a cold Session observation between identity and external-child readers. */
+function observeCandidate(
+  listing: ListingRuntime,
+  id: SessionId,
+  signal: AbortSignal | undefined,
+): Promise<ListingObservation> {
+  const existing = listing.observations.get(id)
+  if (existing !== undefined) return existing
+  const reading = (async (): Promise<ListingObservation> => {
+    using observation = await listing.query.observeSession(id, {
+      ...signal === undefined ? {} : { signal },
+    })
+    return {
+      header: observation.header,
+      inheritedEventCount: observation.inheritedEventCount,
+      ...observation.projections === undefined ? {} : { projections: observation.projections },
+    }
+  })()
+  listing.observations.set(id, reading)
+  return reading
+}
+
+/** Read external execution identities from their actual parent, never a synthetic child log. */
+async function resolveExternalRecords(
+  parentId: SessionId,
+  listing: ListingRuntime,
+  signal: AbortSignal | undefined,
+  required = false,
+): Promise<ExternalSubagentRecord[]> {
+  const parent = listing.corpus.get(parentId)
+  if (parent === undefined) return []
+  assertListingNotCancelled(signal)
+  try {
+    if (parent.live !== undefined) {
+      return listing.projections.snapshot(parent.live, ['subagentExternal']).values.subagentExternal ?? []
+    }
+    if (listing.cache !== undefined && !parent.header.isSeeded) {
+      let cached: ReturnType<SessionProjectionCache['cachedSnapshot']>
+      try {
+        cached = listing.cache.cachedSnapshot(parent.header, SessionLogOffset(0), ['subagentExternal'])
+      } catch (_error: unknown) {
+        // A damaged derived cache cannot replace the authoritative parent read.
+        cached = undefined
+      }
+      if (cached?.values.subagentExternal !== undefined) return cached.values.subagentExternal
+    }
+    const observation = await observeCandidate(listing, parentId, signal)
+    assertListingNotCancelled(signal)
+    if (!sameLifecycle(observation.header, parent.header)) {
+      throw new SubagentError('external subagent parent changed during listing', 'SUBAGENT_CONTROL_PARENT_CHANGED')
+    }
+    return observation.projections?.values.subagentExternal ?? []
+  } catch (error: unknown) {
+    assertListingNotCancelled(signal)
+    if (required) throw error
+    // An unreadable nested child gets its own identity diagnostic. Its external
+    // descendants cannot be discovered until that parent becomes readable.
+    return []
+  }
+}
+
+/** Project one external execution without advertising a nonexistent child Session. */
+function externalRow(record: ExternalSubagentRecord): SubagentListEntry {
+  return {
+    kind: 'child',
+    id: record.childId,
+    mode: 'one-shot',
+    label: record.label,
+    external: true,
+    activity: 'inactive',
+    hasChildren: false,
+  }
+}
+
+/** Merge real Session edges and parent-owned external leaves in stable pre-order. */
+function orderDescendants(
+  entries: SubagentDescendantListEntry[],
+  tree: readonly PositionedCandidate[],
+  externalByParent: ReadonlyMap<SessionId, readonly ExternalSubagentRecord[]>,
+  rootId: SessionId,
+): SubagentDescendantListEntry[] {
+  const children = new Map<SessionId, { id: SessionId; createdAt: number }[]>()
+  const append = (parentId: SessionId, id: SessionId, createdAt: number): void => {
+    const siblings = children.get(parentId)
+    if (siblings === undefined) children.set(parentId, [{ id, createdAt }])
+    else siblings.push({ id, createdAt })
+  }
+  for (const position of tree) append(position.parentId, position.record.header.id, position.record.header.createdAt)
+  for (const [parentId, records] of externalByParent) {
+    for (const record of records) append(parentId, record.childId, record.createdAt)
+  }
+  for (const siblings of children.values()) {
+    siblings.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+  }
+  const byId = new Map(entries.map(entry => [entry.id, entry]))
+  const ordered: SubagentDescendantListEntry[] = []
+  const stack = (children.get(rootId) ?? []).map(child => child.id).reverse()
+  while (stack.length > 0) {
+    const id = stack.pop() as SessionId
+    const entry = byId.get(id)
+    if (entry !== undefined) ordered.push(entry)
+    for (const child of [...children.get(id) ?? []].reverse()) stack.push(child.id)
+  }
+  return ordered
 }
 
 /** Materialize one served identity as its child row. */

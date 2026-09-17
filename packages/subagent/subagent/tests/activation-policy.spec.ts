@@ -18,9 +18,9 @@ import SandboxPolicyService, { setSandboxMode } from '@deepseek-ai/dsh-sandbox-p
 import { Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import * as ToolFs from '@deepseek-ai/dsh-tool-fs'
 import ApprovalService from '@deepseek-ai/dsh-user-approval'
-import { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
-import { startInProcessRun } from '../src/index.ts'
+import SubagentRuntime from '@deepseek-ai/dsh-subagent'
+import { mountLocalActivations, startPreparedActivation } from './local-activation.ts'
 
 type Script = ConstructorParameters<typeof MockAdapter>[0]
 
@@ -41,6 +41,8 @@ async function setupWalled(script: Script): Promise<{ ctx: Context; parent: Agen
   const ctx = new Context()
   contexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
+  await mountLocalActivations(ctx)
+  await ctx.plugin(SubagentRuntime)
   await ctx.plugin(SandboxPolicyService, { mode: 'workspace-write', workspaceRoot: workspace })
   await ctx.plugin(SandboxedFileSystem, { cwd: workspace })
   await ctx.plugin(ToolFs)
@@ -61,11 +63,7 @@ function spawnRequest(parent: Agent) {
     prompt: [{ type: 'text' as const, text: 'child task' }],
     parent,
     signal: new AbortController().signal,
-    descriptor: snapshotSubagentDescriptor({
-      mode: 'one-shot',
-      provider: 'spawn',
-      label: 'child task',
-    }),
+
   }
 }
 
@@ -90,14 +88,14 @@ describe('in-process policy inheritance', () => {
         current: (session: Session) => session === parent.session ? preset : 'custom',
       } as never)
 
-      const run = await startInProcessRun(spawnRequest(parent), {})
+      const run = await startPreparedActivation(spawnRequest(parent), {})
       try {
         await run.result
-        const child = run.localAgent as Agent
-        expect(child.session.snapshotEvents().slice(0, 3)).toMatchObject([
-          { type: 'sandbox/mode', seq: 0, data: { mode: 'danger-full-access', source: 'delegation' } },
-          { type: 'approval/policy', seq: 1, data: { policy: 'never', source: 'delegation' } },
-          { type: 'permission/preset', seq: 2, data: { preset } },
+        const child = run.localAgent
+        expect(child.session.snapshotEvents().slice(1, 4)).toMatchObject([
+          { type: 'sandbox/mode', seq: 1, data: { mode: 'danger-full-access', source: 'delegation' } },
+          { type: 'approval/policy', seq: 2, data: { policy: 'never', source: 'delegation' } },
+          { type: 'permission/preset', seq: 3, data: { preset } },
         ])
       } finally {
         await run.dispose()
@@ -119,13 +117,13 @@ describe('in-process policy inheritance', () => {
       current: (session: Session) => session === parent.session ? currentPreset : 'custom',
     } as never)
 
-    const starting = startInProcessRun(spawnRequest(parent), { seed })
+    const starting = startPreparedActivation(spawnRequest(parent), { seed })
     currentPreset = seedPreset
     parent.session.append('permission/preset', { preset: seedPreset })
     const run = await starting
     try {
       await run.result
-      const child = run.localAgent as Agent
+      const child = run.localAgent
       expect(child.session.snapshotEvents().filter(event => event.type === 'permission/preset')).toMatchObject([
         { data: { preset: seedPreset } },
         { data: { preset } },
@@ -148,17 +146,17 @@ describe('in-process policy inheritance', () => {
       textResponse('child done'),
     )
 
-    const run = await startInProcessRun(spawnRequest(parent), {})
+    const run = await startPreparedActivation(spawnRequest(parent), {})
     try {
       const result = await run.result
-      const child = run.localAgent as Agent
+      const child = run.localAgent
 
       await expect(readFile(blocked, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
       expect(toolResultTexts(child).join('\n')).toContain(READ_ONLY_DENIAL)
       expect(result.stopReason).toBe('completed')
-      expect(child.session.snapshotEvents().slice(0, 2)).toMatchObject([
-        { type: 'sandbox/mode', seq: 0, data: { mode: 'read-only', source: 'delegation' } },
-        { type: 'approval/policy', seq: 1, data: { policy: 'never', source: 'delegation' } },
+      expect(child.session.snapshotEvents().slice(1, 3)).toMatchObject([
+        { type: 'sandbox/mode', seq: 1, data: { mode: 'read-only', source: 'delegation' } },
+        { type: 'approval/policy', seq: 2, data: { policy: 'never', source: 'delegation' } },
       ])
       expect(child.session.firstLiveSeq).toBe(0)
       expect(child.session.header.isSeeded).toBe(false)
@@ -198,7 +196,7 @@ describe('in-process policy inheritance', () => {
         .join('\n')
       expect(systemText).not.toContain('Approval prompts are disabled')
       expect(systemText).not.toContain('You are a delegated subagent')
-      expect(parent.session.snapshotEvents()).toHaveLength(parentLogLength)
+      expect(parent.session.snapshotEvents().filter(event => event.type !== 'subagent/catalog')).toHaveLength(parentLogLength)
     } finally {
       await run.dispose()
     }
@@ -216,10 +214,10 @@ describe('in-process policy inheritance', () => {
       textResponse('child done'),
     )
 
-    const run = await startInProcessRun(spawnRequest(parent), { seed })
+    const run = await startPreparedActivation(spawnRequest(parent), { seed })
     try {
       await run.result
-      const child = run.localAgent as Agent
+      const child = run.localAgent
 
       expect(child.session.header.isSeeded).toBe(true)
       expect(child.session.inheritedEventCount).toBe(1)
@@ -227,7 +225,7 @@ describe('in-process policy inheritance', () => {
       // seq 1 is the constructor's end-seed marker.
       expect(child.session.snapshotEvents().filter(event => event.type === 'sandbox/mode')).toMatchObject([
         { seq: 0, data: { mode: 'workspace-write' } },
-        { seq: 2, data: { mode: 'read-only', source: 'delegation' } },
+        { seq: 3, data: { mode: 'read-only', source: 'delegation' } },
       ])
       await expect(readFile(blocked, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
       expect(ctx.sandboxPolicy.overrideOf(child.session)).toBe('read-only')
@@ -244,12 +242,12 @@ describe('in-process policy inheritance', () => {
     const { ctx, parent } = await setupWalled(script)
     setSandboxMode(parent.session, 'read-only')
 
-    const starting = startInProcessRun(spawnRequest(parent), {})
+    const starting = startPreparedActivation(spawnRequest(parent), {})
     setSandboxMode(parent.session, 'danger-full-access')
     const run = await starting
     try {
       await run.result
-      const child = run.localAgent as Agent
+      const child = run.localAgent
       expect(ctx.sandboxPolicy.overrideOf(parent.session)).toBe('danger-full-access')
       expect(ctx.sandboxPolicy.overrideOf(child.session)).toBe('read-only')
     } finally {
@@ -266,14 +264,14 @@ describe('in-process policy inheritance', () => {
       textResponse('child done'),
     )
 
-    const run = await startInProcessRun(spawnRequest(parent), {})
+    const run = await startPreparedActivation(spawnRequest(parent), {})
     try {
       await run.result
-      const child = run.localAgent as Agent
+      const child = run.localAgent
       expect(await readFile(allowed, 'utf8')).toBe('fine')
       expect(child.session.snapshotEvents().some(event => event.type === 'sandbox/mode')).toBe(false)
       expect(child.session.snapshotEvents().filter(event => event.type === 'approval/policy')).toMatchObject([
-        { seq: 0, data: { policy: 'never', source: 'delegation' } },
+        { seq: 1, data: { policy: 'never', source: 'delegation' } },
       ])
       expect(child.session.firstLiveSeq).toBe(0)
     } finally {
@@ -302,10 +300,10 @@ describe('in-process policy inheritance', () => {
       textResponse('child done'),
     )
 
-    const run = await startInProcessRun(spawnRequest(parent), {})
+    const run = await startPreparedActivation(spawnRequest(parent), {})
     try {
       await run.result
-      const child = run.localAgent as Agent
+      const child = run.localAgent
 
       await expect(readFile(blocked, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
       expect(consulted).toBe(false)

@@ -7,6 +7,12 @@ import type { JobDoneListener, JobSnapshot } from '@deepseek-ai/dsh-jobs'
 import * as JobsInvariant from '@deepseek-ai/dsh-jobs/invariant'
 import InvariantRegistry from '@deepseek-ai/dsh-invariants'
 
+declare module '@deepseek-ai/dsh-jobs' {
+  interface JobKindMap {
+    'test-task': 'test-task'
+  }
+}
+
 const BASE: JobSnapshot = {
   id: JobId('bash-1'),
   kind: 'bash',
@@ -60,7 +66,7 @@ describe('job-registry invariants', () => {
     const notify = await setup([RUNNING])
     expect(() => { notify(BASE) }).not.toThrow()
     const owner = { id: SessionId('owner') } as Agent
-    expect(() => { notify({ ...BASE, id: JobId('subagent-2'), kind: 'subagent', ownerSession: owner.id }, owner) })
+    expect(() => { notify({ ...BASE, id: JobId('test-task-2'), kind: 'test-task', ownerSession: owner.id }, owner) })
       .not.toThrow()
   })
 

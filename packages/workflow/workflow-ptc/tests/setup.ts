@@ -3,8 +3,10 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import AgentRegistry from '@deepseek-ai/dsh-agent'
 import SessionStore from '@deepseek-ai/dsh-session'
 import SessionProjections from '@deepseek-ai/dsh-session-projection'
+import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import FileSystem from '@deepseek-ai/dsh-fs-local'
 import Subprocess from '@deepseek-ai/dsh-subprocess-local'
 import Sandbox from '@deepseek-ai/dsh-sandbox-local'
@@ -24,6 +26,7 @@ export async function mountPtcRuntime(ctx: Context, mode: SandboxMode = 'danger-
   const cwd = join(root, 'workspace')
   await mkdir(cwd)
   await mountWorkflowRuntime(ctx, { cwd, mode, runtimeConfig: { graceMs: 50 } })
+  await ctx.plugin(JsonlSessionPersistence, { root: join(root, 'sessions') })
   return { root, cwd }
 }
 
@@ -33,6 +36,7 @@ export async function mountWorkflowRuntime(
   options: { cwd?: string; mode?: SandboxMode; runtimeConfig?: NodeRuntimeConfig } = {},
 ): Promise<NodePtcRuntime> {
   if (!ctx.get('sessions')) await ctx.plugin(SessionStore)
+  if (!ctx.get('agents')) await ctx.plugin(AgentRegistry)
   if (!ctx.get('sessionProjections')) await ctx.plugin(SessionProjections)
   if (!ctx.get('fs')) await ctx.plugin(FileSystem)
   if (!ctx.get('subprocess')) await ctx.plugin(Subprocess)
@@ -48,5 +52,7 @@ export async function mountWorkflowRuntime(
 /** Give a stub subagent provider a parent with a real Session and immutable cwd. */
 export function fakeParent(ctx: Context): Agent {
   const session = ctx.sessions.create(undefined, { meta: { cwd: ctx.sandboxPolicy.workspaceRoot } })
-  return { id: session.id, session, options: {} } as unknown as Agent
+  const parent = { id: session.id, ctx, session, options: {}, status: 'idle' } as unknown as Agent
+  ctx.agents.register(parent)
+  return parent
 }

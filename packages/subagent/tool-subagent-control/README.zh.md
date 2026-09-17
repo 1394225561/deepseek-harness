@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`dsh-tool-subagent-control` 为可继续子级添加全局控制工具：`send_message` 在直接父级与子级之间进行 steering（中途引导），`interrupt_agent` 停止子级当前轮次但保留其收件箱与后代，`list_agents`（来自可单独加载的 `list-agents` 插件）按持久化 ID 与标签列出可继续子级。父级与可继续子级继承相同的 `send_message` 定义和顺序，因此模型通信不会增加子级专属工具 schema。是否加载这些工具不会决定委派工具是否启动可继续工作。
+`dsh-tool-subagent-control` 为可继续子级添加全局控制工具：`send_message` 在直接父级与子级之间进行 steering（中途引导），`interrupt_agent` 停止子级当前轮次但保留其收件箱与后代，`list_agents`（来自可单独加载的 `list-agents` 插件）按持久化 ID 与标签列出本地子级和外部执行。父级与可继续子级继承相同的 `send_message` 定义和顺序，因此模型通信不会增加子级专属工具 schema。是否加载这些工具不会决定委派工具是否启动可继续工作。
 
 ## 目录
 
@@ -37,7 +37,6 @@ kind: "package-reference"
 - name: '@deepseek-ai/dsh-tool-subagent'
   config:
     provider: spawn
-    backgroundMode: continuable
 - name: '@deepseek-ai/dsh-tool-subagent-control'
 - name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
 ```
@@ -54,7 +53,7 @@ kind: "package-reference"
 
 ### list_agents
 
-列出调用方 agent 下方的可继续子级：`children`（默认）只显示直接子级，`descendants` 按稳定前序遍历整棵树，并为每个条目标注其持久化直接父级会话 ID 与深度。状态来自在线 Agent 注册表——`running`、`idle` 或 `ready`。一次性子级因无法接受 `send_message` 而被有意排除，无法读取的候选项以诊断信息呈现。
+列出调用方 agent 下方的子代理：`children`（默认）只显示直接子级，`descendants` 按稳定前序遍历整棵树，并为每个条目标注其持久化直接父级会话 ID 与深度。状态来自在线 Agent 注册表——`running`、`idle` 或 `ready`。外部执行显示 `running` 或 `finished` 以及 `continuable: false`，不能接收后续消息。历史一次性 Session 被省略，无法读取的候选项以诊断信息呈现。
 
 -----
 
@@ -76,7 +75,7 @@ kind: "package-reference"
 
 ### 列表投影
 
-`list_agents` 从调用 agent 推导根 id，不使用 cursor 读取服务目录，通过在线 Agent 注册表细化每个候选的状态，并省略无法接受 `send_message` 的一次性子级。diagnostic 在 descendants scope 中保留其位置，且绝不暴露描述符内容。
+`list_agents` 从调用 agent 推导根 id，不使用 cursor 读取服务目录，通过在线 Agent 注册表细化每个候选的状态，并按 activation 状态列出外部执行。历史一次性 Session 被省略。diagnostic 在 descendants scope 中保留其位置，且绝不暴露描述符内容。
 
 ### 源码地图
 
@@ -150,11 +149,11 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-按稳定目录顺序，每个可继续子级占一行：`<id> [<status>] — <label>`（`running` 表示驱动器活跃，`idle` 表示驻留但处于轮次之间，`ready` 表示仅存于存储，可恢复而非终态），另为无法读取的候选项渲染 `<id> [diagnostic: <reason>]`。`descendants` 作用域会在每行标签的破折号之前按前序插入 ` parent=<id> depth=<n>`。一次性子级会被有意排除；`(no subagents)` 表示投影后没有留下可继续子级或诊断信息。
+按稳定目录顺序，每个子级占一行：`<id> [<status>] — <label>`（`running` 表示驱动器活跃，`idle` 表示驻留但处于轮次之间，`ready` 表示仅存于存储，可恢复而非终态），另为无法读取的候选项渲染 `<id> [diagnostic: <reason>]`。`descendants` 作用域会在每行标签的破折号之前按前序插入 ` parent=<id> depth=<n>`。外部执行行显示 `running` 或 `finished`，并追加 `; cannot receive follow-ups`。历史一次性 Session 被省略；`(no subagents)` 表示投影后没有留下子级或诊断信息。
 
 #### Token 影响
 
-随所列可继续子级数量线性增长——`descendants` 作用域下为整棵树；没有游标或上限，因此长期存活且有许多持久化子级的父级每次调用都会承担完整列表成本。
+随所列子级数量线性增长——`descendants` 作用域下为整棵树；没有游标或上限，因此长期存活且有许多持久化子级的父级每次调用都会承担完整列表成本。
 
 #### KV Cache 影响
 

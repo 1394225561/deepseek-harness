@@ -18,11 +18,11 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import AgentPresets from '@deepseek-ai/dsh-agent-presets'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
-import { startInProcessRun } from '../src/index.ts'
+import SubagentRuntime from '@deepseek-ai/dsh-subagent'
+import { mountLocalActivations, startPreparedActivation } from './local-activation.ts'
 
-const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures')
+const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'activation-presets')
 const ROOTS = [{ path: join(FIXTURES, 'presets'), trust: 'system' as const }]
 
 const contexts: Context[] = []
@@ -39,6 +39,8 @@ async function setupPresetHost(): Promise<{ ctx: Context; adapter: MockAdapter; 
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
   await mountAgentLoopTestDependencies(ctx)
+  await mountLocalActivations(ctx)
+  await ctx.plugin(SubagentRuntime)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(AgentPresets, { default: 'coding', roots: ROOTS, includeShippedRoot: false, includeUserRoot: false })
   const adapter = new MockAdapter([textResponse('parent idle'), textResponse('child done')])
@@ -51,18 +53,14 @@ async function setupPresetHost(): Promise<{ ctx: Context; adapter: MockAdapter; 
   return { ctx, adapter, parent: handle.agent }
 }
 
-/** The one-shot spawn request shape both in-process providers build. */
+/** Task and caller cancellation used to create a fresh local activation. */
 function spawnRequest(parent: Agent) {
   return {
     label: 'child task',
     prompt: [{ type: 'text' as const, text: 'child task' }],
     parent,
     signal: new AbortController().signal,
-    descriptor: snapshotSubagentDescriptor({
-      mode: 'one-shot' as const,
-      provider: 'spawn',
-      label: 'child task',
-    }),
+
   }
 }
 
@@ -70,7 +68,7 @@ describe('a child agent composed in-process', () => {
   it('reaches the model with its parent\'s preset tools', async () => {
     const { ctx, adapter, parent } = await setupPresetHost()
 
-    const run = await startInProcessRun(spawnRequest(parent), {})
+    const run = await startPreparedActivation(spawnRequest(parent), {})
     await run.result
 
     const childRequest = adapter.requests.at(-1)
@@ -82,7 +80,7 @@ describe('a child agent composed in-process', () => {
   it('carries its parent\'s prompt sections', async () => {
     const { parent } = await setupPresetHost()
 
-    const run = await startInProcessRun(spawnRequest(parent), {})
+    const run = await startPreparedActivation(spawnRequest(parent), {})
     await run.result
 
     expect(run.localAgent?.session.snapshotEvents().some(event =>
@@ -94,7 +92,7 @@ describe('a child agent composed in-process', () => {
   it('records the composition it ran under on the child header', async () => {
     const { parent } = await setupPresetHost()
 
-    const run = await startInProcessRun(spawnRequest(parent), {})
+    const run = await startPreparedActivation(spawnRequest(parent), {})
     await run.result
 
     // Without this the child's own history reads back under the deployment
@@ -106,7 +104,7 @@ describe('a child agent composed in-process', () => {
   it('honours a tool filter over the preset tools it inherited', async () => {
     const { ctx, parent } = await setupPresetHost()
 
-    const run = await startInProcessRun(
+    const run = await startPreparedActivation(
       { ...spawnRequest(parent), toolFilter: { deny: ['preset_only'] } },
       {},
     )
@@ -125,7 +123,7 @@ describe('a child agent composed in-process', () => {
     // to the same id would pass either way.
     await ctx.agentPresets.recompose(parent.ctx, 'reviewing')
 
-    const run = await startInProcessRun(spawnRequest(parent), {})
+    const run = await startPreparedActivation(spawnRequest(parent), {})
     await run.result
 
     expect(ctx.tools.schemas(run.localAgent).map(schema => schema.name)).toEqual(['reviewing_only'])

@@ -8926,6 +8926,258 @@
       }
     },
     {
+      "key": "event:subagent/external-end",
+      "kind": "event",
+      "event": "subagent/external-end",
+      "surface": false,
+      "digest": "186d78392e03b505c93e7be6fe6a9eb7025aa1e6401b600f6502d8e7860bf215",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 13,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 14,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "childId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "result",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 12,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "diagnostic",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "output",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "stopReason",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "structured",
+                "type": 6,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 5
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "type",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": [
+              {
+                "key": 2,
+                "value": 6
+              }
+            ]
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              7,
+              8,
+              9,
+              10,
+              11
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 6
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 2,
+                "value": 6
+              }
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": 0
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "subagent/external-end"
+          }
+        ]
+      }
+    },
+    {
+      "key": "event:subagent/external-start",
+      "kind": "event",
+      "event": "subagent/external-start",
+      "surface": false,
+      "digest": "e144bc89d55c5f25971eaac9aecddd1549c48912f709af1f7167ae3895dfdf20",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "childId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "label",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "provider",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": 0
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "subagent/external-start"
+          }
+        ]
+      }
+    },
+    {
       "key": "event:subagent/model-selection-policy",
       "kind": "event",
       "event": "subagent/model-selection-policy",
@@ -13855,6 +14107,54 @@
       ]
     },
     {
+      "digest": "02efe7f06bbceef8ed9c4813f110d7e3fddbc7b378ebdf1d5de15694d87205d6",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "childId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "label",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "provider",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": 0
+          }
+        ]
+      },
+      "names": [
+        "packages/subagent/subagent/src/external-records.ts#ExternalSubagentStart"
+      ],
+      "sources": [
+        "packages/subagent/subagent/src/external-records.ts:18"
+      ]
+    },
+    {
       "digest": "0341d4c3dfcd53253cdc1e789d9130d3cd848b6f8b0706bf92f313a68b39ff23",
       "schema": {
         "root": 0,
@@ -18086,6 +18386,169 @@
       "sources": [
         "packages/core/session/src/types.ts:405"
       ]
+    },
+    {
+      "digest": "186d78392e03b505c93e7be6fe6a9eb7025aa1e6401b600f6502d8e7860bf215",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 13,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 10,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 14,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "childId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "result",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 12,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "diagnostic",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "output",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "stopReason",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "structured",
+                "type": 6,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 5
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "type",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": [
+              {
+                "key": 2,
+                "value": 6
+              }
+            ]
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              7,
+              8,
+              9,
+              10,
+              11
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 6
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 2,
+                "value": 6
+              }
+            ]
+          },
+          {
+            "kind": "literal",
+            "value": 0
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "literal",
+            "value": "subagent/external-end"
+          }
+        ]
+      },
+      "names": [
+        "event:subagent/external-end"
+      ],
+      "sources": []
     },
     {
       "digest": "18dc21f12bbac8ade8377e6fbb54179e20c3d955d73fba3244c57fb6bf001df0",
@@ -26979,6 +27442,20 @@
       ]
     },
     {
+      "digest": "32ee1cf94b611ba459e559ef461cfcc9c7df4009fd4f9f4adbb0ac3a624837a0",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "subagent/external-end"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "3305a4bb6b6c29b482ba91d59c60b47e8f98282d3dacc8c29e4a4c2712209bdd",
       "schema": {
         "root": 0,
@@ -27841,6 +28318,79 @@
       ]
     },
     {
+      "digest": "3766703bc2634fec566d283ed6b2d794722f2cd9b02b65ce39c11d374d3a28d1",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "array",
+            "element": 1
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "type",
+                "type": 2,
+                "optional": false
+              }
+            ],
+            "indices": [
+              {
+                "key": 2,
+                "value": 3
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              2,
+              4,
+              5,
+              6,
+              7,
+              8
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 3
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 2,
+                "value": 3
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          }
+        ]
+      },
+      "names": [
+        "event:subagent/external-end.data.result.output"
+      ],
+      "sources": []
+    },
+    {
       "digest": "378f90f9f6022a0991928a1eaf7991094ea1920fe89a9248358a1da106e1a970",
       "schema": {
         "root": 0,
@@ -28060,6 +28610,20 @@
       "sources": [
         "packages/feedback/message-feedback/src/types.ts:17"
       ]
+    },
+    {
+      "digest": "3a10ac79f441a31b4870fbc40df1a0a9678a54b7c498f9c6d4ad14076592fed3",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "literal",
+            "value": "subagent/external-start"
+          }
+        ]
+      },
+      "names": [],
+      "sources": []
     },
     {
       "digest": "3aa261c8516b5c955ed12080e6257a56cbe513f6c9f0ac9274c12e96c196ebca",
@@ -34098,7 +34662,8 @@
         ]
       },
       "names": [
-        "event:tool/result.data.meta[5][0][6]",
+        "event:subagent/external-end.data.result.output[0].[value][6]",
+        "event:subagent/external-end.data.result.structured[6]",
         "event:tool/result.data.meta[6]"
       ],
       "sources": [
@@ -35076,9 +35641,9 @@
         ]
       },
       "names": [
-        "SessionEventEnvelope[39].sourceEventSeqs",
-        "SessionEventEnvelope[52].sourceEventSeqs",
-        "SessionEventEnvelope[55].sourceEventSeqs",
+        "SessionEventEnvelope[41].sourceEventSeqs",
+        "SessionEventEnvelope[54].sourceEventSeqs",
+        "SessionEventEnvelope[57].sourceEventSeqs",
         "event:assistant/attempt.data.stream[0][0].dt",
         "event:assistant/attempt.data.stream[0][1].dt",
         "event:assistant/attempt.data.stream[0][2].dt",
@@ -38751,8 +39316,9 @@
         ]
       },
       "names": [
-        "event:tool/result.data.meta[5]",
-        "event:tool/result.data.meta[5][0][5]"
+        "event:subagent/external-end.data.result.output[0].[value][5]",
+        "event:subagent/external-end.data.result.structured[5]",
+        "event:tool/result.data.meta[5]"
       ],
       "sources": []
     },
@@ -44192,6 +44758,77 @@
       "sources": []
     },
     {
+      "digest": "93647745454737d83fd7e1225f3a815cc88b0258f7857031fddeee388b8c6ea0",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "type",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": [
+              {
+                "key": 1,
+                "value": 2
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "union",
+            "types": [
+              1,
+              3,
+              4,
+              5,
+              6,
+              7
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 2
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 1,
+                "value": 2
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          }
+        ]
+      },
+      "names": [
+        "packages/subagent/subagent/src/external-records.ts#ExternalSubagentContent"
+      ],
+      "sources": [
+        "packages/subagent/subagent/src/external-records.ts:26"
+      ]
+    },
+    {
       "digest": "938f7c7357bc403ea3b281a9dd016939df7a0880fc8db12612585be574d0d615",
       "schema": {
         "root": 0,
@@ -44559,9 +45196,9 @@
         ]
       },
       "names": [
-        "SessionEventEnvelope[39]",
-        "SessionEventEnvelope[52]",
-        "SessionEventEnvelope[55]"
+        "SessionEventEnvelope[41]",
+        "SessionEventEnvelope[54]",
+        "SessionEventEnvelope[57]"
       ],
       "sources": []
     },
@@ -52634,6 +53271,132 @@
       ]
     },
     {
+      "digest": "c3668fe2e95b1c13fda1f778aaeceb98d57edccc16039c3848e6ad2eec86230d",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "childId",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "result",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 11,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "diagnostic",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "output",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "stopReason",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "structured",
+                "type": 5,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "array",
+            "element": 4
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "type",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": [
+              {
+                "key": 1,
+                "value": 5
+              }
+            ]
+          },
+          {
+            "kind": "union",
+            "types": [
+              1,
+              6,
+              7,
+              8,
+              9,
+              10
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 5
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 1,
+                "value": 5
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "literal",
+            "value": 0
+          }
+        ]
+      },
+      "names": [
+        "packages/subagent/subagent/src/external-records.ts#ExternalSubagentEnd"
+      ],
+      "sources": [
+        "packages/subagent/subagent/src/external-records.ts:40"
+      ]
+    },
+    {
       "digest": "c43b119ce579b3e9983a0d3adc4ba402ebb9ba773d89738a2dab01ecf5813943",
       "schema": {
         "root": 0,
@@ -52852,6 +53615,7 @@
         ]
       },
       "names": [
+        "event:subagent/external-end.data.result.structured",
         "event:tool/result.data.meta",
         "packages/util/values/src/index.ts#JsonValue"
       ],
@@ -58172,6 +58936,95 @@
       "sources": []
     },
     {
+      "digest": "e144bc89d55c5f25971eaac9aecddd1549c48912f709af1f7167ae3895dfdf20",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 5,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 6,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "childId",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "label",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "provider",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "literal",
+            "value": 0
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "subagent/external-start"
+          }
+        ]
+      },
+      "names": [
+        "event:subagent/external-start"
+      ],
+      "sources": []
+    },
+    {
       "digest": "e1d0e52dcd1855ffb803efc18f8f7b776c48d1c25757e8a75c0281fa298c02e1",
       "schema": {
         "root": 0,
@@ -58587,9 +59440,9 @@
         "SessionEventEnvelope[36]",
         "SessionEventEnvelope[37]",
         "SessionEventEnvelope[38]",
+        "SessionEventEnvelope[39]",
         "SessionEventEnvelope[3]",
         "SessionEventEnvelope[40]",
-        "SessionEventEnvelope[41]",
         "SessionEventEnvelope[42]",
         "SessionEventEnvelope[43]",
         "SessionEventEnvelope[44]",
@@ -58601,10 +59454,12 @@
         "SessionEventEnvelope[4]",
         "SessionEventEnvelope[50]",
         "SessionEventEnvelope[51]",
+        "SessionEventEnvelope[52]",
         "SessionEventEnvelope[53]",
-        "SessionEventEnvelope[54]",
+        "SessionEventEnvelope[55]",
         "SessionEventEnvelope[56]",
-        "SessionEventEnvelope[57]",
+        "SessionEventEnvelope[58]",
+        "SessionEventEnvelope[59]",
         "SessionEventEnvelope[5]",
         "SessionEventEnvelope[7]",
         "SessionEventEnvelope[8]",
@@ -59249,6 +60104,107 @@
       ],
       "sources": [
         "packages/llm/llm/src/assistant-stream.ts:21"
+      ]
+    },
+    {
+      "digest": "e7506bc518049e7fb22ad0126cb23b5289c910f3e25b54d6d7fa62196b1b6687",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "diagnostic",
+                "type": 1,
+                "optional": true
+              },
+              {
+                "name": "output",
+                "type": 2,
+                "optional": false
+              },
+              {
+                "name": "stopReason",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "structured",
+                "type": 4,
+                "optional": true
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "array",
+            "element": 3
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "type",
+                "type": 1,
+                "optional": false
+              }
+            ],
+            "indices": [
+              {
+                "key": 1,
+                "value": 4
+              }
+            ]
+          },
+          {
+            "kind": "union",
+            "types": [
+              1,
+              5,
+              6,
+              7,
+              8,
+              9
+            ]
+          },
+          {
+            "kind": "array",
+            "element": 4
+          },
+          {
+            "kind": "object",
+            "properties": [],
+            "indices": [
+              {
+                "key": 1,
+                "value": 4
+              }
+            ]
+          },
+          {
+            "kind": "primitive",
+            "type": "boolean"
+          },
+          {
+            "kind": "primitive",
+            "type": "null"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          }
+        ]
+      },
+      "names": [
+        "packages/subagent/subagent/src/external-records.ts#ExternalSubagentResult"
+      ],
+      "sources": [
+        "packages/subagent/subagent/src/external-records.ts:32"
       ]
     },
     {

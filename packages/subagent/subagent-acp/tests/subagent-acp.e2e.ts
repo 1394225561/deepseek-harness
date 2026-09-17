@@ -1,3 +1,4 @@
+import { startExternalActivation } from '../../subagent/tests/external-activation-helpers.ts'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -70,7 +71,7 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('ACP backend with-key e2e (drive 
       env: childLaunch.env as Record<string, string>,
     })
 
-    const run = await ctx.subagents.start('acp', {
+    const run = await startExternalActivation(ctx, 'acp', {
       prompt: [{ type: 'text', text: 'Reply with exactly the word PONG and nothing else. Do not use any tools.' }],
       parent: fakeParent,
       signal: new AbortController().signal,
@@ -103,7 +104,7 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('ACP backend with-key e2e (drive 
       env: childLaunch.env as Record<string, string>,
     })
 
-    const run = await ctx.subagents.start('acp', {
+    const run = await startExternalActivation(ctx, 'acp', {
       prompt: [{ type: 'text', text:
         'Use the bash tool to write the text ACP_CHILD_WAS_HERE into a file named proof.txt '
         + 'in the current directory. Then reply DONE.' }],

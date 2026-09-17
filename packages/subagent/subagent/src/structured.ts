@@ -7,7 +7,7 @@
  * Capture commits only after the authoritative `tools/result` succeeds; PTC mode capture also
  * waits for the enclosing `run_code` result. The terminal result marker and monotonic tool
  * guard prevent later calls from reopening a completed structured run.
- * @module @deepseek-ai/dsh-subagent-in-process-driver/structured
+ * @module @deepseek-ai/dsh-subagent/structured
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -44,9 +44,14 @@ export interface StructuredAttachment {
  * @param childCtx - the child agent's scope context (`setup`'s argument).
  * @param schema - the trusted, already-asserted schema subset to enforce (see
  *   `assertObjectJsonSchema` in dsh-tools).
+ * @param canComplete - whether owned child work has finished.
  * @returns the attachment handle (read `captured()` after the child settles).
  */
-export function attachStructuredRuntime(childCtx: Context, schema: ObjectJsonSchema): StructuredAttachment {
+export function attachStructuredRuntime(
+  childCtx: Context,
+  schema: ObjectJsonSchema,
+  canComplete: () => boolean,
+): StructuredAttachment {
   /**
    * Validated values staged by the capture tool body, awaiting THEIR OWN
    * authoritative `tools/result` notification. The execution object's identity
@@ -87,6 +92,7 @@ export function attachStructuredRuntime(childCtx: Context, schema: ObjectJsonSch
       // ToolArgsError → isError result with INVALID_ARGS: the model retries
       // within the same turn, exactly like a schema-validated defineTool call.
       if (violations.length > 0) throw new ToolArgsError(violations)
+      if (!canComplete()) throw new Error('Wait for all delegated child tasks to finish before submitting structured output.')
       // Two-phase commit, keyed by THIS execution: later transformable
       // waterfalls may still turn the success into an error. ToolRuntime has
       // already frozen model-bound arguments at the actual input boundary.

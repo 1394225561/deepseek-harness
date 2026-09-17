@@ -13,7 +13,7 @@ import type {
   ResumeAgentOptions,
 } from '@deepseek-ai/dsh-agent'
 import AgentDefaultModelConfig from '@deepseek-ai/dsh-agent-default-model'
-import { LlmAttemptId, ToolCallId, createAssistantMessage, createToolResultMessage, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import { LlmAttemptId, ToolCallId, createAssistantMessage, createToolResultMessage, createUserMessage, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import SessionStore from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { Session, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
@@ -224,6 +224,46 @@ async function bench(script: Script, options: BenchOptions = {}): Promise<{
 }
 
 describe('headless runner', () => {
+  it('waits for later child batches started after settlement wakes the parent', async () => {
+    const waiting = [Promise.withResolvers<undefined>(), Promise.withResolvers<undefined>()]
+    const released = [Promise.withResolvers<undefined>(), Promise.withResolvers<undefined>()]
+    let turns = 0
+    let checks = 0
+    const test = await bench({
+      afterPrompt(session, message) {
+        turns += 1
+        appendTurn(session, turns, message, turns === 3 ? 'all children complete' : 'waiting for children', true)
+      },
+    })
+    test.ctx.provide('subagents', {
+      async waitForChildren(parent: Agent) {
+        expect(test.ctx.agents.get(parent.id)).toBe(parent)
+        const batch = checks++
+        if (batch === 2) return false
+        waiting[batch]!.resolve(undefined)
+        await released[batch]!.promise
+        parent.followup(createUserMessage({ content: [{ type: 'text', text: `child batch ${batch + 1} complete` }], source: { kind: 'user' } }))
+        return true
+      },
+    } as never)
+    const run = test.run()
+    try {
+      await waiting[0]!.promise
+      expect(test.output().out).toBe('')
+      released[0]!.resolve(undefined)
+      await waiting[1]!.promise
+      expect(turns).toBe(2)
+      expect(test.output().order).not.toContain('exit')
+      released[1]!.resolve(undefined)
+      await expect(run).resolves.toMatchObject({ code: 0, out: 'all children complete\n' })
+      expect(checks).toBe(3)
+    } finally {
+      for (const release of released) release.resolve(undefined)
+      await run
+      await test.ctx.fiber.dispose()
+    }
+  })
+
   it('records a fresh Session in the filesystem provider working directory', async () => {
     const cwd = '/remote/workspace'
     const test = await bench({

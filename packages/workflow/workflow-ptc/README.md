@@ -50,7 +50,7 @@ The Node PTC provider's `maxPendingCalls` also limits workflow concurrency: chil
 
 ### Results and failures
 
-The script runs with top-level `await`; `meta` and `args` arrive as JSON data. Every `agent()` call uses the configured subagent provider and the run's fixed parent. The final lossless-JSON return value becomes the run result; an ordinary child failure resolves `agent()` to `null`.
+The script runs with top-level `await`; `meta` and `args` arrive as JSON data. Every `agent()` call starts a managed subagent Activation under the run's fixed parent and waits for its text or structured result. The workflow collects those results without sending child settlement notices to the parent model. The final lossless-JSON return value becomes the run result; an ordinary child failure resolves `agent()` to `null`.
 
 Invalid metadata, an unparseable body, an unavailable provider route or a per-run cap above the ceiling is rejected before a run is published. During execution, hook misuse and tripped cooperative caps fail the workflow. Process failures, unavailable required confinement and PTC output or control limits also fail the run.
 
@@ -91,7 +91,7 @@ One self-contained guest program runs the existing VM and workflow helpers insid
 
 The guest materializes outbound values as lossless JSON before PTC transport. Exotic prototypes, functions, symbols, cycles, sparse arrays, non-finite numbers and nested `undefined` are rejected. Child results cross back as JSON; same-process observer events retain their own cloning and callback-containment rules.
 
-The host tracks pending provider starts separately from published children. A shared abort signal closes both paths; a child that becomes ready after cancellation is disposed. Each published child's disposal is shared by all cleanup paths. In-flight host bindings remain the workflow adapter's responsibility after PTC stops the program.
+The host tracks pending starts separately from accepted Activations. Cancellation aborts pending starts and disposes accepted Activations; a child that becomes ready after cancellation is also disposed. Each Activation's disposal addresses that execution and is shared by all cleanup paths. In-flight host bindings remain the workflow adapter's responsibility after PTC stops the program.
 
 ### Cancellation and outcomes
 

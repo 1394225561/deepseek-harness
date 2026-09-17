@@ -22,7 +22,6 @@ export type JobStatus = 'running' | 'stopping' | 'completed' | 'killed' | 'faile
  */
 export interface JobKindMap {
   bash: 'bash'
-  subagent: 'subagent'
 }
 
 /** The merge-extensible union of registered producer kind names. */
@@ -44,7 +43,7 @@ export interface JobOutcome {
  * execution resources while the runtime owns identity and lifecycle state.
  */
 export interface JobStart {
-  /** Producer kind — also the id prefix (`bash`, `subagent`, …). */
+  /** Producer kind — also the id prefix (`bash`, …). */
   kind: JobKind
   /** One-line model-facing label (the command; the delegation description). */
   label: string

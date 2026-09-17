@@ -28,33 +28,32 @@ export function SubagentRunId(id: string): SubagentRunId {
   return id as SubagentRunId
 }
 
-/** What a caller asks for when starting a continuable background child. */
-export interface ContinuableStartSpec {
-  /** The `ctx.subagents` provider whose continuable-creation capability establishes the child. */
+/** One managed child execution and its result delivery policy. */
+export interface SubagentActivationSpec {
+  /** Registered backend to use. */
   readonly provider: string
-  /** The initial delegation's short `description`, persisted as the child's creation label. */
+  /** Short task label retained in the parent catalog. */
   readonly label: string
-  /**
-   * Optional caller-reserved child identity. Omission preserves the manager's
-   * UUID allocation; supplying one lets a durable parent record provisioning
-   * before child materialization without a second identity handshake.
-   */
+  /** Optional reserved identity for a local child; external backends allocate their own ids. */
   readonly childId?: SessionId
-  /**
-   * The delegation request. The manager reserves the stable child id, resolves
-   * the durable descriptor, and composes the child itself.
-   */
-  readonly request: Omit<SubagentStartRequest, 'label' | 'signal' | 'outputSchema'>
-  /** Caller cancellation, owning the operation only until inbox acceptance. */
+  /** Task, parent, and backend-supported execution options. */
+  readonly request: Omit<SubagentStartRequest, 'label' | 'signal'>
+  /** Cancellation before publication; callers own later cancellation through dispose. */
   readonly signal: AbortSignal
+  /** Parent-model notification or a program-owned result. */
+  readonly delivery: 'parent' | 'caller'
 }
 
-/** Identities returned once a continuable child accepted its initial prompt. */
-export interface ContinuableStart {
-  /** The durable child session id, stable across activations. */
+/** A managed execution; disposal addresses this exact activation, never a later resume. */
+export interface SubagentActivation {
+  /** Stable identity of the child. */
   readonly childId: SessionId
-  /** The accepted initial prompt's inbox message id. */
-  readonly messageId: MessageId
+  /** Accepted inbox message, when the backend has a local inbox. */
+  readonly messageId?: MessageId
+  /** Execution result, independently of eventual resource release. */
+  readonly result: Promise<SubagentResult>
+  /** Stop and release this activation and its owned descendants. */
+  dispose(): Promise<void>
 }
 
 /**
@@ -89,7 +88,7 @@ export interface SubagentRunInfo {
   readonly provider: string
   /** The child agent's id. */
   readonly id: SessionId
-  /** Snapshot of whether `SubagentRun.localAgent` was present when start fulfilled. */
+  /** Whether this activation owns a local Agent, fixed at publication. */
   readonly local: boolean
 }
 
@@ -104,7 +103,7 @@ export interface SubagentRunEndInfo {
   readonly provider: string
   /** The child agent's id. */
   readonly id: SessionId
-  /** Snapshot of whether `SubagentRun.localAgent` was present when start fulfilled. */
+  /** Whether this activation owns a local Agent, fixed at publication. */
   readonly local: boolean
   /** The terminal stop reason. */
   readonly stopReason: SubagentResult['stopReason']
@@ -117,15 +116,10 @@ export interface SubagentRunEndInfo {
 }
 
 /**
- * Which START-TIME features a provider supports. Checked by the service before delegating to
- * {@link SubagentProvider.start}: a request that needs a capability the chosen provider lacks
- * is rejected with a typed error rather than accepted-then-ignored (the "fail loud, no silent
- * degradation" rule). These flags describe the ONE-SHOT
- * {@link SubagentProvider.start} path, where the provider composes the child;
- * continuable children are composed by the continuation manager itself and are
- * gated by {@link SubagentProvider.prepareContinuable} instead. Each flag
- * corresponds one-to-one to a {@link SubagentStartRequest} option: `depthLimit`
- * to `maxDepth`; the other names match.
+ * Start-time options supported by a registered backend. The manager checks
+ * every requested option before preparing a local child or starting an external
+ * execution. depthLimit controls maxDepth; the remaining flag names match
+ * SubagentStartRequest fields.
  */
 export interface SubagentCapabilities {
   readonly agentOptions: boolean
@@ -136,11 +130,9 @@ export interface SubagentCapabilities {
 }
 
 /**
- * What a caller asks for when starting a ONE-SHOT subagent. The tool layer
- * builds this from the model's `{ description, prompt }` plus its own config;
- * the service validates {@link SubagentCapabilities} against the named provider
- * and resolves the durable descriptor before dispatching to
- * {@link SubagentProvider.start}.
+ * Task and optional capabilities supplied to a backend. startActivation carries
+ * these fields in request while owning its label, cancellation, and delivery
+ * policy separately. Providers receive a resolved descriptor before start.
  */
 export interface SubagentStartRequest {
   /** Optional short display label persisted with a session-backed child. */
@@ -201,7 +193,7 @@ export interface SubagentStartRequest {
 }
 
 /**
- * Provider-facing one-shot request after {@link SubagentRuntime.start} resolves
+ * Provider-facing execution request after {@link SubagentRuntime.startActivation} resolves
  * the durable child descriptor.
  */
 export interface ResolvedSubagentStartRequest extends SubagentStartRequest {
@@ -297,13 +289,11 @@ export interface SubagentResult {
 }
 
 /**
- * ONE-SHOT child handle returned after publication. Prompt submission, turn
- * work, and infrastructure faults after that boundary belong to {@link result}.
- * Consumers await that result and must always {@link dispose} to cancel
- * remaining work and reach quiescence. A run is one disposable foreground
- * delegation with one result; continuable conversations have no run — the
- * continuation manager holds their `AgentHandle` directly and orders every
- * turn through the child's own inbox.
+ * Backend execution handle owned by the external activation driver.
+ * A result may become available before resource release; the manager always
+ * disposes the handle and awaits cleanup. Backend startup failures clean up
+ * partial resources before rejecting, while accepted execution failures settle
+ * through result.
  */
 export interface SubagentRun {
   /**
@@ -353,14 +343,14 @@ export interface SubagentProvider {
    */
   readonly inheritsParentContext: boolean
   /**
-   * Optional static provider-owned provider/model route for one-shot Agent
+   * Optional static provider-owned provider/model route for child Agent
    * options. Consumers merge tool/model overrides over these values before
    * preflight; providers whose route derives from the parent omit it. The value
    * is detached immutable data and requires `agentOptions` support.
    */
   readonly agentRouteDefaults?: Readonly<{ provider: string; model: string }>
   /**
-   * Establish a ONE-SHOT child and return its handle after publication.
+   * Establish one external execution and return its owned handle.
    * The service has already validated that every requested start-time
    * capability is supported and resolved `request.descriptor`, so a
    * session-backed implementation appends that descriptor inside the child's
@@ -370,14 +360,13 @@ export interface SubagentProvider {
    * the returned run. Distinct starts may overlap; cancellation, failure,
    * result settlement, and disposal remain independent for each run.
    */
-  start(request: ResolvedSubagentStartRequest): Promise<SubagentRun>
+  start?(request: ResolvedSubagentStartRequest): Promise<SubagentRun>
   /**
    * OPTIONAL (continuable-creation capability): contribute the detached
    * creation inputs that distinguish this provider's continuable children —
    * only whether the child session is seeded with parent history. Method
-   * presence IS the capability: the service rejects continuable starts on
-   * providers without it, while a provider that has it may still serve
-   * ordinary one-shot delegations.
+   * presence selects local activation execution. Providers without it execute
+   * through start and do not accept subsequent messages.
    *
    * This is the provider's ONLY participation in a continuable child. The
    * continuation manager owns identity reservation, composition, Agent

@@ -71,7 +71,6 @@ async function boot(withPreset = true): Promise<Context> {
     await preset.ctx.plugin(tool, {
       provider: 'spawn',
       modelSelectionSettings: true,
-      backgroundMode: 'continuable',
     })
     modelSelectionPresets.set(ctx, preset)
   }
@@ -196,7 +195,6 @@ describe('SubagentModelSelectionConfig', () => {
           tool.apply(runtimeCtx, {
             provider: 'spawn',
             modelSelectionSettings: true,
-            backgroundMode: 'continuable',
           }, agent.session)
         })
         await fiber.await()
@@ -268,7 +266,6 @@ describe('SubagentModelSelectionConfig', () => {
     await preset.ctx.plugin(tool, {
       provider: 'spawn',
       modelSelectionSettings: true,
-      backgroundMode: 'continuable',
     })
 
     let enabledBinding: ReturnType<typeof bindScopeParent> | undefined
@@ -323,7 +320,6 @@ describe('SubagentModelSelectionConfig', () => {
     await preset.ctx.plugin(tool, {
       provider: 'spawn',
       modelSelectionSettings: true,
-      backgroundMode: 'continuable',
     })
     let binding: ReturnType<typeof bindScopeParent> | undefined
     const handle = await ctx.agents.create({
@@ -407,7 +403,6 @@ describe('SubagentModelSelectionConfig', () => {
       tool.apply(withoutAgent, {
         provider: 'spawn',
         modelSelectionSettings: true,
-        backgroundMode: 'continuable',
       })
     }).toThrow('requires a scoped preset Context')
 

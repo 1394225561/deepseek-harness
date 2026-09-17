@@ -25,6 +25,8 @@ The bash seam ([capability seams](../architecture/2026-06-13-capability-seams.md
 
 ## Decision
 
+The shared activation entry point, external execution ownership, and caller-versus-parent result delivery are governed by [Unified subagent activations](../simplification/2026-09-17-unified-subagent-activations.md). This record retains the independent rationale described below.
+
 ### The three-package boundary
 
 A new package group `packages/subagent/`:

@@ -301,7 +301,7 @@ function CatalogRows({
         const label = entry.label ?? entry.id
         const mode = entry.mode === 'one-shot' ? t('mode.oneShot') : t('mode.continuable')
         const activity = entry.activity === 'running' ? t('activity.running') : t('activity.inactive')
-        const secondary = [summary?.title, mode, activity]
+        const secondary = [summary?.title, mode, activity, entry.external ? t('external.resultInParent') : undefined]
           .filter(value => value !== undefined)
           .join(' · ')
         const totalTokens = tokenTotal(summary?.projectionValues?.tokenUsage)
@@ -324,6 +324,7 @@ function CatalogRows({
           .join(' · ')
 
         const open = (): void => {
+          if (entry.external) return
           openChild({ parentSessionId, childSessionId: entry.id, mode: entry.mode })
           closeCatalog()
         }
@@ -353,6 +354,7 @@ function CatalogRows({
               role="treeitem"
               tabIndex={0}
               aria-level={level}
+              aria-disabled={entry.external || undefined}
               aria-current={isCurrent || undefined}
               aria-label={[label, secondary, metrics].filter(value => value !== '').join(' ')}
               {...knownLeaf ? {} : { 'aria-expanded': isExpanded }}
