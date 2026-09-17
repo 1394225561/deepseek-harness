@@ -84,7 +84,7 @@ On `start`, the prefix is sliced from the parent's event log up to and including
 
 ### Lifecycle binding
 
-The base bundle and ACP/headless examples bind this provider to `backgroundMode: one-shot`, while the CLI presets select `continuable`. Both preserve the inherited request prefix: parent and child receive the same messaging tool definition and ordering, and the continuable child's parent id and return guidance live in its initial user task after inherited history ([cache-preserving fork Agent Note](../../../.agents/notes/implemented/architecture/2026-08-10-fork-children-stay-one-shot.md)).
+The base bundle and full CLI presets bind this provider to `backgroundMode: continuable`; explicit foreground calls and one-shot compositions remain supported. Both preserve the inherited request prefix: parent and child receive the same messaging tool definition and ordering, and the continuable child's parent id and return guidance live in its initial user task after inherited history ([cache-preserving fork Agent Note](../../../.agents/notes/implemented/architecture/2026-08-10-fork-children-stay-one-shot.md)).
 
 </details>
 
@@ -93,14 +93,14 @@ The base bundle and ACP/headless examples bind this provider to `backgroundMode:
 <a id="further-exploration"></a>
 ## Further Exploration
 
-Read these pages when the package-level contract is not enough; they move from the shared subagent model to the sibling backends and the design evidence for the one-shot binding.
+Read these pages when the package-level contract is not enough; they move from the shared subagent model to the sibling backends and the design evidence for preserving the inherited request prefix.
 
 - [Subagent subsystem](../../../docs/subsystems/subagent.md) — start requests, results, provider contract, and in-process depth and seed.
 - [dsh-subagent-in-process-driver](../subagent-in-process-driver/README.md) — the shared run driver this backend calls.
 - [dsh-subagent-spawn-in-process](../subagent-spawn-in-process/README.md) — the fresh-child sibling backend.
 - [dsh-tool-subagent](../tool-subagent/README.md) — the model-facing delegation tool that reaches this provider.
 - [Generated configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-subagent-fork-in-process) — every accepted config field and its source declaration.
-- [Fork children stay one-shot](../../../.agents/notes/implemented/architecture/2026-08-10-fork-children-stay-one-shot.md) — why shipped compositions bind fork to one-shot.
+- [Forked children preserve the parent request prefix](../../../.agents/notes/implemented/architecture/2026-08-10-fork-children-stay-one-shot.md) — why continuable fork preserves the inherited request prefix.
 
 -----
 
@@ -143,7 +143,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 These limits define when the backend is the wrong choice; they are current package constraints.
 
 - **The seed is a one-time snapshot** — the child sees the parent's completed turns as of the fork and nothing the parent logs afterwards; there is no live context sharing.
-- **Fork lifecycle policy differs by composition** — the base bundle and ACP/headless examples use one-shot fork, while the CLI presets use continuable fork. Both keep the inherited prefix eligible for reuse because parent and child messaging definitions match byte for byte; explicit persona, tool filtering, generated-SDK, or route changes can still break equality. Rationale: the [cache-preserving fork Agent Note](../../../.agents/notes/implemented/architecture/2026-08-10-fork-children-stay-one-shot.md).
+- **Prefix reuse depends on matching request inputs** — parent and child messaging definitions match byte for byte in both lifecycle modes; explicit persona, tool filtering, generated-SDK, or route changes can still break equality. Rationale: the [cache-preserving fork Agent Note](../../../.agents/notes/implemented/architecture/2026-08-10-fork-children-stay-one-shot.md).
 - **Shipped fork tools do not expose child LLM route selection** — they inherit the parent's provider and model so the copied history remains eligible for KV Cache reuse. Route selection stays disabled until a change can preserve reuse or expose a bounded recomputation cost; the [model-selected route Agent Note](../../../.agents/notes/implemented/feature/2026-08-18-model-selected-subagent-routes.md) owns that restriction.
 
 <a id="dev-note"></a>
