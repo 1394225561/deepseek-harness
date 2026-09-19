@@ -244,9 +244,23 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
+   * Start a local child under its reserved identity.
+   * @param spec - local task, reserved child id, and result recipient.
+   * @returns activation with its accepted initial message id.
+   */
+  startActivation(spec: SubagentActivationSpec & { readonly childId: SessionId }):
+  Promise<SubagentActivation & { readonly messageId: MessageId }>
+  /**
+   * Start a local or external child.
+   * @param spec - task, backend, and result recipient.
+   * @returns activation with a message id only for local children.
+   */
+  startActivation(spec: SubagentActivationSpec): Promise<SubagentActivation>
+  /**
    * Establish a managed child with backend-specific execution capabilities.
    * @param spec - task, backend, and result recipient.
-   * @returns identities, execution result, and exact-activation disposal.
+   * @returns identities, execution result, and exact-activation disposal. A reserved
+   * childId requires a local backend and guarantees an accepted messageId.
    */
   async startActivation(spec: SubagentActivationSpec): Promise<SubagentActivation> {
     const provider = this.expectProvider(spec.provider)

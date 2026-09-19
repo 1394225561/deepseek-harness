@@ -440,11 +440,18 @@ Named provider registry with managed activations, durable discovery, and local c
 resolveMaxDepth(configured?: number | 'provider-managed'): number | undefined
 
 /**
- * Establish a managed child with backend-specific execution capabilities.
- * @param spec - task, backend, and result recipient.
- * @returns identities, execution result, and exact-activation disposal.
+ * Start a local child under its reserved identity.
+ * @param spec - local task, reserved child id, and result recipient.
+ * @returns activation with its accepted initial message id.
  */
-async startActivation(spec: SubagentActivationSpec): Promise<SubagentActivation>
+startActivation(spec: SubagentActivationSpec & { readonly childId: SessionId }): Promise<SubagentActivation & { readonly messageId: MessageId }>
+
+/**
+ * Start a local or external child.
+ * @param spec - task, backend, and result recipient.
+ * @returns activation with a message id only for local children.
+ */
+startActivation(spec: SubagentActivationSpec): Promise<SubagentActivation>
 
 /**
  * Wait for this live parent's currently owned child work without cancelling it.

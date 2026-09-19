@@ -831,18 +831,20 @@ describe('WorkflowRunPanel', () => {
     expect(screen.getByRole('button', { name: /未分阶段/ }).getAttribute('aria-expanded')).toBe('true')
   })
 
-  it('opens a running member confirmed by the direct parent catalog', () => {
+  it.each(['one-shot', 'continuable'] as const)('opens a running %s member with its catalog mode', (mode) => {
     const data: WorkflowRunChatData = {
       name: 'audit', status: 'running', phases: [phase()],
     }
     const openSession = vi.fn()
-    const sessions = listState()
+    const sessions = listState({ projectionsBySession: { [PARENT_ID]: { state: 'ready', error: null, values: { subagentCatalog: [
+      { createdAt: 1, id: CHILD_ID, mode, label: 'worker' },
+    ] } } } })
     render(<WorkflowRunPanel {...panelProps(data, sessions, openSession)} />)
     fireEvent.click(screen.getByRole('button', { name: '打开 worker' }))
     expect(openSession).toHaveBeenCalledWith({
       parentSessionId: PARENT_ID,
       childSessionId: CHILD_ID,
-      mode: 'one-shot',
+      mode,
     })
   })
 
@@ -876,6 +878,7 @@ describe('WorkflowRunPanel', () => {
   })
 
   it.each([
+    ['external execution', listState({ projectionsBySession: { [PARENT_ID]: { state: 'ready', error: null, values: { subagentCatalog: [{ createdAt: 1, id: CHILD_ID, mode: 'one-shot', external: 'pending' }] } } } }), 'running'],
     ['catalog absent', listState({ projectionsBySession: {} }), 'running'],
     ['catalog empty', listState({ projectionsBySession: { [PARENT_ID]: { state: 'ready', error: null, values: { subagentCatalog: [] } } } }), 'running'],
     ['wrong parent', listState({ projectionsBySession: { ['other' as SessionId]: { state: 'ready', error: null, values: { subagentCatalog: [{ createdAt: 1, id: CHILD_ID, mode: 'one-shot' }] } } } }), 'running'],

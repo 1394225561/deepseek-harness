@@ -1,3 +1,4 @@
+import { externalTestParent } from '../../../subagent/subagent/tests/external-activation-helpers.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -1145,7 +1146,9 @@ describe('out-of-process delegation boundary', () => {
       maxDepth: 'provider-managed',
     })
 
-    const { session, agent } = autoSession(ctx, 'remote-delegation', process.cwd())
+    const agent = await externalTestParent(ctx, process.cwd())
+    const session = agent.session
+    ctx.permissionPresets.set(session, AUTO_PRESET)
     const schema = ctx.tools.schemas(agent).find(item => item.name === 'delegate_remote')
     if (schema === undefined) throw new Error('remote delegation tool schema is missing')
     appendHeader(session, [schema])

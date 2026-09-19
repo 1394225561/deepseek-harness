@@ -281,7 +281,6 @@ function CatalogRows({
         const openAside = (event: MouseEvent<HTMLButtonElement>): void => {
           event.preventDefault()
           event.stopPropagation()
-          if (external !== undefined) return
           openChildAside({ parentSessionId, childSessionId: entry.id, mode: entry.mode })
           closeCatalog()
         }

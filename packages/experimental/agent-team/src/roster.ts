@@ -7,7 +7,6 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { MessageId } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
-import type { SubagentActivation } from '@deepseek-ai/dsh-subagent'
 import { errorMessage, TeamError } from './error.ts'
 import type { TeamJournal } from './journal.ts'
 import type { TeamRuntimeLifecycle } from './lifecycle.ts'
@@ -277,9 +276,8 @@ export class TeamRoster {
       await this.journal.appendAndFlush(root, 'team/member', { version: 2, teamId: TeamId(root.id), member })
     })
 
-    let started: SubagentActivation
     try {
-      started = await this.ctx.subagents.startActivation({
+      const started = await this.ctx.subagents.startActivation({
         delivery: 'parent',
         childId,
         provider: request.provider,
@@ -290,7 +288,6 @@ export class TeamRoster {
         },
         signal,
       })
-      if (started.messageId === undefined) throw new Error('teammate backend did not accept an initial inbox message')
       await this.checkpointInitialPrompt(childId, started.messageId, signal)
     } catch (error: unknown) {
       const failed: TeamMemberSnapshot = {
