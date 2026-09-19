@@ -37,7 +37,6 @@ import type { DelegatedPolicyOverrides } from './child-agent.ts'
 import { createSettlementMessage } from './continuation-messages.ts'
 import type { SubagentDescriptorData } from './descriptor.ts'
 import { SubagentError } from './error.ts'
-import { recordExternalEnd } from './external-records.ts'
 import { SubagentInbox } from './inbox.ts'
 import type { SubagentDelivery } from './inbox.ts'
 import type { ActivationObserver, ActivationTerminal } from './lifecycle.ts'
@@ -101,6 +100,8 @@ export interface Activation {
    * another runtime-incarnation reference. Non-empty blocks settlement.
    */
   readonly ownedChildren: Set<SessionId>
+  /** Complete the accepted external catalog fact after resource release. */
+  settleCatalog?: (status: SubagentResult['stopReason']) => void
   /** The lifecycle observer that emits this epoch's start and terminal edges. */
   readonly observer: ActivationObserver
   /**
@@ -939,17 +940,12 @@ export class ContinuableActivationRegistry {
     activation.releaseSlot()
     const terminal = activation.observer.terminal(failure)
     const result = { ...terminal, output: terminal.output ?? [] }
-    const captured = activation.observer.terminal(undefined)
     activation.result.resolve(result)
-    if (activation.announced && activation.driver.agent === undefined) {
+    if (activation.settleCatalog !== undefined) {
       try {
-        recordExternalEnd(activation.parent.session, childId, {
-          ...captured,
-          output: captured.output ?? [],
-          stopReason: terminal.stopReason,
-        })
+        activation.settleCatalog(terminal.stopReason)
       } catch (error: unknown) {
-        failure ??= new SubagentError(`subagent "${childId}" result could not be recorded`, 'ACTIVATION_TEARDOWN_FAILED', { cause: error })
+        failure ??= new SubagentError(`subagent "${childId}" catalog settlement could not be recorded`, 'ACTIVATION_TEARDOWN_FAILED', { cause: error })
       }
     }
     this.notifySettlement(activation, activation.observer.terminal(failure))

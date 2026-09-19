@@ -5,6 +5,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SubagentRuntime from '../src/index.ts'
+import { TestSessionQuery } from './test-session-query.ts'
 import type { ResolvedSubagentStartRequest, SubagentCapabilities, SubagentResult, SubagentRun } from '../src/types.ts'
 import { externalTestParent } from './external-activation-helpers.ts'
 import { continuationManager } from './continuation-internals.ts'
@@ -18,6 +19,7 @@ async function setup(start: (request: ResolvedSubagentStartRequest) => Promise<S
   await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SubagentRuntime)
   const parent = await externalTestParent(ctx)
+  await ctx.plugin(TestSessionQuery)
   ctx.subagents.registerProvider({ name: 'external', capabilities, inheritsParentContext: false, start })
   const controller = new AbortController()
   return {
@@ -26,7 +28,7 @@ async function setup(start: (request: ResolvedSubagentStartRequest) => Promise<S
       provider: 'external', label: 'External work', signal: controller.signal, delivery,
       request: { parent, prompt: [{ type: 'text', text: 'Work independently' }] },
     }),
-    records: () => ctx.sessionProjections.snapshot(parent.session, ['subagentExternal']).values.subagentExternal,
+    records: () => ctx.sessionProjections.snapshot(parent.session, ['subagentCatalog']).values.subagentCatalog,
   }
 }
 
@@ -104,7 +106,7 @@ describe('external subagent activations', () => {
         })).rejects.toMatchObject({ code: change === 'drain' ? 'DRAINING' : 'UNAUTHORIZED' })
         await drain
         expect(backend.dispose).toHaveBeenCalledTimes(1)
-        expect(fixture.ctx.sessionProjections.snapshot(session, ['subagentExternal']).values.subagentExternal).toEqual([])
+        expect(fixture.ctx.sessionProjections.snapshot(session, ['subagentCatalog']).values.subagentCatalog).toEqual([])
         expect(parent.inbox.nextTurn).toEqual([])
       } finally {
         detachReplacement?.()
@@ -136,7 +138,7 @@ describe('external subagent activations', () => {
     await disposal
     await activation.dispose()
     expect(backend.dispose).toHaveBeenCalledTimes(1)
-    expect(fixture.records()).toMatchObject([{ childId: activation.childId, result: completed }])
+    expect(fixture.records()).toMatchObject([{ id: activation.childId, external: 'completed' }])
     expect(fixture.parent.inbox.nextTurn).toEqual([])
   })
 
@@ -172,7 +174,7 @@ describe('external subagent activations', () => {
     expect(dispose).toHaveBeenCalledTimes(1)
   })
 
-  it.each(['parent', 'caller'] as const)('retains the full failed result with %s delivery', async (delivery) => {
+  it.each(['parent', 'caller'] as const)('delivers the full failed result with %s delivery', async (delivery) => {
     const backend = execution()
     backend.cleanup.resolve(undefined)
     const fixture = await setup(async () => backend.run)
@@ -181,7 +183,7 @@ describe('external subagent activations', () => {
     backend.result.resolve(failed)
     await expect(activation.result).resolves.toEqual(failed)
     await activation.dispose()
-    expect(fixture.records()).toMatchObject([{ childId: activation.childId, result: failed }])
+    expect(fixture.records()).toMatchObject([{ id: activation.childId, external: 'error' }])
     if (delivery === 'caller') {
       expect(fixture.parent.inbox.nextTurn).toEqual([])
     } else {
@@ -196,22 +198,22 @@ describe('external subagent activations', () => {
     }
   })
 
-  it('reports a durable result write failure and releases capacity', async () => {
+  it('reports a catalog settlement write failure and releases capacity', async () => {
     const backend = execution()
     backend.cleanup.resolve(undefined)
     const fixture = await setup(async () => backend.run)
     const activation = await fixture.start('parent')
     const append = fixture.parent.session.append.bind(fixture.parent.session)
     const spy = vi.spyOn(fixture.parent.session, 'append').mockImplementation((...args) => {
-      if (args[0] === 'subagent/external-end') throw new Error('storage unavailable')
+      if (args[0] === 'subagent/catalog') throw new Error('storage unavailable')
       return Reflect.apply(append, fixture.parent.session, args) as ReturnType<typeof append>
     })
     try {
       backend.result.resolve(completed)
       await expect(activation.result).resolves.toEqual(completed)
-      await expect(activation.dispose()).rejects.toThrow('result could not be recorded')
-      expect(continuationManager(fixture.ctx).isActive(activation.childId)).toBe(false)
-      expect(fixture.records()).toMatchObject([{ childId: activation.childId }])
+      await expect(activation.dispose()).rejects.toThrow('catalog settlement could not be recorded')
+      expect(await fixture.ctx.subagents.waitForChildren(fixture.parent)).toBe(false)
+      expect(fixture.records()).toMatchObject([{ id: activation.childId }])
       expect(fixture.parent.inbox.nextTurn[0]?.content).toEqual([
         { type: 'text', text: `Background subagent ${activation.childId} failed before it finished.` },
         { type: 'text', text: 'It left no closing message.' },
@@ -238,7 +240,57 @@ describe('external subagent activations', () => {
     await expect(activation.result).resolves.toEqual(completed)
     expect(activation.dispose()).toBe(disposal)
     expect(fixture.records()).toMatchObject([{
-      childId: activation.childId, result: { ...completed, stopReason: 'error' },
+      id: activation.childId, external: 'error',
     }])
   })
+})
+
+
+it('discovers an external leaf through the parent catalog and publishes a small terminal update', async () => {
+  const backend = execution()
+  const fixture = await setup(async () => backend.run)
+  const snapshots: unknown[] = []
+  fixture.ctx.sessionProjections.snapshot(fixture.parent.session)
+  const unsubscribe = fixture.ctx.sessionProjections.onChanged(() => { snapshots.push(fixture.records()) })
+  try {
+    const activation = await fixture.start()
+    const expected = { id: activation.childId, mode: 'one-shot', label: 'External work', external: 'pending' }
+    expect(await fixture.ctx.subagents.listChildren(fixture.parent.id)).toMatchObject([expected])
+    expect(await fixture.ctx.subagents.listDescendants(fixture.parent.id)).toMatchObject([
+      { ...expected, kind: 'child', parentId: fixture.parent.id, depth: 1, hasChildren: false },
+    ])
+    expect(fixture.ctx.sessions.get(activation.childId)).toBeUndefined()
+    const result: SubagentResult = { output: [{ type: 'text', text: 'x'.repeat(100_000) }], stopReason: 'completed' }
+    backend.result.resolve(result)
+    backend.cleanup.resolve(undefined)
+    await expect(activation.result).resolves.toEqual(result)
+    await activation.dispose()
+    expect(await fixture.ctx.subagents.listChildren(fixture.parent.id)).toMatchObject([{ ...expected, external: 'completed' }])
+    expect(snapshots).toHaveLength(2)
+    expect(JSON.stringify(snapshots).length).toBeLessThan(1_000)
+  } finally {
+    unsubscribe()
+  }
+})
+
+
+it('refuses a reserved Session id for an external provider before dispatch', async () => {
+  const start = vi.fn()
+  const fixture = await setup(start)
+  await expect(fixture.ctx.subagents.startActivation({
+    provider: 'external', childId: SessionId('reserved'), label: 'External', delivery: 'parent',
+    signal: fixture.controller.signal, request: { parent: fixture.parent, prompt: [] },
+  })).rejects.toMatchObject({ code: 'UNSUPPORTED_CAPABILITY' })
+  expect(start).not.toHaveBeenCalled()
+})
+
+it.each(['completed', 'aborted'] as const)('reports external %s without offering another turn', async (stopReason) => {
+  const backend = execution()
+  const fixture = await setup(async () => backend.run)
+  const activation = await fixture.start('parent')
+  backend.result.resolve({ output: [], stopReason })
+  backend.cleanup.resolve(undefined)
+  await activation.dispose()
+  expect(JSON.stringify(fixture.parent.inbox.nextTurn)).toContain(stopReason === 'completed' ? 'cannot receive follow-up messages' : 'was stopped before it finished')
+  expect(JSON.stringify(fixture.parent.inbox.nextTurn)).not.toContain('send it more')
 })

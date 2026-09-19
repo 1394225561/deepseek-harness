@@ -229,7 +229,7 @@ type SubagentInterruptAuthority =
 
 ## Durable enumeration
 
-listChildren and listDescendants combine child Sessions with external execution records from parent logs. External rows carry external: true and cannot open a child Session or accept follow-ups. Their running state comes from the live activation registry; a persisted start alone does not prove that a process is alive. The subagentExternal projection retains the complete JSON result independently of parent notices. list_agents exposes external rows as running or finished with continuable: false, and local rows as running, idle, or ready.
+`listChildren` reads the parent-owned catalog. `listDescendants` combines Session corpus identity with parent catalogs, including external leaves beneath ordinary Sessions. External one-shot entries carry an optional `external` outcome and cannot open a child Session or accept follow-ups. `pending` means no terminal outcome is recorded, not that a process is live. Complete results go to the caller or the parent completion notice. `list_agents` marks external rows with `continuable: false`; local activity remains `running` or `inactive`.
 
 ```ts type-equiv
 /**
@@ -260,7 +260,7 @@ interface SubagentResult {
    * are skipped. Without a non-empty message, the output is its accumulated
    * assistant text stream, or `[]` when the child produced neither.
    */
-  readonly output: ContentBlock[]
+  readonly output: readonly ContentBlock[]
   /**
    * The structured result after a requested `outputSchema` was successfully
    * satisfied. Requesting a schema does not guarantee presence: a provider can
@@ -511,23 +511,15 @@ async drainDescendants(parents: readonly Agent[]): Promise<void>
 async drainChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void>
 
 /**
- * Enumerate the parent's direct local and external subagents without loading or
- * resuming an Agent. The Session query service supplies one live-preferred
- * corpus and shared point observations; the projection cache supplies
- * immutable descriptor hits without opening cold logs. The registered
- * `subagent` projection remains the sole mode/label classifier.
- *
- * Every query receives `signal`, and the listing rechecks cancellation
- * around each await. Read rejections that settle
- * after an abort become a stable `SubagentError` with code `CANCELLED`.
- * @param parentSessionId - parent session whose direct children are listed.
- * @param signal - caller-owned cancellation forwarded to Session queries
- *   and observed around every read await.
- * @returns children and per-child diagnostics ordered by `createdAt`, then id.
- * @throws {@link SubagentError} when the projection registry or the session
- *   store is not mounted, or the caller cancels the listing.
+ * Read the parent's durable direct-child catalog without loading or resuming an Agent.
+ * The service owns and releases the live-preferred Session observation.
+ * @param parentSessionId - parent whose direct children are requested.
+ * @param signal - cancellation forwarded to the Session query.
+ * @returns catalog children in parent event order.
+ * @throws {@link SubagentError} when query or catalog projection is unavailable.
+ * @throws SessionQueryError when the parent cannot be read or the query is cancelled.
  */
-async listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentListEntry[]>
+async listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentCatalogEntry[]>
 
 /**
  * Enumerate the root's complete session-backed subagent tree in stable
@@ -535,31 +527,16 @@ async listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<Su
  * Agent. Ordinary sessions and one-shot children remain traversal nodes so
  * continuable descendants below them are discovered; each returned entry
  * adds its durable `parentId` and root-relative `depth`. Identity resolution,
- * diagnostics, optional persistence, and cancellation follow the same
- * projection-backed contract as {@link listChildren}.
+ * diagnostics, optional persistence, and cancellation use the registered
+ * child identity projection and complete Session corpus.
  * @param rootSessionId - session whose complete descendant tree is listed.
  * @param signal - caller-owned cancellation forwarded to persistence reads
  *   and observed around every read await.
  * @returns children and per-candidate diagnostics with tree position, in
  *   stable pre-order.
- * @throws {@link SubagentError} under the same conditions as {@link listChildren}.
+ * @throws {@link SubagentError} when listing dependencies are unavailable or the caller cancels.
  */
 async listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]>
-
-/**
- * Remote face of {@link listChildren} for one browser: the durable listing
- * plus live Agent activity and the delivery-time parent availability hint.
- * Parent availability is a hint; {@link prompt} performs the authoritative
- * check. Named apart from the provider-name {@link list}, which owns the
- * member.
- * @param parentSessionId - parent session whose direct children are listed.
- * @param signal - carrier cancellation forwarded to Session queries.
- * @returns the catalog view for that parent.
- * @throws {RemoteError} `gateway/bad-request` for an empty parent id,
- *   `gateway/cancelled` for an aborted read, `subagent/projections-unavailable` when
- *   the deployment has no projection registry, otherwise `gateway/internal`.
- */
-@Remote('list') async remoteExportList(parentSessionId: SessionId, signal: AbortSignal): Promise<SubagentCatalog>
 
 /**
  * Deliver one browser-authored message to a continuable child through the

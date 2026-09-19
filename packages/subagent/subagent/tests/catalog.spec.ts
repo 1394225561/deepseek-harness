@@ -159,3 +159,20 @@ describe('subagent catalog projection', () => {
     }
   })
 })
+
+
+describe('external catalog membership', () => {
+  it('updates one external leaf in place and restores its terminal summary', () => {
+    const start = fact(0, 'external', 1, { mode: 'one-shot', label: 'Review' })
+    const pending = { ...start, data: { ...start.data, mode: 'one-shot' as const, external: 'pending' as const } }
+    const end = { ...pending, seq: SessionSeq(2), data: { ...pending.data, external: 'completed' as const } }
+    const state = fold([pending, fact(1, 'local', 2, { mode: 'continuable', label: 'Implement' }), end])
+    const restored = subagentCatalogProjectionDefinition.stateSchema.parse(JSON.parse(JSON.stringify(state)))
+    expect(subagentCatalogProjectionDefinition.wire.view(restored)).toEqual([
+      { id: SessionId('external'), createdAt: 1, mode: 'one-shot', label: 'Review', external: 'completed' },
+      { id: SessionId('local'), createdAt: 2, mode: 'continuable', label: 'Implement' },
+    ])
+    expect(subagentCatalogProjectionDefinition.wire.view(fold([pending]))[0]).toMatchObject({ external: 'pending' })
+    expect(subagentCatalogProjectionDefinition.wire.viewSchema.safeParse([{ id: 'external', createdAt: 1, mode: 'one-shot', external: 'invalid' }]).success).toBe(false)
+  })
+})

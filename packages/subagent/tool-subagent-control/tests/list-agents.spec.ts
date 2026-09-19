@@ -1,3 +1,4 @@
+import { startTestActivation } from '../../subagent/tests/local-activation.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -9,7 +10,7 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import { SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
-import type { SubagentListEntry } from '@deepseek-ai/dsh-subagent'
+import type { SubagentCatalogEntry } from '@deepseek-ai/dsh-subagent'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import type { GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { LlmAdapter } from '@deepseek-ai/dsh-llm'
@@ -47,15 +48,17 @@ class GatedAdapter extends LlmAdapter {
 const testToolSignal = new AbortController().signal
 
 const roots: string[] = []
-const contexts: Context[] = []
+const contexts = new Set<Context>()
 afterEach(async () => {
-  for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose()
+  vi.restoreAllMocks()
+  for (const ctx of contexts) await ctx.fiber.dispose()
+  contexts.clear()
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
 async function setupWith(adapter: MockAdapter | GatedAdapter) {
   const ctx = new Context()
-  contexts.push(ctx)
+  contexts.add(ctx)
   await mountAgentLoopTestDependencies(ctx)
   const root = mkdtempSync(join(tmpdir(), 'dsh-tool-list-agents-'))
   roots.push(root)
@@ -75,7 +78,7 @@ async function setup(script: ConstructorParameters<typeof MockAdapter>[0]) {
   return setupWith(new MockAdapter(script))
 }
 
-function text(result: { content: { type: string; text?: string }[] }): string {
+function text(result: { content: readonly { type: string; text?: string }[] }): string {
   return result.content.filter(block => block.type === 'text').map(block => block.text).join('')
 }
 
@@ -129,10 +132,9 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     expect(text(result)).toBe('(no subagents)')
   })
 
-  it('renders children and diagnostics in array order with registry-derived statuses', async () => {
+  it('renders direct children in array order with registry statuses', async () => {
     const { ctx, parent } = await setup([textResponse('done')])
-    const started = await ctx.subagents.startActivation({
-      delivery: 'parent',
+    const started = await ctx.subagents.startActivation({ delivery: 'parent',
       provider: 'spawn',
       label: 'real child',
       request: { prompt: [{ type: 'text', text: 'child task' }], parent },
@@ -142,60 +144,50 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     // Pin the render deterministically past the service: the tool is a thin
     // adapter, so its fixed text forms are what this test pins. Status comes
     // from the live Agent registry, stubbed per candidate id.
-    const entries: SubagentListEntry[] = [
+    const entries: SubagentCatalogEntry[] = [
       {
-        kind: 'child',
         id: SessionId('one-shot-child'),
+        createdAt: 1,
         label: 'finished once',
         mode: 'one-shot',
-        activity: 'inactive',
-        hasChildren: false,
       },
       {
-        kind: 'child',
         id: started.childId,
+        createdAt: 2,
         label: 'real child',
         mode: 'continuable',
-        activity: 'inactive',
-        hasChildren: false,
       },
       {
-        kind: 'child',
         id: SessionId('running-child'),
+        createdAt: 3,
         label: 'still working',
         mode: 'continuable',
-        activity: 'running',
-        hasChildren: true,
       },
       {
-        kind: 'child',
         id: SessionId('waiting-child'),
+        createdAt: 4,
         label: 'waiting on descendants',
         mode: 'continuable',
-        activity: 'running',
-        hasChildren: true,
       },
-      { kind: 'diagnostic', id: SessionId('broken-child'), reason: 'corrupt' },
     ]
     ctx.subagents.listChildren = () => Promise.resolve(entries)
-    const agents = new Map<string, { status: 'running' | 'idle' }>([
+    const agents = new Map<string, {
+      status: 'running' | 'idle'
+    }>([
       ['running-child', { status: 'running' }],
       ['waiting-child', { status: 'idle' }],
     ])
     vi.spyOn(ctx.agents, 'get').mockImplementation(id => agents.get(id) as never)
     const result = await callTool(ctx, 'list_agents', {}, parent)
     expect(result.isError).toBe(false)
-    // `ready` is the resumable counterpart to a live `running` record, not a
-    // claim that the child's conversation ended with a result to collect.
     expect(text(result)).toBe(
-      `${started.childId} [ready] — real child\n`
+      `${started.childId} [inactive] — real child\n`
       + 'running-child [running] — still working\n'
-      + 'waiting-child [idle] — waiting on descendants\n'
-      + 'broken-child [diagnostic: corrupt]',
+      + 'waiting-child [inactive] — waiting on descendants',
     )
   })
 
-  it('resolves omitted scope to children and forwards the tool cancellation signal', async () => {
+  it('resolves omitted scope to children and passes the parent id and cancellation signal', async () => {
     const { ctx, parent } = await setup([])
     const signal = new AbortController().signal
     const listChildren = vi.spyOn(ctx.subagents, 'listChildren').mockResolvedValue([])
@@ -206,56 +198,40 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     expect(listChildren).toHaveBeenCalledWith(parent.id, signal)
   })
 
-  it('lists local children and running or finished external executions', async () => {
-    const { ctx, parent } = await setup([textResponse('done')])
-    const completion = Promise.withResolvers<import('@deepseek-ai/dsh-subagent').SubagentResult>()
-    ctx.subagents.registerProvider({
-      name: 'external',
-      inheritsParentContext: false,
-      capabilities: { agentOptions: false, outputSchema: false, depthLimit: false, toolFilter: false, persona: false },
-      async start() {
-        return { id: SessionId('external-child'), localAgent: undefined, result: completion.promise, async dispose() {} }
-      },
+  it('lists settled local activations as continuable children', async () => {
+    const { ctx, parent } = await setup([textResponse('once'), textResponse('done')])
+    const oneShot = await startTestActivation(ctx, 'spawn', {
+      label: 'finished once',
+      prompt: [{ type: 'text', text: 'one-shot task' }],
+      parent,
+      signal: new AbortController().signal,
     })
-    const external = await ctx.subagents.startActivation({
-      provider: 'external', label: 'external task',
-      request: { prompt: [{ type: 'text', text: 'work' }], parent },
-      signal: testToolSignal, delivery: 'caller',
+    await oneShot.result
+    await oneShot.dispose()
+    const started = await ctx.subagents.startActivation({ delivery: 'parent',
+      provider: 'spawn',
+      label: 'summarize the doc',
+      request: { prompt: [{ type: 'text', text: 'child task' }], parent },
+      signal: testToolSignal,
     })
-    try {
-      const started = await ctx.subagents.startActivation({
-        delivery: 'parent', provider: 'spawn', label: 'summarize the doc',
-        request: { prompt: [{ type: 'text', text: 'child task' }], parent }, signal: testToolSignal,
-      })
-      await waitNoActivation(ctx, started.childId)
-      const running = await callTool(ctx, 'list_agents', {}, parent)
-      expect(running.isError).toBe(false)
-      expect(text(running)).toContain('external-child [running] — external task; cannot receive follow-ups')
-      expect(text(running)).toContain(`${started.childId} [ready] — summarize the doc`)
-      completion.resolve({ output: [{ type: 'text', text: 'done' }], stopReason: 'completed' })
-      await external.result
-      await external.dispose()
-      const finished = await callTool(ctx, 'list_agents', {}, parent)
-      expect(text(finished)).toContain('external-child [finished] — external task; cannot receive follow-ups')
-    } finally {
-      completion.resolve({ output: [], stopReason: 'completed' })
-      await external.dispose()
-      await ctx.fiber.dispose()
-    }
+    await waitNoActivation(ctx, started.childId)
+    const result = await callTool(ctx, 'list_agents', {}, parent)
+    expect(result.isError).toBe(false)
+    expect(text(result)).toBe(`${oneShot.id} [inactive] — finished once\n${started.childId} [inactive] — summarize the doc`)
   })
 
-  it('describes ready as resumable and pins the status vocabulary', async () => {
+  it('describes inactive as turn availability and pins the status vocabulary', async () => {
     const { ctx } = await setup([])
     const schema = ctx.tools.schemas().find(candidate => candidate.name === 'list_agents')
     // Completion reaches the parent through its notice; listing is discovery,
     // so its inactive status must not send the model looking for a result.
     expect(schema?.description).toContain('you are told when one finishes')
-    expect(schema?.description).toContain('resumable, not terminal')
+    expect(schema?.description).toContain('inactive does not describe task completion, success, failure,')
     // The enum is the closed vocabulary the model renders, so pin it rather than
     // scanning prose that legitimately reads "not to poll for completion".
     const variants = ctx.tools.get('list_agents')?.output.schema.items?.oneOf ?? []
     const child = variants.find(variant => variant.properties?.kind?.enum?.includes('child'))
-    expect(child?.properties?.status?.enum).toEqual(['running', 'idle', 'ready', 'finished'])
+    expect(child?.properties?.status?.enum).toEqual(['running', 'inactive', 'pending', 'completed', 'max-tokens', 'aborted', 'refusal', 'error'])
   })
 
   it('fails loud when invoked without a calling agent', async () => {
@@ -267,7 +243,7 @@ describe('dsh-tool-subagent-control/list-agents', () => {
 
   it('unregisters with its plugin fiber (HMR safety)', async () => {
     const ctx = new Context()
-    contexts.push(ctx)
+    contexts.add(ctx)
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(SubagentRuntime)
@@ -292,8 +268,7 @@ describe('dsh-tool-subagent-control/list-agents', () => {
       { chunks: textResponse('grandchild'), gate: releaseGrandchild.promise },
     ])
     const { ctx, parent } = await setupWith(adapter)
-    const started = await ctx.subagents.startActivation({
-      delivery: 'parent',
+    const started = await ctx.subagents.startActivation({ delivery: 'parent',
       provider: 'spawn',
       label: 'waiting branch',
       request: { prompt: [{ type: 'text', text: 'branch work' }], parent },
@@ -301,8 +276,7 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     })
     await vi.waitFor(() => { expect(adapter.requests).toHaveLength(1) })
     const child = ctx.agents.get(started.childId)!
-    const grandchild = await ctx.subagents.startActivation({
-      delivery: 'parent',
+    const grandchild = await ctx.subagents.startActivation({ delivery: 'parent',
       provider: 'spawn',
       label: 'nested leaf',
       request: { prompt: [{ type: 'text', text: 'leaf work' }], parent: child },
@@ -319,7 +293,7 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     const result = await callTool(ctx, 'list_agents', { scope: 'descendants' }, parent)
     expect(result.isError).toBe(false)
     expect(text(result)).toBe(
-      `${started.childId} [idle] parent=${parent.id} depth=1 — waiting branch\n`
+      `${started.childId} [inactive] parent=${parent.id} depth=1 — waiting branch\n`
       + `${grandchild.childId} [running] parent=${started.childId} depth=2 — nested leaf`,
     )
 
@@ -364,7 +338,7 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     const result = await callTool(ctx, 'list_agents', { scope: 'descendants' }, parent)
     expect(result.isError).toBe(false)
     expect(text(result)).toBe(
-      'deep-leaf [ready] parent=one-shot-mid depth=2 — deep leaf\n'
+      'deep-leaf [inactive] parent=one-shot-mid depth=2 — deep leaf\n'
       + `broken-node [diagnostic: unavailable] parent=${parent.id} depth=1`,
     )
   })
@@ -379,4 +353,15 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     expect(result.isError).toBe(false)
     expect(listDescendants).toHaveBeenCalledWith(parent.id, signal)
   })
+})
+
+
+it('lists external catalog outcomes without offering follow-up delivery', async () => {
+  const { ctx, parent } = await setup([])
+  const childId = SessionId('external-task')
+  const pending: SubagentCatalogEntry = { id: childId, createdAt: 1, mode: 'one-shot', external: 'pending' }
+  vi.spyOn(ctx.subagents, 'listChildren').mockResolvedValue([pending])
+  const result = await callTool(ctx, 'list_agents', {}, parent)
+  expect(text(result)).toContain('external-task [pending]')
+  expect(text(result)).toContain('cannot receive follow-ups')
 })

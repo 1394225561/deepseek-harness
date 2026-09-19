@@ -31,6 +31,7 @@ import {
   parseToolSchemasSnapshot,
   redactSessionSnapshotIds,
   refreshFixtureReplacements,
+  reconcileCatalogCreationTimes,
   restorePinnedToolSchemas,
   scrubModelRequestBulk,
   scrubSessionSnapshot,
@@ -323,8 +324,7 @@ function assembledRuntimeContexts(log: PersistedLog): string[] {
       data?: { source?: { kind?: string; plugin?: string }; content?: Array<{ type?: string; text?: unknown }> }
     }
     if (event.type !== 'user/message'
-      || event.data?.source?.kind !== 'plugin'
-      || event.data.source.plugin !== '@deepseek-ai/dsh-system-prompt') return []
+      || event.data?.source?.kind !== 'runtime-context') return []
     return event.data.content?.flatMap(block => block.type === 'text' && typeof block.text === 'string' ? [block.text] : []) ?? []
   })
 }
@@ -418,6 +418,17 @@ function records(log: string): JsonObject[] {
   return log.split(/\r?\n/)
     .filter(line => line.trim() !== '')
     .map(line => JSON.parse(line) as JsonObject)
+}
+
+function notificationComparisonRecords(log: string, sourceLogs: readonly string[]): JsonObject[] {
+  const versions = sourceLogs.map((source, index) => sessionHeaderVersion(source, `notification Session ${index}`))
+  expect(new Set(versions).size, 'wire golden Session roles share one native writer generation').toBe(1)
+  return records(log).map((record) => {
+    if (record.method !== 'session.event') return record
+    const params = record.params as JsonObject
+    const event = JSON.parse(normalizeSessionFormatMetadata(JSON.stringify(params.event), versions[0])) as unknown
+    return { ...record, params: { ...params, event } }
+  })
 }
 
 function modelFromSession(log: string): { provider: string; model: string } {
@@ -823,6 +834,7 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
         recording ? logs.length : files.length,
         assertions.dshSdkChild !== undefined,
       )
+      reconcileCatalogCreationTimes(ordered.map(log => log.content), 'validate')
       const actualContext = contextOf(ordered, cwd)
       expect(logs.some(log => log.content.includes('llm-replay: script exhausted')), `${scenario.name}: replay script covers every model request`).toBe(false)
       if (scenario.name === 'subagent-dsh-sdk-diagnostic' || scenario.name === 'subagent-dsh-sdk-dynamic-route') {
@@ -832,8 +844,8 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
           && ((event.data as JsonObject).source as JsonObject).kind === 'subagent-settled')
         const expectedCount = scenario.name === 'subagent-dsh-sdk-diagnostic' ? 2 : 1
         expect(notices).toHaveLength(expectedCount)
-        expect(parentEvents.filter(event => event.type === 'subagent/external-start')).toHaveLength(expectedCount)
-        expect(parentEvents.filter(event => event.type === 'subagent/external-end')).toHaveLength(expectedCount)
+        expect(parentEvents.filter(event => event.type === 'subagent/catalog' && (event.data as JsonObject | undefined)?.external === 'pending')).toHaveLength(expectedCount)
+        expect(parentEvents.filter(event => event.type === 'subagent/catalog' && typeof (event.data as JsonObject | undefined)?.external === 'string' && (event.data as JsonObject).external !== 'pending')).toHaveLength(expectedCount)
         const expectedContent = scenario.name === 'subagent-dsh-sdk-diagnostic'
           ? 'partial child loader answer'
           : 'child route: mock/mock-routed/max/777; cwd:'
@@ -849,7 +861,7 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
         const denied = records(ordered[0]!.content).find(record => record.type === 'tool/result'
           && JSON.stringify(record).includes('call_over_capacity'))
         expect(denied).toMatchObject({ data: {
-          message: { content: [{ isError: true, content: [{ type: 'text', text: expect.stringContaining('subagent limit reached (active child limit: 1)') }] }] },
+          message: { content: [{ type: 'text', text: expect.stringContaining('subagent limit reached (active child limit: 1)') }], isError: true },
         } })
       }
       if (scenario.name === 'tool-error-details') {
@@ -902,7 +914,7 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
             stabilizeRefreshLog(log.content, existing, replacements, actualContext),
           ))
         })
-        expectedContents = redactSessionSnapshotIds(stabilizeFixtureMessageIds(refreshed, expectedContents))
+        expectedContents = redactSessionSnapshotIds(stabilizeFixtureMessageIds(reconcileCatalogCreationTimes(refreshed, 'preserve-headers'), expectedContents))
       }
 
       if (writesSessionFixtures || refreshing && retained) {
@@ -925,14 +937,14 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
         expect(await Promise.all((await fixtureFiles(scenario)).map(file => readFile(file, 'utf8'))),
           'historical replay input remains unchanged').toEqual(replayContents)
         for (const [index, content] of expectedContents.entries()) {
-          expect(sessionHeaderVersion(content, writerSnapshotName(index))).toBe(SESSION_FORMAT_VERSION)
+          expect(sessionHeaderVersion(content, writerSnapshotName(index))).toBeLessThanOrEqual(SESSION_FORMAT_VERSION)
         }
       }
 
       // Persisted transcripts match the committed fixtures.
       const expectedContext = contextOfContents(expectedContents)
-      const actualSnapshots = normalizeSessionSnapshots(ordered.map(log => log.content), actualContext)
-      const expectedSnapshots = normalizeSessionSnapshots(expectedContents, expectedContext)
+      const actualSnapshots = normalizeSessionSnapshots(ordered.map(log => log.content), actualContext, { nativeWriterOutput: true })
+      const expectedSnapshots = normalizeSessionSnapshots(expectedContents, expectedContext, { nativeWriterOutput: true })
       expect(actualSnapshots.map(records), `${scenario.name}: sessions`).toEqual(expectedSnapshots.map(records))
       await verifyHeaders(scenario, ordered, actualContext, assertions.dshSdkChild?.agentConfig)
 
@@ -948,10 +960,10 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
         }
         const expectedNotifications = await readFile(notificationsExpectedPath, 'utf8')
         expect(
-          records(normalizedNotifications),
+          notificationComparisonRecords(normalizedNotifications, ordered.map(log => log.content)),
           `${scenario.name}: notifications`,
         )
-          .toEqual(records(expectedNotifications))
+          .toEqual(notificationComparisonRecords(expectedNotifications, expectedContents))
         expect(normalizedResult).toBe(await readFile(resultExpectedPath, 'utf8'))
       }
 

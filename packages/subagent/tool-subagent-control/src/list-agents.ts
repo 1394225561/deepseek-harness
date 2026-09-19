@@ -1,6 +1,6 @@
 /**
  * The globally named `list_agents` tool: a thin model-facing adapter over
- * the managed-child projection of `ctx.subagents.listChildren()` and, for the
+ * the continuable projection of `ctx.subagents.listChildren()` and, for the
  * `descendants` scope, `ctx.subagents.listDescendants()`. It stays separately
  * loadable from the root `send_message` plugin so a deployment can register
  * continuation delivery without exposing discovery.
@@ -11,7 +11,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import type { SubagentDescendantListEntry, SubagentListEntry } from '@deepseek-ai/dsh-subagent'
+import type {
+  ExternalSubagentStatus, SubagentCatalogEntry, SubagentDescendantListEntry, SubagentListEntry,
+} from '@deepseek-ai/dsh-subagent'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 
 export const name = 'tool-subagent-list-agents'
@@ -32,8 +34,8 @@ type ListAgentsEntry =
     readonly kind: 'child'
     readonly id: SessionId
     readonly label: string
-    readonly status: 'running' | 'idle' | 'ready' | 'finished'
-    readonly continuable?: false
+    readonly status: 'running' | 'inactive' | ExternalSubagentStatus
+    readonly continuable: boolean
     readonly parent?: SessionId
     readonly depth?: number
   }
@@ -50,42 +52,31 @@ function resolveListAgentsRequest(request: ListAgentsRequest): ListAgentsSpec {
   return { scope: request.scope ?? 'children' }
 }
 
-/**
- * Refine one candidate's status through the live Agent registry: `running`
- * for an active driver, `idle` for a resident Agent between turns (possibly
- * waiting on agents it started), and `ready` when no live Agent remains.
- * `ready` preserves resumability without presenting an inactive conversation
- * as a terminal result to collect.
- */
-function statusOf(agents: { get(id: SessionId): Agent | undefined }, id: SessionId): 'running' | 'idle' | 'ready' {
-  const agent = agents.get(id)
-  if (agent === undefined) return 'ready'
-  return agent.status === 'running' ? 'running' : 'idle'
+/** Report turn activity without exposing whether the child is loaded. */
+function statusOf(agents: { get(id: SessionId): Agent | undefined }, id: SessionId): 'running' | 'inactive' {
+  return agents.get(id)?.status === 'running' ? 'running' : 'inactive'
 }
 
-/** Project current managed executions and resumable children; omit legacy one-shot Sessions. */
+/** Project one service row into the model-facing entry, or omit a one-shot child. */
 function project(
   agents: { get(id: SessionId): Agent | undefined },
-  entry: SubagentListEntry,
+  entry: SubagentCatalogEntry | SubagentListEntry,
   position?: Pick<SubagentDescendantListEntry, 'parentId' | 'depth'>,
 ): ListAgentsEntry | undefined {
   const at = position === undefined ? {} : { parent: position.parentId, depth: position.depth }
-  if (entry.kind === 'diagnostic') {
+  if ('kind' in entry && entry.kind === 'diagnostic') {
     return { kind: 'diagnostic', id: entry.id, reason: entry.reason, ...at }
   }
-  if (entry.external) {
-    return {
-      kind: 'child', id: entry.id, label: entry.label,
-      status: entry.activity === 'running' ? 'running' : 'finished',
-      continuable: false, ...at,
-    }
-  }
-  if (entry.mode !== 'continuable') return undefined
+  // One-shot children cannot be continued by send_message, so the model
+  // never selects them; discovery still traversed them for descendants.
+  const external = entry.mode === 'one-shot' ? entry.external : undefined
+  if (entry.mode === 'one-shot' && external === undefined) return undefined
   return {
     kind: 'child',
     id: entry.id,
-    label: entry.label,
-    status: statusOf(agents, entry.id),
+    label: entry.label ?? entry.id,
+    status: external ?? statusOf(agents, entry.id),
+    continuable: entry.mode === 'continuable',
     ...at,
   }
 }
@@ -98,15 +89,17 @@ export function apply(ctx: Context): void {
   ctx.tools.register(defineTool({
     name: 'list_agents',
     description:
-      'List your subagents by id and label. Use it to recall which ones '
-      + 'you started, not to poll for completion — you are told when one finishes. Status comes from the live '
-      + 'registry: running means the agent is working right now, idle means it is loaded but between turns '
-      + '(it may be waiting on agents it started), and ready means it exists only in storage — resumable, not '
-      + 'terminal, and not a result waiting to be collected; a `send_message` steers a running child at its nearest '
-      + 'step boundary or starts a turn for an idle or ready child, and a direct child remains a `send_message` '
-      + 'candidate in every local status. External executions carry `continuable: false`, are running or finished, and cannot receive follow-ups. The snapshot is not a delivery '
+      'List your local and external subagents by durable id and label. External entries cannot receive follow-ups; '
+      + 'their status is the last recorded outcome, with pending meaning no terminal outcome is recorded, not that a process is live. '
+      + 'Use it to recall which ones '
+      + 'you started, not to poll for completion — you are told when one finishes. Local status comes from the live '
+      + 'registry: running means the agent is working right now; inactive means no turn is executing, whether '
+      + 'the child is loaded or must be resumed. inactive does not describe task completion, success, failure, '
+      + 'or waiting for other agents. A `send_message` steers a running child at its nearest step boundary '
+      + 'or starts or resumes a turn for an inactive child, and a direct continuable child remains a `send_message` '
+      + 'candidate in every status. The snapshot is not a delivery '
       + 'promise — `send_message` performs the authoritative check and may still fail. Children that could '
-      + 'not be read are reported as diagnostics instead of being silently dropped. Scope `descendants` '
+      + 'not be read are reported as diagnostics only in `descendants` scope. Scope `descendants` '
       + 'walks the whole tree below you in stable pre-order, annotating each entry with its durable direct-parent '
       + 'session id and depth. You may use `send_message` only for depth-1 entries; deeper entries are '
       + 'candidates for `interrupt_agent` only.',
@@ -129,8 +122,8 @@ export function apply(ctx: Context): void {
                 kind: { type: 'string', required: true, enum: ['child'] },
                 id: { type: 'string', required: true },
                 label: { type: 'string', required: true },
-                status: { type: 'string', required: true, enum: ['running', 'idle', 'ready', 'finished'] },
-                continuable: { type: 'boolean', const: false },
+                status: { type: 'string', required: true, enum: ['running', 'inactive', 'pending', 'completed', 'max-tokens', 'aborted', 'refusal', 'error'] },
+                continuable: { type: 'boolean', required: true },
                 parent: { type: 'string' },
                 depth: { type: 'number' },
               },
@@ -163,7 +156,7 @@ export function apply(ctx: Context): void {
                 ? ` parent=${String(entry.parent)} depth=${String(entry.depth)}`
                 : ''
               return entry.kind === 'child'
-                ? `${entry.id} [${entry.status}]${at} — ${entry.label}${entry.continuable === false ? '; cannot receive follow-ups' : ''}`
+                ? `${entry.id} [${entry.status}]${at} — ${entry.label}${entry.continuable ? '' : '; cannot receive follow-ups'}`
                 : `${entry.id} [diagnostic: ${entry.reason}]${at}`
             }).join('\n'),
         }]
@@ -176,8 +169,6 @@ export function apply(ctx: Context): void {
         throw new Error('list_agents requires a calling agent (exec.agent was undefined)')
       }
       const request = resolveListAgentsRequest(args)
-      // The registry drains started tool bodies, so the scan must observe the
-      // call's signal rather than finish a slow catalog after cancellation.
       switch (request.scope) {
         case 'children': {
           const entries = await ctx.subagents.listChildren(parent.id, exec.signal)
@@ -186,6 +177,7 @@ export function apply(ctx: Context): void {
             .filter(entry => entry !== undefined)
         }
         case 'descendants': {
+          // Complete-corpus reads can await storage, so they observe tool cancellation.
           const entries = await ctx.subagents.listDescendants(parent.id, exec.signal)
           return entries
             .map(entry => project(ctx.agents, entry, entry))

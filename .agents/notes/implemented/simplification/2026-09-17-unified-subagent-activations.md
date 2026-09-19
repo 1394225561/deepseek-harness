@@ -14,17 +14,21 @@ Local one-shot execution and continuable residency separately owned child creati
 
 Local spawn and fork providers contribute only `prepareContinuable()` data; the subagent service owns Agent creation and residency. The standalone in-process driver package is removed. Structured tools, validation, instructions, and terminal guards attach to one activation and close with it. After capture, that activation rejects further input; cold resume reconstructs an ordinary conversation without the previous schema.
 
-ACP, DSH SDK, Codex, and Claude Code retain their existing single-execution provider adapters. They join the same activation capacity and ownership graph without accepting follow-up messages or fabricating a local child Session. Parent-owned external start and end events retain their identities and results for discovery after disposal.
+ACP, DSH SDK, Codex, and Claude Code retain their existing single-execution provider adapters. They join the same activation capacity and ownership graph without accepting follow-up messages or fabricating a local child Session. The parent-owned catalog registers both local children and external leaves. External entries carry an optional last-recorded outcome; pending means no terminal outcome is recorded and makes no claim about process liveness. Settlement updates the same entry without storing or broadcasting full output. Caller delivery returns the complete result; parent delivery queues the complete completion notice.
 
 The model-facing tool always returns a background child id and promises the manager's completion notice. It has no foreground switch or Job integration. Workflows select caller delivery, await the activation result, and dispose the handle before finishing; they add neither a completion notice nor initial return guidance to the parent/child exchange. Headless completion waits for its own child tree and subsequent parent turns.
 
 ### Retained decisions
+
+The native Session reader permits one pending-to-terminal update for an external catalog entry only when its mode, creation time, and label remain unchanged. Local duplicate membership and repeated terminal updates still reject restoration.
 
 The [named-provider seam](../feature/2026-06-21-subagent-capability-seam.md), [continuable residency](../feature/2026-07-28-continuable-subagent-conversations.md), [fork request prefix](../architecture/2026-08-10-fork-children-stay-one-shot.md), [settlement delivery ordering](../feature/2026-08-06-manager-owned-subagent-settlement-delivery.md), [parent-owned catalog](../architecture/2026-09-01-parent-owned-subagent-catalog.md), and [activation capacity](../feature/2026-09-15-continuable-activation-capacity.md) retain their independent rationale. This decision owns the shared entry point, external participation, and caller-versus-parent result delivery. Those records are partially superseded, not candidates for consolidation or archival.
 
 Released Session generations remain immutable. Historical one-shot descriptors stay readable; removing current execution paths does not justify rewriting or discarding durable history.
 
 ## Alternatives considered
+
+**Keep a separate external execution projection.** It duplicates membership, restoration, and client update handling already supplied by the parent catalog. Repeated directory snapshots would also retransmit every retained result. The catalog retains only identity and outcome; results remain with their recipient.
 
 **Keep one-shot local execution for synchronous workflows.** Awaiting a result is a consumer requirement. A second Agent lifecycle duplicates cancellation and cleanup solely to supply a promise, which the activation can supply directly.
 
@@ -36,8 +40,8 @@ Released Session generations remain immutable. Historical one-shot descriptors s
 
 ## Consequences
 
-One manager controls admission, cancellation, ownership, and resource release across providers. Workflow result collection remains synchronous at its API, while model delegation leaves the parent's tool step promptly. External children gain shared accounting and retained results, but gain no continuation. Restoring foreground or Job-backed local execution would require a concrete capability that result collection through an activation cannot provide.
+One manager controls admission, cancellation, ownership, and resource release across providers. Workflow result collection remains synchronous at its API, while model delegation leaves the parent's tool step promptly. External children share accounting and durable discovery but gain no continuation or independent result archive. Restoring foreground or Job-backed local execution would require a concrete capability that result collection through an activation cannot provide.
 
 ## Verification
 
-Focused tests cover local spawn/fork inheritance, structured capture and schema-free cold resume, explicit cancellation, external execution records, result-versus-disposal ordering, workflow collection without parent notices, and headless child-tree completion. Existing replay generations are preserved; updated recorded-session cases cover the current model-visible tool and notice behavior.
+Focused tests cover local spawn/fork inheritance, structured capture and schema-free cold resume, explicit cancellation, external catalog updates, result-versus-disposal ordering, workflow collection without parent notices, and headless child-tree completion. Existing replay generations are preserved; updated recorded-session cases cover the current model-visible tool and notice behavior.

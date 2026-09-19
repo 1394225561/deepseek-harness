@@ -88,6 +88,10 @@
         "type": "string"
       }
     },
+    "registry": {
+      "type": "string",
+      "description": "For install_bundle: the npm registry URL asked first, when the user names one; otherwise the configured registry is asked, and its configured fallbacks while a registry is unreachable."
+    },
     "offset": {
       "type": "number",
       "description": "Zero-based list offset; defaults to 0."
@@ -631,7 +635,7 @@ bash 工具是 bash 执行器 seam 面向模型的消费方。使用 `run_in_bac
 
 ### `present`
 
-声明交付 Session 文件系统可访问的已有文件。如果你创建或更新的文件是用户要求接收的成果，则必须在写入完成后、最终回复前调用 present，包括通过 Bash 或代码执行创建的文件。在回复中提到文件路径不能替代这次调用。文件必须已存在。用户打开当前源文件；不复制或保存其内容。
+选择 Session 文件系统可访问的已有文件，声明为最终交付物。当用户需要独立的文件交付物时使用 present，尤其是 Office 文档、电子表格和演示文稿。如果最终回复已经足够展示结果，优先在回复中展示；创建或编辑文件本身不要求调用 present。通常选择最重要的 1 至 2 项交付物，任务需要时可以更多，但一次 present 调用最多 4 个文件。文件必须已存在。用户打开当前源文件；不复制或保存其内容。
 
 ```json
 {
@@ -1884,7 +1888,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `list_agents`
 
-按 id 和标签列出你的 subagent。用它回忆你启动过哪些 subagent，而不是轮询完成情况——subagent 完成时你会被告知。状态来自实时注册表：running 表示 agent 此刻正在工作；idle 表示已加载但处于轮次之间，可能正在等待它启动的 agent；ready 表示它只存在于存储中——可恢复而非终态，也不表示有结果等待收集；`send_message` 会在运行中 child 的最近 step 边界 steer 消息，或为 idle、ready child 启动轮次，且无论处于哪种本地状态，直接子级都仍可作为 `send_message` 的目标。外部执行标记 `continuable: false`，状态为 running 或 finished，无法接收后续消息。该快照并非投递承诺；`send_message` 会执行权威检查，仍可能失败。无法读取的子级会作为诊断信息报告，而不会被静默丢弃。`descendants` 作用域会按稳定的前序顺序遍历你下方的整棵树，并为每个条目标注其持久的直接父会话 id 和深度。只有深度为 1 的条目可以使用 `send_message`；更深的条目只能作为 `interrupt_agent` 的候选目标。
+按持久 ID 和标签列出本地与外部子代理。外部条目不接受后续消息，其状态是最近记录的结果；pending 表示尚无终态记录，不表示进程存活。使用此工具回忆已启动的子代理，不要轮询完成状态；完成时会收到通知。本地状态来自在线注册表：running 表示正在执行，inactive 表示当前没有执行轮次，无论子代理已加载还是需要恢复，并不表示任务成功、失败、完成或正在等待其他代理。send_message 可在最近 step 引导正在运行的直接本地子代理，或启动、恢复其下一轮；任何本地状态都不排除直接可继续子代理作为目标。列表快照不保证投递成功，send_message 仍进行权威检查。descendants 按稳定前序遍历完整后代树，附带直接父级 ID 和深度，并将无法读取的节点呈现为诊断条目。只有深度 1 的本地可继续条目可用于 send_message；更深条目只能用于 interrupt_agent。
 
 ```json
 {
@@ -2019,7 +2023,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
   "properties": {
     "target": {
       "type": "string",
-      "description": "Teammate name."
+      "description": "Teammate target returned by spawn_teammate or list_agents."
     }
   },
   "required": [
@@ -2032,7 +2036,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `list_agents`
 
-列出 Lead 与所有持久 teammate，以及各自当前的运行时状态。
+列出 Lead 与所有持久 teammate，以及可用于寻址的 target 和当前可用状态。inactive 表示没有轮次在执行，不表示任务结果。provisioning 与 failed 描述成员创建状态。
 
 ```json
 {
@@ -2045,7 +2049,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `send_message`
 
-向另一名 Team member 发送一条持久消息。running target 会在最近的步骤边界收到消息；idle target 会启动一个 turn；inactive teammate 会冷恢复。
+向另一名 Team member 发送一条持久消息。running target 会在最近的步骤边界收到消息；inactive target 会启动或恢复一个 turn。
 
 ```json
 {
@@ -2053,7 +2057,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
   "properties": {
     "target": {
       "type": "string",
-      "description": "Team member name, or lead."
+      "description": "Member target returned by spawn_teammate or list_agents, including lead."
     },
     "message": {
       "type": "string",
@@ -2188,7 +2192,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
     },
     "owner": {
       "type": "string",
-      "description": "Optional member-name filter; use unowned for tasks without an owner."
+      "description": "Optional member target from spawn_teammate or list_agents, matching ownerName; use unowned for tasks without an owner."
     },
     "ready": {
       "type": "boolean",
@@ -2262,7 +2266,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
     },
     "owner": {
       "type": "string",
-      "description": "Member name for Lead-only reassign; omit to unassign."
+      "description": "Member target from spawn_teammate or list_agents for Lead-only reassign; omit to unassign."
     }
   },
   "required": [

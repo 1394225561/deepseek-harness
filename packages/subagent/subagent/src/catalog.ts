@@ -15,7 +15,7 @@ import type {
   SessionLogOffset,
 } from '@deepseek-ai/dsh-session'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
-import type { SubagentCatalogEntry } from './projection-types.ts'
+import type { ExternalSubagentStatus, SubagentCatalogEntry } from './projection-types.ts'
 
 /** Current payload version for `subagent/catalog` events. */
 export const SUBAGENT_CATALOG_VERSION = 0
@@ -27,7 +27,7 @@ export type SubagentCatalogEvent =
     readonly childId: SessionId
     readonly childCreatedAt: number
   } & (
-    | { readonly mode: 'one-shot'; readonly label?: string }
+    | { readonly mode: 'one-shot'; readonly label?: string; readonly external?: ExternalSubagentStatus }
     | { readonly mode: 'continuable'; readonly label: string }
   )
 
@@ -54,6 +54,7 @@ const oneShotCatalogSchema = z.object({
   childCreatedAt: z.number().int().nonnegative(),
   mode: z.literal('one-shot'),
   label: z.string().optional(),
+  external: z.enum(['pending', 'completed', 'max-tokens', 'aborted', 'refusal', 'error']).optional(),
 }).strict()
 const continuableCatalogSchema = z.object({
   version: z.literal(SUBAGENT_CATALOG_VERSION),
@@ -93,23 +94,12 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
  * @returns current direct-child rows in parent catalog event order.
  */
 function subagentCatalogEntries(state: SubagentCatalogState): SubagentCatalogEntry[] {
-  const entries: SubagentCatalogEntry[] = []
+  const entries = new Map<SessionId, SubagentCatalogEntry>()
   for (const data of iterateChunkedList(state.head)) {
-    entries.push(data.mode === 'one-shot'
-      ? {
-        id: data.childId,
-        createdAt: data.childCreatedAt,
-        mode: data.mode,
-        ...data.label === undefined ? {} : { label: data.label },
-      }
-      : {
-        id: data.childId,
-        createdAt: data.childCreatedAt,
-        mode: data.mode,
-        label: data.label,
-      })
+    const { version: _version, childId, childCreatedAt, ...descriptor } = data
+    entries.set(childId, { id: childId, createdAt: childCreatedAt, ...descriptor })
   }
-  return entries
+  return [...entries.values()]
 }
 
 /** Parent-owned direct-child catalog projection; invalid own facts reject restoration. */
@@ -121,7 +111,7 @@ export const subagentCatalogProjectionDefinition = {
     if (event.type !== 'subagent/catalog' || event.seq < state.inheritedEventCount) return state
     return { ...state, head: appendChunkedList(state.head, eventDataSchema.parse(event.data)) }
   },
-  stateVersion: 2,
+  stateVersion: 3,
   wire: { viewSchema, view: subagentCatalogEntries },
 } satisfies ProjectionDefinition<'subagentCatalog', SubagentCatalogState>
 
@@ -133,7 +123,7 @@ export const subagentCatalogProjectionDefinition = {
  */
 export function establishCatalogChild(
   parent: Session,
-  child: Pick<SessionHeader, 'id' | 'createdAt'>,
+  child: SessionHeader,
   descriptor: { readonly mode: 'continuable'; readonly label: string },
 ): void {
   parent.append('subagent/catalog', {

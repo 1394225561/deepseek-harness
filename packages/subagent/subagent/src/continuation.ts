@@ -39,11 +39,11 @@ import {
 import { assertSubagentMaxDepth } from './depth.ts'
 import { foldSubagentDescriptor, snapshotSubagentDescriptor } from './descriptor.ts'
 import { establishCatalogChild } from './catalog.ts'
-import { recordExternalStart } from './external-records.ts'
 import { SubagentError } from './error.ts'
 import { isAdjacentAgentSendMessageTool } from './internal.ts'
 import type { ActivationObserver } from './lifecycle.ts'
 import type {
+  SubagentStopReason,
   ContinuableCreateRequest,
   ContinuableCreateSpec,
   SubagentInterruptAuthority,
@@ -225,7 +225,15 @@ export class SubagentContinuationManager {
       this.activations.assertAdmitting(parent)
       this.activations.authorizeLineage(parent, activation.childId, activation.parentSession)
       spec.signal.throwIfAborted()
-      recordExternalStart(parent.session, activation.childId, spec.provider, spec.label)
+      const childId = activation.childId
+      const childCreatedAt = Date.now()
+      const recordCatalog = (external: 'pending' | SubagentStopReason): void => {
+        parent.session.append('subagent/catalog', {
+          version: 0, childId, childCreatedAt, mode: 'one-shot', label: spec.label, external,
+        })
+      }
+      recordCatalog('pending')
+      activation.settleCatalog = recordCatalog
       this.activations.announce(activation)
       return this.receipt(activation)
     } catch (error: unknown) {
@@ -242,14 +250,6 @@ export class SubagentContinuationManager {
     }
   }
 
-  /**
-   * Whether the child owns an activation in this process.
-   * @param childId - child identity to inspect.
-   * @returns whether an activation is resident.
-   */
-  isActive(childId: SessionId): boolean {
-    return this.activations.get(childId) !== undefined
-  }
 
   /** Return capabilities bound to an exact activation instead of a future same-id instance. */
   private receipt(activation: Activation): SubagentActivation {

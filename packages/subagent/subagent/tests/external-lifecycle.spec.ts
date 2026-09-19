@@ -87,7 +87,7 @@ describe('external activation ownership', () => {
     fixture.ctx.sessions.create(SessionId('occupied-id'))
     await expect(fixture.start()).rejects.toMatchObject({ code: 'DUPLICATE_CHILD' })
     expect(dispose).toHaveBeenCalledTimes(1)
-    expect(fixture.ctx.sessionProjections.snapshot(fixture.parent.session, ['subagentExternal']).values.subagentExternal).toEqual([])
+    expect(fixture.ctx.sessionProjections.snapshot(fixture.parent.session, ['subagentCatalog']).values.subagentCatalog).toEqual([])
   })
 
   it('rejects messages to a resident external activation without affecting its result', async () => {

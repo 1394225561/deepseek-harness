@@ -1,7 +1,6 @@
 /**
- * Client-safe subagent catalog and control vocabulary: the durable direct-child
- * row both the listing and the browser catalog answer with, plus the
- * browser-facing control surface's prompt, receipts, and failures.
+ * Client-safe complete-descendant rows and browser continuation requests,
+ * receipts, and failures.
  *
  * @module @deepseek-ai/dsh-subagent/control-types
  */
@@ -9,6 +8,7 @@
 import type { PromptContentPart } from '@deepseek-ai/dsh-attachment/types'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
+import type { ExternalSubagentStatus } from './projection-types.ts'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 /**
@@ -20,55 +20,42 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
  */
 export type SubagentPromptRequestId = Branded<'session-request-id'>
 
-/**
- * One durable direct-child row, ordered by header `createdAt` with ties broken
- * on id. Only a candidate whose durable header has `origin: 'subagent'` is
- * interpreted. A served `subagent` projection value produces a `child`; a
- * settled candidate whose fold served no identity produces a `diagnostic`; a
- * running candidate without one is omitted — its descriptor may not be
- * appended yet (the creation window). Diagnostics relay the projection fold's
- * outcome or a failed read, never a per-child event scan, and never expose
- * model-hidden descriptor content.
- */
-export type SubagentListEntry =
-  | {
-    readonly kind: 'child'
+/** Shared child fields for complete-descendant listing. */
+export type SubagentCatalogRow =
+  & {
     /** The durable child session id, stable across Activations. */
     readonly id: SessionId
     /**
-     * Whether the child is live at the moment its reader sampled it: the
-     * durable listing reads the Session store (`running` means the logical
-     * record is resident, `inactive` that it exists only in persistence),
-     * while the browser catalog re-samples the child's Agent driver. Neither
-     * encodes a durable outcome, and a continuable child may still reject
-     * delivery as an ownership conflict.
+     * Whether complete-descendant listing observed a resident Session. This
+     * does not encode a durable outcome or guarantee continuation delivery.
      */
     readonly activity: 'running' | 'inactive'
-    /** Whether a direct descendant has durable `origin: 'subagent'`. */
-    readonly hasChildren: boolean
   } & (
     | {
-      /** A historical one-shot child with its own Session. */
+      /** A terminal one-shot child. */
       readonly mode: 'one-shot'
-      readonly external?: undefined
-      /** Optional durable creation label from the child's descriptor. */
+      readonly external?: ExternalSubagentStatus
+      /** Optional durable creation label from the owning catalog or child descriptor. */
       readonly label?: string
-    }
-    | {
-      /** One execution whose records belong to the direct parent's log. */
-      readonly mode: 'one-shot'
-      readonly external: true
-      /** Label required by the parent's external execution record. */
-      readonly label: string
     }
     | {
       /** A resumable conversation. */
       readonly mode: 'continuable'
-      readonly external?: undefined
-      /** Durable creation label from the child's descriptor. */
+      /** Durable creation label from the owning catalog or child descriptor. */
       readonly label: string
     }
   )
+
+/**
+ * One complete-descendant row. Enumeration may also return diagnostics for
+ * child identity observations from the complete Session corpus.
+ */
+export type SubagentListEntry =
+  | SubagentCatalogRow & {
+    readonly kind: 'child'
+    /** Whether complete-corpus enumeration observed a direct child. */
+    readonly hasChildren: boolean
+  }
   | {
     readonly kind: 'diagnostic'
     /** The candidate's session id. */
@@ -85,12 +72,6 @@ export type SubagentListEntry =
      */
     readonly reason: 'corrupt' | 'unsupported' | 'unavailable'
   }
-
-/** Complete direct-child catalog plus the delivery-time parent availability hint. */
-export interface SubagentCatalog {
-  readonly entries: readonly SubagentListEntry[]
-  readonly parentAvailable: boolean
-}
 
 /** Durable parent/child address that selects subagent transport in the client. */
 export type SubagentAddress =
@@ -134,8 +115,8 @@ export interface SubagentInterruptReceipt {
 }
 
 /**
- * Failure details the control surface answers with. Catalog reads, prompts,
- * and interrupts share this vocabulary with the Client Remote result.
+ * Failure details the control surface answers with. Prompts and interrupts
+ * share these failures with the Client Remote result.
  */
 declare module '@deepseek-ai/dsh-typert-protocol' {
   interface RemoteErrorDetailsMap {
@@ -151,7 +132,5 @@ declare module '@deepseek-ai/dsh-typert-protocol' {
     'subagent/attachment-invalid': { readonly reason: string }
     /** The child exists but its inbox cannot admit the message now. */
     'subagent/delivery-unavailable': { readonly childSessionId: SessionId }
-    /** The deployment mounts no session-projection registry. */
-    'subagent/projections-unavailable': {}
   }
 }
