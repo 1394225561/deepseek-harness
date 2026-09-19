@@ -10,6 +10,7 @@ import type { ReactNode } from 'react'
 import { PluginManagerPage } from '../src/client/PluginManagerPage.tsx'
 import type { PluginManagerPageProps } from '../src/client/PluginManagerPage.tsx'
 import type { ConfigLedger } from '../src/client/config-ledger.ts'
+import type { PluginConfigViewProps } from '../src/client/slot-contract.ts'
 import { rowKey, type InstallState, type PackageRow, type PackageView, type PluginManagerState } from '../src/client/manager-store.ts'
 import { en, zh, type PluginManagerLocaleKey } from '../src/client/locales.ts'
 
@@ -101,15 +102,22 @@ function renderTab(state: Partial<PluginManagerState> = {}, config: Partial<Conf
     setRowEnabled: vi.fn(),
     dismissNotice: vi.fn(),
   }
-  const props = {
+  const unusedGlobalHook = (): never => { throw new Error('PluginManagerPage does not consume global runtime hooks') }
+  const props: PluginManagerPageProps = {
+    useSessions: unusedGlobalHook,
+    useSessionStatus: unusedGlobalHook,
+    useSessionRetainInfo: unusedGlobalHook,
+    usePanelInfo: unusedGlobalHook,
+    useResource: unusedGlobalHook,
+    useWorkspaces: unusedGlobalHook,
     t,
     resolveText,
     ...actions,
     usePluginManager: bindSnapshotSelector(store),
     useConfigLedger: bindSnapshotSelector(ledger),
-    renderSlot: (name: string, owner: { view: 'summary' | 'page' }, opts: { only?: string; entryKey?: string }) =>
-      bodies[`${name}:${opts.only ?? opts.entryKey ?? ''}`]?.(owner.view) ?? null,
-  } as unknown as PluginManagerPageProps
+    renderSlot: (name, owner: PluginConfigViewProps, opts) =>
+      bodies[`${name}:${opts?.only ?? opts?.entryKey ?? ''}`]?.(owner.view) ?? null,
+  }
   const { rerender } = render(<PluginManagerPage {...props} />)
   return {
     store,
