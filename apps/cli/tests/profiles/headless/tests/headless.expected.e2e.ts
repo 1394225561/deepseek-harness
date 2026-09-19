@@ -948,13 +948,13 @@ describe('headless stream-json snapshots', () => {
     await expectHeadlessStream(normalized, streamExpected)
   }, LOADER_SMOKE_TEST_TIMEOUT_MS)
 
-  it('delivers a continuable child result without parent polling', async () => {
+  it('notifies the parent when a continuable child settles without polling', async () => {
     const parentReplay = join(settlementScenarioDir, 'parent.replay.jsonl')
     const parentOverride = join(settlementScenarioDir, 'parent.override.json')
     const childReplay = join(settlementScenarioDir, 'child.replay.jsonl')
     const childExpected = join(settlementScenarioDir, 'child.expected.jsonl')
     const streamExpected = join(settlementScenarioDir, 'stream-json.expected.jsonl')
-    const task = 'Start one continuable background subagent and answer from its completion notice. Do not call list_agents, send_message, job_output, or job_list.'
+    const task = 'Start one continuable subagent and acknowledge its completion notice. Do not call list_agents or send_message.'
     let runCwd = ''
     const result = await runLoaderSmoke({
       label: 'continuable settlement headless stream-json snapshot',
@@ -997,7 +997,11 @@ describe('headless stream-json snapshots', () => {
           })
         })
         expect(notices).toHaveLength(1)
-        expect(JSON.stringify(notices[0])).toContain('CHILD_RESULT')
+        expect(notices[0]).toMatchObject({
+          source: { kind: 'subagent-settled', form: 'notice', senderSessionId: child.header.id },
+        })
+        expect(JSON.stringify(notices[0])).toContain('finished and will do no further work unless you send it more.')
+        expect(JSON.stringify(notices[0])).not.toContain('CHILD_RESULT')
 
         const context = contextFromLogs([parent.content, child.content])
         const normalizedChild = normalizeSessionSnapshot(child.content, context)
@@ -1012,7 +1016,7 @@ describe('headless stream-json snapshots', () => {
     const records = parseJsonl(result.stdout)
     expect(records.at(-1)).toMatchObject({
       type: 'result',
-      output: 'PARENT_RECEIVED_CHILD_RESULT',
+      output: 'PARENT_RECEIVED_SETTLEMENT_NOTICE',
     })
     const normalized = normalizeHeadlessStream(result.stdout, runCwd)
     if (refreshing) await writeFile(streamExpected, normalized)
