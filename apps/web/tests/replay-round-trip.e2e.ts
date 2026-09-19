@@ -6,7 +6,7 @@
 // record cannot hang on a live model answering differently); assertion steps
 // run in replay/refresh only. Settled states only — streaming fidelity is
 // asserted from the durable embedded Assistant stream, not transient DOM.
-// Record: DSH_SNAPSHOT=record writes session.v3.jsonl, then a keyless
+// Record: DSH_SNAPSHOT=record writes the current Session generation, then a keyless
 // DSH_SNAPSHOT=refresh regenerates ui.expected.md.
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -26,7 +26,7 @@ import {
 } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip', import.meta.url))
-const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip/session.v3.jsonl', import.meta.url))
+const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip/session.v4.jsonl', import.meta.url))
 const UI_EXPECTED = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip/ui.expected.md', import.meta.url))
 const ECHO_EXPECTED = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip/submission-echo.expected.md', import.meta.url))
 const BLANK_EXPECTED = join(SNAPSHOT_DIR, 'blank-reload.expected.md')

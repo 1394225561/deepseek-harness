@@ -682,6 +682,7 @@ it('lets a preset producer reach the background-job registry', async () => {
       arguments: {
         command: 'printf SHIPPED_BACKGROUND_OK',
         description: 'shipped background probe',
+        run_in_background: true,
       },
       agent: handle.agent,
     })

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { fixtureUserPrompts, launchWebScaffold, selectedSessionFixture, watchConsole, webSnapshotMode } from './scaffold.ts'
 import { connectFreshWorkspace, newEnglishPage } from './support.ts'
 
-const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip/session.v3.jsonl', import.meta.url))
+const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip/session.v4.jsonl', import.meta.url))
 const NO_CHAT = fileURLToPath(new URL('./fixtures/context-meter-no-chat.patch.yml', import.meta.url))
 
 describe.skipIf(webSnapshotMode() === 'record')('web e2e: context details placement', () => {
