@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-tool-subagent-control` adds the global control tools for continuable children: `send_message` steers between a direct parent and child, `interrupt_agent` stops a child's current turn while keeping its inbox and descendants intact, and `list_agents` (from the separately loadable `list-agents` plugin) lists local children and external executions by durable id and label. Parents and continuable children inherit the same `send_message` definition and ordering, so model communication adds no child-only tool schema. No tool's presence decides whether a delegation tool starts continuable work.
+`dsh-tool-subagent-control` adds the global control tools for continuable children: `send_message` steers between a direct parent and child, `interrupt_agent` stops a child's current turn while keeping its inbox and descendants intact, and `list_agents` (from the separately loadable `list-agents` plugin) lists continuable children by durable id and label. Parents and continuable children inherit the same `send_message` definition and ordering, so model communication adds no child-only tool schema. No tool's presence decides whether a delegation tool starts continuable work.
 
 ## Table of Contents
 
@@ -53,7 +53,7 @@ Stops only the target's current turn: queued messages stay parked until a later 
 
 ### list_agents
 
-Lists subagents below the calling agent: `children` (default) shows direct children, `descendants` walks the whole tree in stable pre-order, annotating each entry with its durable direct-parent session id and depth. Status comes from the live Agent registry — `running`, `idle`, or `ready`. External executions show `running` or `finished` and `continuable: false`; they cannot receive follow-ups. Historical one-shot Sessions are omitted, and unreadable candidates appear as diagnostics.
+Lists continuable subagents below the calling agent: `children` (default) shows direct children, `descendants` walks the whole tree in stable pre-order, annotating each entry with its durable direct-parent session id and depth. Status comes from the live Agent registry: `running` means a turn is executing; `inactive` includes resident children between turns and unloaded children that can be resumed. One-shot children, including external executions, are omitted. Unreadable candidates appear as diagnostics only in `descendants` scope.
 
 -----
 
@@ -75,7 +75,7 @@ The tool forwards its execution signal, which owns admission only until inbox ac
 
 ### Listing projection
 
-`list_agents` derives the root id from the calling agent, reads the service catalog without a cursor, refines each candidate's status through the live Agent registry, and includes external executions with their last recorded outcome; pending does not assert process liveness. Historical one-shot Sessions are omitted. Diagnostics keep their positions in the descendants scope and never expose descriptor contents.
+`list_agents` derives the root id from the calling agent, reads the service catalog without a cursor, selects continuable children, and refines their status through the live Agent registry. One-shot children are omitted from output but remain traversal nodes for discovering continuable descendants. Diagnostics keep their positions in the descendants scope and never expose descriptor contents.
 
 ### Source map
 
@@ -149,7 +149,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 #### What the model sees
 
-One line per child in stable catalog order: `<id> [<status>] — <label>` (`running` = active driver, `idle` = resident between turns, `ready` = storage only, resumable rather than terminal), plus `<id> [diagnostic: <reason>]` for a candidate that could not be read. The `descendants` scope inserts ` parent=<id> depth=<n>` before the label dash on every line, in pre-order. External rows carry `running` or `finished` and append `; cannot receive follow-ups`. Historical one-shot Sessions are omitted; `(no subagents)` means no child or diagnostic survived the projection.
+One line per child in stable catalog order: `<id> [<status>] — <label>` (`running` = executing a turn; `inactive` = no turn executing, whether resident or resumable from storage), plus `<id> [diagnostic: <reason>]` for a candidate that could not be read. The `descendants` scope inserts ` parent=<id> depth=<n>` before the label dash on every line, in pre-order. One-shot children are omitted; `(no subagents)` means no child or diagnostic survived the projection.
 
 #### Token effect
 

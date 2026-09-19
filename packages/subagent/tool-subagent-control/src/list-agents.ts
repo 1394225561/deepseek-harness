@@ -12,7 +12,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type {
-  ExternalSubagentStatus, SubagentCatalogEntry, SubagentDescendantListEntry, SubagentListEntry,
+  SubagentCatalogEntry, SubagentDescendantListEntry, SubagentListEntry,
 } from '@deepseek-ai/dsh-subagent'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 
@@ -34,8 +34,7 @@ type ListAgentsEntry =
     readonly kind: 'child'
     readonly id: SessionId
     readonly label: string
-    readonly status: 'running' | 'inactive' | ExternalSubagentStatus
-    readonly continuable: boolean
+    readonly status: 'running' | 'inactive'
     readonly parent?: SessionId
     readonly depth?: number
   }
@@ -69,14 +68,12 @@ function project(
   }
   // One-shot children cannot be continued by send_message, so the model
   // never selects them; discovery still traversed them for descendants.
-  const external = entry.mode === 'one-shot' ? entry.external : undefined
-  if (entry.mode === 'one-shot' && external === undefined) return undefined
+  if (entry.mode !== 'continuable') return undefined
   return {
     kind: 'child',
     id: entry.id,
-    label: entry.label ?? entry.id,
-    status: external ?? statusOf(agents, entry.id),
-    continuable: entry.mode === 'continuable',
+    label: entry.label,
+    status: statusOf(agents, entry.id),
     ...at,
   }
 }
@@ -89,14 +86,12 @@ export function apply(ctx: Context): void {
   ctx.tools.register(defineTool({
     name: 'list_agents',
     description:
-      'List your local and external subagents by durable id and label. External entries cannot receive follow-ups; '
-      + 'their status is the last recorded outcome, with pending meaning no terminal outcome is recorded, not that a process is live. '
-      + 'Use it to recall which ones '
-      + 'you started, not to poll for completion — you are told when one finishes. Local status comes from the live '
+      'List your continuable background subagents by durable id and label. Use it to recall which ones '
+      + 'you started, not to poll for completion — you are told when one finishes. Status comes from the live '
       + 'registry: running means the agent is working right now; inactive means no turn is executing, whether '
       + 'the child is loaded or must be resumed. inactive does not describe task completion, success, failure, '
       + 'or waiting for other agents. A `send_message` steers a running child at its nearest step boundary '
-      + 'or starts or resumes a turn for an inactive child, and a direct continuable child remains a `send_message` '
+      + 'or starts or resumes a turn for an inactive child, and a direct child remains a `send_message` '
       + 'candidate in every status. The snapshot is not a delivery '
       + 'promise — `send_message` performs the authoritative check and may still fail. Children that could '
       + 'not be read are reported as diagnostics only in `descendants` scope. Scope `descendants` '
@@ -122,8 +117,7 @@ export function apply(ctx: Context): void {
                 kind: { type: 'string', required: true, enum: ['child'] },
                 id: { type: 'string', required: true },
                 label: { type: 'string', required: true },
-                status: { type: 'string', required: true, enum: ['running', 'inactive', 'pending', 'completed', 'max-tokens', 'aborted', 'refusal', 'error'] },
-                continuable: { type: 'boolean', required: true },
+                status: { type: 'string', required: true, enum: ['running', 'inactive'] },
                 parent: { type: 'string' },
                 depth: { type: 'number' },
               },
@@ -156,7 +150,7 @@ export function apply(ctx: Context): void {
                 ? ` parent=${String(entry.parent)} depth=${String(entry.depth)}`
                 : ''
               return entry.kind === 'child'
-                ? `${entry.id} [${entry.status}]${at} — ${entry.label}${entry.continuable ? '' : '; cannot receive follow-ups'}`
+                ? `${entry.id} [${entry.status}]${at} — ${entry.label}`
                 : `${entry.id} [diagnostic: ${entry.reason}]${at}`
             }).join('\n'),
         }]

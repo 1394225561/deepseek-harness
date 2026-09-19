@@ -145,7 +145,7 @@ interface ToolArgsMap {
     /** Max wait in milliseconds (only meaningful with wait: true). Defaults to the configured wait timeout; capped by the configured maximum. */
     timeout_ms?: number;
   } & Record<string, JsonValue>;
-  /** List your local and external subagents by durable id and label. External entries cannot receive follow-ups; their status is the last recorded outcome, with pending meaning no terminal outcome is recorded, not that a process is live. Use it to recall which ones you started, not to poll for completion — you are told when one finishes. Local status comes from the live registry: running means the agent is working right now; inactive means no turn is executing, whether the child is loaded or must be resumed. inactive does not describe task completion, success, failure, or waiting for other agents. A `send_message` steers a running child at its nearest step boundary or starts or resumes a turn for an inactive child, and a direct continuable child remains a `send_message` candidate in every status. The snapshot is not a delivery promise — `send_message` performs the authoritative check and may still fail. Children that could not be read are reported as diagnostics only in `descendants` scope. Scope `descendants` walks the whole tree below you in stable pre-order, annotating each entry with its durable direct-parent session id and depth. You may use `send_message` only for depth-1 entries; deeper entries are candidates for `interrupt_agent` only. */
+  /** List your continuable background subagents by durable id and label. Use it to recall which ones you started, not to poll for completion — you are told when one finishes. Status comes from the live registry: running means the agent is working right now; inactive means no turn is executing, whether the child is loaded or must be resumed. inactive does not describe task completion, success, failure, or waiting for other agents. A `send_message` steers a running child at its nearest step boundary or starts or resumes a turn for an inactive child, and a direct child remains a `send_message` candidate in every status. The snapshot is not a delivery promise — `send_message` performs the authoritative check and may still fail. Children that could not be read are reported as diagnostics only in `descendants` scope. Scope `descendants` walks the whole tree below you in stable pre-order, annotating each entry with its durable direct-parent session id and depth. You may use `send_message` only for depth-1 entries; deeper entries are candidates for `interrupt_agent` only. */
   list_agents: {
     /** children (default) lists direct children only; descendants walks the complete tree below you. */
     scope?: "children" | "descendants";
@@ -407,8 +407,7 @@ interface ToolOutputMap {
     kind: "child";
     id: string;
     label: string;
-    status: "running" | "inactive" | "pending" | "completed" | "max-tokens" | "aborted" | "refusal" | "error";
-    continuable: boolean;
+    status: "running" | "inactive";
     parent?: string;
     depth?: number;
   } | {

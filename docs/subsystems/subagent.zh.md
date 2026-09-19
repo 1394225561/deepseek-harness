@@ -229,7 +229,7 @@ type SubagentInterruptAuthority =
 
 ## 持久枚举
 
-`listChildren` 读取父级拥有的目录。`listDescendants` 结合 Session 语料中的身份与父级目录，包括普通 Session 下的外部叶子项。外部一次性条目携带可选的 `external` 结果状态，不能打开子 Session 或接受后续消息。`pending` 表示尚无终态记录，不表示进程存活。完整结果交给调用方或父级完成通知。`list_agents` 为外部条目标记 `continuable: false`；本地活跃状态仍为 `running` 或 `inactive`。
+`listChildren` 读取父级拥有的目录。`listDescendants` 结合 Session 语料中的身份与父级目录，包括普通 Session 下的外部叶子项。外部一次性条目携带可选的 `external` 结果状态，不能打开子 Session 或接受后续消息。`pending` 表示尚无终态记录，不表示进程存活。完整结果交给调用方或父级完成通知。`list_agents` 只展示可继续子级，其活跃状态为 `running` 或 `inactive`；作用域与诊断信息见[控制工具](../../packages/subagent/tool-subagent-control/README.zh.md#list_agents)。
 
 ```ts type-equiv
 /**

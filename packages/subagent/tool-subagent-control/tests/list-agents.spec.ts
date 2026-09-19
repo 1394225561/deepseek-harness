@@ -231,7 +231,7 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     // scanning prose that legitimately reads "not to poll for completion".
     const variants = ctx.tools.get('list_agents')?.output.schema.items?.oneOf ?? []
     const child = variants.find(variant => variant.properties?.kind?.enum?.includes('child'))
-    expect(child?.properties?.status?.enum).toEqual(['running', 'inactive', 'pending', 'completed', 'max-tokens', 'aborted', 'refusal', 'error'])
+    expect(child?.properties?.status?.enum).toEqual(['running', 'inactive'])
   })
 
   it('fails loud when invoked without a calling agent', async () => {
@@ -302,7 +302,7 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     await waitNoActivation(ctx, started.childId)
   })
 
-  it('omits one-shot intermediates from descendants output while surfacing what they own', async () => {
+  it.each([undefined, 'pending', 'completed'] as const)('omits one-shot intermediates with outcome %s while surfacing their descendants', async (external) => {
     const { ctx, parent } = await setup([])
     // Deterministic service rows: a one-shot intermediate owning a continuable
     // leaf, plus a positioned diagnostic. The tool filters only the one-shot.
@@ -312,6 +312,7 @@ describe('dsh-tool-subagent-control/list-agents', () => {
         id: SessionId('one-shot-mid'),
         label: 'one-shot intermediate',
         mode: 'one-shot',
+        ...external === undefined ? {} : { external },
         activity: 'inactive',
         hasChildren: true,
         parentId: parent.id,
@@ -353,15 +354,18 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     expect(result.isError).toBe(false)
     expect(listDescendants).toHaveBeenCalledWith(parent.id, signal)
   })
-})
 
-
-it('lists external catalog outcomes without offering follow-up delivery', async () => {
-  const { ctx, parent } = await setup([])
-  const childId = SessionId('external-task')
-  const pending: SubagentCatalogEntry = { id: childId, createdAt: 1, mode: 'one-shot', external: 'pending' }
-  vi.spyOn(ctx.subagents, 'listChildren').mockResolvedValue([pending])
-  const result = await callTool(ctx, 'list_agents', {}, parent)
-  expect(text(result)).toContain('external-task [pending]')
-  expect(text(result)).toContain('cannot receive follow-ups')
+  it.each(['pending', 'completed', 'max-tokens', 'aborted', 'refusal', 'error'] as const)(
+    'omits external children with recorded outcome %s',
+    async (external) => {
+      const { ctx, parent } = await setup([])
+      vi.spyOn(ctx.subagents, 'listChildren').mockResolvedValue([
+        { id: SessionId('external-task'), createdAt: 1, mode: 'one-shot', external },
+        { id: SessionId('resumable-child'), createdAt: 2, mode: 'continuable', label: 'local task' },
+      ])
+      const result = await callTool(ctx, 'list_agents', {}, parent)
+      expect(result.isError).toBe(false)
+      expect(text(result)).toBe('resumable-child [inactive] — local task')
+    },
+  )
 })
