@@ -1,4 +1,4 @@
-/** Order child completion before the parent's next request in SDK snapshots. */
+/** Order child completion before the parent's next request in recorded snapshots. */
 import type { Context } from '@deepseek-ai/cordis'
 
 export const name = 'subagent-settlement-barrier'
