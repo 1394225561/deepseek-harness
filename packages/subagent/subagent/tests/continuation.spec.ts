@@ -1840,7 +1840,7 @@ describe('continuable durability and teardown', () => {
 
   it('rejects selected-child teardown through a stale parent identity', async () => {
     const { ctx, parent } = await setup([])
-    const stale = { ...parent, id: parent.id } as unknown as Agent
+    const stale = { ...parent, id: parent.id } as Agent
 
     await expect(ctx.subagents.drainChildren(stale, []))
       .rejects.toMatchObject({ code: 'UNAUTHORIZED' })
@@ -1923,7 +1923,7 @@ describe('continuable durability and teardown', () => {
 
   it('ignores a stale scoped root without disabling its live same-id Agent', async () => {
     const { ctx, parent } = await setup([textResponse('done')])
-    const stale = { ...parent, id: parent.id } as unknown as Agent
+    const stale = { ...parent, id: parent.id } as Agent
 
     await ctx.subagents.drainDescendants([stale])
     const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'parent' })
@@ -2623,7 +2623,7 @@ function settlementNotices(agent: Agent): { sender: string; text: string; summar
 describe('continuable adjacent-Agent delivery', () => {
   it('rejects a stale sender before resolving either adjacent target', async () => {
     const { ctx, parent } = await setup([])
-    const stale = { ...parent, id: parent.id } as unknown as Agent
+    const stale = { ...parent, id: parent.id } as Agent
 
     await expect(ctx.subagents.sendMessage(stale, SessionId('target'), message('stale'), {
       signal: testSignal,
@@ -3361,7 +3361,7 @@ describe('continuable errors', () => {
       return found!
     })
     // A stale parent reference: same id, not the exact live entry.
-    const stale = { ...parent, id: parent.id } as unknown as Agent
+    const stale = { ...parent, id: parent.id } as Agent
 
     await expect(queuePrompt(ctx, stale, started.childId, message('stale')))
       .rejects.toMatchObject({ code: 'UNAUTHORIZED' })
@@ -3745,7 +3745,7 @@ describe('SubagentRuntime.interrupt', () => {
     await vi.waitFor(() => { expect(adapter.requests).toHaveLength(2) })
     const sibling = ctx.agents.get(siblingStart.childId)!
     const stranger = await ctx.agentLoop.create(SessionId('stranger'), { provider: 'mock', model: 'mock' })
-    const stale = { ...parent, id: parent.id } as unknown as Agent
+    const stale = { ...parent, id: parent.id } as Agent
     const cancelSpy = vi.spyOn(target, 'cancel')
 
     expect(() => { ctx.subagents.interrupt(targetStart.childId, { kind: 'ancestor', agent: target }) })

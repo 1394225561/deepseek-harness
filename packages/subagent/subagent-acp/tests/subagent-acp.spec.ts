@@ -1,4 +1,5 @@
-import { startExternalActivation } from '../../subagent/tests/external-activation-helpers.ts'
+import { randomUUID } from 'node:crypto'
+import { startExternalActivation, externalTestParent } from '../../subagent/tests/external-activation-helpers.ts'
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
@@ -606,13 +607,13 @@ describe('cwd resolution', () => {
   })
 
 
-  it('rejects a relative parent directory before spawning', async () => {
+  it('rejects a missing parent directory before spawning', async () => {
     const ctx = await setup({})
     const provider = ctx.subagents.getProvider('acp')!
     const spawn = vi.spyOn(ctx.subprocess, 'spawn')
-    await expect(Promise.resolve().then(() => provider.start!({
+    await expect(Promise.resolve().then(async () => provider.start!({
       ...request(),
-      parent: { id: 'relative-parent', session: { header: { cwd: 'relative-workspace' } } } as unknown as Agent,
+      parent: await externalTestParent(ctx, resolve('missing-parent-' + randomUUID())),
       descriptor: snapshotSubagentDescriptor({ mode: 'one-shot', provider: provider.name }),
     }))).rejects.toThrow(`subagent-acp: ${expectedFailure('stage: initialize; category: configuration')}`)
     expect(spawn).not.toHaveBeenCalled()
@@ -785,7 +786,7 @@ describe('dsh-subagent-acp', () => {
     controller.abort()
     const parent = { id: 'parent', session: { header: {} } } as unknown as Agent
     const provider = ctx.subagents.getProvider('acp')!
-    await expect(Promise.resolve().then(() => provider.start!({
+    await expect(Promise.resolve().then(async () => provider.start!({
       prompt: [{ type: 'text' as const, text: 'p' }],
       parent,
       signal: controller.signal,

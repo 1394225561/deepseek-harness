@@ -1,4 +1,5 @@
-import { startExternalActivation } from '../../subagent/tests/external-activation-helpers.ts'
+import { randomUUID } from 'node:crypto'
+import { startExternalActivation, externalTestParent } from '../../subagent/tests/external-activation-helpers.ts'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { PassThrough } from 'node:stream'
@@ -413,7 +414,7 @@ describe('task admission and package contracts', () => {
       .toThrow('must not be empty')
   })
 
-  it.each([false, true])('rejects an invalid parent directory before spawning (cancelled: %s)', async (cancelled) => {
+  it.each([false, true])('rejects a missing parent directory before spawning (cancelled: %s)', async (cancelled) => {
     const ctx = new Context()
     try {
       await ctx.plugin(SessionProjectionRegistry)
@@ -424,9 +425,9 @@ describe('task admission and package contracts', () => {
       const controller = new AbortController()
       if (cancelled) controller.abort()
       const provider = ctx.subagents.getProvider('claude-code')!
-      await expect(Promise.resolve().then(() => provider.start!({
+      await expect(Promise.resolve().then(async () => provider.start!({
         ...request(undefined, controller.signal),
-        parent: { id: 'invalid-cwd-parent', session: { header: { cwd: 'relative-workspace' } } } as unknown as Agent,
+        parent: await externalTestParent(ctx, resolve('missing-parent-' + randomUUID())),
         descriptor: snapshotSubagentDescriptor({ mode: 'one-shot', provider: provider.name }),
       }))).rejects.toThrow(cancelled
         ? 'request was aborted before SDK startup'

@@ -1,3 +1,4 @@
+import { externalTestParent } from '../../../subagent/subagent/tests/external-activation-helpers.ts'
 import { mkdtemp, mkdir, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
@@ -50,9 +51,6 @@ export async function mountWorkflowRuntime(
 }
 
 /** Give a stub subagent provider a parent with a real Session and immutable cwd. */
-export function fakeParent(ctx: Context): Agent {
-  const session = ctx.sessions.create(undefined, { meta: { cwd: ctx.sandboxPolicy.workspaceRoot } })
-  const parent = { id: session.id, ctx, session, options: {}, status: 'idle' } as unknown as Agent
-  ctx.agents.register(parent)
-  return parent
+export async function fakeParent(ctx: Context): Promise<Agent> {
+  return externalTestParent(ctx, ctx.sandboxPolicy.workspaceRoot)
 }

@@ -50,7 +50,7 @@ async function setup(execute?: (bindings: HostBindings, spec: PtcRunSpec) => Pro
   runtime.language = language
   if (execute !== undefined) runtime.execute = spec => execute(spec.bindings[0]!.functions, spec)
   await ctx.plugin(PtcWorkflowEngine, { provider: 'stub' })
-  const parent = fakeParent(ctx)
+  const parent = await fakeParent(ctx)
   const start = () => ctx.workflowEngine.start({
     script: 'return null', meta: { name: 'host-test', description: 'workflow callbacks' }, parent,
   })

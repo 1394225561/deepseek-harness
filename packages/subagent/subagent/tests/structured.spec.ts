@@ -373,16 +373,17 @@ describe('in-process structured output', () => {
   it('rejects a schema outside the subset loud, before any child exists', async () => {
     const { ctx, parent } = await setup([])
     await expect(startTestActivation(ctx, 'spawn', structuredRequest(parent, {
-      outputSchema: { type: 'object', oneOf: [] } as unknown as ObjectJsonSchema,
+      outputSchema: { type: 'object', oneOf: [] },
     }))).rejects.toThrow(/unsupported JSON schema/)
     expect(ctx.agents.get(SessionId('parent'))).toBeDefined()
   })
 
   it('a schema carrying non-JSON values fails as JsonSchemaError at the validation boundary', async () => {
     const { ctx, parent } = await setup([])
-    // Semantic assertion runs before provider startup.
+    const schema: ObjectJsonSchema = { type: 'object' }
+    Object.defineProperty(schema, 'default', { value: () => {}, enumerable: true })
     await expect(startTestActivation(ctx, 'spawn', structuredRequest(parent, {
-      outputSchema: { type: 'object', default: () => {} } as unknown as ObjectJsonSchema,
+      outputSchema: schema,
     }))).rejects.toThrow(/unsupported JSON schema.*annotation must be lossless JSON data/)
   })
 

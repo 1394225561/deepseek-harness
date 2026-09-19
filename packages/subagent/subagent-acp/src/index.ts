@@ -8,7 +8,7 @@
  */
 
 import { accessSync, constants, statSync } from 'node:fs'
-import { isAbsolute, resolve } from 'node:path'
+import { resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {
@@ -103,18 +103,13 @@ function isDirectory(path: string): boolean {
 }
 
 /**
- * Assert `cwd` can actually host the child: absolute (it doubles as the ACP
- * session workspace, and a relative path would be re-anchored to the server
- * process's launch directory) and an existing directory (fail here, before the
- * process boundary, instead of as an ambiguous spawn ENOENT).
+ * Require an accessible child directory before spawning the ACP process.
+ * Configuration resolution and Session creation already establish absolute paths.
  * @param label - which source supplied the value, for the diagnostic.
  * @param cwd - the candidate working directory.
  * @returns `cwd`, validated.
  */
 function assertUsableCwd(label: string, cwd: string): string {
-  if (!isAbsolute(cwd)) {
-    throw new Error(`subagent-acp: ${label} must be an absolute path: ${cwd}`)
-  }
   if (!isDirectory(cwd)) {
     throw new Error(`subagent-acp: ${label} is not an accessible directory: ${cwd}`)
   }
