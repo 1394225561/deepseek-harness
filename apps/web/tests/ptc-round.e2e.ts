@@ -13,7 +13,7 @@ import {
 } from './scaffold.ts'
 import { connectFreshWorkspace, expandOwningTurnProcess, newEnglishPage, saveFailureShot } from './support.ts'
 
-const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/ptc-round/session.v4.jsonl', import.meta.url))
+const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/ptc-round/session.v3.jsonl', import.meta.url))
 const UI_EXPECTED = fileURLToPath(new URL('../../../snapshots/web/ptc-round/ui.expected.md', import.meta.url))
 const TRAJECTORY_EXPECTED = fileURLToPath(new URL('../../../snapshots/web/ptc-round/trajectory.expected.md', import.meta.url))
 const CODE_EXPECTED = fileURLToPath(new URL('../../../snapshots/web/ptc-round/code.expected.md', import.meta.url))

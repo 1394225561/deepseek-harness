@@ -26,7 +26,7 @@ import {
 } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip', import.meta.url))
-const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip/session.v4.jsonl', import.meta.url))
+const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip/session.v3.jsonl', import.meta.url))
 const UI_EXPECTED = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip/ui.expected.md', import.meta.url))
 const ECHO_EXPECTED = fileURLToPath(new URL('../../../snapshots/web/fresh-round-trip/submission-echo.expected.md', import.meta.url))
 const BLANK_EXPECTED = join(SNAPSHOT_DIR, 'blank-reload.expected.md')
