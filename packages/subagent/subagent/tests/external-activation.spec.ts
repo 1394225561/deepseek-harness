@@ -138,7 +138,7 @@ describe('external subagent activations', () => {
     await disposal
     await activation.dispose()
     expect(backend.dispose).toHaveBeenCalledTimes(1)
-    expect(fixture.records()).toMatchObject([{ id: activation.childId, external: 'completed' }])
+    expect(fixture.records()).toMatchObject([{ id: activation.childId, external: true }])
     expect(fixture.parent.inbox.nextTurn).toEqual([])
   })
 
@@ -183,7 +183,7 @@ describe('external subagent activations', () => {
     backend.result.resolve(failed)
     await expect(activation.result).resolves.toEqual(failed)
     await activation.dispose()
-    expect(fixture.records()).toMatchObject([{ id: activation.childId, external: 'error' }])
+    expect(fixture.records()).toMatchObject([{ id: activation.childId, external: true }])
     if (delivery === 'caller') {
       expect(fixture.parent.inbox.nextTurn).toEqual([])
     } else {
@@ -195,31 +195,6 @@ describe('external subagent activations', () => {
       expect(text).toContain('Structured result: {"files":3}')
       expect(text).toContain('External transport failed.')
       expect(text).not.toContain('follow-up')
-    }
-  })
-
-  it('reports a catalog settlement write failure and releases capacity', async () => {
-    const backend = execution()
-    backend.cleanup.resolve(undefined)
-    const fixture = await setup(async () => backend.run)
-    const activation = await fixture.start('parent')
-    const append = fixture.parent.session.append.bind(fixture.parent.session)
-    const spy = vi.spyOn(fixture.parent.session, 'append').mockImplementation((...args) => {
-      if (args[0] === 'subagent/catalog') throw new Error('storage unavailable')
-      return Reflect.apply(append, fixture.parent.session, args) as ReturnType<typeof append>
-    })
-    try {
-      backend.result.resolve(completed)
-      await expect(activation.result).resolves.toEqual(completed)
-      await expect(activation.dispose()).rejects.toThrow('catalog settlement could not be recorded')
-      expect(await fixture.ctx.subagents.waitForChildren(fixture.parent)).toBe(false)
-      expect(fixture.records()).toMatchObject([{ id: activation.childId }])
-      expect(fixture.parent.inbox.nextTurn[0]?.content).toEqual([
-        { type: 'text', text: `Background subagent ${activation.childId} failed before it finished.` },
-        { type: 'text', text: 'It left no closing message.' },
-      ])
-    } finally {
-      spy.mockRestore()
     }
   })
 
@@ -240,13 +215,13 @@ describe('external subagent activations', () => {
     await expect(activation.result).resolves.toEqual(completed)
     expect(activation.dispose()).toBe(disposal)
     expect(fixture.records()).toMatchObject([{
-      id: activation.childId, external: 'error',
+      id: activation.childId, external: true,
     }])
   })
 })
 
 
-it('discovers an external leaf through the parent catalog and publishes a small terminal update', async () => {
+it('records external membership at creation without publishing settlement updates', async () => {
   const backend = execution()
   const fixture = await setup(async () => backend.run)
   const snapshots: unknown[] = []
@@ -254,7 +229,7 @@ it('discovers an external leaf through the parent catalog and publishes a small 
   const unsubscribe = fixture.ctx.sessionProjections.onChanged(() => { snapshots.push(fixture.records()) })
   try {
     const activation = await fixture.start()
-    const expected = { id: activation.childId, mode: 'one-shot', label: 'External work', external: 'pending' }
+    const expected = { id: activation.childId, mode: 'one-shot', label: 'External work', external: true }
     expect(await fixture.ctx.subagents.listChildren(fixture.parent.id)).toMatchObject([expected])
     expect(await fixture.ctx.subagents.listDescendants(fixture.parent.id)).toEqual([])
     expect(fixture.ctx.sessions.get(activation.childId)).toBeUndefined()
@@ -263,8 +238,8 @@ it('discovers an external leaf through the parent catalog and publishes a small 
     backend.cleanup.resolve(undefined)
     await expect(activation.result).resolves.toEqual(result)
     await activation.dispose()
-    expect(await fixture.ctx.subagents.listChildren(fixture.parent.id)).toMatchObject([{ ...expected, external: 'completed' }])
-    expect(snapshots).toHaveLength(2)
+    expect(await fixture.ctx.subagents.listChildren(fixture.parent.id)).toMatchObject([expected])
+    expect(snapshots).toHaveLength(1)
     expect(JSON.stringify(snapshots).length).toBeLessThan(1_000)
   } finally {
     unsubscribe()

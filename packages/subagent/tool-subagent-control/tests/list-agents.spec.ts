@@ -302,7 +302,7 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     await waitNoActivation(ctx, started.childId)
   })
 
-  it.each([undefined, 'pending', 'completed'] as const)('omits one-shot intermediates with outcome %s while surfacing their descendants', async (external) => {
+  it.each([undefined, true] as const)('omits one-shot intermediates with external marker %s while surfacing their descendants', async (external) => {
     const { ctx, parent } = await setup([])
     // Deterministic service rows: a one-shot intermediate owning a continuable
     // leaf, plus a positioned diagnostic. The tool filters only the one-shot.
@@ -355,17 +355,14 @@ describe('dsh-tool-subagent-control/list-agents', () => {
     expect(listDescendants).toHaveBeenCalledWith(parent.id, signal)
   })
 
-  it.each(['pending', 'completed', 'max-tokens', 'aborted', 'refusal', 'error'] as const)(
-    'omits external children with recorded outcome %s',
-    async (external) => {
-      const { ctx, parent } = await setup([])
-      vi.spyOn(ctx.subagents, 'listChildren').mockResolvedValue([
-        { id: SessionId('external-task'), createdAt: 1, mode: 'one-shot', external },
-        { id: SessionId('resumable-child'), createdAt: 2, mode: 'continuable', label: 'local task' },
-      ])
-      const result = await callTool(ctx, 'list_agents', {}, parent)
-      expect(result.isError).toBe(false)
-      expect(text(result)).toBe('resumable-child [inactive] — local task')
-    },
-  )
+  it('omits external children', async () => {
+    const { ctx, parent } = await setup([])
+    vi.spyOn(ctx.subagents, 'listChildren').mockResolvedValue([
+      { id: SessionId('external-task'), createdAt: 1, mode: 'one-shot', external: true },
+      { id: SessionId('resumable-child'), createdAt: 2, mode: 'continuable', label: 'local task' },
+    ])
+    const result = await callTool(ctx, 'list_agents', {}, parent)
+    expect(result.isError).toBe(false)
+    expect(text(result)).toBe('resumable-child [inactive] — local task')
+  })
 })

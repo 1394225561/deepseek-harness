@@ -8,7 +8,6 @@
 import type { PromptContentPart } from '@deepseek-ai/dsh-attachment/types'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
-import type { ExternalSubagentStatus } from './projection-types.ts'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 
 /**
@@ -34,7 +33,7 @@ export type SubagentCatalogRow =
     | {
       /** A terminal one-shot child. */
       readonly mode: 'one-shot'
-      readonly external?: ExternalSubagentStatus
+      readonly external?: true
       /** Optional durable creation label from the owning catalog or child descriptor. */
       readonly label?: string
     }

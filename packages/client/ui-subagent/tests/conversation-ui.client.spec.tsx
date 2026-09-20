@@ -948,19 +948,17 @@ describe('SubagentReadOnlyComposer', () => {
 })
 
 
-it('updates an external leaf from shared projection values without opening a child Session', () => {
-  const external = (status: 'pending' | 'completed') => props(catalog({ entries: [
-    { id: CHILD, mode: 'one-shot', label: 'External review', activity: 'inactive', external: status },
+it('shows external membership without an execution status or child Session navigation', () => {
+  const input = props(catalog({ entries: [
+    { id: CHILD, mode: 'one-shot', label: 'External review', activity: 'inactive', external: true },
   ] }))
-  const input = external('pending')
-  const view = render(<SubagentHeaderLineage {...input} />)
+  render(<SubagentHeaderLineage {...input} />)
   hoverCatalog(screen.getByRole('button', { name: /子代理/ }))
-  const row = screen.getByRole('treeitem', { name: /External review.*结果待定/ })
+  const row = screen.getByRole('treeitem', { name: /External review.*外部任务/ })
   expect(row.getAttribute('aria-disabled')).toBe('true')
   expect(row.hasAttribute('aria-expanded')).toBe(false)
+  expect(row.getAttribute('aria-label')).not.toMatch(/已完成|未运行|结果待定/)
   fireEvent.click(row)
   expect(input.openChild).not.toHaveBeenCalled()
   expect(input.openChildAside).not.toHaveBeenCalled()
-  view.rerender(<SubagentHeaderLineage {...external('completed')} />)
-  expect(screen.getByRole('treeitem', { name: /External review.*已完成/ })).toBeTruthy()
 })

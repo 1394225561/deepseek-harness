@@ -15,13 +15,13 @@ import type {
   SessionLogOffset,
 } from '@deepseek-ai/dsh-session'
 import type { ProjectionDefinition } from '@deepseek-ai/dsh-session-projection'
-import type { ExternalSubagentStatus, SubagentCatalogEntry } from './projection-types.ts'
+import type { SubagentCatalogEntry } from './projection-types.ts'
 
 /** Catalog payload version emitted by live child creation. */
 export const SUBAGENT_CATALOG_VERSION = 0
 
 type KnownCatalogMode =
-  | { readonly mode: 'one-shot'; readonly label?: string; readonly external?: ExternalSubagentStatus }
+  | { readonly mode: 'one-shot'; readonly label?: string; readonly external?: true }
   | { readonly mode: 'continuable'; readonly label: string }
 
 /** Parent catalog v0 records known modes; v1 also retains children with unknown mode. */
@@ -57,7 +57,7 @@ const oneShotCatalogSchema = z.object({
   childCreatedAt: z.number().int().nonnegative(),
   mode: z.literal('one-shot'),
   label: z.string().optional(),
-  external: z.enum(['pending', 'completed', 'max-tokens', 'aborted', 'refusal', 'error']).optional(),
+  external: z.literal(true).optional(),
 }).strict()
 const continuableCatalogSchema = z.object({
   version: z.union([z.literal(0), z.literal(1)]),
@@ -103,12 +103,12 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
  * @returns current direct-child rows in parent catalog event order.
  */
 function subagentCatalogEntries(state: SubagentCatalogState): SubagentCatalogEntry[] {
-  const entries = new Map<SessionId, SubagentCatalogEntry>()
+  const entries: SubagentCatalogEntry[] = []
   for (const data of iterateChunkedList(state.head)) {
     const { version: _version, childId, childCreatedAt, ...descriptor } = data
-    entries.set(childId, { id: childId, createdAt: childCreatedAt, ...descriptor })
+    entries.push({ id: childId, createdAt: childCreatedAt, ...descriptor })
   }
-  return [...entries.values()]
+  return entries
 }
 
 /** Parent-owned direct-child catalog projection; invalid own facts reject restoration. */
@@ -120,7 +120,7 @@ export const subagentCatalogProjectionDefinition = {
     if (event.type !== 'subagent/catalog' || event.seq < state.inheritedEventCount) return state
     return { ...state, head: appendChunkedList(state.head, eventDataSchema.parse(event.data)) }
   },
-  stateVersion: 4,
+  stateVersion: 5,
   wire: { viewSchema, view: subagentCatalogEntries },
 } satisfies ProjectionDefinition<'subagentCatalog', SubagentCatalogState>
 

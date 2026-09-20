@@ -6,9 +6,6 @@
 
 import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 
-/** Last recorded external execution outcome; pending does not assert process liveness. */
-export type ExternalSubagentStatus = 'pending' | 'completed' | 'max-tokens' | 'aborted' | 'refusal' | 'error'
-
 /** One current direct-child discovery row materialized from parent facts. */
 export type SubagentCatalogEntry =
   & {
@@ -16,7 +13,7 @@ export type SubagentCatalogEntry =
     readonly createdAt: number
   }
   & (
-    | { readonly mode: 'one-shot'; readonly label?: string; readonly external?: ExternalSubagentStatus }
+    | { readonly mode: 'one-shot'; readonly label?: string; readonly external?: true }
     | { readonly mode: 'continuable'; readonly label: string }
     | { readonly mode: 'unknown'; readonly label?: string }
   )

@@ -241,9 +241,9 @@ function CatalogRows({
         const label = entry.label ?? entry.id
         const mode = external !== undefined ? t('mode.external') : entry.mode === 'unknown' ? t('mode.unknown')
           : entry.mode === 'one-shot' ? t('mode.oneShot') : t('mode.continuable')
-        const completed = external !== undefined ? external === 'completed' : entry.activity === 'inactive'
+        const completed = external === undefined && entry.activity === 'inactive'
           && summary?.projectionValues?.subagentTiming?.lastTurnCompleted === true
-        const activity = external !== undefined ? t(`external.${external}`) : entry.activity === 'running'
+        const activity = external !== undefined ? undefined : entry.activity === 'running'
           ? t('activity.running')
           : completed
             ? t('activity.completed')

@@ -6,7 +6,7 @@
       "kind": "event",
       "event": "subagent/catalog",
       "surface": false,
-      "digest": "289dc7167ce5942019b86cab1ccfacb72eaf7460ef3c45e3c23780bf8e030376",
+      "digest": "568d482eeba04a9422773e7563cf935bd06f16896758cf880cf19b6bab8b1ada",
       "schema": {
         "root": 0,
         "nodes": [
@@ -20,7 +20,7 @@
               },
               {
                 "name": "ignorable",
-                "type": 21,
+                "type": 5,
                 "optional": true
               },
               {
@@ -35,7 +35,7 @@
               },
               {
                 "name": "type",
-                "type": 22,
+                "type": 15,
                 "optional": false
               }
             ],
@@ -45,10 +45,10 @@
             "kind": "union",
             "types": [
               2,
-              14,
-              16,
-              18,
-              19
+              8,
+              10,
+              12,
+              13
             ]
           },
           {
@@ -76,12 +76,12 @@
               },
               {
                 "name": "mode",
-                "type": 12,
+                "type": 6,
                 "optional": false
               },
               {
                 "name": "version",
-                "type": 13,
+                "type": 7,
                 "optional": false
               }
             ],
@@ -96,39 +96,8 @@
             "type": "string"
           },
           {
-            "kind": "union",
-            "types": [
-              6,
-              7,
-              8,
-              9,
-              10,
-              11
-            ]
-          },
-          {
             "kind": "literal",
-            "value": "aborted"
-          },
-          {
-            "kind": "literal",
-            "value": "completed"
-          },
-          {
-            "kind": "literal",
-            "value": "error"
-          },
-          {
-            "kind": "literal",
-            "value": "max-tokens"
-          },
-          {
-            "kind": "literal",
-            "value": "pending"
-          },
-          {
-            "kind": "literal",
-            "value": "refusal"
+            "value": true
           },
           {
             "kind": "literal",
@@ -163,12 +132,12 @@
               },
               {
                 "name": "mode",
-                "type": 12,
+                "type": 6,
                 "optional": false
               },
               {
                 "name": "version",
-                "type": 15,
+                "type": 9,
                 "optional": false
               }
             ],
@@ -198,12 +167,12 @@
               },
               {
                 "name": "mode",
-                "type": 17,
+                "type": 11,
                 "optional": false
               },
               {
                 "name": "version",
-                "type": 13,
+                "type": 7,
                 "optional": false
               }
             ],
@@ -233,12 +202,12 @@
               },
               {
                 "name": "mode",
-                "type": 17,
+                "type": 11,
                 "optional": false
               },
               {
                 "name": "version",
-                "type": 15,
+                "type": 9,
                 "optional": false
               }
             ],
@@ -264,12 +233,12 @@
               },
               {
                 "name": "mode",
-                "type": 20,
+                "type": 14,
                 "optional": false
               },
               {
                 "name": "version",
-                "type": 15,
+                "type": 9,
                 "optional": false
               }
             ],
@@ -278,10 +247,6 @@
           {
             "kind": "literal",
             "value": "unknown"
-          },
-          {
-            "kind": "literal",
-            "value": true
           },
           {
             "kind": "literal",

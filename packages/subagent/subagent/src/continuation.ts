@@ -43,7 +43,6 @@ import { SubagentError } from './error.ts'
 import { isAdjacentAgentSendMessageTool } from './internal.ts'
 import type { ActivationObserver } from './lifecycle.ts'
 import type {
-  SubagentStopReason,
   ContinuableCreateRequest,
   ContinuableCreateSpec,
   SubagentInterruptAuthority,
@@ -225,14 +224,9 @@ export class SubagentContinuationManager {
       this.activations.authorizeLineage(parent, activation.childId, activation.parent.id)
       spec.signal.throwIfAborted()
       const childId = activation.childId
-      const childCreatedAt = Date.now()
-      const recordCatalog = (external: 'pending' | SubagentStopReason): void => {
-        parent.session.append('subagent/catalog', {
-          version: 0, childId, childCreatedAt, mode: 'one-shot', label: spec.label, external,
-        })
-      }
-      recordCatalog('pending')
-      activation.settleCatalog = recordCatalog
+      parent.session.append('subagent/catalog', {
+        version: 0, childId, childCreatedAt: Date.now(), mode: 'one-shot', label: spec.label, external: true,
+      })
       this.activations.announce(activation)
       return this.receipt(activation)
     } catch (error: unknown) {

@@ -2,7 +2,7 @@
 
 import { isAbsolute } from 'node:path'
 import { SessionFormatError, SessionFormatUnsupportedMigrationError, isSessionFormatJsonObject, sessionFormatCount } from '@deepseek-ai/dsh-session-format'
-import type { SessionFormatArtifact, SessionFormatEvent, SessionFormatJsonObject } from '@deepseek-ai/dsh-session-format'
+import type { SessionFormatArtifact, SessionFormatEvent } from '@deepseek-ai/dsh-session-format'
 import { assertV4DeveloperData } from './developer.ts'
 import { assertV4LifecycleRelationships } from './relationships.ts'
 import { assertV4MessageSources } from './message-sources.ts'
@@ -108,7 +108,7 @@ export function validateDeliveryAccepted(event: SessionFormatEvent, currentVersi
  * @param knownEventTypes - installed event types whose payloads this reader interprets.
  */
 export function assertReleasedV4Relationships(artifact: SessionFormatArtifact, knownEventTypes: ReadonlySet<string>): void {
-  const catalogs = new Map<string, SessionFormatJsonObject>()
+  const ids = new Set<string>()
   for (const event of artifact.events) {
     if (!knownEventTypes.has(event.type)) continue
     assertV4DeveloperData(event)
@@ -122,13 +122,8 @@ export function assertReleasedV4Relationships(artifact: SessionFormatArtifact, k
     if (event.type === 'subagent/catalog' && event.seq >= artifact.inheritedEventCount) {
       const fact = catalogFact(event.data)
       const id = fact['childId'] as string
-      const previous = catalogs.get(id)
-      if (previous !== undefined && !(previous['mode'] === 'one-shot' && fact['mode'] === 'one-shot'
-        && previous['external'] === 'pending' && typeof fact['external'] === 'string' && fact['external'] !== 'pending'
-        && previous['childCreatedAt'] === fact['childCreatedAt'] && previous['label'] === fact['label'])) {
-        throw new SessionFormatError(`duplicate catalog child ${id}`)
-      }
-      catalogs.set(id, fact)
+      if (ids.has(id)) throw new SessionFormatError(`duplicate catalog child ${id}`)
+      ids.add(id)
     }
   }
   assertV4LifecycleRelationships(artifact, knownEventTypes)

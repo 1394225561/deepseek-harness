@@ -92,8 +92,6 @@ export interface Activation {
    * another runtime-incarnation reference. Non-empty blocks settlement.
    */
   readonly ownedChildren: Set<SessionId>
-  /** Complete the accepted external catalog fact after resource release. */
-  settleCatalog?: (status: SubagentResult['stopReason']) => void
   /** The lifecycle observer that emits this epoch's start and terminal edges. */
   readonly observer: ActivationObserver
   /**
@@ -980,14 +978,6 @@ export class ContinuableActivationRegistry {
     activation.releaseSlot()
     if (failure !== undefined) result = { output: [], stopReason: 'error' }
     activation.result.resolve(result)
-    if (activation.settleCatalog !== undefined) {
-      try {
-        activation.settleCatalog(result.stopReason)
-      } catch (error: unknown) {
-        failure ??= new SubagentError(`subagent "${childId}" catalog settlement could not be recorded`, 'ACTIVATION_TEARDOWN_FAILED', { cause: error })
-      }
-    }
-    if (failure !== undefined) result = { output: [], stopReason: 'error' }
     this.notifySettlement(activation, result, includeOutput)
     this.releaseOwnership(childId)
     activation.observer.settle(result)

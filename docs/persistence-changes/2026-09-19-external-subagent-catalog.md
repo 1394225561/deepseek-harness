@@ -9,7 +9,7 @@ English | [中文](2026-09-19-external-subagent-catalog.zh.md)
 
 ## Summary
 
-Add an optional external execution outcome to one-shot parent catalog entries.
+Add an optional external membership marker to one-shot parent catalog entries.
 
 ## Table of Contents
 
@@ -28,19 +28,19 @@ baseline: false
 changes:
   - root: "event:subagent/catalog"
     previous: "2026-09-20-unknown-child-catalog"
-    after: "289dc7167ce5942019b86cab1ccfacb72eaf7460ef3c45e3c23780bf8e030376"
+    after: "568d482eeba04a9422773e7563cf935bd06f16896758cf880cf19b6bab8b1ada"
     decision: same-version
 ```
 
 <a id="compatibility"></a>
 ## Compatibility
 
-Existing version-0 and version-1 one-shot and continuable catalog facts remain valid without the optional external field. Version-1 unknown-mode facts remain unchanged. The field identifies a child without a local Session and records pending or a terminal outcome. Pending means no terminal outcome is recorded, not that a process is live. Settlement appends a complete catalog fact with the same identity and creation time; the projection keeps one row per child. No new Session event type, full result payload, or Session format version is introduced.
+Existing version-0 and version-1 catalog facts remain valid without the optional external field. The literal true identifies a child without a local Session. Creation writes one membership fact; execution and cleanup do not update it. Duplicate child ids remain invalid. Unknown-mode and continuable entries do not accept the marker. This updates the unaccepted optional-field addition in this PR and does not change released generations or the Session format version.
 
 <a id="verification"></a>
 ## Verification
 
-Catalog projection, V3-to-V4 catalog completion and validation, and JSONL catalog migration tests passed: 124 tests passed and one skipped. Coverage includes mixed unknown-mode and external entries at both supported payload versions, external pending-to-terminal updates, and rejection of external fields on unknown or continuable entries.
+Focused catalog, external activation, native V4 restoration, and client tests passed. They cover creation-time membership, no settlement update, cleanup failure independent of catalog membership, and duplicate-child rejection.
 
 <a id="dev-note"></a>
 ## Dev Note

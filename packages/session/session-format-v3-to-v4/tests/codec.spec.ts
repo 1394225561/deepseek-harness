@@ -162,20 +162,9 @@ describe('V4 framing and restoration', () => {
 })
 
 
-it('restores one external pending-to-terminal catalog update while retaining local uniqueness', () => {
-  const data = { ...(catalog.data as SessionFormatJsonObject), mode: 'one-shot', label: 'External', external: 'pending' }
-  const start = { ...catalog, data }
-  const end = { ...catalog, seq: 1, data: { ...data, external: 'completed' } }
-  expect(restore([start, end]).events).toEqual([start, end])
-  for (const changed of [
-    { ...data },
-    { ...end.data, mode: 'continuable' },
-    { ...end.data, childCreatedAt: 999 },
-    { ...end.data, label: 'different child' },
-    { ...end.data, external: undefined },
-  ]) {
-    expect(() => restore([start, { ...end, data: changed as SessionFormatJsonObject }])).toThrow('duplicate catalog child')
-  }
-  expect(() => restore([start, end, { ...end, seq: 2 }])).toThrow('duplicate catalog child')
-  expect(() => restore([catalog, end])).toThrow('duplicate catalog child')
+it('restores external membership and rejects duplicate catalog children', () => {
+  const data = { ...(catalog.data as SessionFormatJsonObject), mode: 'one-shot', label: 'External', external: true }
+  const entry = { ...catalog, data }
+  expect(restore([entry]).events).toEqual([entry])
+  expect(() => restore([entry, { ...entry, seq: 1 }])).toThrow('duplicate catalog child')
 })

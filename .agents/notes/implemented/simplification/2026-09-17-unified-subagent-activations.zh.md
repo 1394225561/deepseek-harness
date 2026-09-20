@@ -14,13 +14,13 @@ Status: implemented
 
 本地 spawn 和 fork 提供方只贡献 `prepareContinuable()` 数据，由 subagent 服务拥有 Agent 创建与驻留。独立进程内驱动器包被移除。结构化工具、校验、指令与终止保护附着于一次 activation，并随其关闭。捕获后该 activation 拒绝继续输入；冷恢复重建普通对话，不携带此前的 schema。
 
-ACP、DSH SDK、Codex 和 Claude Code 保留单次执行适配器，共享 activation 容量与所有权，不接受后续消息，也不伪造本地子 Session。父级拥有的 catalog 同时登记本地子代理与外部叶子项。外部条目携带可选的最近记录结果状态；pending 表示尚无终态记录，不声明进程是否存活。结束时更新同一条目，不存储或广播完整输出。caller 交付返回完整结果，parent 交付将完整完成通知加入父级队列。
+ACP、DSH SDK、Codex 和 Claude Code 保留单次执行适配器，共享 activation 容量与所有权，不接受后续消息，也不伪造本地子 Session。父级拥有的 catalog 同时登记本地子代理与外部叶子项。外部条目携带 `external: true`，因为没有可打开的本地 Session。创建时记录一次成员关系；执行与清理不更新目录。执行状态没有必需的消费者，不属于成员记录。caller 交付返回完整结果，parent 交付将完整完成通知加入父级队列。
 
 面向模型的工具始终返回后台子级 ID，并承诺管理器的完成通知。它没有前台开关或 Job 集成。工作流选择调用方投递，等待 activation 结果并在完成前释放句柄；它们不向父子交互添加完成通知或初始返回指导。Headless 完成流程等待其自身子树与后续父级轮次。
 
 ### 保留的决策
 
-原生 Session 读取器仅在模式、创建时间与标签不变时，允许外部目录条目从 pending 更新到终态一次。本地重复成员记录与重复终态更新仍会拒绝恢复。
+原生 Session 读取器对本地与外部目录条目都拒绝重复的子级成员记录。
 
 [具名提供方 seam](../feature/2026-06-21-subagent-capability-seam.zh.md)、[可继续驻留](../feature/2026-07-28-continuable-subagent-conversations.zh.md)、[fork 请求前缀](../architecture/2026-08-10-fork-children-stay-one-shot.zh.md)、[结算投递顺序](../feature/2026-08-06-manager-owned-subagent-settlement-delivery.zh.md)、[父级拥有的目录](../architecture/2026-09-01-parent-owned-subagent-catalog.zh.md) 和 [activation 容量](../feature/2026-09-15-continuable-activation-capacity.zh.md) 保留各自独立理由。本决策拥有共享入口、外部执行参与以及调用方与父级之间的结果投递选择。这些记录仅被部分取代，不满足合并或归档条件。
 
@@ -28,7 +28,7 @@ ACP、DSH SDK、Codex 和 Claude Code 保留单次执行适配器，共享 activ
 
 ## 考虑过的替代方案
 
-**保留独立的外部执行投影。** 它重复父级 catalog 已提供的成员登记、恢复与客户端更新，每次目录快照还会重传全部结果。catalog 仅保留身份和结果状态，完整结果由接收方负责。
+**保留独立的外部执行投影。** 它重复父级 catalog 已提供的成员登记、恢复与客户端更新，每次目录快照还会重传全部结果。catalog 仅保留成员关系，完整结果由接收方负责。
 
 **为同步工作流保留本地一次性执行。** 等待结果是消费者需求。仅为提供 promise 而维护第二套 Agent 生命周期会重复取消与清理；activation 可以直接提供该 promise。
 
@@ -44,4 +44,4 @@ ACP、DSH SDK、Codex 和 Claude Code 保留单次执行适配器，共享 activ
 
 ## 验证
 
-聚焦测试覆盖本地 spawn/fork 继承、结构化捕获与无 schema 冷恢复、显式取消、外部目录更新、结果与释放顺序、不发父级通知的工作流收集，以及 headless 子树完成。既有回放世代得到保留；更新的录制会话用例覆盖当前面向模型的工具与通知行为。
+聚焦测试覆盖本地 spawn/fork 继承、结构化捕获与无 schema 冷恢复、显式取消、外部目录成员关系、结果与释放顺序、不发父级通知的工作流收集，以及 headless 子树完成。既有回放世代得到保留；更新的录制会话用例覆盖当前面向模型的工具与通知行为。
