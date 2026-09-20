@@ -8,9 +8,8 @@ import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { ReactNode } from 'react'
 import { PluginManagerPage } from '../src/client/PluginManagerPage.tsx'
-import type { PluginManagerPageProps } from '../src/client/PluginManagerPage.tsx'
+import type { PluginManagerPageProps } from '../src/client/index.ts'
 import type { ConfigLedger } from '../src/client/config-ledger.ts'
-import type { PluginConfigViewProps } from '../src/client/slot-contract.ts'
 import { rowKey, type InstallState, type PackageRow, type PackageView, type PluginManagerState } from '../src/client/manager-store.ts'
 import { en, zh, type PluginManagerLocaleKey } from '../src/client/locales.ts'
 
@@ -102,6 +101,12 @@ function renderTab(state: Partial<PluginManagerState> = {}, config: Partial<Conf
     setRowEnabled: vi.fn(),
     dismissNotice: vi.fn(),
   }
+  const renderSlot: PluginManagerPageProps['renderSlot'] = (name, owner, opts) => {
+    if (!('view' in owner) || (owner.view !== 'summary' && owner.view !== 'page')) {
+      throw new Error('Configuration slot requires a summary or page view')
+    }
+    return bodies[`${name}:${opts?.only ?? opts?.entryKey ?? ''}`]?.(owner.view) ?? null
+  }
   const unusedGlobalHook = (): never => { throw new Error('PluginManagerPage does not consume global runtime hooks') }
   const props: PluginManagerPageProps = {
     useSessions: unusedGlobalHook,
@@ -115,8 +120,7 @@ function renderTab(state: Partial<PluginManagerState> = {}, config: Partial<Conf
     ...actions,
     usePluginManager: bindSnapshotSelector(store),
     useConfigLedger: bindSnapshotSelector(ledger),
-    renderSlot: ((name: string, owner: PluginConfigViewProps, opts?: { only?: string; entryKey?: string }) =>
-      bodies[`${name}:${opts?.only ?? opts?.entryKey ?? ''}`]?.(owner.view) ?? null) as PluginManagerPageProps['renderSlot'],
+    renderSlot,
   }
   const { rerender } = render(<PluginManagerPage {...props} />)
   return {
