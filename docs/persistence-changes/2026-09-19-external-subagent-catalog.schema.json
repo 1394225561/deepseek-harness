@@ -6,7 +6,7 @@
       "kind": "event",
       "event": "subagent/catalog",
       "surface": false,
-      "digest": "e6c1b140467c8a4a41ca50676e4213d238f082c3b11b9f998fc9fd4ac21e929a",
+      "digest": "289dc7167ce5942019b86cab1ccfacb72eaf7460ef3c45e3c23780bf8e030376",
       "schema": {
         "root": 0,
         "nodes": [
@@ -20,7 +20,7 @@
               },
               {
                 "name": "ignorable",
-                "type": 16,
+                "type": 21,
                 "optional": true
               },
               {
@@ -35,7 +35,7 @@
               },
               {
                 "name": "type",
-                "type": 17,
+                "type": 22,
                 "optional": false
               }
             ],
@@ -45,7 +45,10 @@
             "kind": "union",
             "types": [
               2,
-              14
+              14,
+              16,
+              18,
+              19
             ]
           },
           {
@@ -149,13 +152,53 @@
                 "optional": false
               },
               {
+                "name": "external",
+                "type": 5,
+                "optional": true
+              },
+              {
+                "name": "label",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "mode",
+                "type": 12,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 15,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": 1
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "childCreatedAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "childId",
+                "type": 4,
+                "optional": false
+              },
+              {
                 "name": "label",
                 "type": 4,
                 "optional": false
               },
               {
                 "name": "mode",
-                "type": 15,
+                "type": 17,
                 "optional": false
               },
               {
@@ -169,6 +212,72 @@
           {
             "kind": "literal",
             "value": "continuable"
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "childCreatedAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "childId",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "label",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "mode",
+                "type": 17,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 15,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "childCreatedAt",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "childId",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "label",
+                "type": 4,
+                "optional": true
+              },
+              {
+                "name": "mode",
+                "type": 20,
+                "optional": false
+              },
+              {
+                "name": "version",
+                "type": 15,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": "unknown"
           },
           {
             "kind": "literal",

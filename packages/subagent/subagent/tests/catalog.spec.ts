@@ -102,11 +102,26 @@ describe('subagent catalog projection', () => {
       .toEqual(Array.from({ length: 130 }, (_, i) => SessionId(`child-${i}`)))
   })
 
+  it.each([0, 1] as const)('reads known catalog modes at payload version %s', (version) => {
+    const events: SessionEvent[] = [
+      { type: 'subagent/catalog', seq: SessionSeq(0), time: 0,
+        data: { version, childId: SessionId('once'), childCreatedAt: 1, mode: 'one-shot' } },
+      { type: 'subagent/catalog', seq: SessionSeq(1), time: 0,
+        data: { version, childId: SessionId('ongoing'), childCreatedAt: 2, mode: 'continuable', label: 'child' } },
+    ]
+    expect(subagentCatalogProjectionDefinition.wire.view(fold(events))).toEqual([
+      { id: SessionId('once'), createdAt: 1, mode: 'one-shot' },
+      { id: SessionId('ongoing'), createdAt: 2, mode: 'continuable', label: 'child' },
+    ])
+  })
+
   it('validates recursive chunk state and materializes every label variant in event order', () => {
     const events: SessionEvent[] = [
       fact(0, 'child-b', 1, { mode: 'one-shot' }),
       fact(1, 'child-a', 1, { mode: 'one-shot', label: 'once' }),
       fact(2, 'child-d', 3, { mode: 'continuable', label: 'later' }),
+      { type: 'subagent/catalog', seq: SessionSeq(3), time: 0,
+        data: { version: 1, childId: SessionId('unreadable'), childCreatedAt: 4, mode: 'unknown' } },
     ]
     const state = fold(events)
 
@@ -121,6 +136,7 @@ describe('subagent catalog projection', () => {
       { id: SessionId('child-b'), createdAt: 1, mode: 'one-shot' },
       { id: SessionId('child-a'), createdAt: 1, mode: 'one-shot', label: 'once' },
       { id: SessionId('child-d'), createdAt: 3, mode: 'continuable', label: 'later' },
+      { id: SessionId('unreadable'), createdAt: 4, mode: 'unknown' },
     ])
   })
 
@@ -140,6 +156,9 @@ describe('subagent catalog projection', () => {
   })
 
   it.each([
+    { version: 0, childId: 'child', childCreatedAt: 0, mode: 'unknown' },
+    { version: 1, childId: 'child', childCreatedAt: 0, mode: 'unknown', external: 'pending' },
+    { version: 1, childId: 'child', childCreatedAt: 0, mode: 'continuable', label: 'child', external: 'pending' },
     { version: 9, childId: 'child', childCreatedAt: 0, mode: 'one-shot' },
     { version: 0, childId: 'child', childCreatedAt: 0, mode: 'continuable' },
     { version: 0, childId: 'child', childCreatedAt: -1, mode: 'one-shot' },
@@ -162,15 +181,20 @@ describe('subagent catalog projection', () => {
 
 
 describe('external catalog membership', () => {
-  it('updates one external leaf in place and restores its terminal summary', () => {
+  it.each([0, 1] as const)('updates external leaves alongside unknown children at payload version %s', (version) => {
     const start = fact(0, 'external', 1, { mode: 'one-shot', label: 'Review' })
-    const pending = { ...start, data: { ...start.data, mode: 'one-shot' as const, external: 'pending' as const } }
+    const pending = { ...start, data: { ...start.data, version, mode: 'one-shot' as const, external: 'pending' as const } }
     const end = { ...pending, seq: SessionSeq(2), data: { ...pending.data, external: 'completed' as const } }
-    const state = fold([pending, fact(1, 'local', 2, { mode: 'continuable', label: 'Implement' }), end])
+    const unknown: SessionEvent<'subagent/catalog'> = {
+      type: 'subagent/catalog', seq: SessionSeq(3), time: 0,
+      data: { version: 1, childId: SessionId('unreadable'), childCreatedAt: 3, mode: 'unknown' },
+    }
+    const state = fold([pending, fact(1, 'local', 2, { mode: 'continuable', label: 'Implement' }), end, unknown])
     const restored = subagentCatalogProjectionDefinition.stateSchema.parse(JSON.parse(JSON.stringify(state)))
     expect(subagentCatalogProjectionDefinition.wire.view(restored)).toEqual([
       { id: SessionId('external'), createdAt: 1, mode: 'one-shot', label: 'Review', external: 'completed' },
       { id: SessionId('local'), createdAt: 2, mode: 'continuable', label: 'Implement' },
+      { id: SessionId('unreadable'), createdAt: 3, mode: 'unknown' },
     ])
     expect(subagentCatalogProjectionDefinition.wire.view(fold([pending]))[0]).toMatchObject({ external: 'pending' })
     expect(subagentCatalogProjectionDefinition.wire.viewSchema.safeParse([{ id: 'external', createdAt: 1, mode: 'one-shot', external: 'invalid' }]).success).toBe(false)

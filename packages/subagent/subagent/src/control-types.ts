@@ -73,7 +73,7 @@ export type SubagentListEntry =
     readonly reason: 'corrupt' | 'unsupported' | 'unavailable'
   }
 
-/** Durable parent/child address that selects subagent transport in the client. */
+/** Durable parent/child browsing address; unknown mode is resolved when child history is read. */
 export type SubagentAddress =
   & {
     readonly parentSessionId: SessionId
@@ -82,6 +82,7 @@ export type SubagentAddress =
   & (
     | { readonly mode: 'one-shot' }
     | { readonly mode: 'continuable' }
+    | { readonly mode: 'unknown' }
   )
 
 /** One human message addressed to a continuable direct child. */

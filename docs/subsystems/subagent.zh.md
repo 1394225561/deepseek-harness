@@ -6,7 +6,7 @@
 
 ## 能力与 activation 请求
 
-所有后端都使用 startActivation。能力标记校验请求选项；prepareContinuable 选择本地 driver，start 选择一次外部执行。面向模型的工具采用 parent 回传。Workflow 与 code mode 消费者可以等待 caller 结果，不额外向父代理注入消息。
+所有后端都使用 startActivation。能力标记校验请求选项；prepareContinuable 选择本地 driver，start 选择一次外部执行。面向模型的工具采用 parent 回传。Workflow 与 code mode 消费者可以等待 caller 结果，不额外向父代理注入消息。历史子会话的 descriptor 不可用时，以 `mode: 'unknown'` 保持可发现性，但不授予继续执行能力；[包 README](../../packages/subagent/subagent/README.zh.md) 定义目录持久化语义。
 
 ```ts type-equiv
 /**

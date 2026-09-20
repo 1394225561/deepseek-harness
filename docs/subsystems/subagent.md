@@ -6,7 +6,7 @@ The unified activation API manages local conversations and external executions.
 
 ## Capabilities and activation requests
 
-Every backend uses startActivation. Capability flags validate request options; prepareContinuable selects the local driver, while start selects one external execution. The model-facing tool uses parent delivery. Workflow and code mode consumers can await caller results without injecting another parent message.
+Every backend uses startActivation. Capability flags validate request options; prepareContinuable selects the local driver, while start selects one external execution. The model-facing tool uses parent delivery. Workflow and code mode consumers can await caller results without injecting another parent message. Historical children with unavailable descriptors remain discoverable as `mode: 'unknown'` without granting continuation capabilities; the [package README](../../packages/subagent/subagent/README.md) defines catalog persistence.
 
 ```ts type-equiv
 /**
