@@ -10,6 +10,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { scopeChainOf, scopeOf } from '@deepseek-ai/dsh-scope'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent'
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
@@ -38,6 +39,10 @@ import {
 
 export const name = 'tool-subagent'
 export const inject = ['tools', 'subagents', 'systemPrompt', 'sessionProjections']
+
+// Definition identity keeps shared guidance scoped to the actual visible tools,
+// including scoped overrides and independently loaded tool registries.
+const delegationTools = new Set<ToolDefinition>()
 
 /** Config: which registered provider this tool delegates to, plus child defaults. */
 export interface Config {
@@ -216,7 +221,7 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
           + (subagentProvider.inheritsParentContext
             ? ' Changing the route can prevent provider-side reuse of the inherited conversation prefix.'
             : '')
-      const disposeTool = runtimeCtx.tools.register(defineTool({
+      const definition = defineTool({
         name: toolName,
         description: wording.description
           + ' This tool starts an independently managed subagent and immediately returns its id. The runtime notifies you when it finishes.'
@@ -331,7 +336,16 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
           })
           return { kind: 'activation' as const, subagentId: started.childId }
         },
-      }))
+      })
+      const disposeTool = runtimeCtx.effect(() => {
+        const unregister = runtimeCtx.tools.register(definition)
+        delegationTools.add(definition)
+        return () => {
+          delegationTools.delete(definition)
+          unregister()
+        }
+      })
+      // oxlint-disable-next-line typescript/no-misused-promises -- Tool and guidance disposal are synchronous.
       mounted = { subagentProvider, disposeTool }
     }
 
@@ -354,9 +368,16 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
     runtimeCtx.systemPrompt.section({
       name: `tool:${toolName}`,
       order: runtimeCtx.systemPrompt.getSectionOrder('TOOL_SUBAGENT'),
-      text: context => mounted === undefined || runtimeCtx.tools.get(toolName, context.scope) === undefined
-        ? ''
-        : `Start independent delegations with ${toolName} together in one assistant message and continue useful work while they run. The runtime notifies you when each subagent finishes.`,
+      text: (context) => {
+        if (mounted === undefined) return ''
+        const visible = [...delegationTools]
+          .filter(tool => runtimeCtx.tools.get(tool.name, context.scope) === tool)
+          .map(tool => tool.name)
+          .sort()
+        if (visible[0] !== toolName) return ''
+        const names = visible.map(name => `\`${name}\``).join(' or ')
+        return `Start independent delegations with ${names} together in one assistant message and continue useful work while they run.`
+      },
     })
   }
 

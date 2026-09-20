@@ -29,9 +29,7 @@ Use goal tools for one long-running completion objective in the current session.
 
 Use the workflow tool ONLY when the user explicitly asks for a workflow or for large multi-agent orchestration: you write a JavaScript script (the tool description documents the exact format) that fans work out across many subagents with phases and structured results. For one or two delegations, prefer plain subagent calls.
 
-Start independent delegations with subagent together in one assistant message and continue useful work while they run. The runtime notifies you when each subagent finishes.
-
-Start independent delegations with subagent_fork together in one assistant message and continue useful work while they run. The runtime notifies you when each subagent finishes.
+Start independent delegations with `subagent` or `subagent_fork` together in one assistant message and continue useful work while they run.
 
 ## MCP resource servers
 

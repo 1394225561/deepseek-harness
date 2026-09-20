@@ -7,6 +7,7 @@ import Loader from '@deepseek-ai/cordis-plugin-loader'
 import { ToolCallId, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { TOOL_ABORTED_BEFORE_DISPATCH } from '@deepseek-ai/dsh-tools'
 import { assembleContextFor } from '@deepseek-ai/dsh-agent'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
@@ -34,6 +35,12 @@ async function projectedContext(): Promise<Context> {
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
   return ctx
+}
+
+/** Read the model-visible delegation paragraphs, excluding empty sections. */
+async function delegationGuidance(ctx: Context, agent?: Agent): Promise<string[]> {
+  const assembly = await ctx.systemPrompt.assemble(agent === undefined ? undefined : assembleContextFor(agent))
+  return assembly.sections.map(section => section.text).filter(text => text.startsWith('Start independent delegations'))
 }
 
 /**
@@ -335,6 +342,62 @@ describe('dsh-tool-subagent', () => {
     const assembly = await ctx.systemPrompt.assemble()
     expect(assembly.sections.find(section => section.name === 'tool:subagent')?.text).toBe('')
     expect(ctx.tools.schemas().some(schema => schema.name === 'subagent')).toBe(false)
+  })
+
+  it('shares delegation guidance across visible tools as providers and plugin fibers change', async () => {
+    const ctx = await projectedContext()
+    await ctx.plugin(SubagentRuntime)
+    const forkTool = await ctx.plugin(tool, { provider: 'fork', toolName: 'subagent_fork' })
+    const spawnTool = await ctx.plugin(tool, { provider: 'spawn' })
+    expect(await delegationGuidance(ctx)).toEqual([])
+
+    const forkProvider = await mock.mountScriptedProvider(ctx, { name: 'fork', inheritsParentContext: true })
+    expect(await delegationGuidance(ctx)).toEqual([
+      'Start independent delegations with `subagent_fork` together in one assistant message and continue useful work while they run.',
+    ])
+    await mock.mountScriptedProvider(ctx, { name: 'spawn' })
+    expect(await delegationGuidance(ctx)).toEqual([
+      'Start independent delegations with `subagent` or `subagent_fork` together in one assistant message and continue useful work while they run.',
+    ])
+
+    await forkProvider.dispose()
+    expect(await delegationGuidance(ctx)).toEqual([
+      'Start independent delegations with `subagent` together in one assistant message and continue useful work while they run.',
+    ])
+    await mock.mountScriptedProvider(ctx, { name: 'fork', inheritsParentContext: true })
+    await spawnTool.dispose()
+    expect(await delegationGuidance(ctx)).toEqual([
+      'Start independent delegations with `subagent_fork` together in one assistant message and continue useful work while they run.',
+    ])
+    await forkTool.dispose()
+    expect(await delegationGuidance(ctx)).toEqual([])
+  })
+
+  it('shares guidance only among the viewing agent\'s visible delegation definitions', async () => {
+    const ctx = await setup({ provider: 'mock' })
+    await ctx.plugin(tool, { provider: 'mock', toolName: 'subagent_fork' })
+    const unrelated = await setup({ provider: 'mock', toolName: 'other_delegate' })
+    const parent = (await ctx.agents.create({ sessionId: SessionId('guidance-parent') })).agent
+    const peer = (await ctx.agents.create({ sessionId: SessionId('guidance-peer') })).agent
+    const showSpawn = parent.ctx.tools.restrict({ deny: ['subagent'] })
+    expect(await delegationGuidance(ctx, parent)).toEqual([
+      'Start independent delegations with `subagent_fork` together in one assistant message and continue useful work while they run.',
+    ])
+    expect(await delegationGuidance(ctx, peer)).toEqual([
+      'Start independent delegations with `subagent` or `subagent_fork` together in one assistant message and continue useful work while they run.',
+    ])
+    expect(await delegationGuidance(unrelated)).toEqual([
+      'Start independent delegations with `other_delegate` together in one assistant message and continue useful work while they run.',
+    ])
+    showSpawn()
+
+    const scoped = await parent.ctx.plugin(tool, { provider: 'mock', toolName: 'subagent' })
+    expect(await delegationGuidance(ctx, parent)).toEqual([
+      'Start independent delegations with `subagent` or `subagent_fork` together in one assistant message and continue useful work while they run.',
+    ])
+    await scoped.dispose()
+    parent.ctx.tools.restrict({ deny: ['subagent', 'subagent_fork'] })
+    expect(await delegationGuidance(ctx, parent)).toEqual([])
   })
 
   it('mirrors the provider lifecycle: gone on backend dispose, re-derived wording on re-registration', async () => {
@@ -654,8 +717,7 @@ describe('dsh-tool-subagent local activation', () => {
     expect(properties.run_in_background).toBeUndefined()
     const assembly = await ctx.systemPrompt.assemble(assembleContextFor(parent))
     const guidance = assembly.sections.find(section => section.name === 'tool:subagent')
-    expect(guidance?.text).toContain('Start independent delegations with subagent together')
-    expect(guidance?.text).toContain('runtime notifies you when each subagent finishes')
+    expect(guidance?.text).toBe('Start independent delegations with `subagent` together in one assistant message and continue useful work while they run.')
 
     const started = await callSubagent(
       ctx,

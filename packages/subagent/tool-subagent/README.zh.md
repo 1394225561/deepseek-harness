@@ -154,21 +154,21 @@ Session 携带策略的 settings 控制实例会公开子级 LLM 选择字段与
 
 #### 模型看到什么
 
-每个可见实例贡献一个 `tool:<toolName>` section，指示模型一起启动相互独立的委派，并在它们运行时继续工作。使用默认工具名 `subagent` 时，section 文本为：
+可见的委派工具共享一段指导，列出按名称排序的工具，指示模型一起启动相互独立的委派，并在它们运行时继续工作。隐藏或不可用的工具不列入其中；没有可见工具时，不输出指导。`subagent` 和 `subagent_fork` 都可见时，文本为：
 
 ##### 工具指导 section
 
 ```markdown
-Start independent delegations with subagent together in one assistant message and continue useful work while they run. The runtime notifies you when each subagent finishes.
+Start independent delegations with `subagent` or `subagent_fork` together in one assistant message and continue useful work while they run.
 ```
 
 #### Token 影响
 
-每个实例一个简短固定 section，只要工具在作用域内，就由每个父级请求支付。
+每个父级请求最多包含一段简短的委派指导，列出该请求可见的工具名。
 
 #### KV Cache 影响
 
-只要 section 文本与工具存在性不变，前缀就保持稳定；移除工具或更改 section 会建立不同的父级前缀。
+可见工具名不变时，前缀保持稳定；增加或移除可见工具会更改这段指导。
 
 ### 启动结果
 

@@ -154,21 +154,21 @@ The schema is prefix-stable across adapter registration and catalog changes. Eac
 
 #### What the model sees
 
-Each visible instance contributes a `tool:<toolName>` section instructing the model to start independent delegations together and keep working while they run. With the default tool name `subagent`, the section text is:
+Visible delegation tools share one guidance paragraph, listing tools in name order and instructing the model to start independent delegations together and keep working while they run. Hidden or unavailable tools are omitted; no guidance appears when none are visible. With both `subagent` and `subagent_fork` visible, the text is:
 
 ##### Tool-guidance section
 
 ```markdown
-Start independent delegations with subagent together in one assistant message and continue useful work while they run. The runtime notifies you when each subagent finishes.
+Start independent delegations with `subagent` or `subagent_fork` together in one assistant message and continue useful work while they run.
 ```
 
 #### Token effect
 
-One short fixed section per instance, paid on every parent request while the tool is in scope.
+At most one short delegation paragraph per parent request, listing the tool names visible to that request.
 
 #### KV Cache effect
 
-Prefix-stable while the section text and tool presence are unchanged; removing the tool or changing the section establishes a different parent prefix.
+Prefix-stable while the visible tool names are unchanged; adding or removing a visible tool changes the paragraph.
 
 ### Start result
 
