@@ -13,7 +13,7 @@ import {
   assertPositiveFinite,
   NO_START_CAPABILITIES,
   resolveChildCwd,
-  type ResolvedSubagentStartRequest,
+  type SubagentStartRequest,
   type SubagentCapabilities,
   type SubagentProvider,
 } from '@deepseek-ai/dsh-subagent'
@@ -70,7 +70,7 @@ class CodexProvider implements SubagentProvider {
     private readonly config: ResolvedConfig,
   ) {}
 
-  start(request: ResolvedSubagentStartRequest) {
+  start(request: SubagentStartRequest) {
     const parentCwd = request.parent.session.header.cwd
     if (parentCwd === undefined) {
       throw new Error(

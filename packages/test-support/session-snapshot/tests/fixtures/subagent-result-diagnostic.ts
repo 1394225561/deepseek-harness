@@ -3,7 +3,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import {
   NO_START_CAPABILITIES,
-  type ResolvedSubagentStartRequest,
+  type SubagentStartRequest,
   type SubagentProvider,
 } from '@deepseek-ai/dsh-subagent'
 import { SessionId } from '@deepseek-ai/dsh-session'
@@ -40,7 +40,7 @@ class DiagnosticProvider implements SubagentProvider {
   readonly inheritsParentContext = false
   private starts = 0
 
-  async start(request: ResolvedSubagentStartRequest) {
+  async start(request: SubagentStartRequest) {
     if (request.signal.aborted) {
       throw new Error('snapshot diagnostic provider start aborted')
     }
@@ -51,7 +51,6 @@ class DiagnosticProvider implements SubagentProvider {
     }
     return {
       id: SessionId(fixture.id),
-      localAgent: undefined,
       result: Promise.resolve({
         output: [...fixture.output],
         diagnostic: fixture.diagnostic,

@@ -12,7 +12,6 @@ import SubagentRuntime, {
   SUBAGENT_DESCRIPTOR_VERSION,
   SubagentError,
   assertSubagentMaxDepth,
-  type ResolvedSubagentStartRequest,
   type SubagentCapabilities,
   type SubagentActivation,
   type SubagentActivationSpec,
@@ -44,7 +43,7 @@ function baseRequest(overrides: Partial<SubagentStartRequest> = {}): SubagentSta
 class StubProvider implements SubagentProvider {
   readonly inheritsParentContext = false
   startCount = 0
-  lastRequest: ResolvedSubagentStartRequest | undefined
+  lastRequest: SubagentStartRequest | undefined
 
   constructor(
     readonly name: string,
@@ -55,12 +54,11 @@ class StubProvider implements SubagentProvider {
     },
   ) {}
 
-  async start(request: ResolvedSubagentStartRequest): Promise<SubagentRun> {
+  async start(request: SubagentStartRequest): Promise<SubagentRun> {
     this.startCount += 1
     this.lastRequest = request
     return {
       id: SessionId(`child:${this.name}:${request.parent.id}`),
-      localAgent: undefined,
       result: Promise.resolve(this.outcome),
       async dispose() {},
     }
@@ -158,7 +156,7 @@ describe('SubagentRuntime', () => {
       .rejects.toMatchObject({ code: 'NO_PROVIDER' })
   })
 
-  it('resolves the one-shot descriptor and exposes no provider continuation operations', async () => {
+  it('forwards external execution options and exposes no provider continuation operations', async () => {
     const { subagents } = await service()
     const provider = new StubProvider('one-shot')
     subagents.registerProvider(provider)
@@ -170,12 +168,6 @@ describe('SubagentRuntime', () => {
       label: 'one-shot',
       parent: provider.lastRequest!.parent,
       signal: provider.lastRequest!.signal,
-      descriptor: {
-        version: SUBAGENT_DESCRIPTOR_VERSION,
-        mode: 'one-shot',
-        provider: 'one-shot',
-        label: 'one-shot',
-      },
     })
     expect(provider.lastRequest).not.toBe(request)
     expectTypeOf<Parameters<SubagentRuntime['startActivation']>[0]>().toEqualTypeOf<SubagentActivationSpec>()
@@ -282,7 +274,7 @@ describe('SubagentRuntime', () => {
     const starting = start(subagents, 'deferred', baseRequest({ parent }))
     await Promise.resolve()
     expect(events).toEqual([])
-    ready.resolve({ id: SessionId('child'), localAgent: undefined, result: result.promise, async dispose() {} })
+    ready.resolve({ id: SessionId('child'), result: result.promise, async dispose() {} })
     const run = await starting
     expect(events).toEqual(['start'])
     result.resolve({ output: [{ type: 'text', text: 'answer' }], stopReason: 'completed' })
@@ -344,7 +336,6 @@ describe('SubagentRuntime', () => {
       inheritsParentContext: false,
       start: () => Promise.resolve({
         id: childId,
-        localAgent: undefined,
         result: result.promise,
         dispose,
       }),
@@ -398,7 +389,7 @@ describe('SubagentRuntime', () => {
       capabilities: NO_CAPS,
       inheritsParentContext: false,
       async start() {
-        return { id: SessionId('infra-child'), localAgent: undefined, result: failure.promise, async dispose() {} }
+        return { id: SessionId('infra-child'), result: failure.promise, async dispose() {} }
       },
     })
     const failedRun = await start(subagents, 'infra', baseRequest())
@@ -445,18 +436,17 @@ describe('subagent descriptors', () => {
 
   it('omits absent fields, recovers a complete payload, and rejects unsupported versions', () => {
     expect(foldSubagentDescriptor([])).toBeUndefined()
-    const minimal = snapshotSubagentDescriptor({ mode: 'one-shot', provider: 'spawn' })
-    expect(minimal).toEqual({
+    const minimal = {
       version: SUBAGENT_DESCRIPTOR_VERSION,
-      mode: 'one-shot',
+      mode: 'one-shot' as const,
       provider: 'spawn',
-    })
+    }
     expect(foldSubagentDescriptor([event(minimal)])).toEqual(minimal)
+    expect(foldSubagentDescriptor([event({ ...minimal, label: 'child work' })]))
+      .toEqual({ ...minimal, label: 'child work' })
     expect(snapshotSubagentDescriptor({
-      mode: 'one-shot',
-      provider: 'spawn',
-      label: 'child work',
-    })).toEqual({ ...minimal, label: 'child work' })
+      mode: 'continuable', provider: 'spawn', label: 'child',
+    })).toEqual({ version: SUBAGENT_DESCRIPTOR_VERSION, mode: 'continuable', provider: 'spawn', label: 'child' })
     const complete = {
       version: SUBAGENT_DESCRIPTOR_VERSION,
       mode: 'continuable' as const,

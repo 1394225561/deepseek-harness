@@ -60,7 +60,7 @@ interface SubagentActivation {
 /**
  * Task and optional capabilities supplied to a backend. startActivation carries
  * these fields in request while owning its label, cancellation, and delivery
- * policy separately. Providers receive a resolved descriptor before start.
+ * policy separately.
  */
 interface SubagentStartRequest {
   /** Optional short display label persisted with a session-backed child. */
@@ -121,16 +121,6 @@ interface SubagentStartRequest {
 }
 ```
 
-```ts type-equiv
-/**
- * Provider-facing execution request after {@link SubagentRuntime.startActivation} resolves
- * the durable child descriptor.
- */
-interface ResolvedSubagentStartRequest extends SubagentStartRequest {
-  /** Detached descriptor a session-backed provider persists in the child log. */
-  readonly descriptor: SubagentDescriptorData
-}
-```
 
 ## Local children and activations
 
@@ -312,18 +302,8 @@ interface SubagentStopReasonMap {
  * through result.
  */
 interface SubagentRun {
-  /**
-   * Parent-scoped run id. For a local run, this MUST equal the published child
-   * session id, whose `parentSession` records `request.parent.session.id`; a
-   * remote provider mints an id unique in the parent namespace.
-   */
+  /** Provider-minted run id, unique in the parent namespace. */
   readonly id: SessionId
-  /**
-   * The exact published in-process child, or `undefined` for a remote run.
-   * When present, its id is {@link id}; the provider retains no ownership
-   * implication beyond the run's ordinary {@link dispose} contract.
-   */
-  readonly localAgent: Agent | undefined
   /**
    * Resolves with the child's terminal {@link SubagentResult} when the run
    * settles. Does NOT reject on a child-level failure — a model/transport
@@ -374,15 +354,13 @@ interface SubagentProvider {
   /**
    * Establish one external execution and return its owned handle.
    * The service has already validated that every requested start-time
-   * capability is supported and resolved `request.descriptor`, so a
-   * session-backed implementation appends that descriptor inside the child's
-   * initial turn. Before fulfillment, the provider owns setup and cleans any
-   * unpublished partial resources before rejecting. Ownership transfers on
+   * capability is supported. Before fulfillment, the provider owns setup and
+   * cleans any unpublished partial resources before rejecting. Ownership transfers on
    * fulfillment; subsequent turn or infrastructure failure settles through
    * the returned run. Distinct starts may overlap; cancellation, failure,
    * result settlement, and disposal remain independent for each run.
    */
-  start?(request: ResolvedSubagentStartRequest): Promise<SubagentRun>
+  start?(request: SubagentStartRequest): Promise<SubagentRun>
   /**
    * OPTIONAL (continuable-creation capability): contribute the detached
    * creation inputs that distinguish this provider's continuable children —

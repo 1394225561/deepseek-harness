@@ -56,7 +56,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 Every call returns `started subagent <childId>` after the runtime accepts the child. It does not wait for the child's result. The activation owns the work independently of the completed tool call; the runtime sends a completion notice and releases execution resources.
 
-Local Spawn and Fork children report results with `send_message` and receive a separate completion-status notice. They can accept more work through `send_message` while active or resume after settling. Codex, Claude Code, ACP, and DSH SDK backends include their final answer in the completion notice and do not accept follow-up messages.
+Local Spawn and Fork children report results with `send_message`; when that tool is unavailable, their completion notice carries the final answer. They can accept more work through `send_message` while active or resume after settling. Codex, Claude Code, ACP, and DSH SDK backends include their final answer in the completion notice and do not accept follow-up messages.
 
 `maxDepth` caps recursion (`0` forbids delegation); omission reads the current Host `subagent.maxDepth` setting, initially `1`, at each delegation. A numeric depth requires a provider with the `depthLimit` capability; `'provider-managed'` leaves the budget to an out-of-process provider. `persona` and `toolFilter` configure every child when the provider supports them, and the tool stays visible at the cap — each attempted start checks the calling agent's current depth and rejects with an errored result.
 
@@ -188,7 +188,7 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 #### What the model sees
 
-Local children send their answers through `send_message`; the runtime separately reports their completion status. External children include the final answer in their runtime completion notice. The returned child id identifies subsequent control and catalog operations; only backends with continuation support accept follow-up messages.
+Answer delivery follows the managed delegation rules above. The returned child id identifies subsequent control and catalog operations; only backends with continuation support accept follow-up messages.
 
 #### Token effect
 

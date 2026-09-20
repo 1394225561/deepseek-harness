@@ -6,7 +6,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SubagentRuntime from '../src/index.ts'
 import { TestSessionQuery } from './test-session-query.ts'
-import type { ResolvedSubagentStartRequest, SubagentCapabilities, SubagentResult, SubagentRun } from '../src/types.ts'
+import type { SubagentStartRequest, SubagentCapabilities, SubagentResult, SubagentRun } from '../src/types.ts'
 import { externalTestParent } from './external-activation-helpers.ts'
 import { continuationManager } from './continuation-internals.ts'
 
@@ -14,7 +14,7 @@ const capabilities: SubagentCapabilities = {
   agentOptions: false, outputSchema: false, depthLimit: false, toolFilter: false, persona: false,
 }
 
-async function setup(start: (request: ResolvedSubagentStartRequest) => Promise<SubagentRun>) {
+async function setup(start: (request: SubagentStartRequest) => Promise<SubagentRun>) {
   const ctx = new Context()
   await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SubagentRuntime)
@@ -37,7 +37,7 @@ function execution() {
   const cleanup = Promise.withResolvers<undefined>()
   const cleaning = Promise.withResolvers<undefined>()
   const dispose = vi.fn(() => { cleaning.resolve(undefined); return cleanup.promise })
-  const run: SubagentRun = { id: SessionId('external-task'), localAgent: undefined, result: result.promise, dispose }
+  const run: SubagentRun = { id: SessionId('external-task'), result: result.promise, dispose }
   return { result, cleanup, cleaning, dispose, run }
 }
 
@@ -166,7 +166,7 @@ describe('external subagent activations', () => {
     const result = Promise.withResolvers<SubagentResult>()
     const dispose = vi.fn(async () => { result.resolve({ output: [], stopReason: 'aborted' }) })
     const fixture = await setup(async () => ({
-      id: SessionId('dispose-settled'), localAgent: undefined, result: result.promise, dispose,
+      id: SessionId('dispose-settled'), result: result.promise, dispose,
     }))
     const activation = await fixture.start()
     await activation.dispose()
@@ -256,9 +256,7 @@ it('discovers an external leaf through the parent catalog and publishes a small 
     const activation = await fixture.start()
     const expected = { id: activation.childId, mode: 'one-shot', label: 'External work', external: 'pending' }
     expect(await fixture.ctx.subagents.listChildren(fixture.parent.id)).toMatchObject([expected])
-    expect(await fixture.ctx.subagents.listDescendants(fixture.parent.id)).toMatchObject([
-      { ...expected, kind: 'child', parentId: fixture.parent.id, depth: 1, hasChildren: false },
-    ])
+    expect(await fixture.ctx.subagents.listDescendants(fixture.parent.id)).toEqual([])
     expect(fixture.ctx.sessions.get(activation.childId)).toBeUndefined()
     const result: SubagentResult = { output: [{ type: 'text', text: 'x'.repeat(100_000) }], stopReason: 'completed' }
     backend.result.resolve(result)

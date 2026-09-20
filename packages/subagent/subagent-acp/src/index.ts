@@ -12,7 +12,6 @@ import { resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {
-  ResolvedSubagentStartRequest,
   SubagentCapabilities,
   SubagentProvider,
   SubagentStartRequest,
@@ -151,7 +150,7 @@ class AcpProvider implements SubagentProvider {
 
   constructor(readonly name: string, private readonly ctx: Context, private readonly config: ResolvedConfig) {}
 
-  start(request: ResolvedSubagentStartRequest) {
+  start(request: SubagentStartRequest) {
     if (request.signal.aborted) {
       throw new Error('subagent request was aborted before the ACP child started')
     }

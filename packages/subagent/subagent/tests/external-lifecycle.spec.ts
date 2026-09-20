@@ -6,12 +6,12 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SubagentRuntime from '../src/index.ts'
-import type { ResolvedSubagentStartRequest, SubagentRun, SubagentResult } from '../src/types.ts'
+import type { SubagentStartRequest, SubagentRun, SubagentResult } from '../src/types.ts'
 import { externalTestParent } from './external-activation-helpers.ts'
 
 const complete: SubagentResult = { output: [], stopReason: 'completed' }
 
-async function setup(start: (request: ResolvedSubagentStartRequest) => Promise<SubagentRun>) {
+async function setup(start: (request: SubagentStartRequest) => Promise<SubagentRun>) {
   const ctx = new Context()
   await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SubagentRuntime)
@@ -31,7 +31,7 @@ async function setup(start: (request: ResolvedSubagentStartRequest) => Promise<S
 }
 
 function run(id: string, result: Promise<SubagentResult>, dispose = () => Promise.resolve()): SubagentRun {
-  return { id: SessionId(id), result, localAgent: undefined, dispose }
+  return { id: SessionId(id), result, dispose }
 }
 
 describe('external activation ownership', () => {

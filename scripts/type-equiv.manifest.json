@@ -1378,11 +1378,6 @@
     },
     {
       "doc": "docs/subsystems/subagent.md",
-      "symbol": "ResolvedSubagentStartRequest",
-      "source": "packages/subagent/subagent/src/types.ts"
-    },
-    {
-      "doc": "docs/subsystems/subagent.md",
       "symbol": "AgentMessageSource",
       "source": "packages/subagent/subagent/src/continuation-messages.ts"
     },

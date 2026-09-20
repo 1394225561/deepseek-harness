@@ -26,7 +26,7 @@ import {
 } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import SubagentRuntime, { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
+import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type {
   SubprocessHandle,
@@ -428,7 +428,6 @@ describe('task admission and package contracts', () => {
       await expect(Promise.resolve().then(async () => provider.start!({
         ...request(undefined, controller.signal),
         parent: await externalTestParent(ctx, resolve('missing-parent-' + randomUUID())),
-        descriptor: snapshotSubagentDescriptor({ mode: 'one-shot', provider: provider.name }),
       }))).rejects.toThrow(cancelled
         ? 'request was aborted before SDK startup'
         : 'stage: query-start; category: unknown')

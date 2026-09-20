@@ -78,6 +78,8 @@ it('continues the parent through default Messages after a reasoning-bearing cont
     const notice = parent.session.deriveMessages().find(message => message.source.kind === 'subagent-settled')
     expect(notice?.content).toEqual([
       { type: 'text', text: `Background subagent ${started.childId} finished and will do no further work unless you send it more.` },
+      { type: 'text', text: 'Its closing message:' },
+      { type: 'text', text: 'child answer' },
     ])
     expect(requests[1]?.body).toMatchObject({ messages: [{ role: 'user', content: notice?.content }] })
 

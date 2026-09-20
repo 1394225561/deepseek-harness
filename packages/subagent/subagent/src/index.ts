@@ -74,7 +74,6 @@ export { SubagentRunId } from './types.ts'
 export type {
   ContinuableCreateRequest,
   ContinuableCreateSpec,
-  ResolvedSubagentStartRequest,
   SubagentCapabilities,
   SubagentActivation,
   SubagentActivationSpec,
@@ -96,9 +95,7 @@ export type {
   ContinuableSubagentDescriptorData,
   ContinuableSubagentDescriptorInput,
   OneShotSubagentDescriptorData,
-  OneShotSubagentDescriptorInput,
   SubagentDescriptorData,
-  SubagentDescriptorInput,
 } from './descriptor.ts'
 export { STRUCTURED_OUTPUT_TOOL } from './structured.ts'
 export { SubagentError } from './error.ts'

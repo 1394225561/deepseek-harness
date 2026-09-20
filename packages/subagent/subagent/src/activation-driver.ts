@@ -12,6 +12,7 @@ import { SubagentError } from './error.ts'
 import { epochStopReason } from './lifecycle.ts'
 import type { SubagentPromptRequest } from './control-types.ts'
 import type { SubagentResult, SubagentRun } from './types.ts'
+import type { StructuredAttachment } from './structured.ts'
 
 /** Local or external execution; only the local driver accepts further input. */
 export type ActivationDriver = LocalActivationDriver | ExternalActivationDriver
@@ -65,15 +66,6 @@ interface ActivationLifecycle {
   dispose(): Promise<void>
 }
 
-/** Read access to a requested structured result after tool acceptance. */
-export interface ActivationStructuredCapture {
-  /**
-   * Read the value committed by the structured-output tool.
-   * @returns the committed value, or undefined when no value was accepted.
-   */
-  captured(): { value: unknown } | undefined
-}
-
 /** Local execution with output restricted to events produced during residency. */
 export class LocalActivationDriver implements ActivationLifecycle {
   /** Execution with a local Agent inbox. */
@@ -88,7 +80,7 @@ export class LocalActivationDriver implements ActivationLifecycle {
    */
   constructor(
     private readonly handle: AgentHandle,
-    private readonly structured?: ActivationStructuredCapture,
+    private readonly structured?: StructuredAttachment,
   ) {
     this.agent = handle.agent
     this.boundary = this.agent.session.seq

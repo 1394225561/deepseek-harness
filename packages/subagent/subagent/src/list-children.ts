@@ -47,7 +47,6 @@ interface ListingRuntime {
   readonly query: SessionQueryEngine
   readonly cache: SessionProjectionCache | undefined
   readonly corpus: ReadonlyMap<SessionId, CorpusRecord>
-  readonly catalogs: Map<SessionId, SubagentCatalogEntry[]>
   readonly subagentParents: ReadonlySet<SessionId>
 }
 
@@ -109,39 +108,18 @@ export async function listDescendants(
 ): Promise<SubagentDescendantListEntry[]> {
   const listing = await prepareListing(ctx, signal)
   const positioned = descendantCandidates(listing.corpus, rootSessionId)
-  const candidates = positioned.filter(position => position.record.header.origin === 'subagent')
-  const resolved = await resolveCandidateRows(candidates.map(candidate => candidate.record), listing, signal)
-  const rows = new Map(candidates.map((candidate, index) => [candidate.record.header.id, resolved[index]]))
+  const rows = await resolveCandidateRows(
+    positioned.map(candidate => candidate.record),
+    listing,
+    signal,
+  )
   const entries: SubagentDescendantListEntry[] = []
-  const root = listing.corpus.get(rootSessionId)
-  const parents = root === undefined ? positioned : [{ record: root, parentId: rootSessionId, depth: 0 }, ...positioned]
-  for (const position of parents) {
-    const parentId = position.record.header.id
-    const row = rows.get(parentId)
-    if (row?.kind === 'diagnostic') {
+  positioned.forEach((position, index) => {
+    const row = rows[index]
+    if (row !== undefined) {
       entries.push({ ...row, parentId: position.parentId, depth: position.depth })
-      continue
     }
-    let catalog: SubagentCatalogEntry[] | undefined
-    try {
-      catalog = listing.catalogs.get(parentId)
-        ?? (position.record.live === undefined
-          ? await listChildren(ctx, parentId, signal)
-          : listing.projections.snapshot(position.record.live, ['subagentCatalog']).values.subagentCatalog)
-    } catch (error: unknown) {
-      assertListingNotCancelled(signal)
-      throw error
-    }
-    if (catalog === undefined) throw new SubagentError('subagentCatalog projection is unavailable', 'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE')
-    if (row !== undefined) entries.push({
-      ...row, parentId: position.parentId, depth: position.depth,
-      hasChildren: row.hasChildren || catalog.some(child => child.mode === 'one-shot' && child.external !== undefined),
-    })
-    for (const child of catalog) {
-      if (child.mode !== 'one-shot' || child.external === undefined) continue
-      entries.push({ ...child, kind: 'child', activity: 'inactive', hasChildren: false, parentId, depth: position.depth + 1 })
-    }
-  }
+  })
   return entries
 }
 
@@ -206,7 +184,7 @@ async function prepareListing(
       subagentParents.add(record.header.parentSession)
     }
   }
-  return { projections, query, cache, corpus, subagentParents, catalogs: new Map() }
+  return { projections, query, cache, corpus, subagentParents }
 }
 
 /** Resolve projection-backed rows for aligned candidates with bounded cold reads. */
@@ -228,9 +206,7 @@ async function resolveCandidateRows(
     // creation window before the establishing provider appends its descriptor.
     let identity: SubagentIdentityProjection | null | undefined
     try {
-      const values = projections.snapshot(candidate.live, ['subagent', 'subagentCatalog']).values
-      identity = values.subagent
-      if (values.subagentCatalog !== undefined) listing.catalogs.set(childId, values.subagentCatalog)
+      identity = projections.snapshot(candidate.live, ['subagent']).values.subagent
     } catch {
       // A rejecting identity fold is deterministic data damage in this child;
       // contain it as one diagnostic instead of failing the whole listing.
@@ -252,7 +228,7 @@ async function resolveCandidateRows(
       async () => {
         for (let job = queue.shift(); job !== undefined; job = queue.shift()) {
           rows[job.index] = await resolveColdIdentity(
-            query, cache, listing.catalogs, job.header,
+            query, cache, job.header,
             subagentParents.has(job.header.id), signal,
           )
         }
@@ -290,7 +266,7 @@ function descendantCandidates(
     const id = position.record.header.id
     if (visited.has(id)) continue
     visited.add(id)
-    positioned.push(position)
+    if (position.record.header.origin === 'subagent') positioned.push(position)
     const descendants = children.get(id) ?? []
     for (const record of [...descendants].reverse()) {
       stack.push({ record, parentId: id, depth: position.depth + 1 })
@@ -315,7 +291,6 @@ function compareCorpusRecords(a: CorpusRecord, b: CorpusRecord): number {
 async function resolveColdIdentity(
   query: SessionQueryEngine,
   cache: SessionProjectionCache | undefined,
-  catalogs: Map<SessionId, SubagentCatalogEntry[]>,
   header: SessionHeader,
   hasChildren: boolean,
   signal: AbortSignal | undefined,
@@ -328,9 +303,7 @@ async function resolveColdIdentity(
   if (cache !== undefined && !header.isSeeded) {
     let cached: SubagentIdentityProjection | null | undefined
     try {
-      const values = cache.cachedSnapshot(header, ['subagent', 'subagentCatalog'])?.values
-      cached = values?.subagent
-      if (values?.subagentCatalog !== undefined) catalogs.set(childId, values.subagentCatalog)
+      cached = cache.cachedSnapshot(header, ['subagent'])?.values.subagent
     } catch {
       // Unlike the preparation fold below, a throwing cache read renders no
       // verdict: the cache is derived data, so its damage (a poisoned stored
@@ -372,9 +345,7 @@ async function resolveColdIdentity(
   if (!sameLifecycle(ownedObservation.header, header)) {
     return { kind: 'diagnostic', id: childId, reason: 'corrupt' }
   }
-  const values = ownedObservation.projections?.values
-  if (values?.subagentCatalog !== undefined) catalogs.set(childId, values.subagentCatalog)
-  const identity = values?.subagent
+  const identity = ownedObservation.projections?.values.subagent
   if (identity === undefined || identity === null
     || identity.seq < ownedObservation.inheritedEventCount) {
     return { kind: 'diagnostic', id: childId, reason: 'corrupt' }

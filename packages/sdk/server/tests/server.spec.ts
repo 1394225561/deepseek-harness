@@ -17,7 +17,7 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek'
-import SubagentRuntime, { snapshotSubagentDescriptor, SubagentRunId, type SubagentStartRequest, type SubagentRun, type SubagentResult, type SubagentRunEndInfo } from '@deepseek-ai/dsh-subagent'
+import SubagentRuntime, { SubagentRunId, type SubagentStartRequest, type SubagentRun, type SubagentResult, type SubagentRunEndInfo } from '@deepseek-ai/dsh-subagent'
 import type { JsonRpcTransportPeer } from '@deepseek-ai/dsh-sdk-protocol'
 import { HarnessSdkJsonRpcServer } from '../src/index.ts'
 
@@ -71,11 +71,13 @@ async function makeHarness(storageDir: string) {
 }
 
 /** Feed SDK lifecycle inputs without coupling protocol projection tests to activation admission. */
-async function startLifecycleFixture(ctx: Context, providerName: string, request: SubagentStartRequest): Promise<SubagentRun> {
+async function startLifecycleFixture(
+  ctx: Context, providerName: string, request: SubagentStartRequest, local = false,
+): Promise<SubagentRun> {
   const provider = ctx.subagents.getProvider(providerName)
   if (provider?.start === undefined) throw new Error('missing lifecycle fixture provider')
-  const run = await provider.start({ ...request, descriptor: snapshotSubagentDescriptor({ mode: 'one-shot', provider: providerName, label: providerName }) })
-  const identity = { runId: SubagentRunId(randomUUID()), provider: providerName, id: run.id, local: run.localAgent !== undefined }
+  const run = await provider.start(request)
+  const identity = { runId: SubagentRunId(randomUUID()), provider: providerName, id: run.id, local }
   const carrier = scopeTarget(ctx.subagents, request.parent)
   ctx.emit(carrier, 'subagent/start', identity)
   void run.result.then(
@@ -89,7 +91,7 @@ async function startLifecycleFixture(ctx: Context, providerName: string, request
 async function settleSubagent(
   ctx: Context,
   parent: Agent,
-  info: Omit<SubagentRunEndInfo, 'runId' | 'local'> & { localAgent: Agent | undefined },
+  info: Omit<SubagentRunEndInfo, 'runId' | 'local'> & { localAgent?: Agent },
   beforeSettle?: () => Promise<void>,
 ): Promise<void> {
   const result = Promise.withResolvers<SubagentResult>()
@@ -100,7 +102,6 @@ async function settleSubagent(
     async start() {
       return {
         id: info.id,
-        localAgent: info.localAgent,
         result: result.promise,
         dispose: () => Promise.resolve(),
       }
@@ -111,7 +112,7 @@ async function settleSubagent(
       parent,
       prompt: [],
       signal: new AbortController().signal,
-    })
+    }, info.localAgent !== undefined)
     await beforeSettle?.()
     if (info.lastAssistantMessage === undefined) {
       result.reject(new Error('synthetic infrastructure failure'))
@@ -535,7 +536,6 @@ describe('HarnessSdkJsonRpcServer', () => {
       await settleSubagent(ctx, parentHandle.agent, {
         provider: 'remote',
         id: SessionId('remote-run-id'),
-        localAgent: undefined,
         stopReason: 'completed',
         lastAssistantMessage: [],
       })
@@ -622,7 +622,6 @@ describe('HarnessSdkJsonRpcServer', () => {
       const replacement = Promise.withResolvers<SubagentResult>()
       const results = [first.promise, sameLifetime.promise, replacement.promise]
       let starts = 0
-      let currentLocalAgent = oldChild.agent
       const disposeProvider = ctx.subagents.registerProvider({
         name: 'reused',
         capabilities: { agentOptions: false, outputSchema: false, depthLimit: false, toolFilter: false, persona: false },
@@ -631,7 +630,7 @@ describe('HarnessSdkJsonRpcServer', () => {
           const result = results[starts]
           starts += 1
           if (result === undefined) throw new Error('unexpected fourth reused-id run')
-          return Promise.resolve({ id: SessionId('reused-child'), localAgent: currentLocalAgent, result, dispose: () => Promise.resolve() })
+          return Promise.resolve({ id: SessionId('reused-child'), result, dispose: () => Promise.resolve() })
         },
       })
 
@@ -639,12 +638,12 @@ describe('HarnessSdkJsonRpcServer', () => {
         parent: oldParent.agent,
         prompt: [],
         signal: new AbortController().signal,
-      })
+      }, true)
       const sameLifetimeRun = await startLifecycleFixture(ctx, 'reused', {
         parent: oldParent.agent,
         prompt: [],
         signal: new AbortController().signal,
-      })
+      }, true)
       sameLifetime.resolve({ output: [{ type: 'text', text: 'same lifetime' }], stopReason: 'completed' })
       await sameLifetimeRun.result
       await oldChild.dispose()
@@ -659,12 +658,11 @@ describe('HarnessSdkJsonRpcServer', () => {
         agentOptions: { model: 'deepseek-official' },
         parentAgent: newParent.agent,
       })
-      currentLocalAgent = newChild.agent
       const secondRun = await startLifecycleFixture(ctx, 'reused', {
         parent: newParent.agent,
         prompt: [],
         signal: new AbortController().signal,
-      })
+      }, true)
 
       replacement.resolve({ output: [{ type: 'text', text: 'new lifetime' }], stopReason: 'completed' })
       await secondRun.result
@@ -726,7 +724,6 @@ describe('HarnessSdkJsonRpcServer', () => {
         inheritsParentContext: false,
         start: () => Promise.resolve({
           id: SessionId('provider-reuse-child'),
-          localAgent: child.agent,
           result: localResult.promise,
           dispose: () => Promise.resolve(),
         }),
@@ -735,7 +732,7 @@ describe('HarnessSdkJsonRpcServer', () => {
         parent: parent.agent,
         prompt: [],
         signal: new AbortController().signal,
-      })
+      }, true)
       unregisterLocal()
 
       const unregisterRemote = ctx.subagents.registerProvider({
@@ -744,7 +741,6 @@ describe('HarnessSdkJsonRpcServer', () => {
         inheritsParentContext: false,
         start: () => Promise.resolve({
           id: SessionId('provider-reuse-child'),
-          localAgent: undefined,
           result: remoteResult.promise,
           dispose: () => Promise.resolve(),
         }),
@@ -826,7 +822,6 @@ describe('HarnessSdkJsonRpcServer', () => {
         inheritsParentContext: true,
         start: () => Promise.resolve({
           id: SessionId('fallback-child-session'),
-          localAgent: fallbackChild,
           result: missedStartResult.promise,
           dispose: () => Promise.resolve(),
         }),
@@ -837,7 +832,7 @@ describe('HarnessSdkJsonRpcServer', () => {
         parent: parentHandle.agent,
         prompt: [],
         signal: new AbortController().signal,
-      })
+      }, true)
       const transport = new FakeTransport()
       const server = new HarnessSdkJsonRpcServer(ctx, transport, { maxTokensAsSuccess: true })
 
@@ -864,7 +859,6 @@ describe('HarnessSdkJsonRpcServer', () => {
       await settleSubagent(ctx, parentHandle.agent, {
         provider: 'fork',
         id: SessionId('missing-child-agent'),
-        localAgent: undefined,
         stopReason: 'error',
       })
 

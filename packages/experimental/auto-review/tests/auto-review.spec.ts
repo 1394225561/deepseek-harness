@@ -29,8 +29,8 @@ import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SubagentRuntime, {
   NO_START_CAPABILITIES,
   resolveChildCwd,
-  snapshotSubagentDescriptor,
-  type ResolvedSubagentStartRequest,
+  SUBAGENT_DESCRIPTOR_VERSION,
+  type SubagentStartRequest,
 } from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-shell'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -540,10 +540,11 @@ describe('native review request', () => {
     ctx.permissionPresets.set(session, AUTO_PRESET)
     const agent = agentFor(session)
     appendHeader(session, [{ name: 'probe', description: 'probe', parameters: { type: 'object' } }])
-    session.append('subagent/descriptor', snapshotSubagentDescriptor({
+    session.append('subagent/descriptor', {
+      version: SUBAGENT_DESCRIPTOR_VERSION,
       mode: 'one-shot',
       provider: 'in-process',
-    }))
+    })
     appendUser(session, 'Delete target as the delegated child task.', { kind: 'user' })
     appendUser(session, 'A later unattributed user-role fact.', { kind: 'user' })
     appendUser(session, 'Do not delete target.', {
@@ -1121,7 +1122,7 @@ describe('out-of-process delegation boundary', () => {
       scriptedDecision('allow', 'allow'),
     ])
     await ctx.plugin(SubagentRuntime)
-    let providerRequest: ResolvedSubagentStartRequest | undefined
+    let providerRequest: SubagentStartRequest | undefined
     ctx.subagents.registerProvider({
       name: 'remote-boundary',
       capabilities: NO_START_CAPABILITIES,
@@ -1131,7 +1132,6 @@ describe('out-of-process delegation boundary', () => {
         providerRequest = request
         return {
           id: SessionId('remote-boundary-child'),
-          localAgent: undefined,
           result: Promise.resolve({
             output: [{ type: 'text', text: 'remote child completed' }],
             stopReason: 'completed',

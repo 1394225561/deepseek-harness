@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { PassThrough, type Readable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
-import SubagentRuntime, { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
+import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -614,7 +614,6 @@ describe('cwd resolution', () => {
     await expect(Promise.resolve().then(async () => provider.start!({
       ...request(),
       parent: await externalTestParent(ctx, resolve('missing-parent-' + randomUUID())),
-      descriptor: snapshotSubagentDescriptor({ mode: 'one-shot', provider: provider.name }),
     }))).rejects.toThrow(`subagent-acp: ${expectedFailure('stage: initialize; category: configuration')}`)
     expect(spawn).not.toHaveBeenCalled()
   })
@@ -790,7 +789,6 @@ describe('dsh-subagent-acp', () => {
       prompt: [{ type: 'text' as const, text: 'p' }],
       parent,
       signal: controller.signal,
-      descriptor: snapshotSubagentDescriptor({ mode: 'one-shot', provider: provider.name }),
     }))).rejects.toThrow('aborted before the ACP child started')
   })
 

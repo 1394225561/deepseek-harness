@@ -49,7 +49,7 @@ import type {
   SubagentInterruptAuthority,
   SubagentActivationSpec,
   SubagentActivation,
-  ResolvedSubagentStartRequest,
+  SubagentStartRequest,
   SubagentRun,
   SubagentSendMessageOptions,
 } from './types.ts'
@@ -69,7 +69,7 @@ type ChildDeliveryOptions =
 
 /** Package-private hooks supplied by the owning service. */
 interface ContinuationHost {
-  startExternal(name: string, request: ResolvedSubagentStartRequest): Promise<SubagentRun>
+  startExternal(name: string, request: SubagentStartRequest): Promise<SubagentRun>
   /** Resolve one provider's detached continuable-creation contribution. */
   prepareContinuable(name: string, request: ContinuableCreateRequest): Promise<ContinuableCreateSpec>
   /** Build the lifecycle observer for one Activation residency epoch. */
@@ -207,7 +207,6 @@ export class SubagentContinuationManager {
     this.activations.assertAdmitting(parent)
     const pendingId = brandString<SessionId>(randomUUID())
     const releaseHold = this.activations.holdOwnership(parent, pendingId)
-    const descriptor = snapshotSubagentDescriptor({ mode: 'one-shot', provider: spec.provider, label: spec.label })
     let activation: Activation | undefined
     try {
       activation = await this.activations.materialize({
@@ -219,11 +218,11 @@ export class SubagentContinuationManager {
         signal: spec.signal,
         delivery: spec.delivery,
         external: signal => this.host.startExternal(spec.provider, {
-          ...spec.request, label: spec.label, descriptor, signal,
+          ...spec.request, label: spec.label, signal,
         }),
       })
       this.activations.assertAdmitting(parent)
-      this.activations.authorizeLineage(parent, activation.childId, activation.parentSession)
+      this.activations.authorizeLineage(parent, activation.childId, activation.parent.id)
       spec.signal.throwIfAborted()
       const childId = activation.childId
       const childCreatedAt = Date.now()
@@ -286,7 +285,7 @@ export class SubagentContinuationManager {
     const senderActivation = this.activations.get(sender.id)
     if (senderActivation !== undefined
       && senderActivation.driver.agent === sender
-      && senderActivation.parentSession === targetId) {
+      && senderActivation.parent.id === targetId) {
       options.signal.throwIfAborted()
       return this.sendToParent(senderActivation, sender, content)
     }
@@ -419,7 +418,7 @@ export class SubagentContinuationManager {
         'ACTIVATION_CLOSING',
       )
     }
-    const parent = this.ctx.agents.get(activation.parentSession)
+    const parent = this.ctx.agents.get(activation.parent.id)
     if (parent !== activation.parent) {
       throw new SubagentError(
         'direct parent is not live; the message was not delivered',

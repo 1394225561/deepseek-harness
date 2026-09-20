@@ -8,7 +8,6 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { boundContextSummary, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import type { ActivationTerminal } from './lifecycle.ts'
 import type { SubagentResult } from './types.ts'
 
 /** Durable attribution for one model-authored message between adjacent Agents. */
@@ -139,7 +138,7 @@ function settlementSummary(childId: SessionId, stopReason: SubagentResult['stopR
  */
 export function createSettlementMessage(
   childId: SessionId,
-  terminal: ActivationTerminal,
+  terminal: SubagentResult,
   includeOutput = true,
   continuable = true,
 ): ReturnType<typeof createUserMessage> {
@@ -147,7 +146,7 @@ export function createSettlementMessage(
   // Parent providers receive this notice as a user message and may reject
   // nontext assistant blocks. Keep this conversion local so SDK/UI consumers
   // retain the complete child output.
-  const closingText = (includeOutput ? terminal.output ?? [] : []).flatMap(block =>
+  const closingText = (includeOutput ? terminal.output : []).flatMap(block =>
     block.type === 'text' && block.text.length > 0 ? [block] : [],
   )
   return createUserMessage({

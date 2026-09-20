@@ -56,7 +56,7 @@ kind: "package-reference"
 
 运行时接受子任务后，每次调用都会返回 `started subagent <childId>`，不等待子任务结果。activation 独立于已完成的工具调用拥有这项工作；运行时发送完成通知并释放执行资源。
 
-本地 Spawn 和 Fork 子任务通过 `send_message` 汇报结果，并另行产生完成状态通知。它们可以在活跃期间通过 `send_message` 接受更多工作，或在结束后恢复。Codex、Claude Code、ACP 与 DSH SDK 后端在完成通知中附带最终回答，不接受后续消息。
+本地 Spawn 和 Fork 子任务通过 `send_message` 汇报结果；该工具不可用时，完成通知会附带最终回答。它们可以在活跃期间通过 `send_message` 接受更多工作，或在结束后恢复。Codex、Claude Code、ACP 与 DSH SDK 后端在完成通知中附带最终回答，不接受后续消息。
 
 `maxDepth` 限制递归深度（`0` 禁止委派）；省略时，每次委派读取 Host 当前的 `subagent.maxDepth` 设置，初始值为 `1`。数值深度要求提供方具备 `depthLimit` 能力；`'provider-managed'` 把预算留给进程外提供方。当提供方支持时，`persona` 与 `toolFilter` 会配置每个子 agent；工具在达到上限时仍然可见——每次尝试启动都会检查调用 agent 的当前深度，被拒绝时返回出错的工具结果。
 
@@ -188,7 +188,7 @@ Start independent delegations with `subagent` or `subagent_fork` together in one
 
 #### 模型看到什么
 
-本地子任务通过 `send_message` 发送回答；运行时另行汇报其完成状态。外部子任务在运行时完成通知中附带最终回答。返回的子任务 id 用于后续控制与目录操作；只有支持继续执行的后端才接受后续消息。
+回答投递遵循上文的受管理委派规则。返回的子任务 id 用于后续控制与目录操作；只有支持继续执行的后端才接受后续消息。
 
 #### Token 影响
 

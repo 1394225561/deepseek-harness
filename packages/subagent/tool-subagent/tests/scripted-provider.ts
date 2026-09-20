@@ -90,7 +90,6 @@ class ScriptedSubagentProvider implements SubagentProvider {
 
     return {
       id: SessionId(`scripted-subagent:${this.name}:${request.parent.id}:${++this.started}`),
-      localAgent: undefined,
       result,
       dispose(): Promise<void> {
         state.cancelled = true

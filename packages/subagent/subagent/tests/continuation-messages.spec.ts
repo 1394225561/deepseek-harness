@@ -26,12 +26,11 @@ describe('continuable settlement content', () => {
   })
 
   it.each([
-    ['absent output', undefined],
     ['empty output', []],
     ['reasoning-only output', [reasoning]],
     ['empty text', [{ type: 'text', text: '' }]],
-  ] satisfies [string, ContentBlock[] | undefined][])('reports no closing message for %s', (_label, output) => {
-    const message = createSettlementMessage(childId, { stopReason: 'completed', ...output === undefined ? {} : { output } })
+  ] satisfies [string, ContentBlock[]][])('reports no closing message for %s', (_label, output) => {
+    const message = createSettlementMessage(childId, { stopReason: 'completed', output })
 
     expect(message.content).toEqual([
       summary,

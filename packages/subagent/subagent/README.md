@@ -64,7 +64,7 @@ Every exact live Agent can use `sendMessage()` with a direct continuable child; 
 
 ### Failure and recovery
 
-Unsupported provider capabilities reject creation. The caller signal cancels only unpublished work; after publication, `dispose()` cancels the exact activation and waits for its descendants and resources. `result` carries output, optional structured data, and a stop reason; infrastructure failures may reject it. Result readiness can precede subtree quiescence, so callers that require cleanup also await `dispose()`.
+Unsupported provider capabilities reject creation. The caller signal cancels only unpublished work; after publication, `dispose()` cancels the exact activation and waits for its descendants and resources. `result` carries output, optional structured data, and a stop reason; infrastructure failures may reject it. Callers that require resource cleanup also await `dispose()`.
 
 -----
 
@@ -108,16 +108,16 @@ The service validates requested capabilities before creation. Local providers su
 
 ### Activation settlement
 
-The manager reserves child identity and capacity, materializes a local Agent or external execution, and accepts the initial task. Local `result` becomes ready when Agent activity finishes and the inbox is empty. Final disposal additionally waits for owned descendants and revalidates activity after the final Session flush. Closing admission and disposing the handle prevent late work from entering a released Agent. Parent delivery emits its notice after settlement; caller delivery leaves collection to the awaiting workflow. Headless hosts repeat `agent.whenIdle()` and `waitForChildren(agent)` until no child work remains, so completion notices can produce the final parent answer.
+The manager reserves child identity and capacity, materializes a local Agent or external execution, and accepts the initial task. Local `result` becomes ready after Agent activity, pending input, and owned descendants finish, with activity revalidated after the final Session flush. The manager publishes this result while closing admission, before releasing the local handle. External results can become ready before process cleanup finishes. Closing admission and disposing the handle prevent late work from entering a released Agent. Parent delivery emits its notice after settlement; caller delivery leaves collection to the awaiting workflow. Headless hosts repeat `agent.whenIdle()` and `waitForChildren(agent)` until no child work remains, so completion notices can produce the final parent answer.
 
-Successful local and external creation appends a `subagent/catalog` fact to the parent Session. External entries have no child Session and carry only their last recorded outcome. Terminal updates replace the same catalog row; pending does not imply a live process. Complete results go to the caller or the parent completion notice. Projections exclude inherited facts. Direct lists read one parent projection; descendant lists combine corpus identity with parent catalogs and reuse observations.
+Successful local and external creation appends a `subagent/catalog` fact to the parent Session. External entries have no child Session and carry only their last recorded outcome. Terminal updates replace the same catalog row; pending does not imply a live process. Complete results go to the caller or the parent completion notice. Projections exclude inherited facts. Direct lists read one parent projection; descendant lists enumerate Session-backed children through corpus identity.
 
 ### Ownership and invariants
 
 - **The manager owns accepted work** — unpublished failures roll back; published handles cancel their exact activation and await child-first disposal.
 - **Registration is effect-scoped** — removing a provider blocks new starts but never revokes accepted runs.
 - **Agent-message authority is exact adjacency** — `sendMessage()` requires the exact live sender; every sender may target a direct continuable child, while only a sender with a resident continuable Activation may target its direct parent.
-- **The descriptor is log-only** — a session event absent from model history and retained across compaction; a continuable descriptor records the resolved child provider, model, and reasoning effort explicitly for cold resume.
+- **The descriptor is log-only** — a session event absent from model history and retained across compaction; the writer records the resolved child provider, model, and reasoning effort for cold resume. Historical one-shot descriptors remain readable.
 
 </details>
 
@@ -146,7 +146,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-Parent delivery emits a user-role status notice for local children, whose results reach the parent through child-authored `sendMessage()` calls. External notices also include the child’s nonempty final text blocks and state that further messages are unsupported. Reasoning and other nontext blocks are excluded. Caller delivery emits no notice; SDK lifecycle notifications retain the complete child output.
+Parent delivery emits a user-role status notice for local children, whose results reach the parent through child-authored `send_message` calls. If that tool is unavailable to the child, the notice includes its final text instead. External notices also include the child’s nonempty final text blocks and state that further messages are unsupported. Reasoning and other nontext blocks are excluded. Caller delivery emits no notice; SDK lifecycle notifications retain the complete child output.
 
 #### Token effect
 

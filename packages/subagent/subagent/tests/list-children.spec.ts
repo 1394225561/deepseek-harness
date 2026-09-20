@@ -621,7 +621,7 @@ describe('SubagentRuntime.listDescendants', () => {
     }, childEvents(descriptorPayload('disk label')))
     ctx.sessionProjectionCache.cachedSnapshot = () => ({
       asOfSeq: SessionSeq(2),
-      values: { subagent: { mode: 'one-shot', seq: SessionSeq(2) }, subagentCatalog: [] },
+      values: { subagent: { mode: 'one-shot', seq: SessionSeq(2) } },
     })
     const open = vi.spyOn(ctx.sessionPersistence, 'open')
 
@@ -783,38 +783,7 @@ describe('SubagentRuntime.listDescendants', () => {
 })
 
 
-it('includes external leaves beneath local children and ordinary Session intermediates', async () => {
-  const { ctx, parent } = await setup([])
-  const child = ctx.sessions.create(SessionId('catalog-local'), { meta: { parentSession: parent.id, origin: 'subagent' } })
-  child.append('subagent/descriptor', descriptorPayload('Local'))
-  const ordinary = ctx.sessions.create(SessionId('catalog-ordinary'), { meta: { parentSession: parent.id } })
-  for (const session of [child, ordinary]) {
-    session.append('subagent/catalog', { version: 0, childId: SessionId(`${session.id}-external`), childCreatedAt: 1,
-      mode: 'one-shot', label: 'External', external: 'pending' })
-  }
-  const rows = await ctx.subagents.listDescendants(parent.id)
-  expect(rows).toContainEqual(expect.objectContaining({ id: child.id, hasChildren: true }))
-  for (const session of [child, ordinary]) {
-    expect(rows).toContainEqual(expect.objectContaining({ id: `${session.id}-external`, parentId: session.id,
-      depth: 2, mode: 'one-shot', external: 'pending', hasChildren: false }))
-  }
-})
-
-
 it('lists an absent root with no recorded descendants as empty', async () => {
   const { ctx } = await setup([])
   expect(await ctx.subagents.listDescendants(SessionId('absent-root'))).toEqual([])
-})
-
-it('reports an unreadable ordinary intermediary instead of silently losing its external catalog', async () => {
-  const { ctx, parent } = await setup([])
-  await authorChild(ctx, 'ordinary-unreadable', { parentSession: parent.id }, [])
-  vi.spyOn(ctx.sessionQuery, 'observeSession').mockRejectedValue(new Error('catalog unavailable'))
-  await expect(ctx.subagents.listDescendants(parent.id)).rejects.toThrow('catalog unavailable')
-})
-
-it('requires the catalog projection when enumerating an ordinary parent', async () => {
-  const { ctx, parent } = await setup([])
-  vi.spyOn(ctx.sessionProjections, 'snapshot').mockReturnValue({ asOfSeq: SessionSeq(0), values: {} })
-  await expect(ctx.subagents.listDescendants(parent.id)).rejects.toMatchObject({ code: 'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE' })
 })

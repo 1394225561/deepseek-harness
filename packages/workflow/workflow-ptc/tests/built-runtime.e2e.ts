@@ -46,7 +46,7 @@ try {
     async start() {
       selectedStarts += 1
       return {
-        id: 'built-child', localAgent: undefined,
+        id: 'built-child',
         result: Promise.resolve({ output: [], structured: { answer: 42 }, stopReason: 'completed' }),
         dispose: () => Promise.resolve(),
       }

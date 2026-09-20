@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-`startActivation()` 是所有提供方的消费者入口。已发布句柄暴露子级身份、结果 promise 和对应 activation 的资源释放。调用方信号仅取消未发布的创建。结果就绪与子树完全停稳保持分离：等待有用结果并不表示所拥有的后代或进程清理已完成。
+`startActivation()` 是所有提供方的消费者入口。已发布句柄暴露子级身份、结果 promise 和对应 activation 的资源释放。调用方信号仅取消未发布的创建。本地结果等待待处理输入与所拥有的后代结束后才关闭准入，使后代回复能够进入最终答案。外部结果就绪仍与进程清理分离；需要资源释放的调用方会等待 disposal。
 
 本地 spawn 和 fork 提供方只贡献 `prepareContinuable()` 数据，由 subagent 服务拥有 Agent 创建与驻留。独立进程内驱动器包被移除。结构化工具、校验、指令与终止保护附着于一次 activation，并随其关闭。捕获后该 activation 拒绝继续输入；冷恢复重建普通对话，不携带此前的 schema。
 

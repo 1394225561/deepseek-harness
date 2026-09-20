@@ -294,7 +294,6 @@ describe('dsh-tool-subagent', () => {
         seen = request
         return {
           id: SessionId('bare-child'),
-          localAgent: undefined,
           result: Promise.resolve({ output: [{ type: 'text', text: 'ok' }], stopReason: 'completed' as const }),
           dispose: async () => {},
         }
@@ -557,7 +556,6 @@ describe('dsh-tool-subagent', () => {
         seen = request
         return {
           id: SessionId('capture2-child'),
-          localAgent: undefined,
           result: Promise.resolve({ output: [{ type: 'text', text: 'ok' }], stopReason: 'completed' as const }),
           dispose: async () => {},
         }
@@ -612,7 +610,6 @@ describe('dsh-tool-subagent', () => {
         seen = request
         return {
           id: SessionId('capture3-child'),
-          localAgent: undefined,
           result: Promise.resolve({ output: [{ type: 'text', text: 'ok' }], stopReason: 'completed' as const }),
           dispose: async () => {},
         }
@@ -640,7 +637,6 @@ describe('dsh-tool-subagent', () => {
         seen = request
         return {
           id: SessionId('capture4-child'),
-          localAgent: undefined,
           result: Promise.resolve({ output: [{ type: 'text', text: 'ok' }], stopReason: 'completed' as const }),
           dispose: async () => {},
         }
@@ -826,7 +822,6 @@ describe('depth budget configuration', () => {
         requests.push(request)
         return {
           id: SessionId(`capture-child-${requests.length}`),
-          localAgent: undefined,
           result: Promise.resolve({ output: [{ type: 'text', text: 'ok' }], stopReason: 'completed' as const }),
           dispose: async () => {},
         }
@@ -876,7 +871,6 @@ describe('depth budget configuration', () => {
         requests.push(request)
         return {
           id: SessionId('external-child'),
-          localAgent: undefined,
           result: Promise.resolve({ output: [{ type: 'text', text: 'ok' }], stopReason: 'completed' as const }),
           dispose: async () => {},
         }

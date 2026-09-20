@@ -38,8 +38,9 @@ import type { DelegatedPolicyOverrides } from './child-agent.ts'
 import { createSettlementMessage } from './continuation-messages.ts'
 import type { SubagentDescriptorData } from './descriptor.ts'
 import { SubagentError } from './error.ts'
+import { isAdjacentAgentSendMessageTool } from './internal.ts'
 import type { SubagentPromptRequest } from './control-types.ts'
-import type { ActivationObserver, ActivationTerminal } from './lifecycle.ts'
+import type { ActivationObserver } from './lifecycle.ts'
 
 /** Process-local slots shared through uninterrupted continuable parent links. */
 class ActivationPool {
@@ -71,15 +72,6 @@ export interface Activation {
   readonly releaseSlot: () => void
   /** The durable child this Activation is an epoch of. */
   readonly childId: SessionId
-  /**
-   * The durable direct parent, stored because settlement delivery must resolve
-   * that parent after the child handle is gone. {@link ancestry} cannot answer
-   * it: a `WeakSet` is not enumerable, and the child's own header is only
-   * reachable through a handle disposal has already released.
-   */
-  readonly parentSession: SessionId
-  /** The provider name recorded in the durable descriptor. */
-  readonly provider: string
   /** The retained live Agent handle, disposed exactly once at settlement. */
   readonly driver: ActivationDriver
   readonly parent: Agent
@@ -352,7 +344,7 @@ export class ContinuableActivationRegistry {
     const activation = this.resident.get(targetSessionId)
     if (activation === undefined) return
     if (authority.kind === 'user') {
-      if (activation.parentSession !== authority.parentSessionId) {
+      if (activation.parent.id !== authority.parentSessionId) {
         throw new SubagentError(
           `subagent "${targetSessionId}" belongs to another parent session`,
           'UNAUTHORIZED',
@@ -486,7 +478,7 @@ export class ContinuableActivationRegistry {
     for (const childId of new Set(childIds)) {
       const activation = this.resident.get(childId)
       if (activation === undefined) continue
-      if (activation.parentSession !== parent.id || !activation.ancestry.has(parent)) {
+      if (activation.parent.id !== parent.id || !activation.ancestry.has(parent)) {
         throw new SubagentError(
           `subagent "${childId}" is not a direct child of agent "${parent.id}"`,
           'UNAUTHORIZED',
@@ -591,7 +583,7 @@ export class ContinuableActivationRegistry {
     this.authorizeLineage(
       parent,
       activation.childId,
-      activation.parentSession,
+      activation.parent.id,
     )
     this.acquireOwnership(parent, activation.childId)
     try {
@@ -605,11 +597,10 @@ export class ContinuableActivationRegistry {
   /**
    * Stop and release one Activation through its memoized close transaction.
    * @param activation - exact residency epoch to close.
-   * @param finalStateFlushed - whether natural settlement already flushed final state.
    * @returns the shared close transaction.
    */
-  dispose(activation: Activation, finalStateFlushed = false): Promise<void> {
-    return this.close(activation, () => this.finishDisposal(activation, finalStateFlushed))
+  dispose(activation: Activation): Promise<void> {
+    return this.close(activation, () => this.finishDisposal(activation))
   }
 
   /** Close admission synchronously and share one release, including startup rollback. */
@@ -755,8 +746,6 @@ export class ContinuableActivationRegistry {
       pool,
       releaseSlot,
       childId,
-      parentSession: parent.id,
-      provider,
       driver,
       parent,
       delivery: inputs.delivery ?? 'parent',
@@ -845,7 +834,7 @@ export class ContinuableActivationRegistry {
         const idleObservation = activation.poke
         await activation.driver.whenIdle()
         if (activation.closing !== undefined) return
-        if (activation.announced && !activation.driver.hasPending) {
+        if (activation.driver.kind === 'external') {
           try {
             activation.result.resolve(activation.driver.capture())
           } catch (error: unknown) {
@@ -873,9 +862,19 @@ export class ContinuableActivationRegistry {
           if (activation.driver.version !== finalSeq) {
             return Promise.resolve('retry')
           }
-          // Idle ownership and admission closure must share one synchronous span.
+          let result: SubagentResult
+          try {
+            result = activation.driver.capture()
+          } catch (error: unknown) {
+            activation.result.reject(error)
+            return Promise.resolve({ done: this.dispose(activation) })
+          }
+          // Result publication and admission closure share the final idle claim.
           let done!: Promise<void>
-          if (!activation.driver.closeWhenIdle(() => { done = this.dispose(activation, true) })) {
+          if (!activation.driver.closeWhenIdle(() => {
+            activation.result.resolve(result)
+            done = this.close(activation, () => this.finishDisposal(activation, result))
+          })) {
             return Promise.resolve('retry')
           }
           return Promise.resolve({ done })
@@ -911,16 +910,18 @@ export class ContinuableActivationRegistry {
   }
 
   /** Propagate stop synchronously, then finish the child-first release. */
-  private async finishDisposal(activation: Activation, finalStateFlushed: boolean): Promise<void> {
+  private async finishDisposal(activation: Activation, settledResult?: SubagentResult): Promise<void> {
     this.wake(activation)
     const { childId } = activation
     const failures: SubagentError[] = []
+    let result: SubagentResult = settledResult ?? { output: [], stopReason: 'error' }
+    const child = activation.driver.agent
+    const includeOutput = child === undefined
+      || !isAdjacentAgentSendMessageTool(child.ctx.get('tools')?.get('send_message', child))
     const detail = (error: unknown): string => activation.driver.agent === undefined
       ? failureMessage(error)
       : errorChain(error)
-    if (finalStateFlushed) {
-      activation.observer.captureResult(activation.driver.capture())
-    } else {
+    if (settledResult === undefined) {
       activation.driver.cancel('parent')
       const idle = activation.driver.whenIdle()
       const children = [...activation.ownedChildren]
@@ -945,7 +946,7 @@ export class ContinuableActivationRegistry {
         }
         await idle
         await this.flushFinalState(activation)
-        activation.observer.captureResult(activation.driver.capture())
+        result = activation.driver.capture()
       } catch (error: unknown) {
         failures.push(new SubagentError(
           `subagent "${childId}" activation teardown failed: ${detail(error)}`,
@@ -977,31 +978,31 @@ export class ContinuableActivationRegistry {
     }
     this.resident.delete(childId)
     activation.releaseSlot()
-    const terminal = activation.observer.terminal(failure)
-    const result = { ...terminal, output: terminal.output ?? [] }
+    if (failure !== undefined) result = { output: [], stopReason: 'error' }
     activation.result.resolve(result)
     if (activation.settleCatalog !== undefined) {
       try {
-        activation.settleCatalog(terminal.stopReason)
+        activation.settleCatalog(result.stopReason)
       } catch (error: unknown) {
         failure ??= new SubagentError(`subagent "${childId}" catalog settlement could not be recorded`, 'ACTIVATION_TEARDOWN_FAILED', { cause: error })
       }
     }
-    this.notifySettlement(activation, activation.observer.terminal(failure))
+    if (failure !== undefined) result = { output: [], stopReason: 'error' }
+    this.notifySettlement(activation, result, includeOutput)
     this.releaseOwnership(childId)
-    activation.observer.settle(failure)
+    activation.observer.settle(result)
     activation.released.resolve()
     if (failure !== undefined) throw failure
   }
 
   /** Tell the durable direct parent how this Activation ended. */
-  private notifySettlement(activation: Activation, terminal: ActivationTerminal): void {
+  private notifySettlement(activation: Activation, terminal: SubagentResult, includeOutput: boolean): void {
     if (!activation.announced || activation.delivery === 'caller') return
     try {
-      const parent = this.ctx.agents.get(activation.parentSession)
+      const parent = this.ctx.agents.get(activation.parent.id)
       if (parent !== activation.parent) return
       const message = createSettlementMessage(
-        activation.childId, terminal, activation.driver.agent === undefined, activation.driver.agent !== undefined,
+        activation.childId, terminal, includeOutput, activation.driver.agent !== undefined,
       )
       if (this.closingTeardownFor(parent) !== undefined) {
         parent.inject(message)

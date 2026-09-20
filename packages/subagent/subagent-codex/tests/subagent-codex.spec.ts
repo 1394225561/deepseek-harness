@@ -10,7 +10,7 @@ import * as yaml from 'js-yaml'
 import { describe, expect, it, vi } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import SubagentRuntime, { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
+import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import type {
@@ -727,7 +727,6 @@ describe('task admission and package contracts', () => {
       await expect(Promise.resolve().then(async () => provider.start!({
         ...request(undefined, controller.signal),
         parent: await externalTestParent(ctx, resolve('missing-parent-' + randomUUID())),
-        descriptor: snapshotSubagentDescriptor({ mode: 'one-shot', provider: provider.name }),
       }))).rejects.toThrow(cancelled
         ? 'request was aborted before app-server startup'
         : 'stage: initialize; category: unknown')
@@ -1527,7 +1526,6 @@ describe('run lifecycle and quiescence', () => {
       graceMs: DEFAULT_DISPOSE_GRACE_MS,
       env: { OPENAI_API_KEY: 'fake' },
     })
-    expect(run.localAgent).toBeUndefined()
 
     const turnStart = await child.peer.nextMethod('turn/start')
     child.peer.send(

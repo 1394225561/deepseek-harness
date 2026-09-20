@@ -98,7 +98,6 @@ class StubProvider implements SubagentProvider {
     if (request.signal.aborted) throw new Error('child start aborted before publication')
     return {
       id: SessionId(`stub-child-${index}`),
-      localAgent: undefined,
       result: terminal.promise,
       dispose: () => {
         controlled.disposeCalls += 1
@@ -468,7 +467,6 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
         inheritsParentContext: false,
         start: async () => ({
           id: SessionId('reject-child'),
-          localAgent: undefined,
           result: Promise.reject(new Error('backend exploded')),
           dispose: () => Promise.resolve(),
         }),
@@ -528,7 +526,6 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
         inheritsParentContext: false,
         start: async () => ({
           id: SessionId('bad-dispose-child'),
-          localAgent: undefined,
           result: Promise.resolve({ output: [{ type: 'text', text: 'fine' }], stopReason: 'completed' }),
           cancel: () => { /* settled already */ },
           dispose: () => { throw new Error('dispose exploded') },
@@ -552,7 +549,6 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
         inheritsParentContext: false,
         start: async () => ({
           id: SessionId('trap-child'),
-          localAgent: undefined,
           result: Promise.resolve({ output: [{ type: 'text', text: 'fine' }], stopReason: 'completed' }),
           cancel: () => { /* settled already */ },
           // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- the non-Error rejection IS the scenario under test
@@ -777,7 +773,6 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
           }, { once: true })
           return {
             id: SessionId('signal-only-child'),
-            localAgent: undefined,
             result,
             dispose: () => Promise.resolve(),
           }
@@ -892,7 +887,6 @@ describe('dsh-workflow-ptc', { timeout: 120_000 }, () => {
           await writeFile(resource, 'owned')
           return {
             id: SessionId('late-published-child'),
-            localAgent: undefined,
             result: Promise.resolve({ output: [], stopReason: 'aborted' }),
             dispose: async () => { disposals += 1; await rm(resource) },
           }

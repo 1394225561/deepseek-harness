@@ -40,7 +40,6 @@ async function setup(execute?: (bindings: HostBindings, spec: PtcRunSpec) => Pro
     inheritsParentContext: false,
     start: async () => ({
       id: SessionId('host-child'),
-      localAgent: undefined,
       result: Promise.resolve({ output: [], stopReason: 'completed' }),
       dispose: () => Promise.resolve(),
     }),

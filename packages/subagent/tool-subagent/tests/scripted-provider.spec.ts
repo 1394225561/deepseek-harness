@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { type Agent } from '@deepseek-ai/dsh-agent'
-import SubagentRuntime, { snapshotSubagentDescriptor, type ResolvedSubagentStartRequest } from '@deepseek-ai/dsh-subagent'
+import SubagentRuntime, { type SubagentStartRequest } from '@deepseek-ai/dsh-subagent'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import * as scripted from './scripted-provider.ts'
@@ -11,10 +11,9 @@ function fakeParent(id = 'parent-1'): Agent {
   return { id: SessionId(id) } as unknown as Agent
 }
 
-function baseRequest(over: Partial<ResolvedSubagentStartRequest> = {}): ResolvedSubagentStartRequest {
+function baseRequest(over: Partial<SubagentStartRequest> = {}): SubagentStartRequest {
   return {
     prompt: [{ type: 'text', text: 'task' }],
-    descriptor: snapshotSubagentDescriptor({ mode: 'one-shot', provider: 'mock' }),
     parent: fakeParent(),
     signal: new AbortController().signal,
     ...over,
