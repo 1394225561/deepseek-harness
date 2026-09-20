@@ -2,11 +2,10 @@
 
 import { describe, expect, it, vi } from 'vitest'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { ExternalActivationDriver } from '../src/activation-driver.ts'
 import type { SubagentResult } from '../src/types.ts'
 
-it('rejects follow-up input and cannot close or expose a result before the backend settles', async () => {
+it('cannot close or expose a result before the backend settles', async () => {
   const result = Promise.withResolvers<SubagentResult>()
   const dispose = vi.fn(() => Promise.resolve())
   const controller = new AbortController()
@@ -18,8 +17,6 @@ it('rejects follow-up input and cannot close or expose a result before the backe
   expect(driver.closeWhenIdle(close)).toBe(false)
   expect(close).not.toHaveBeenCalled()
   expect(() => driver.capture()).toThrow('has not settled')
-  expect(() => { driver.deliver(createUserMessage({ content: [], source: { kind: 'user' } }), 'queue') })
-    .toThrow('does not accept follow-up input')
   const terminal: SubagentResult = { output: [{ type: 'text', text: 'ready' }], stopReason: 'completed' }
   result.resolve(terminal)
   await driver.whenIdle()

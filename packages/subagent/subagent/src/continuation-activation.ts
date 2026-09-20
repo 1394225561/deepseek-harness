@@ -24,6 +24,7 @@ import type {
   UserMessage,
 } from '@deepseek-ai/dsh-session'
 import type { ToolRestriction, ObjectJsonSchema } from '@deepseek-ai/dsh-tools'
+import { assertNever } from '@deepseek-ai/dsh-util-values'
 import { LocalActivationDriver, ExternalActivationDriver } from './activation-driver.ts'
 import type { ActivationDriver } from './activation-driver.ts'
 import { attachStructuredRuntime } from './structured.ts'
@@ -37,8 +38,7 @@ import type { DelegatedPolicyOverrides } from './child-agent.ts'
 import { createSettlementMessage } from './continuation-messages.ts'
 import type { SubagentDescriptorData } from './descriptor.ts'
 import { SubagentError } from './error.ts'
-import { SubagentInbox } from './inbox.ts'
-import type { SubagentDelivery } from './inbox.ts'
+import type { SubagentPromptRequest } from './control-types.ts'
 import type { ActivationObserver, ActivationTerminal } from './lifecycle.ts'
 
 /** Process-local slots shared through uninterrupted continuable parent links. */
@@ -86,8 +86,8 @@ export interface Activation {
   readonly delivery: 'parent' | 'caller'
   readonly result: PromiseWithResolvers<SubagentResult>
   readonly released: PromiseWithResolvers<void>
-  /** The Activation-local admission and close wrapper around the handle's Agent inbox. */
-  readonly inbox: SubagentInbox
+  /** Published synchronously before teardown; subsequent callers share this transaction. */
+  closing: Promise<void> | undefined
   /**
    * Exact live Agent ancestry observed when this Activation materialized.
    * Weak membership preserves host-scope identity across an intermediate
@@ -252,6 +252,36 @@ export class ContinuableActivationRegistry {
   }
 
   /**
+   * Require the execution that supports local input and cold-resume semantics.
+   * @param activation - resident execution targeted by a continuation.
+   * @returns the local driver.
+   * @throws when the target is an external execution.
+   */
+  localDriver(activation: Activation): LocalActivationDriver {
+    const { driver } = activation
+    switch (driver.kind) {
+      case 'local':
+        return driver
+      case 'external':
+        throw new SubagentError(`subagent "${activation.childId}" does not accept follow-up input`, 'NOT_CONTINUABLE')
+      /* v8 ignore next 2 -- Both members of the closed driver union are handled above. */
+      default:
+        return assertNever(driver)
+    }
+  }
+
+  /** Admit local input synchronously before any teardown can begin. */
+  private deliver(activation: Activation, message: UserMessage, delivery: SubagentPromptRequest['delivery']): void {
+    if (activation.closing !== undefined) {
+      throw new SubagentError(
+        'subagent activation is being disposed; the message was not accepted',
+        'ACTIVATION_CLOSING',
+      )
+    }
+    this.localDriver(activation).deliver(message, delivery)
+  }
+
+  /**
    * Reject one child identity already owned by a live Agent or Session.
    * @param childId - proposed durable child session id.
    */
@@ -274,7 +304,7 @@ export class ContinuableActivationRegistry {
   holdOwnership(parent: Agent, childId: SessionId): () => void {
     const parentActivation = this.resident.get(parent.id)
     if (parentActivation === undefined || parentActivation.driver.agent !== parent) return () => {}
-    if (parentActivation.inbox.closing !== undefined) {
+    if (parentActivation.closing !== undefined) {
       throw new SubagentError(
         `subagent parent "${parent.id}" is being disposed; the child was not established`,
         'ACTIVATION_CLOSING',
@@ -288,7 +318,7 @@ export class ContinuableActivationRegistry {
        * between this operation's failure and its releaser running, which no test can schedule
        * deterministically: the ownership edge then belongs to that live Activation, so the
        * conservative keep leaves it for finishDisposal's releaseOwnership. */
-      if (live !== undefined && live.inbox.closing === undefined) return
+      if (live !== undefined && live.closing === undefined) return
       if (parentActivation.ownedChildren.delete(childId)) this.wake(parentActivation)
     }
   }
@@ -336,21 +366,21 @@ export class ContinuableActivationRegistry {
     }
     // Disposal already stopped the target with a whole-Activation teardown;
     // a second cancel would be a redundant signal on a closing handle.
-    if (activation.inbox.closing !== undefined) return
+    if (activation.closing !== undefined) return
     activation.driver.cancel(authority.kind === 'user' ? 'user' : 'parent', true)
   }
 
   /**
-   * Send through a receiving parent's Activation inbox when it has one.
+   * Apply activation admission to a resident parent before delivering input.
    * @param parent - exact live Agent receiving the message.
    * @param message - durable user message to deliver.
    * @param delivery - receiving inbox destination.
    */
-  sendWaking(parent: Agent, message: UserMessage, delivery: SubagentDelivery): void {
+  sendWaking(parent: Agent, message: UserMessage, delivery: SubagentPromptRequest['delivery']): void {
     const parentActivation = this.resident.get(parent.id)
     if (parentActivation !== undefined && parentActivation.driver.agent === parent) {
       try {
-        parentActivation.inbox.deliver(message, delivery)
+        this.deliver(parentActivation, message, delivery)
       } finally {
         this.wake(parentActivation)
       }
@@ -552,7 +582,7 @@ export class ContinuableActivationRegistry {
   submitAdmitted(
     activation: Activation,
     message: UserMessage,
-    delivery: SubagentDelivery,
+    delivery: SubagentPromptRequest['delivery'],
     parent: Agent,
     signal: AbortSignal,
   ): MessageId {
@@ -565,7 +595,7 @@ export class ContinuableActivationRegistry {
     )
     this.acquireOwnership(parent, activation.childId)
     try {
-      activation.inbox.deliver(message, delivery)
+      this.deliver(activation, message, delivery)
     } finally {
       this.wake(activation)
     }
@@ -579,7 +609,16 @@ export class ContinuableActivationRegistry {
    * @returns the shared close transaction.
    */
   dispose(activation: Activation, finalStateFlushed = false): Promise<void> {
-    return activation.inbox.close(() => this.finishDisposal(activation, finalStateFlushed))
+    return this.close(activation, () => this.finishDisposal(activation, finalStateFlushed))
+  }
+
+  /** Close admission synchronously and share one release, including startup rollback. */
+  private close(activation: Activation, release: () => Promise<void>): Promise<void> {
+    if (activation.closing !== undefined) return activation.closing
+    const completion = Promise.withResolvers<void>()
+    activation.closing = completion.promise
+    void release().then(completion.resolve, completion.reject)
+    return completion.promise
   }
 
   /** Dispose independent roots and report every branch failure after all settle. */
@@ -723,7 +762,7 @@ export class ContinuableActivationRegistry {
       delivery: inputs.delivery ?? 'parent',
       result: Promise.withResolvers<SubagentResult>(),
       released: Promise.withResolvers<void>(),
-      inbox: new SubagentInbox(driver),
+      closing: undefined,
       ancestry: new WeakSet(driver.agent === undefined ? parentLineage : [driver.agent, ...parentLineage]),
       ownedChildren: new Set(),
       observer,
@@ -761,7 +800,7 @@ export class ContinuableActivationRegistry {
 
   /** Release an Activation whose start edge was not published. */
   private rollbackUnpublished(activation: Activation): Promise<void> {
-    return activation.inbox.close(async () => {
+    return this.close(activation, async () => {
       try {
         await activation.driver.dispose()
       } finally {
@@ -777,7 +816,7 @@ export class ContinuableActivationRegistry {
   private acquireOwnership(parent: Agent, childId: SessionId): void {
     const parentActivation = this.resident.get(parent.id)
     if (parentActivation === undefined) return
-    if (parentActivation.inbox.closing !== undefined) {
+    if (parentActivation.closing !== undefined) {
       throw new SubagentError(
         `subagent parent "${parent.id}" is being disposed; the child was not established`,
         'ACTIVATION_CLOSING',
@@ -805,7 +844,7 @@ export class ContinuableActivationRegistry {
       while (true) {
         const idleObservation = activation.poke
         await activation.driver.whenIdle()
-        if (activation.inbox.closing !== undefined) return
+        if (activation.closing !== undefined) return
         if (activation.announced && !activation.driver.hasPending) {
           try {
             activation.result.resolve(activation.driver.capture())
@@ -834,7 +873,7 @@ export class ContinuableActivationRegistry {
           if (activation.driver.version !== finalSeq) {
             return Promise.resolve('retry')
           }
-          // The task starts synchronously, so idle ownership and Inbox closure share one turn.
+          // Idle ownership and admission closure must share one synchronous span.
           let done!: Promise<void>
           if (!activation.driver.closeWhenIdle(() => { done = this.dispose(activation, true) })) {
             return Promise.resolve('retry')
@@ -860,14 +899,14 @@ export class ContinuableActivationRegistry {
     })()
   }
 
-  /** Classify one Inbox and owned-child observation without reading Agent execution state. */
+  /** Check pending input and owned children before closing admission. */
   private settlementState(
     activation: Activation,
     observation: PromiseWithResolvers<void>,
   ): SettlementState {
-    if (activation.inbox.closing !== undefined) return 'closed'
+    if (activation.closing !== undefined) return 'closed'
     if (activation.poke !== observation) return 'retry'
-    if (activation.inbox.hasPending || activation.ownedChildren.size > 0) return 'wait'
+    if (activation.driver.hasPending || activation.ownedChildren.size > 0) return 'wait'
     return 'ready'
   }
 

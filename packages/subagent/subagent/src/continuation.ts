@@ -178,7 +178,7 @@ export class SubagentContinuationManager {
           outputSchema: spec.request.outputSchema,
         })
         established = activation
-        const child = this.localAgent(activation)
+        const child = this.activations.localDriver(activation).agent
         const childHeader = child.session.header
         return await this.submitMaterialized(
           activation,
@@ -368,17 +368,17 @@ export class SubagentContinuationManager {
       const live = await this.activations.locks.run(childId, async () => {
         const activation = this.activations.get(childId)
         if (activation === undefined) return this.coldResume(parent, childId, content, options)
-        this.localAgent(activation)
-        const disposal = activation.inbox.closing
+        this.activations.localDriver(activation)
+        const disposal = activation.closing
         /* v8 ignore next 3 -- the send-versus-dispose cutoff needs a delivery to
          * observe the transaction inside the same critical section that opened it. */
         if (disposal !== undefined) {
           return disposal.then(() => undefined, () => undefined)
         }
         if (contentHasImage(content)) {
-          await this.assertImageCapable(this.localAgent(activation), options.signal)
-          if (activation.inbox.closing !== undefined) {
-            await Promise.allSettled([activation.inbox.closing])
+          await this.assertImageCapable(this.activations.localDriver(activation).agent, options.signal)
+          if (activation.closing !== undefined) {
+            await Promise.allSettled([activation.closing])
             return undefined
           }
         }
@@ -413,7 +413,7 @@ export class SubagentContinuationManager {
   ): MessageId {
     /* v8 ignore next 6 -- only synchronous re-entrant teardown can open this
      * transaction between exact-agent authorization and this no-await span. */
-    if (activation.inbox.closing !== undefined) {
+    if (activation.closing !== undefined) {
       throw new SubagentError(
         `subagent "${sender.id}" activation is being disposed; the message was not delivered`,
         'ACTIVATION_CLOSING',
@@ -534,15 +534,6 @@ export class SubagentContinuationManager {
     return await this.submitMaterialized(activation, content, options, parent)
   }
 
-  /** Resolve the local inbox owner or reject follow-up input to an external execution. */
-  private localAgent(activation: Activation): Agent {
-    const child = activation.driver.agent
-    if (child === undefined) {
-      throw new SubagentError(`subagent "${activation.childId}" does not accept follow-up input`, 'NOT_CONTINUABLE')
-    }
-    return child
-  }
-
   /** Admit a materialized child, commit its creation fact, and release it on failure. */
   private async submitMaterialized(
     activation: Activation,
@@ -553,8 +544,8 @@ export class SubagentContinuationManager {
   ): Promise<MessageId> {
     try {
       if (contentHasImage(content)) {
-        await this.assertImageCapable(this.localAgent(activation), options.signal)
-        if (activation.inbox.closing !== undefined) {
+        await this.assertImageCapable(this.activations.localDriver(activation).agent, options.signal)
+        if (activation.closing !== undefined) {
           throw new SubagentError(`subagent "${activation.childId}" is closing`, 'ACTIVATION_CLOSING')
         }
       }

@@ -10,10 +10,14 @@ import type { SessionLogOffset, UserMessage } from '@deepseek-ai/dsh-session'
 import { finalAssistantOutput } from './assistant-output.ts'
 import { SubagentError } from './error.ts'
 import { epochStopReason } from './lifecycle.ts'
+import type { SubagentPromptRequest } from './control-types.ts'
 import type { SubagentResult, SubagentRun } from './types.ts'
 
+/** Local or external execution; only the local driver accepts further input. */
+export type ActivationDriver = LocalActivationDriver | ExternalActivationDriver
+
 /** Execution operations used by the activation manager. */
-export interface ActivationDriver {
+interface ActivationLifecycle {
   /** The local Agent, absent for an external product run. */
   readonly agent: Agent | undefined
   /** Whether accepted input remains unclaimed. */
@@ -25,13 +29,6 @@ export interface ActivationDriver {
    * @returns fulfillment after current activity settles.
    */
   whenIdle(): Promise<void>
-  /**
-   * Accept input into the driver's existing inbox.
-   * @param message - identified input accepted by the manager.
-   * @param delivery - queue a new turn or steer the nearest step.
-   * @throws when the backend does not accept additional input.
-   */
-  deliver(message: UserMessage, delivery: 'queue' | 'steer'): void
   /**
    * Cancel active execution and optionally preserve unclaimed input.
    * @param kind - the actor requesting cancellation.
@@ -78,7 +75,9 @@ export interface ActivationStructuredCapture {
 }
 
 /** Local execution with output restricted to events produced during residency. */
-export class LocalActivationDriver implements ActivationDriver {
+export class LocalActivationDriver implements ActivationLifecycle {
+  /** Execution with a local Agent inbox. */
+  readonly kind = 'local'
   readonly agent: Agent
   private readonly boundary: SessionLogOffset
 
@@ -107,7 +106,13 @@ export class LocalActivationDriver implements ActivationDriver {
     return this.agent.whenIdle()
   }
 
-  deliver(message: UserMessage, delivery: 'queue' | 'steer'): void {
+  /**
+   * Submit accepted input to the local Agent.
+   * @param message - identified input accepted by the manager.
+   * @param delivery - queue a new turn or steer the nearest step.
+   * @throws when this activation has already submitted its structured result.
+   */
+  deliver(message: UserMessage, delivery: SubagentPromptRequest['delivery']): void {
     if (this.structured?.captured() !== undefined) {
       throw new SubagentError('subagent already submitted its structured result; wait for this activation to close before sending another message', 'INPUT_CLOSED')
     }
@@ -161,7 +166,9 @@ export class LocalActivationDriver implements ActivationDriver {
 }
 
 /** External execution that settles once and accepts no further input. */
-export class ExternalActivationDriver implements ActivationDriver {
+export class ExternalActivationDriver implements ActivationLifecycle {
+  /** Execution without continuation input. */
+  readonly kind = 'external'
   readonly agent = undefined
   readonly hasPending = false
   private terminal: SubagentResult | undefined
@@ -197,13 +204,6 @@ export class ExternalActivationDriver implements ActivationDriver {
 
   whenIdle(): Promise<void> {
     return this.settled
-  }
-
-  deliver(_message: UserMessage, _delivery: 'queue' | 'steer'): void {
-    throw new SubagentError(
-      `subagent "${this.run.id}" does not accept follow-up input`,
-      'NOT_CONTINUABLE',
-    )
   }
 
   cancel(kind: 'user' | 'parent', _keepInbox?: boolean): void {

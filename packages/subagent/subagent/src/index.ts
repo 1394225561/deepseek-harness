@@ -60,7 +60,6 @@ import { assertSubagentMaxDepth } from './depth.ts'
 import { createActivationObserver, createLifecycleEmitter } from './lifecycle.ts'
 import type { ActivationObserver, LifecycleEmitter } from './lifecycle.ts'
 import SubagentContinuationManager from './continuation.ts'
-import type { SubagentDelivery } from './inbox.ts'
 import { listChildren as listSubagentChildren, listDescendants as listSubagentDescendants } from './list-children.ts'
 import type { SubagentDescendantListEntry } from './list-children.ts'
 import type { SubagentCatalogEntry } from './projection-types.ts'
@@ -329,7 +328,7 @@ export class SubagentRuntime extends TypertRemoteService {
     content: ContentBlock[],
     source: MessageSource,
     signal: AbortSignal,
-    delivery: SubagentDelivery,
+    delivery: SubagentPromptRequest['delivery'],
   ): Promise<MessageId> {
     return delivery === 'steer'
       ? this.requireContinuations().steerPrompt(parent, childId, content, source, signal)

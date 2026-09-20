@@ -92,8 +92,7 @@ This section explains how the service is built and where the observable behavior
 | [`src/continuation-activation.ts`](src/continuation-activation.ts) | Process-local Activation graph, admission, settlement, and child-first disposal |
 | [`src/continuation-messages.ts`](src/continuation-messages.ts) | Adjacent-Agent messages, return guidance, and settlement notices |
 | [`src/internal.ts`](src/internal.ts) | Host-only Queue and Steer adapters plus standard adjacent-Agent messaging markers |
-| [`src/inbox.ts`](src/inbox.ts) | Activation-local Queue and Steer admission plus the synchronous closing cutoff |
-| [`src/activation-driver.ts`](src/activation-driver.ts) | Local Agent and external execution adapters |
+| [`src/activation-driver.ts`](src/activation-driver.ts) | Local input delivery and shared execution lifecycle adapters |
 | [`src/structured.ts`](src/structured.ts) | Activation-scoped structured capture and guards |
 | [`src/types.ts`](src/types.ts) | Public request, result, and provider contracts |
 | [`src/descriptor.ts`](src/descriptor.ts) | Versioned `subagent/descriptor` session-event vocabulary |

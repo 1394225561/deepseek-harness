@@ -3436,14 +3436,18 @@ describe('continuable errors', () => {
     // The would-be parent's disposal is already open at the entry hold, so the
     // establishment rejects before any grandchild resource exists.
     const before = new Set(ctx.agents.list().map(agent => agent.id))
-    void continuationActivations(ctx).get(outer.childId)!.inbox.close(() => Promise.resolve())
+    const disposal = outer.dispose()
 
-    await expect(ctx.subagents.startActivation({ ...startSpec(child), delivery: 'parent' }))
-      .rejects.toMatchObject({ code: 'ACTIVATION_CLOSING' })
-    await vi.waitFor(() => {
-      expect(ctx.agents.list().map(agent => agent.id).filter(id => !before.has(id))).toEqual([])
-    })
-    hold.resolve(undefined)
+    try {
+      await expect(ctx.subagents.startActivation({ ...startSpec(child), delivery: 'parent' }))
+        .rejects.toMatchObject({ code: 'ACTIVATION_CLOSING' })
+      await vi.waitFor(() => {
+        expect(ctx.agents.list().map(agent => agent.id).filter(id => !before.has(id))).toEqual([])
+      })
+    } finally {
+      hold.resolve(undefined)
+      await disposal
+    }
   })
 
   it('rolls the transfer back when the parent begins disposal during materialization', async () => {
@@ -3467,18 +3471,24 @@ describe('continuable errors', () => {
     // ownership registration must reject and roll the transfer back with no
     // Activation and no live Agent left behind.
     const originalCreate = ownerAgents.create.bind(ownerAgents)
+    let disposal: Promise<void> | undefined
     const createSpy = vi.spyOn(ownerAgents, 'create').mockImplementation((options) => {
-      void activations.get(outer.childId)!.inbox.close(() => Promise.resolve())
+      disposal = outer.dispose()
       createSpy.mockRestore()
       return originalCreate(options)
     })
 
-    await expect(ctx.subagents.startActivation({ ...startSpec(child), delivery: 'parent' }))
-      .rejects.toMatchObject({ code: 'ACTIVATION_CLOSING' })
-    await vi.waitFor(() => {
-      expect(ctx.agents.list().map(agent => agent.id).filter(id => !before.has(id))).toEqual([])
-    })
-    hold.resolve(undefined)
+    try {
+      await expect(ctx.subagents.startActivation({ ...startSpec(child), delivery: 'parent' }))
+        .rejects.toMatchObject({ code: 'ACTIVATION_CLOSING' })
+      await vi.waitFor(() => {
+        expect(ctx.agents.list().map(agent => agent.id).filter(id => !before.has(id))).toEqual([])
+      })
+    } finally {
+      createSpy.mockRestore()
+      hold.resolve(undefined)
+      await disposal
+    }
   })
 
   it('releases the parent hold when a cold delivery fails, so the parent can settle', async () => {
