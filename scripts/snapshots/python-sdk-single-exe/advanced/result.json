@@ -1195,6 +1195,14 @@
               {
                 "type": "text",
                 "text": "Background subagent {{child-1}} finished and will do no further work unless you send it more."
+              },
+              {
+                "type": "text",
+                "text": "Its closing message:"
+              },
+              {
+                "type": "text",
+                "text": "DIRECT_CHILD_OK"
               }
             ],
             "source": {
@@ -1464,6 +1472,14 @@
           {
             "type": "text",
             "text": "Background subagent {{child-1}} finished and will do no further work unless you send it more."
+          },
+          {
+            "type": "text",
+            "text": "Its closing message:"
+          },
+          {
+            "type": "text",
+            "text": "DIRECT_CHILD_OK"
           }
         ],
         "source": {
@@ -3674,6 +3690,14 @@
                   {
                     "type": "text",
                     "text": "Background subagent {{child-1}} finished and will do no further work unless you send it more."
+                  },
+                  {
+                    "type": "text",
+                    "text": "Its closing message:"
+                  },
+                  {
+                    "type": "text",
+                    "text": "DIRECT_CHILD_OK"
                   }
                 ],
                 "source": {
@@ -4404,22 +4428,6 @@
       }
     },
     {
-      "method": "session.event",
-      "payload": {
-        "sessionId": "{{parent}}",
-        "event": {
-          "type": "tool-workflow/agent-end",
-          "seq": 56,
-          "time": 0,
-          "data": {
-            "runId": "{{workflow-run}}",
-            "seq": 1,
-            "outcome": "completed"
-          }
-        }
-      }
-    },
-    {
       "method": "subagent.finished",
       "payload": {
         "provider": "spawn",
@@ -4434,6 +4442,22 @@
             "text": "WORKFLOW_CHILD_OK"
           }
         ]
+      }
+    },
+    {
+      "method": "session.event",
+      "payload": {
+        "sessionId": "{{parent}}",
+        "event": {
+          "type": "tool-workflow/agent-end",
+          "seq": 56,
+          "time": 0,
+          "data": {
+            "runId": "{{workflow-run}}",
+            "seq": 1,
+            "outcome": "completed"
+          }
+        }
       }
     },
     {
@@ -4546,6 +4570,14 @@
               {
                 "type": "text",
                 "text": "Background subagent {{child-1}} finished and will do no further work unless you send it more."
+              },
+              {
+                "type": "text",
+                "text": "Its closing message:"
+              },
+              {
+                "type": "text",
+                "text": "DIRECT_CHILD_OK"
               }
             ],
             "source": {
