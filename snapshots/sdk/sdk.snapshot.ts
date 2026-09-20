@@ -844,8 +844,9 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
           && ((event.data as JsonObject).source as JsonObject).kind === 'subagent-settled')
         const expectedCount = scenario.name === 'subagent-dsh-sdk-diagnostic' ? 2 : 1
         expect(notices).toHaveLength(expectedCount)
-        expect(parentEvents.filter(event => event.type === 'subagent/catalog' && (event.data as JsonObject | undefined)?.external === 'pending')).toHaveLength(expectedCount)
-        expect(parentEvents.filter(event => event.type === 'subagent/catalog' && typeof (event.data as JsonObject | undefined)?.external === 'string' && (event.data as JsonObject).external !== 'pending')).toHaveLength(expectedCount)
+        const catalog = parentEvents.filter(event => event.type === 'subagent/catalog')
+        expect(catalog).toHaveLength(expectedCount)
+        expect(catalog.every(event => (event.data as JsonObject).external === true)).toBe(true)
         const expectedContent = scenario.name === 'subagent-dsh-sdk-diagnostic'
           ? 'partial child loader answer'
           : 'child route: mock/mock-routed/max/777; cwd:'
