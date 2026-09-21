@@ -2065,11 +2065,6 @@
   "packages/subagent/subagent/tests/catalog.spec.ts": {
     "7e2e5f940dc4eaeefee0650619f7a736c5bead03fb248b2394c1a29a3328b105": 1
   },
-  "packages/subagent/subagent/tests/continuation-internals.ts": {
-    "3745fdae681f5fd4fa6825b3987604ceed308de0ef68181e9b3b8405a288b1b0": 1,
-    "ae5776af8c1e9965a4eca94bcbc07b65da8d2e9e24e4570d2141b34d60b4f90f": 1,
-    "dacc9babb26371c6c047d8a504e4c7da0e2032f83620ab63ec667276284d1c35": 1
-  },
   "packages/subagent/subagent/tests/continuation.spec.ts": {
     "ae5776af8c1e9965a4eca94bcbc07b65da8d2e9e24e4570d2141b34d60b4f90f": 1
   },
