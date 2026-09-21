@@ -10,7 +10,7 @@ Local one-shot execution and continuable residency separately owned child creati
 
 ## Decision
 
-`startActivation()` is the consumer entry point for every provider. A published handle exposes child identity, a result promise, and disposal of that exact activation. The caller signal cancels unpublished creation only. Local results wait for pending input and owned descendants before closing admission, so descendant replies can contribute to the final answer. External result readiness remains separate from process cleanup; callers await disposal when they need resource release.
+`startActivation()` is the consumer entry point for every provider. A published handle exposes child identity, a result promise, and disposal of that exact activation. The caller signal cancels unpublished creation only. Local results wait for pending input and owned descendants before closing admission, so descendant replies can contribute to the final answer. Both local and external result promises settle after cleanup and notifications. Parent waits use that same completion promise; a captured execution result survives cleanup failure, which disposal reports separately. Workflow consumers already wait for cleanup before continuing, so activation ownership needs no independent result-readiness and release signals.
 
 Local spawn and fork providers contribute only `prepareContinuable()` data; the subagent service owns Agent creation and residency. The standalone in-process driver package is removed. Structured tools, validation, instructions, and terminal guards attach to one activation and close with it. After capture, that activation rejects further input; cold resume reconstructs an ordinary conversation without the previous schema.
 

@@ -115,7 +115,7 @@ describe('external subagent activations', () => {
     },
   )
 
-  it('detaches accepted work from caller cancellation and exposes its result before cleanup finishes', async () => {
+  it('detaches accepted work from caller cancellation and waits for cleanup before delivering its result', async () => {
     const backend = execution()
     let providerSignal: AbortSignal | undefined
     const fixture = await setup(async ({ signal }) => { providerSignal = signal; return backend.run })
@@ -125,21 +125,55 @@ describe('external subagent activations', () => {
     expect(backend.dispose).not.toHaveBeenCalled()
     expect(fixture.ctx.sessions.get(activation.childId)).toBeUndefined()
     backend.result.resolve(completed)
-    await expect(activation.result).resolves.toEqual(completed)
     await backend.cleaning.promise
+    const observed = vi.fn()
+    void activation.result.then(observed, observed)
+    const waiting = fixture.ctx.subagents.waitForChildren(fixture.parent)
+    const waited = vi.fn()
+    void waiting.then(waited)
     const disposal = activation.dispose()
     expect(activation.dispose()).toBe(disposal)
-    let cleaned = false
-    void disposal.then(() => { cleaned = true })
-    await Promise.resolve()
-    expect(cleaned).toBe(false)
-    expect(backend.dispose).toHaveBeenCalledTimes(1)
-    backend.cleanup.resolve(undefined)
-    await disposal
+    try {
+      await Promise.resolve()
+      expect(observed).not.toHaveBeenCalled()
+      expect(waited).not.toHaveBeenCalled()
+      expect(backend.dispose).toHaveBeenCalledTimes(1)
+    } finally {
+      backend.cleanup.resolve(undefined)
+      await disposal
+    }
+    await expect(activation.result).resolves.toEqual(completed)
+    await expect(waiting).resolves.toBe(true)
     await activation.dispose()
     expect(backend.dispose).toHaveBeenCalledTimes(1)
     expect(fixture.records()).toMatchObject([{ id: activation.childId, external: true }])
     expect(fixture.parent.inbox.nextTurn).toEqual([])
+  })
+
+  it('rejects a failed execution only after cleanup and lets parent waiting finish', async () => {
+    const backend = execution()
+    const fixture = await setup(async () => backend.run)
+    const activation = await fixture.start()
+    const error = new Error('backend execution failed')
+    const observed = vi.fn()
+    void activation.result.then(observed, observed)
+    const waiting = fixture.ctx.subagents.waitForChildren(fixture.parent)
+    const waited = vi.fn()
+    void waiting.then(waited)
+    backend.result.reject(error)
+    await backend.cleaning.promise
+    const disposal = activation.dispose().catch(() => undefined)
+    try {
+      await Promise.resolve()
+      expect(observed).not.toHaveBeenCalled()
+      expect(waited).not.toHaveBeenCalled()
+    } finally {
+      backend.cleanup.resolve(undefined)
+      await disposal
+    }
+    await expect(activation.result).rejects.toBe(error)
+    await expect(waiting).resolves.toBe(true)
+    await expect(fixture.ctx.subagents.waitForChildren(fixture.parent)).resolves.toBe(false)
   })
 
   it('cancels the external process once when the receipt is repeatedly disposed', async () => {
@@ -203,7 +237,6 @@ describe('external subagent activations', () => {
     const fixture = await setup(async () => backend.run)
     const activation = await fixture.start()
     backend.result.resolve(completed)
-    await expect(activation.result).resolves.toEqual(completed)
     await backend.cleaning.promise
     const disposal = activation.dispose()
     const rejection = expect(disposal).rejects.toThrow('safe cleanup failure')

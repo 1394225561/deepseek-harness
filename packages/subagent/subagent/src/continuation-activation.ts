@@ -77,7 +77,6 @@ export interface Activation {
   readonly parent: Agent
   readonly delivery: 'parent' | 'caller'
   readonly result: PromiseWithResolvers<SubagentResult>
-  readonly released: PromiseWithResolvers<void>
   /** Published synchronously before teardown; subsequent callers share this transaction. */
   closing: Promise<void> | undefined
   /**
@@ -408,7 +407,7 @@ export class ContinuableActivationRegistry {
     if (pending.length === 0 && children.length === 0) return false
     await Promise.all([
       ...pending.map(item => item.settled),
-      ...children.map(item => item.released.promise),
+      ...children.map(item => item.result.promise.catch(() => undefined)),
     ])
     return true
   }
@@ -598,7 +597,7 @@ export class ContinuableActivationRegistry {
    * @returns the shared close transaction.
    */
   dispose(activation: Activation): Promise<void> {
-    return this.close(activation, () => this.finishDisposal(activation))
+    return this.close(activation, () => this.finishDisposal(activation, true))
   }
 
   /** Close admission synchronously and share one release, including startup rollback. */
@@ -748,7 +747,6 @@ export class ContinuableActivationRegistry {
       parent,
       delivery: inputs.delivery ?? 'parent',
       result: Promise.withResolvers<SubagentResult>(),
-      released: Promise.withResolvers<void>(),
       closing: undefined,
       ancestry: new WeakSet(driver.agent === undefined ? parentLineage : [driver.agent, ...parentLineage]),
       ownedChildren: new Set(),
@@ -769,7 +767,7 @@ export class ContinuableActivationRegistry {
     } catch (error: unknown) {
       /* v8 ignore next -- rollback failure must not mask the admission failure
        * that prevented this operation from returning an accepted message id. */
-      await this.rollbackUnpublished(activation).catch(() => undefined)
+      await this.rollbackUnpublished(activation, error).catch(() => undefined)
       throw error
     }
     return activation
@@ -786,7 +784,7 @@ export class ContinuableActivationRegistry {
   }
 
   /** Release an Activation whose start edge was not published. */
-  private rollbackUnpublished(activation: Activation): Promise<void> {
+  private rollbackUnpublished(activation: Activation, error: unknown): Promise<void> {
     return this.close(activation, async () => {
       try {
         await activation.driver.dispose()
@@ -794,7 +792,7 @@ export class ContinuableActivationRegistry {
         this.resident.delete(activation.childId)
         activation.releaseSlot()
         this.releaseOwnership(activation.childId)
-        activation.released.resolve()
+        activation.result.reject(error)
       }
     })
   }
@@ -832,16 +830,6 @@ export class ContinuableActivationRegistry {
         const idleObservation = activation.poke
         await activation.driver.whenIdle()
         if (activation.closing !== undefined) return
-        if (activation.driver.kind === 'external') {
-          try {
-            activation.result.resolve(activation.driver.capture())
-          } catch (error: unknown) {
-            activation.result.reject(error)
-            // Teardown captures the terminal failure and releases the activation.
-            await this.dispose(activation).catch(() => undefined)
-            return
-          }
-        }
         const readiness = await this.locks.run(activation.childId, () => Promise.resolve(
           this.settlementState(activation, idleObservation),
         ))
@@ -860,18 +848,9 @@ export class ContinuableActivationRegistry {
           if (activation.driver.version !== finalSeq) {
             return Promise.resolve('retry')
           }
-          let result: SubagentResult
-          try {
-            result = activation.driver.capture()
-          } catch (error: unknown) {
-            activation.result.reject(error)
-            return Promise.resolve({ done: this.dispose(activation) })
-          }
-          // Result publication and admission closure share the final idle claim.
           let done!: Promise<void>
           if (!activation.driver.closeWhenIdle(() => {
-            activation.result.resolve(result)
-            done = this.close(activation, () => this.finishDisposal(activation, result))
+            done = this.close(activation, () => this.finishDisposal(activation, false))
           })) {
             return Promise.resolve('retry')
           }
@@ -908,25 +887,26 @@ export class ContinuableActivationRegistry {
   }
 
   /** Propagate stop synchronously, then finish the child-first release. */
-  private async finishDisposal(activation: Activation, settledResult?: SubagentResult): Promise<void> {
+  private async finishDisposal(activation: Activation, stop: boolean): Promise<void> {
     this.wake(activation)
     const { childId } = activation
     const failures: SubagentError[] = []
-    let result: SubagentResult = settledResult ?? { output: [], stopReason: 'error' }
+    let result: SubagentResult = { output: [], stopReason: 'error' }
+    let resultFailure: { error: unknown } | undefined
     const child = activation.driver.agent
     const includeOutput = child === undefined
       || !isAdjacentAgentSendMessageTool(child.ctx.get('tools')?.get('send_message', child))
     const detail = (error: unknown): string => activation.driver.agent === undefined
       ? failureMessage(error)
       : errorChain(error)
-    if (settledResult === undefined) {
-      activation.driver.cancel('parent')
-      const idle = activation.driver.whenIdle()
-      const children = [...activation.ownedChildren]
-        .map(child => this.resident.get(child))
-        .filter((child): child is Activation => child !== undefined)
-      const childDisposals = children.map(child => this.dispose(child))
-      try {
+    try {
+      if (stop) {
+        activation.driver.cancel('parent')
+        const idle = activation.driver.whenIdle()
+        const children = [...activation.ownedChildren]
+          .map(child => this.resident.get(child))
+          .filter((child): child is Activation => child !== undefined)
+        const childDisposals = children.map(child => this.dispose(child))
         const childFailures = await Promise.all(childDisposals.map(async (disposal) => {
           try {
             await disposal
@@ -944,14 +924,15 @@ export class ContinuableActivationRegistry {
         }
         await idle
         await this.flushFinalState(activation)
-        result = activation.driver.capture()
-      } catch (error: unknown) {
-        failures.push(new SubagentError(
-          `subagent "${childId}" activation teardown failed: ${detail(error)}`,
-          'ACTIVATION_TEARDOWN_FAILED',
-          { cause: error },
-        ))
       }
+      result = activation.driver.capture()
+    } catch (error: unknown) {
+      resultFailure = { error }
+      failures.push(new SubagentError(
+        `subagent "${childId}" activation teardown failed: ${detail(error)}`,
+        'ACTIVATION_TEARDOWN_FAILED',
+        { cause: error },
+      ))
     }
     try {
       await activation.driver.dispose()
@@ -976,12 +957,12 @@ export class ContinuableActivationRegistry {
     }
     this.resident.delete(childId)
     activation.releaseSlot()
-    if (failure !== undefined) result = { output: [], stopReason: 'error' }
-    activation.result.resolve(result)
-    this.notifySettlement(activation, result, includeOutput)
+    const terminal: SubagentResult = failure === undefined ? result : { output: [], stopReason: 'error' }
+    this.notifySettlement(activation, terminal, includeOutput)
     this.releaseOwnership(childId)
-    activation.observer.settle(result)
-    activation.released.resolve()
+    activation.observer.settle(terminal)
+    if (resultFailure === undefined) activation.result.resolve(result)
+    else activation.result.reject(resultFailure.error)
     if (failure !== undefined) throw failure
   }
 

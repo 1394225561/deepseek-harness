@@ -49,9 +49,12 @@ export interface SubagentActivation {
   readonly childId: SessionId
   /** Accepted inbox message, when the backend has a local inbox. */
   readonly messageId?: MessageId
-  /** Execution result, independently of eventual resource release. */
+  /**
+   * Execution result after teardown settles and notifications are sent; capture failures reject.
+   * Teardown failures are reported by dispose() without replacing a captured result.
+   */
   readonly result: Promise<SubagentResult>
-  /** Stop and release this activation and its owned descendants. */
+  /** Stop and release this activation and its owned descendants; rejects on teardown failure. */
   dispose(): Promise<void>
 }
 

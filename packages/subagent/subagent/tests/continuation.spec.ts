@@ -2245,6 +2245,45 @@ describe('continuable review regressions', () => {
     expect(ends[0]!.stopReason).toBe('refusal')
   })
 
+  it('delivers a local result after handle cleanup and parent notifications', async () => {
+    const turn = Promise.withResolvers<undefined>()
+    const cleaning = Promise.withResolvers<undefined>()
+    const cleanup = Promise.withResolvers<undefined>()
+    const adapter = new GatedAdapter([{ chunks: textResponse('answer'), gate: turn.promise }])
+    const { ctx, parent } = await setupWith(adapter)
+    const followup = vi.spyOn(parent, 'followup')
+    const steer = vi.spyOn(parent, 'steer')
+    const ended = vi.fn()
+    ctx.on('subagent/end', ended)
+    const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'parent' })
+    const activation = continuationActivations(ctx).get(started.childId)!
+    const realDispose = activation.driver.dispose.bind(activation.driver)
+    activation.driver.dispose = async () => {
+      cleaning.resolve(undefined)
+      await cleanup.promise
+      await realDispose()
+    }
+    const observed = vi.fn()
+    void started.result.then(observed, observed)
+    const waiting = ctx.subagents.waitForChildren(parent)
+    turn.resolve(undefined)
+    try {
+      await cleaning.promise
+      expect(observed).not.toHaveBeenCalled()
+      expect(ended).not.toHaveBeenCalled()
+      expect(followup).not.toHaveBeenCalled()
+      expect(steer).not.toHaveBeenCalled()
+    } finally {
+      cleanup.resolve(undefined)
+      await started.dispose()
+    }
+    await expect(started.result).resolves.toMatchObject({ stopReason: 'completed' })
+    expect(ended).toHaveBeenCalledTimes(1)
+    expect(followup.mock.calls.length + steer.mock.calls.length).toBe(1)
+    expect(continuationActivations(ctx).get(started.childId)).toBeUndefined()
+    await expect(waiting).resolves.toBe(true)
+  })
+
   it('reports handle-disposal failure on the terminal edge', async () => {
     const { ctx, parent } = await setup([textResponse('answer')])
     const ends: SubagentRunEndInfo[] = []
@@ -2386,6 +2425,32 @@ describe('continuable review regressions', () => {
     await passSettlementCheck(ctx, started.childId)
     expect(child.inbox.remove(messageId)).toBe(true)
     await waitNoActivation(ctx, started.childId)
+  })
+
+  it('shares disposal when explicit close overtakes a queued idle settlement', async () => {
+    const turn = Promise.withResolvers<undefined>()
+    const adapter = new GatedAdapter([{ chunks: textResponse('answer'), gate: turn.promise }])
+    const { ctx, parent } = await setupWith(adapter)
+    const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'caller' })
+    const activation = continuationActivations(ctx).get(started.childId)!
+    const child = ctx.agents.get(started.childId)!
+    const disposed = vi.spyOn(activation.driver, 'dispose')
+    const ended = vi.fn()
+    ctx.on('subagent/end', ended)
+    const lock = await holdChildLock(ctx, started.childId)
+    try {
+      turn.resolve(undefined)
+      await child.whenIdle()
+      await started.dispose()
+    } finally {
+      lock.release()
+      await lock.held
+    }
+    await passSettlementCheck(ctx, started.childId)
+    await expect(started.result).resolves.toMatchObject({ stopReason: 'completed' })
+    expect(disposed).toHaveBeenCalledTimes(1)
+    expect(ended).toHaveBeenCalledTimes(1)
+    expect(continuationActivations(ctx).get(started.childId)).toBeUndefined()
   })
 
   it('keeps a maintenance task that claimed the idle phase after whenIdle resolved', async () => {

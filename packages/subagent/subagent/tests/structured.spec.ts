@@ -197,7 +197,7 @@ describe('in-process structured output', () => {
     const result = await run.result
     expect(result.structured).toEqual({ answer: 5 })
     expect(sideEffectRan).toBe(false)
-    const child = ctx.agents.get(run.id)
+    const child = run.localAgent
     const sideEffectResult = child?.session.snapshotEvents().find(event =>
       event.type === 'tool/result' && event.data.message.source.callId === 'c2')
     expect(sideEffectResult?.type === 'tool/result' && sideEffectResult.data.message.isError).toBe(true)
@@ -494,7 +494,7 @@ describe('in-process structured output', () => {
     const result = await run.result
     expect(result.structured).toBeUndefined()
     expect(result.stopReason).toBe('error')
-    const child = ctx.agents.get(run.id)
+    const child = run.localAgent
     const captureResult = child?.session.snapshotEvents().find(event =>
       event.type === 'tool/result' && event.data.message.source.callId === 'c1')
     expect(captureResult?.type === 'tool/result' && captureResult.data.message.isError).toBe(true)
@@ -722,7 +722,7 @@ describe('in-process structured output', () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
 
-    it('registrations ride the child fiber: disposing the run removes them; a provider reload mid-run cannot', async () => {
+    it('registrations survive provider reload and are removed before result delivery', async () => {
       const { ctx, parent, disposeProvider } = await setup([
         toolCallResponse('c1', STRUCTURED_OUTPUT_TOOL, { answer: 4 }),
       ])
@@ -731,12 +731,12 @@ describe('in-process structured output', () => {
       // A backend hot-reload mid-run must not unregister the capture tool out
       // from under the live child: the registration rides the CHILD's fiber.
       disposeProvider()
-      const result = await run.result
-      expect(result.structured).toEqual({ answer: 4 })
       const child = run.localAgent
       expect(ctx.tools.get(STRUCTURED_OUTPUT_TOOL, child)).toBeDefined()
+      const result = await run.result
+      expect(result.structured).toEqual({ answer: 4 })
+      expect(ctx.agents.get(run.id)).toBeUndefined()
       await run.dispose()
-      // Child disposed ⇒ its scoped registrations are gone.
       expect(ctx.tools.get(STRUCTURED_OUTPUT_TOOL, child)).toBeUndefined()
     })
   })

@@ -107,11 +107,11 @@ describe('external activation ownership', () => {
     const fixture = await setup(() => Promise.resolve(run('failed-cleanup', result.promise, () => cleanup.promise)))
     const activation = await fixture.start()
     result.resolve(complete)
-    await expect(activation.result).resolves.toEqual(complete)
     const disposal = activation.dispose()
     const rejected = expect(disposal).rejects.toThrow('unknown teardown failure')
     cleanup.reject({ private: 'SECRET_TOKEN' })
     await rejected
+    await expect(activation.result).resolves.toEqual(complete)
     expect((await disposal.catch((error: unknown) => error) as Error).message).not.toContain('SECRET_TOKEN')
   })
 })

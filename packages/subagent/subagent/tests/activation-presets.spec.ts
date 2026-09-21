@@ -66,14 +66,13 @@ function spawnRequest(parent: Agent) {
 
 describe('a child agent composed in-process', () => {
   it('reaches the model with its parent\'s preset tools', async () => {
-    const { ctx, adapter, parent } = await setupPresetHost()
+    const { adapter, parent } = await setupPresetHost()
 
     const run = await startPreparedActivation(spawnRequest(parent), {})
     await run.result
 
     const childRequest = adapter.requests.at(-1)
     expect(childRequest?.tools?.map(tool => tool.name)).toEqual(['preset_only'])
-    expect(ctx.tools.schemas(run.localAgent).map(schema => schema.name)).toEqual(['preset_only'])
     await run.dispose()
   })
 
@@ -102,7 +101,7 @@ describe('a child agent composed in-process', () => {
   })
 
   it('honours a tool filter over the preset tools it inherited', async () => {
-    const { ctx, parent } = await setupPresetHost()
+    const { adapter, parent } = await setupPresetHost()
 
     const run = await startPreparedActivation(
       { ...spawnRequest(parent), toolFilter: { deny: ['preset_only'] } },
@@ -112,12 +111,12 @@ describe('a child agent composed in-process', () => {
 
     // The capability filter is the only thing bounding a delegated child, and
     // every tool it can name now arrives from the preset rather than the host.
-    expect(ctx.tools.schemas(run.localAgent).map(schema => schema.name)).toEqual([])
+    expect((adapter.requests.at(-1)?.tools ?? []).map(tool => tool.name)).toEqual([])
     await run.dispose()
   })
 
   it('follows a parent that switched preset while blank', async () => {
-    const { ctx, parent } = await setupPresetHost()
+    const { ctx, adapter, parent } = await setupPresetHost()
     // A DIFFERENT preset, so the assertion below distinguishes reading the
     // parent's live scope chain from reading its creation header — re-linking
     // to the same id would pass either way.
@@ -126,7 +125,7 @@ describe('a child agent composed in-process', () => {
     const run = await startPreparedActivation(spawnRequest(parent), {})
     await run.result
 
-    expect(ctx.tools.schemas(run.localAgent).map(schema => schema.name)).toEqual(['reviewing_only'])
+    expect((adapter.requests.at(-1)?.tools ?? []).map(tool => tool.name)).toEqual(['reviewing_only'])
     expect(run.localAgent?.session.header.agentPreset).toBe('reviewing')
     await run.dispose()
   })
