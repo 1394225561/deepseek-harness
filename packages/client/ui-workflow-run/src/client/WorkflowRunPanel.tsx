@@ -194,7 +194,7 @@ function navigableMembers(
     for (const member of phase.members) {
       const child = catalog?.values.subagentCatalog?.find(entry => entry.id === member.childId)
       if (member.status === 'running'
-        && child !== undefined && !(child.mode === 'one-shot' && child.external !== undefined)
+        && child !== undefined && child.mode !== 'external'
         && (statuses.get(child.id)?.running ?? sessions.byId[child.id]?.running) === true) {
         result.set(member.childId, child.mode)
       }

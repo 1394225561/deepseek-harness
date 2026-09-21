@@ -210,7 +210,7 @@ function CatalogRows({
     return () => { clearInterval(timer) }
   }, [running])
   const emptyLoading = catalog.state === 'loading' && catalog.entries.length === 0
-  const reserveDisclosure = catalog.entries.some(entry => !(entry.mode === 'one-shot' && entry.external !== undefined) && !isKnownLeaf(catalogs[entry.id]))
+  const reserveDisclosure = catalog.entries.some(entry => entry.mode !== 'external' && !isKnownLeaf(catalogs[entry.id]))
   return (
     <>
       {emptyLoading && (
@@ -230,20 +230,20 @@ function CatalogRows({
         </div>
       )}
       {catalog.entries.map((entry) => {
-        const external = entry.mode === 'one-shot' ? entry.external : undefined
+        const external = entry.mode === 'external'
         const childCatalog = catalogs[entry.id]
         const isCurrent = entry.id === currentSessionId
         const isExpanded = expanded.has(entry.id)
-        const knownLeaf = external !== undefined || isKnownLeaf(childCatalog)
+        const knownLeaf = external || isKnownLeaf(childCatalog)
         const childLoading = childCatalog === undefined
           || (childCatalog.state === 'loading' && childCatalog.entries.length === 0)
         const summary = summaries[entry.id]
         const label = entry.label ?? entry.id
-        const mode = external !== undefined ? t('mode.external') : entry.mode === 'unknown' ? t('mode.unknown')
+        const mode = external ? t('mode.external') : entry.mode === 'unknown' ? t('mode.unknown')
           : entry.mode === 'one-shot' ? t('mode.oneShot') : t('mode.continuable')
-        const completed = external === undefined && entry.activity === 'inactive'
+        const completed = !external && entry.activity === 'inactive'
           && summary?.projectionValues?.subagentTiming?.lastTurnCompleted === true
-        const activity = external !== undefined ? undefined : entry.activity === 'running'
+        const activity = external ? undefined : entry.activity === 'running'
           ? t('activity.running')
           : completed
             ? t('activity.completed')
@@ -271,18 +271,12 @@ function CatalogRows({
           .join(' · ')
 
         const open = (): void => {
-          if (external !== undefined) return
+          if (external) return
           openChild({
             parentSessionId,
             childSessionId: entry.id,
             mode: entry.mode,
           })
-          closeCatalog()
-        }
-        const openAside = (event: MouseEvent<HTMLButtonElement>): void => {
-          event.preventDefault()
-          event.stopPropagation()
-          openChildAside({ parentSessionId, childSessionId: entry.id, mode: entry.mode })
           closeCatalog()
         }
         const handleKey = (event: KeyboardEvent<HTMLDivElement>): void => {
@@ -309,8 +303,8 @@ function CatalogRows({
           <div key={entry.id} className={css.node}>
             <div
               role="treeitem"
-              tabIndex={external !== undefined ? -1 : 0}
-              aria-disabled={external !== undefined || undefined}
+              tabIndex={external ? -1 : 0}
+              aria-disabled={external || undefined}
               aria-level={level}
               aria-current={isCurrent || undefined}
               aria-label={[label, secondary, metrics].filter(value => value !== '').join(' ')}
@@ -353,13 +347,18 @@ function CatalogRows({
                     )}
                   </span>
                 )}
-                {!isCurrent && external === undefined && (
+                {!isCurrent && !external && (
                   <button
                     type="button"
                     className={css.sidebarButton}
                     aria-label={t('open.sidebar', { label })}
                     title={t('open.sidebar', { label })}
-                    onClick={openAside}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      event.stopPropagation()
+                      openChildAside({ parentSessionId, childSessionId: entry.id, mode: entry.mode })
+                      closeCatalog()
+                    }}
                     onKeyDown={(event) => { event.stopPropagation() }}
                   >
                     <IconChevronRightOutlineRegular />

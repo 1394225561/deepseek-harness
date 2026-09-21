@@ -846,7 +846,7 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
         expect(notices).toHaveLength(expectedCount)
         const catalog = parentEvents.filter(event => event.type === 'subagent/catalog')
         expect(catalog).toHaveLength(expectedCount)
-        expect(catalog.every(event => (event.data as JsonObject).external === true)).toBe(true)
+        expect(catalog.every(event => (event.data as JsonObject).mode === 'external')).toBe(true)
         const expectedContent = scenario.name === 'subagent-dsh-sdk-diagnostic'
           ? 'partial child loader answer'
           : 'child route: mock/mock-routed/max/777; cwd:'

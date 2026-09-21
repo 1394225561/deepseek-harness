@@ -146,7 +146,7 @@ describe('external subagent activations', () => {
     await expect(waiting).resolves.toBe(true)
     await activation.dispose()
     expect(backend.dispose).toHaveBeenCalledTimes(1)
-    expect(fixture.records()).toMatchObject([{ id: activation.childId, external: true }])
+    expect(fixture.records()).toMatchObject([{ id: activation.childId, mode: 'external' }])
     expect(fixture.parent.inbox.nextTurn).toEqual([])
   })
 
@@ -283,7 +283,7 @@ describe('external subagent activations', () => {
     backend.result.resolve(failed)
     await expect(activation.result).resolves.toEqual(failed)
     await activation.dispose()
-    expect(fixture.records()).toMatchObject([{ id: activation.childId, external: true }])
+    expect(fixture.records()).toMatchObject([{ id: activation.childId, mode: 'external' }])
     if (delivery === 'caller') {
       expect(fixture.parent.inbox.nextTurn).toEqual([])
     } else {
@@ -314,7 +314,7 @@ describe('external subagent activations', () => {
     await expect(activation.result).resolves.toEqual(completed)
     expect(activation.dispose()).toBe(disposal)
     expect(fixture.records()).toMatchObject([{
-      id: activation.childId, external: true,
+      id: activation.childId, mode: 'external',
     }])
   })
 })
@@ -328,7 +328,7 @@ it('records external membership at creation without publishing settlement update
   const unsubscribe = fixture.ctx.sessionProjections.onChanged(() => { snapshots.push(fixture.records()) })
   try {
     const activation = await fixture.start()
-    const expected = { id: activation.childId, mode: 'one-shot', label: 'External work', external: true }
+    const expected = { id: activation.childId, mode: 'external', label: 'External work' }
     expect(await fixture.ctx.subagents.listChildren(fixture.parent.id)).toMatchObject([expected])
     expect(await fixture.ctx.subagents.listDescendants(fixture.parent.id)).toEqual([])
     expect(fixture.ctx.sessions.get(activation.childId)).toBeUndefined()

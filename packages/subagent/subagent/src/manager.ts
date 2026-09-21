@@ -467,7 +467,7 @@ export class SubagentManager {
       spec.signal.throwIfAborted()
       const childId = activation.childId
       parent.session.append('subagent/catalog', {
-        version: 0, childId, childCreatedAt: Date.now(), mode: 'one-shot', label: spec.label, external: true,
+        version: 2, childId, childCreatedAt: Date.now(), mode: 'external', label: spec.label,
       })
       this.announce(activation)
       return this.receipt(activation)
