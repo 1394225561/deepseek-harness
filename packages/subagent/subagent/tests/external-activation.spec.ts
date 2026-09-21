@@ -221,6 +221,7 @@ describe('external subagent activations', () => {
       return { ...backend.run, dispose }
     })
     const activation = await fixture.start()
+    const warning = vi.spyOn(fixture.ctx.logger, 'warn')
     const authority = kind === 'user'
       ? { kind, parentSessionId: fixture.parent.id }
       : { kind, agent: fixture.parent }
@@ -238,6 +239,7 @@ describe('external subagent activations', () => {
         const rejected = expect(disposal).rejects.toThrow('interrupt cleanup failed')
         backend.cleanup.reject(new Error('interrupt cleanup failed'))
         await rejected
+        await vi.waitFor(() => { expect(warning).toHaveBeenCalledTimes(1) })
       } else {
         backend.cleanup.resolve(undefined)
         await disposal

@@ -369,7 +369,8 @@ export class ContinuableActivationRegistry {
       activation.execution.cancel(kind, true)
     } else {
       activation.execution.controller.abort({ kind })
-      void this.dispose(activation).catch((error: unknown) => { this.reportTeardownFailure(activation, error) })
+      // The settlement observer reports teardown failures.
+      void this.dispose(activation).catch(() => undefined)
     }
   }
 
