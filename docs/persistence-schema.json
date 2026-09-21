@@ -44199,7 +44199,7 @@
         "packages/workflow/workflow/src/types.ts#WorkflowRunId"
       ],
       "sources": [
-        "packages/api/session-controller/src/types.ts:397",
+        "packages/api/session-controller/src/types.ts:396",
         "packages/attachment/attachment/src/brand.ts:6",
         "packages/compaction/compaction/src/brand.ts:4",
         "packages/core/session/src/types.ts:20",
@@ -58064,7 +58064,7 @@
       },
       "names": [],
       "sources": [
-        "packages/api/session-controller/src/types.ts:402"
+        "packages/api/session-controller/src/types.ts:401"
       ]
     },
     {
@@ -86680,7 +86680,7 @@
         "packages/api/session-controller/src/types.ts#ModelSelection"
       ],
       "sources": [
-        "packages/api/session-controller/src/types.ts:101"
+        "packages/api/session-controller/src/types.ts:100"
       ]
     },
     {
