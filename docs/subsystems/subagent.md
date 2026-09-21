@@ -507,7 +507,7 @@ async drainChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void
  * @throws {@link SubagentError} when query or catalog projection is unavailable.
  * @throws SessionQueryError when the parent cannot be read or the query is cancelled.
  */
-async listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentCatalogEntry[]>
+listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentCatalogEntry[]>
 
 /**
  * Enumerate the root's complete session-backed subagent tree in stable
@@ -524,7 +524,7 @@ async listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<Su
  *   stable pre-order.
  * @throws {@link SubagentError} when listing dependencies are unavailable or the caller cancels.
  */
-async listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]>
+listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]>
 
 /**
  * Deliver one browser-authored message to a continuable child through the
