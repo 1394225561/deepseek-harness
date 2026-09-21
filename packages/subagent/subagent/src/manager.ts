@@ -1025,7 +1025,7 @@ export class SubagentManager {
     return 'ready'
   }
 
-  /** Propagate stop synchronously, then finish the child-first release. */
+  /** Propagate stop synchronously and await descendant startup rollback before release. */
   private async finishDisposal(activation: Activation, stop: boolean): Promise<void> {
     this.wake(activation)
     const { childId } = activation
@@ -1055,7 +1055,10 @@ export class SubagentManager {
           const children = [...activation.ownedChildren]
             .map(child => this.resident.get(child))
             .filter((child): child is Activation => child !== undefined)
+          const pending = [...this.materializations].filter(item => item.lineage.includes(activation.handle.agent))
           const childDisposals = children.map(child => this.dispose(child))
+          for (const item of pending) item.controller.abort()
+          childDisposals.push(...pending.map(item => item.settled))
           const childFailures = await Promise.all(childDisposals.map(async (disposal) => {
             try {
               await disposal

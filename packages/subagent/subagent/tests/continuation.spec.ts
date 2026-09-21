@@ -3481,6 +3481,63 @@ describe('continuable errors', () => {
     await drained
   })
 
+  it.each([1, 2])('disposes a local activation only after pending startup at depth %s rolls back', async (depth) => {
+    const { ctx, parent } = await setup(Array.from({ length: depth }, () => 'hang' as const))
+    const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'caller' })
+    const child = ctx.agents.get(started.childId)!
+    const entered = Promise.withResolvers<AbortSignal>()
+    const releaseStartup = Promise.withResolvers<undefined>()
+    const cleaning = Promise.withResolvers<undefined>()
+    const releaseCleanup = Promise.withResolvers<undefined>()
+    let starting: Promise<unknown> | undefined
+    let disposal: Promise<void> | undefined
+    try {
+      let owner = child
+      for (let level = 1; level < depth; level++) {
+        const nested = await ctx.subagents.startActivation({ ...startSpec(owner), delivery: 'caller' })
+        owner = ctx.agents.get(nested.childId)!
+      }
+      ctx.subagents.registerProvider({
+        name: 'external', inheritsParentContext: false,
+        capabilities: { agentOptions: false, outputSchema: false, depthLimit: false, toolFilter: false, persona: false },
+        start: async ({ signal }) => {
+          entered.resolve(signal)
+          await releaseStartup.promise
+          return {
+            id: SessionId('pending-descendant'),
+            result: Promise.resolve({ output: [], stopReason: 'completed' }),
+            dispose: async () => { cleaning.resolve(undefined); await releaseCleanup.promise },
+          }
+        },
+      })
+      starting = ctx.subagents.startActivation({ ...startSpec(owner, 'external'), delivery: 'caller' })
+        .catch((error: unknown) => error)
+      const signal = await entered.promise
+      disposal = started.dispose()
+      const disposed = vi.fn()
+      void disposal.then(disposed, disposed)
+      expect(signal.aborted).toBe(true)
+      await expect(ctx.subagents.startActivation({ ...startSpec(child), delivery: 'caller' }))
+        .rejects.toMatchObject({ code: 'ACTIVATION_CLOSING' })
+      releaseStartup.resolve(undefined)
+      await cleaning.promise
+      expect(disposed).not.toHaveBeenCalled()
+      expect(ctx.agents.get(child.id)).toBe(child)
+      releaseCleanup.resolve(undefined)
+      await disposal
+      await expect(starting).resolves.toMatchObject({ name: 'AbortError' })
+      expect(ctx.agents.get(child.id)).toBeUndefined()
+      expect(ctx.agents.get(owner.id)).toBeUndefined()
+      expect(ctx.agents.get(parent.id)).toBe(parent)
+      await expect(ctx.subagents.waitForChildren(parent)).resolves.toBe(false)
+    } finally {
+      releaseStartup.resolve(undefined)
+      releaseCleanup.resolve(undefined)
+      await Promise.allSettled([starting, disposal, started.dispose()])
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('reports a failing branch after every branch settles, without pinning the rest', async () => {
     const hold = Promise.withResolvers<undefined>()
     const adapter = new GatedAdapter([
@@ -3545,7 +3602,7 @@ describe('continuable errors', () => {
     }
   })
 
-  it('rolls the transfer back when the parent begins disposal during materialization', async () => {
+  it.each(['agent/created', 'subagent/start'] as const)('rejects child admission when parent disposal begins at %s', async (event) => {
     const hold = Promise.withResolvers<undefined>()
     const adapter = new GatedAdapter([
       { chunks: textResponse('parent child'), gate: hold.promise },
@@ -3558,29 +3615,18 @@ describe('continuable errors', () => {
       expect(found).toBeDefined()
       return found!
     })
-    const activations = managerState(ctx)
-    const ownerAgents = activations.ownerCtx.agents
     const before = new Set(ctx.agents.list().map(agent => agent.id))
-    // Open the would-be parent's disposal only once the grandchild's Agent is
-    // being created: the entry hold has already passed, so the post-transfer
-    // ownership registration must reject and roll the transfer back with no
-    // Activation and no live Agent left behind.
-    const originalCreate = ownerAgents.create.bind(ownerAgents)
     let disposal: Promise<void> | undefined
-    const createSpy = vi.spyOn(ownerAgents, 'create').mockImplementation((options) => {
-      disposal = outer.dispose()
-      createSpy.mockRestore()
-      return originalCreate(options)
-    })
+    const detach = ctx.on(event, () => { disposal = outer.dispose() })
 
     try {
       await expect(ctx.subagents.startActivation({ ...startSpec(child), delivery: 'parent' }))
-        .rejects.toMatchObject({ code: 'ACTIVATION_CLOSING' })
+        .rejects.toMatchObject(event === 'agent/created' ? { name: 'AbortError' } : { code: 'ACTIVATION_CLOSING' })
       await vi.waitFor(() => {
         expect(ctx.agents.list().map(agent => agent.id).filter(id => !before.has(id))).toEqual([])
       })
     } finally {
-      createSpy.mockRestore()
+      detach()
       hold.resolve(undefined)
       await disposal
     }
