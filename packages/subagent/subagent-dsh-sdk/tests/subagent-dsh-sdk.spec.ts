@@ -791,14 +791,14 @@ describe('dsh-subagent-dsh-sdk provider', () => {
   it('wraps a shutdown rejection with safe facts after the runtime is reaped', async () => {
     const rawCleanup = 'shutdown failed at /private/path SECRET_TOKEN'
     const ctx = await setup()
-    const run = await startExternalActivation(ctx, 'dsh-sdk', request())
-    await run.result
     const spy = vi.spyOn(DeepSeekHarness.prototype, 'close').mockImplementation(async function (this: DeepSeekHarness) {
       spy.mockRestore()
       await this.close()
       throw new Error(rawCleanup)
     })
     try {
+      const run = await startExternalActivation(ctx, 'dsh-sdk', request())
+      await run.result
       const error = await run.dispose().catch((cause: unknown) => cause)
       expect(error).toBeInstanceOf(Error)
       expect((error as Error).message).toBe(

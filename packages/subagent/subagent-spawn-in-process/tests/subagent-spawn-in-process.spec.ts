@@ -107,7 +107,7 @@ describe('dsh-subagent-spawn-in-process', () => {
     const { ctx, parent } = await setup([textResponse('hi')])
     const run = await start(ctx, 'spawn', { prompt: [{ type: 'text', text: 'p' }], parent })
     await run.result
-    const child = ctx.agents.get(run.id)!
+    const child = run.localAgent
     expect(child.session.header.id).not.toBe(parent.session.header.id)
     expect(child.session.header.parentSession).toBe(parent.session.header.id)
     await run.dispose()
@@ -123,21 +123,20 @@ describe('dsh-subagent-spawn-in-process', () => {
 
     const run = await start(ctx, 'spawn', { prompt: [{ type: 'text', text: 'child prompt' }], parent })
     await run.result
-    const child = ctx.agents.get(run.id)!
+    const child = run.localAgent
     // The child's first user/message is its OWN prompt, not the parent's history.
     const firstUser = child.session.snapshotEvents().find(e => e.type === 'user/message')
     expect(firstUser).toBeDefined()
     await run.dispose()
   })
 
-  it('disposes the child to quiescence (agent removed from the registry)', async () => {
+  it('releases the child before delivering its result', async () => {
     const { ctx, parent } = await setup([textResponse('x')])
     const run = await start(ctx, 'spawn', { prompt: [{ type: 'text', text: 'p' }], parent })
-    await run.result
     expect(ctx.agents.get(run.id)).toBeDefined()
-    await run.dispose()
-    // After dispose, the child is unregistered (the AgentHandle teardown ran).
+    await run.result
     expect(ctx.agents.get(run.id)).toBeUndefined()
+    await run.dispose()
   })
 
   it('stamps child depth = parent depth + 1 (via the merged AgentOptions field)', async () => {
@@ -145,7 +144,7 @@ describe('dsh-subagent-spawn-in-process', () => {
     expect(parent.options.subagentDepth).toBeUndefined()
     const run = await start(ctx, 'spawn', { prompt: [{ type: 'text', text: 'p' }], parent })
     await run.result
-    const child = ctx.agents.get(run.id)!
+    const child = run.localAgent
     expect(child.options.subagentDepth).toBe(1)
     await run.dispose()
   })
@@ -258,7 +257,7 @@ describe('dsh-subagent-spawn-in-process', () => {
     })
     const run = await start(ctx, 'spawn', { prompt: [{ type: 'text', text: 'p' }], parent: parentHandle.agent })
     await run.result
-    const child = ctx.agents.get(run.id)!
+    const child = run.localAgent
     expect(child.session.header.cwd).toBe('/tmp/parent-workspace')
     await run.dispose()
     await parentHandle.dispose()
@@ -432,7 +431,7 @@ describe('dsh-subagent-spawn-in-process', () => {
       const childRequest = adapter.requests[0]!
       expect((childRequest.tools ?? []).map(t => t.name)).not.toContain('forbidden_tool')
       // …and the attempted call executed as UNKNOWN_TOOL (visible in the log).
-      const child = ctx.agents.get(run.id)!
+      const child = run.localAgent
       const toolResult = child.session.snapshotEvents().find(e => e.type === 'tool/result')!
       expect(JSON.stringify(toolResult.data)).toContain('unknown tool')
       await run.dispose()
