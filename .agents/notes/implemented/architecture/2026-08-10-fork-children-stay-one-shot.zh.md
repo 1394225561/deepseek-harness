@@ -16,7 +16,7 @@ fork 与 spawn 的差异在于：fork 会用 parent 已完成轮次的前缀作�
 
 面向模型的 `send_message` 工具在组合中的每个 Agent 上全局注册。因此，可继续 fork child 获得与 parent 相同的工具名称、描述、schema 和顺序。其初始任务追加在继承的 Session 种子之后；当 child 可以看到该工具时，任务还会包含直接 parent id，以及使用 `send_message({ agent_id, message })` 返回结果的指引。
 
-base 组合包与 `cordis`、`standard` 和 `ptc` CLI preset 将 fork 绑定为可继续生命周期。基于 base 的 profile（包括 headless）继承这一默认值。`ForkInProcessProvider.prepareContinuable()` 与 `ctx.subagents.startContinuable()` 在这些组合中保持相同的请求前缀行为。
+base 组合包与 `cordis`、`standard` 和 `ptc` CLI preset 将 fork 绑定为可继续生命周期。基于 base 的 profile（包括 headless）继承这一默认值。`ForkInProcessProvider.prepareContinuable()` 与 `ctx.subagents.startActivation()` 在这些组合中保持相同的请求前缀行为。
 
 逐字节相同的前缀复用受显式部署选择约束。配置 child persona 或 `toolFilter` 的 fork 委派仍可能改变请求头。尤其是过滤掉 `send_message` 时，child 会同时失去该 schema 与返回指引；运行时不会绕过显式 allow-list。
 
@@ -34,8 +34,8 @@ base 组合包与 `cordis`、`standard` 和 `ptc` CLI preset 将 fork 绑定为�
 
 - 未请求 persona 或工具过滤时，parent 与可继续 fork child 暴露逐字节相同且顺序一致的工具 schema。
 - 继承的 Session 种子位于 child 初始任务及其返回指引之前。
-- base 组合包与完整 CLI preset 默认使用可继续 fork，不增加 child-only 请求头字段；显式前台调用仍使用 one-shot 路径。
-- child 显式向直接 parent 发送零条或多条消息；最终回答不会被隐式复制。管理器负责的结算通知仍然无条件执行，并且与 Agent 消息分离。
+- base 组合包与完整 CLI preset 对 parent 和 caller 投递均使用本地可继续 fork，不增加 child-only 请求头字段。
+- child 可以通过 `send_message` 向直接 parent 发消息。parent 投递会追加独立的运行时结算通知；caller 投递通过 activation 回执返回结果。
 - keyless snapshot 与包测试固定 schema 相等性、继承历史顺序、parent-id 指引，以及通过同一个 `send_message` 操作完成的 child-to-parent 投递。
 
 ### 已接受风险

@@ -609,3 +609,22 @@ describe('subagent descriptors', () => {
     expect(() => foldSubagentDescriptor([event(data)])).toThrow(detail)
   })
 })
+
+it('rejects external execution when a provider implements neither execution method', async () => {
+  const { subagents } = await service()
+  subagents.registerProvider({ name: 'empty', capabilities: NO_CAPS, inheritsParentContext: false })
+  await expect(start(subagents, 'empty', baseRequest())).rejects.toMatchObject({ code: 'UNSUPPORTED_CAPABILITY' })
+})
+
+it('rejects a disposed parent before starting provider execution', async () => {
+  const { ctx, subagents } = await service()
+  const provider = new StubProvider('external')
+  subagents.registerProvider(provider)
+  const handle = await ctx.agents.create({ sessionId: SessionId('disposed-parent') })
+  await handle.dispose()
+  await expect(subagents.startActivation({
+    provider: provider.name, label: 'work', delivery: 'caller', signal: new AbortController().signal,
+    request: { parent: handle.agent, prompt: [] },
+  })).rejects.toMatchObject({ code: 'UNAUTHORIZED' })
+  expect(provider.startCount).toBe(0)
+})

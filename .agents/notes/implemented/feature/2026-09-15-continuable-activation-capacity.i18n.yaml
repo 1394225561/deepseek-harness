@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-09-15-continuable-activation-capacity.md
-2026-09-15-continuable-activation-capacity.md: 03db1d1e9b1b2efcc5086b6c164fbc4db1baf368
-2026-09-15-continuable-activation-capacity.zh.md: 0ecdefe5ad1dc918f4d3e69d5a716840a381a020
+2026-09-15-continuable-activation-capacity.md: 3b2c73fe6c3a8a7d3d290d4bd813ca826587ca13
+2026-09-15-continuable-activation-capacity.zh.md: d299176a4f86d8247425f9f1a9aa8f71185ede67

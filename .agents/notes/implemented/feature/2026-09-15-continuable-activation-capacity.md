@@ -12,9 +12,9 @@ Depth limits bound nesting but permit wide concurrent delegation. Background Job
 
 The shared activation entry point, external execution ownership, and caller-versus-parent result delivery are governed by [Unified subagent activations](../simplification/2026-09-17-unified-subagent-activations.md). This record retains the independent rationale described below.
 
-The subagent service configures `maxActiveSubagents`, defaulting to 8. Each live non-continuable parent owns one process-local pool, shared by reference through uninterrupted continuable parent links. The pool owner itself is excluded. One-shot runs and external-provider work do not enter this pool. A one-shot intermediate parent starts a separate pool for its continuable children; cross-one-shot capacity inheritance is deferred. Delegation depth remains independently configured.
+The subagent service configures `maxActiveSubagents`, defaulting to 8. Each top-level live parent owns one process-local pool, shared through managed local parent links. Local and external activations reserve from the same pool; the top-level owner itself is excluded. Delegation depth remains independently configured.
 
-The Activation registry reserves a unique slot before fresh or cold-resume reconstruction yields. The materialization owns rollback until the Activation owns the slot; unpublished rollback and failed materialization may both release the same token safely. Handle disposal precedes release, which precedes parent settlement notification. Sending to an existing Activation reuses its slot.
+The manager reserves a unique slot before fresh or cold-resume reconstruction yields. The materialization owns rollback until the Activation owns the slot; unpublished rollback and failed materialization may both release the same token safely. Handle disposal precedes release, which precedes parent settlement notification. Sending to an existing Activation reuses its slot.
 
 Pool lookup, admission and release take amortized constant time. A weak root map does not retain dead root Agents; each pool holds only occupied tokens. No Session catalog scan, tree traversal, durable counter, or public capacity-query API is added.
 

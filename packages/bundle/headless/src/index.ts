@@ -368,9 +368,13 @@ async function run(ctx: Context, config: Config, io: HeadlessIo): Promise<void> 
         source: { kind: 'user' },
       }))
       const subagents = ctx.get('subagents')
-      do {
+      while (true) {
         await agent.whenIdle()
-      } while (await subagents?.waitForChildren(agent))
+        const idleSeq = agent.session.seq
+        // Child settlement can wake the parent before the child wait observes it.
+        if (!await subagents?.waitForChildren(agent)
+          && agent.status === 'idle' && agent.session.seq === idleSeq) break
+      }
     } finally {
       stopReasoning?.()
     }

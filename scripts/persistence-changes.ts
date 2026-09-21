@@ -418,16 +418,13 @@ export function classifyPersistenceChange(before: PersistenceRoot | null, after:
           && Number.isSafeInteger(version.value) && version.value >= 0 ? version.value : undefined
       }
       const versions = oldTypes.map(index => payloadVersion(oldRoot.schema, index))
-      const nextVersions = newTypes.map(index => payloadVersion(newRoot.schema, index))
-      if (versions.every(version => version !== undefined) && nextVersions.every(version => version !== undefined)) {
-        const maximum = Math.max(...versions)
-        const retained = newTypes.filter((_, index) => (nextVersions[index] as number) <= maximum)
-        if (retained.length === oldTypes.length && retained.length < newTypes.length) {
-          const retainedChanges = compareAlternatives(oldTypes, retained, path, scope, active)
-          if (retainedChanges.every(change => !change.requiresVersionBump)) {
-            return [...retainedChanges, describe(path, 'payload-version-added', false)]
-          }
-        }
+      const oldHashes = new Set(oldTypes.map(index => fingerprint(oldRoot.schema, index, 0)))
+      const newHashes = new Set(newTypes.map(index => fingerprint(newRoot.schema, index, 1)))
+      const added = newTypes.filter(index => !oldHashes.has(fingerprint(newRoot.schema, index, 1)))
+      if (versions.every(version => version !== undefined) && added.length > 0
+        && [...oldHashes].every(hash => newHashes.has(hash))
+        && added.every(index => (payloadVersion(newRoot.schema, index) ?? -1) > Math.max(...versions))) {
+        return [describe(path, 'payload-version-added', false)]
       }
     }
     if (oldNode.kind !== newNode.kind) return [describe(path, 'type-changed')]

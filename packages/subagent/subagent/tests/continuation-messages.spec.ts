@@ -54,3 +54,14 @@ describe('continuable settlement content', () => {
     ])
   })
 })
+
+it('preserves structured results and diagnostics when closing text is delivered separately', () => {
+  expect(createSettlementMessage(childId, {
+    stopReason: 'completed', output: [{ type: 'text', text: 'already sent' }],
+    structured: { answer: 42 }, diagnostic: 'safe diagnostic',
+  }, false).content).toEqual([
+    summary,
+    { type: 'text', text: 'Structured result: {"answer":42}' },
+    { type: 'text', text: 'safe diagnostic' },
+  ])
+})

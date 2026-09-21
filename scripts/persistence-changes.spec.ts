@@ -397,7 +397,7 @@ function unionBody(arms: readonly (readonly SchemaProperty[])[]): PersistenceRoo
   return { ...typeRoot('event:example/value', {}), schema, digest: schemaDigest(schema) }
 }
 
-function versionedEvent(variants: readonly { version: number; mode: string; extra?: boolean | 'optional' }[]): PersistenceRoot {
+function versionedEvent(variants: readonly { version: number; mode: string; extra?: boolean }[]): PersistenceRoot {
   const nodes: SchemaNode[] = [
     { kind: 'object', indices: [], properties: [
       { name: 'data', type: variants.length === 1 ? 3 : 1, optional: false },
@@ -411,7 +411,7 @@ function versionedEvent(variants: readonly { version: number; mode: string; extr
     nodes.push({ kind: 'object', indices: [], properties: [
       { name: 'version', type: index + 1, optional: false },
       { name: 'mode', type: index + 2, optional: false },
-      ...(variant.extra ? [{ name: 'extra', type: 2, optional: variant.extra === 'optional' }] : []),
+      ...(variant.extra ? [{ name: 'extra', type: 2, optional: false }] : []),
     ] }, { kind: 'literal', value: variant.version }, { kind: 'literal', value: variant.mode })
   }
   nodes.push({ kind: 'literal', value: 'example/value' })
@@ -432,47 +432,6 @@ describe('persistence change classification', () => {
       .toEqual([expect.objectContaining({ kind: 'payload-version-added', requiresVersionBump: false })])
     runPersistenceChanges(['--record', COMPATIBLE_ID, '--prose', proseFile(root)], root, () => after)
     verifyPersistenceChanges(root, after)
-  })
-
-  it.each([1, 2])('combines compatible old fields and a higher payload version with %s retained variant(s)', (count) => {
-    const root = fixture()
-    const variants = [{ version: 0, mode: 'one-shot' }, { version: 0, mode: 'continuable' }].slice(0, count)
-    const oldEvent = versionedEvent(variants)
-    const nextEvent = versionedEvent([
-      { ...variants[0]!, extra: 'optional' }, ...variants.slice(1), { version: 1, mode: 'unknown', extra: true },
-    ])
-    const before = { ...inventory({}, 4), roots: [...inventory({}, 4).roots.filter(root => root.kind !== 'event'), oldEvent] }
-    finalize(root, before)
-    const after = { ...before, roots: before.roots.map(root => root.kind === 'event' ? nextEvent : root) }
-    expect(classifyPersistenceChange(oldEvent, nextEvent)).toEqual([
-      expect.objectContaining({ kind: 'optional-property-added', requiresVersionBump: false }),
-      expect.objectContaining({ kind: 'payload-version-added', requiresVersionBump: false }),
-    ])
-    runPersistenceChanges(['--record', COMPATIBLE_ID, '--prose', proseFile(root)], root, () => after)
-    verifyPersistenceChanges(root, after)
-  })
-
-  it('preserves the required-to-optional rule when a higher payload version is added', () => {
-    const before = versionedEvent([{ version: 0, mode: 'one-shot', extra: true }])
-    const after = versionedEvent([
-      { version: 0, mode: 'one-shot', extra: 'optional' }, { version: 1, mode: 'unknown' },
-    ])
-    expect(classifyPersistenceChange(before, after)).toEqual([
-      expect.objectContaining({ kind: 'property-made-optional', requiresVersionBump: false }),
-      expect.objectContaining({ kind: 'payload-version-added', requiresVersionBump: false }),
-    ])
-  })
-
-  it('rejects added and replaced same-version alternatives alongside a higher payload version', () => {
-    const variants = [{ version: 0, mode: 'one-shot' }, { version: 0, mode: 'continuable' }]
-    const before = versionedEvent(variants)
-    for (const retained of [
-      [...variants, { version: 0, mode: 'other' }],
-      [variants[0]!, { version: 0, mode: 'other' }],
-    ]) {
-      const after = versionedEvent([...retained, { version: 1, mode: 'unknown' }])
-      expect(classifyPersistenceChange(before, after).some(change => change.requiresVersionBump)).toBe(true)
-    }
   })
 
   it('rejects changes to old payloads, missing versions, non-increasing versions, and removal of old readers', () => {

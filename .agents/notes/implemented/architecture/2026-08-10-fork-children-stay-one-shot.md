@@ -16,7 +16,7 @@ The shared activation entry point, external execution ownership, and caller-vers
 
 The model-facing `send_message` tool is registered globally for every Agent in a composition. A continuable forked child therefore receives the same tool name, description, schema, and ordering as its parent. Its initial task is appended after the inherited Session seed, and the task includes the direct parent id plus guidance to return results with `send_message({ agent_id, message })` when that tool is visible to the child.
 
-The base bundle and the `cordis`, `standard`, and `ptc` CLI presets bind fork to the continuable lifecycle. Base-backed profiles, including headless, inherit that default. `ForkInProcessProvider.prepareContinuable()` and `ctx.subagents.startContinuable()` preserve the same request-prefix behavior across these compositions.
+The base bundle and the `cordis`, `standard`, and `ptc` CLI presets bind fork to the continuable lifecycle. Base-backed profiles, including headless, inherit that default. `ForkInProcessProvider.prepareContinuable()` and `ctx.subagents.startActivation()` preserve the same request-prefix behavior across these compositions.
 
 Byte-identical prefix reuse is qualified by explicit deployment choices. A fork delegation that applies a child persona or `toolFilter` may still change the request head. In particular, filtering out `send_message` removes both the schema and the return guidance from the child; the runtime does not bypass an explicit allow-list.
 
@@ -34,8 +34,8 @@ Byte-identical prefix reuse is qualified by explicit deployment choices. A fork 
 
 - Parent and continuable-fork child expose byte-identical ordered tool schemas when the delegation does not request a persona or tool filter.
 - The inherited Session seed precedes the child's initial task and return guidance.
-- The base bundle and full CLI presets default to continuable fork without a child-only request-head addition; explicit foreground calls still use the one-shot path.
-- A child sends zero or more messages to its direct parent explicitly; its final answer is not implicitly copied. The manager-owned settlement notice remains unconditional and separate.
+- The base bundle and full CLI presets use local continuable fork for both parent and caller delivery, without a child-only request-head addition.
+- The child can send messages to its direct parent through `send_message`. Parent delivery adds a separate runtime settlement notice; caller delivery returns the result through the activation receipt.
 - Keyless snapshots and package tests pin schema equality, inherited-history ordering, parent-id guidance, and child-to-parent delivery through the same `send_message` operation used in the other direction.
 
 ### Accepted risks

@@ -43,7 +43,7 @@ A new package group `packages/subagent/`:
 
 ### The primitive: async `start → SubagentRun`
 
-A provider exposes `start(request) → Promise<SubagentRun>`. Fulfillment publishes a child and transfers its run handle to the caller. Work that fails before publication rejects `start()`, while prompt, turn, cancellation, and infrastructure outcomes after publication settle through `run.result` without hiding the child id. One signal covers cancellation before and after publication; `dispose()` cancels remaining work and awaits quiescence. A rejected start cleans unpublished resources and emits no lifecycle event, while a post-publication result failure closes the published lifecycle pair. `start` is transport-neutral; `spawn` names only the fresh in-process backend.
+Local providers expose `prepareContinuable(request)` and return detached creation inputs; external providers expose `start(request)` and transfer an owned `SubagentRun` to the manager. `startActivation()` returns the caller a receipt with child identity, result, and exact-activation disposal. Startup failure rolls back unpublished resources. The caller signal owns unpublished work; after publication the manager owns cancellation, settlement, and cleanup.
 
 ### Two kinds of optional capability, discovered two ways
 
@@ -56,11 +56,11 @@ Fresh and forked children are separate providers, not a request flag. `dsh-subag
 
 ### Child isolation and the parent log
 
-Each in-process subagent runs in its **own `Session`** (own id, `parentSession` lineage), persisted independently. Remote ACP and one-shot product providers instead mint a parent-scoped lifecycle id and expose no local `Agent` or child `Session`; their internal state remains in the remote process. Across both forms, the parent's log records only the spawn `tool/call` and its `tool/result` (the child's final output, or a failed result with optional provider diagnostic), while child steps and tool calls remain outside the parent log.
+Each local subagent owns a separately persisted `Session`. External providers expose no local child Agent or Session. Both publish a parent-owned catalog fact and lifecycle observations; parent delivery also records a settlement notice. Child steps and tool calls remain outside the parent log.
 
-### Synchronous collect (first cut)
+### Result recipients
 
-`dsh-tool-subagent` passes its execution signal to `start()`, awaits the child result, and disposes the run before reporting. Non-completed outcomes become error results rather than successful partial output; they present the optional safe diagnostic owned by the [non-interactive permissions decision](2026-08-15-product-subagent-noninteractive-permissions.md) separately from partial assistant text. Independent result and disposal rejections remain independently observable.
+`dsh-tool-subagent` starts with `delivery: 'parent'` and returns the child id after publication. The manager later delivers the execution outcome and optional safe diagnostic owned by the [non-interactive permissions decision](2026-08-15-product-subagent-noninteractive-permissions.md). Workflow consumers select `delivery: 'caller'` and await the receipt result. Execution and cleanup failures remain independently observable.
 
 ### Transport provider selection is config, not model-facing
 
@@ -73,6 +73,6 @@ Registry and tool tests replace only the nondeterministic child with a package-l
 ## Consequences
 
 - **Recursion.** Without a bound, an in-process child can see the delegation tool and recurse. The in-process backends implement the optional absolute depth limit and scoped live-global `toolFilter`; ACP advertises both capabilities off and rejects such a request. The [subagent composition-controls Agent Note](2026-07-12-subagent-persona-tool-filter-and-depth.md) owns their exact semantics and security limits.
-- **Blocking the parent turn.** Foreground collection holds the parent's step open for the child's full duration. Background delegation uses the shared `ctx.jobs` runtime and generic `job_*` tools, the same collection mechanism as background bash; the subagent seam itself remains task-agnostic.
+- **Parent progress.** Model delegation returns after publication; workflow collection waits for the result. Subagents do not use `ctx.jobs` or `job_*` tools.
 - **Live progress.** Only lifecycle + the final result surface; a per-chunk child→parent update stream is deferred with the background redesign.
 - **ACP client surface.** Proxying `fs`/`terminal` from the ACP child back to the parent (a shared-workspace mode) is future work; the backend advertises neither capability, so the child self-serves in its own process.

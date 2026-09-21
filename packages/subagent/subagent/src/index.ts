@@ -211,7 +211,10 @@ export class SubagentRuntime extends TypertRemoteService {
     ctx.inject(['agents'], (childCtx: Context) => {
       const manager = new SubagentManager(childCtx, {
         startExternal: (name, request) => {
-          const provider = this.expectProvider(name) as SubagentProvider & Required<Pick<SubagentProvider, 'start'>>
+          const provider = this.expectProvider(name)
+          if (provider.start === undefined) {
+            throw new SubagentError(`subagent provider "${name}" does not support external execution`, 'UNSUPPORTED_CAPABILITY')
+          }
           return provider.start(request)
         },
         prepareContinuable: (name, request) => this.prepareContinuable(name, request),

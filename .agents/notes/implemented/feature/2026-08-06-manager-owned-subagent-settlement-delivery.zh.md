@@ -18,7 +18,7 @@ Status: implemented
 
 继续执行管理器自己投递这份记账，就在结束 Activation 的那笔 dispose 事务内部完成。
 
-当驻留 Activation 结算时，`notifySettlement()` 解析该 child 持久化的直接父级，并向它发送一条用户角色消息：先是父级可据以行动的一句结果说明，然后是 child 最终 assistant 输出中的文本，或一句说明它没有产出收尾文本。对每个调用方真正拿到过 id 的 child，投递都是无条件的。它不查询 child 是否上报过，也不保留任何可能让这项承诺变成有条件的记账——正是这种无条件性，才让 `tool-subagent` 能够承诺一条包含 `its outcome and any final assistant message` 的运行时通知。在第一条消息被接受之前就回滚的物化保持静默，因为调用方已被告知该 child 未建立。
+采用 `delivery: 'parent'` 的已发布 Activation 结算时，`notifySettlement()` 向其确切在线的直接父级发送一条用户角色状态通知。caller 投递不发送通知。具备 `send_message` 的本地 child 通过该工具投递自由文本答案；其他 child 在通知中附带收尾文本。结构化结果与安全诊断独立附带。启动回滚保持静默，因为尚未发布 child。
 
 ### 收尾文本
 
@@ -34,7 +34,7 @@ Status: implemented
 
 **发送发生在 `releaseOwnership` 之前。** 此刻 parent 的 owned-child set 仍然包含这个 child，因此结算判据不可能成立。改在释放之后投递，则会与一个在下一个 microtask 恢复的 watcher 竞争：它会发现自己没有 child 且处于静止，于是 dispose 一个 Agent，而该 Agent 的 `cancel()` 会清空正装着这条通知的那个 inbox。失效表现是一条静默丢失的消息，任何地方都不会报错。
 
-**驻留 parent 通过私有 `SubagentInbox` 接收它。** 包装层会在同步唤醒发送前立即检查 Activation 的 closing promise，manager 则会在返回前更新 wake generation。最终结算决策会在 child lock 内重新检查该 generation、Session 序号、待处理 Inbox 与 owned-child set，再通过 `runMaintenance()` 占用 Agent 的 idle 阶段，然后关闭准入。这并非对第一条规则的重复保护：`Agent.status` 会把 context maintenance 折叠成 `idle`，而 maintenance 期间的唤醒发送只会预置一次延后唤醒。
+**驻留 parent 通过管理器持有的投递接收通知。** 管理器在同步唤醒发送前立即检查 Activation closing promise，并更新 wake generation。自然结算在 child lock 内检查该 generation、Session 序号、待处理 Inbox 与 owned-child set，再通过 `runMaintenance()` 占用 Agent idle 阶段后关闭准入。`Agent.status` 把 maintenance 归为 `idle`，因此 maintenance 期间的唤醒发送仍可能待处理。
 
 两条规则都有测试固定：把顺序反转或去掉记账，测试就会失败。
 
@@ -48,7 +48,7 @@ Status: implemented
 
 有一种 `running` 父级是无法 steer 的：轮次已被 cancel 但尚未退出的那种。`Agent.send()` 会把取消之后提交的唤醒输入改投到下一个轮次、闩存这次唤醒，并在被取消的驱动收敛后重放它——只有 disposal 取消从不闩存，那属于下面的拆卸规则。因此通知仍会开启自己的轮次，无需等待无关输入；代价是一次被改投的轮次边界，而不是消息本身。
 
-**自身已开始拆卸的父级不会被唤醒。** 唤醒不是入队操作：对静息 Agent 调用 `Agent.followup()` 会开启一个轮次，而对空闲 Agent 调用 `cancel()` 是文档明确的空操作，不会对之后的轮次设防。因此每条拆卸路径最终都面对一个在线、已取消、仍在注册表中的父级——ACP 桥接层正是在取消其 session agent 与 dispose 它们之间调用 `drainContinuableDescendants()`——于是一条无防护的通知会在一个即将被销毁的 Agent 上发起真实模型请求，而且每层树各一次，因为每层自己的通知又会唤醒它上面那层。`notifySettlement()` 会问 `assertAdmitting()` 问的同一个问题（这条谱系的可继续准入是否已关闭？），并改为 inject。inject 不是持久 mailbox——父级自身的 dispose 会对它做什么，记在「已接受的风险」里——但它是唯一能送达仍在读取自身 inbox 的父级、又不会在不该被唤醒的父级上预置一个轮次的发送方式；而唤醒本可送达的东西一样没有丢失：唤醒开启的那个轮次本身就会在半途被 dispose。
+**自身已开始拆卸的父级不会被唤醒。** 唤醒不是入队操作：对静息 Agent 调用 `Agent.followup()` 会开启一个轮次，而对空闲 Agent 调用 `cancel()` 是文档明确的空操作，不会对之后的轮次设防。因此每条拆卸路径最终都面对一个在线、已取消、仍在注册表中的父级——ACP 桥接层正是在取消其 session agent 与 dispose 它们之间调用 `drainDescendants()`——于是一条无防护的通知会在一个即将被销毁的 Agent 上发起真实模型请求，而且每层树各一次，因为每层自己的通知又会唤醒它上面那层。`notifySettlement()` 会问 `assertAdmitting()` 问的同一个问题（这条谱系的可继续准入是否已关闭？），并改为 inject。inject 不是持久 mailbox——父级自身的 dispose 会对它做什么，记在「已接受的风险」里——但它是唯一能送达仍在读取自身 inbox 的父级、又不会在不该被唤醒的父级上预置一个轮次的发送方式；而唤醒本可送达的东西一样没有丢失：唤醒开启的那个轮次本身就会在半途被 dispose。
 
 投递绝不会阻塞或使拆卸失败。发送被拒会被记录并丢弃，因为为重试一条通知而保留 child，会把它的整条祖先链永久钉在 `waiting` 上；而父级已离开注册表属于普通结果，不是错误。
 
@@ -60,7 +60,7 @@ Status: implemented
 
 从日志而不是从活动状态推导，才让它完整。早先的版本会在 cancel 之前立刻采样管理器自己的 Activation，而那样只能看到本管理器即将执行的取消：来自祖先的 `interrupt()`，或某个正在卸载的插件取消它所跟踪的 Agent，都会让该采样为假，通知照旧说 `finished`。它也让「已接受但从未被认领」这一情形没有任何测试能把它与「该判据不存在」区分开。一次对日志的折叠覆盖了所有发起方，而两个半边在被移除时都会让各自的测试失败。
 
-优先级归消费方：已记录的失败或上限优先于取消，因为停下一个已经失败的 child，不会把它的失败变成一次取消。`dsh-agent` 拥有这个 fold，是因为答案所依赖的那个 inbox 标记归它所有，而两个消费方本来就依赖它——这里的可继续 epoch，以及一次性的 `readResult()`（它有同一个漏洞）。
+优先级归消费方：已记录的失败或上限优先于取消。`dsh-agent` 拥有 `foldConsumedWork()`，因为已消费输入标记归它所有；本地 activation 结果捕获消费该归并。
 
 两者的影响都超出通知本身：`subagent/end` 会把 `stopReason` 送到 jsonrpc UI 与 Claude hook 桥接层，而它们此前把被拆卸的、正在跑轮次的 child 报成 `completed`。
 
@@ -70,7 +70,7 @@ Status: implemented
 
 `subagent-continuable` 固定了 SDK 中已完成的结算：父级通知包含 `SECOND_OK`，但不含子级推理；子级在第 1 轮结束，因此未覆盖已配置的第 3 轮检查点失败。
 
-另有一个无密钥的 headless Loader 快照端到端覆盖用户可见路径。其重放父级省略 `run_in_background` 以覆盖可继续后台默认路径，从不调用 `list_agents`、`send_message` 或 Task 工具，消费管理器写入的 `subagent-settled` 通知，并给出最终答案。child 不发送 Agent 消息，因此该 transcript 只依赖运行时通知。一个仅用于测试的 Loader 栅栏会把父级启动后的请求保持到真实管理器通知进入其 inbox 为止，从 transcript 中排除平台调度差异，但不会伪造该通知。
+keyless headless Loader 快照执行后台委派、消费管理器编写的 `subagent-settled` 通知，并生成父级最终答案，无需轮询 child 状态。仅用于测试的 Loader 屏障约束 child 完成与父级请求的顺序，不合成通知。
 
 `subagent-send-message` 场景会让 child 等到 parent 的派生轮次结束，随后让 parent 保持 maintenance，直至结算跟在 child 编写的消息之后到达。恢复的 parent 会先领取 next-step Agent 消息、再领取排队的 next-turn 结算。[消息与结算顺序决策](../bug-fix/2026-08-17-subagent-message-settlement-ordering.zh.md)负责说明这种跨状态顺序。
 
@@ -96,10 +96,10 @@ Status: implemented
 
 ## 后果
 
-- 可继续 child 的父级会为每个已结算 Activation 收到一条消息。因此，做扇出的部署会增加父级轮次；steer 会把同时结算的一批压缩到一个 step。
+- parent 投递为每个结算的 Activation 发出一条通知。扇出可能增加父级轮次；steer 让同时到达的一批通知共享一个 step。
 - `tool-subagent` 在其 schema 中承诺该通知，因为返回通道是服务行为，不是可选插件。
-- `Activation` 携带 `parentSession` 与 `announced`。前者存在是因为 child handle 在投递前已被 dispose；后者让被回滚的物化保持静默。
-- `foldConsumedWork()` 取代 `dsh-session` 的 `findLastMessageTurnEnd()`，并迁移到 `dsh-agent`——它拥有该 fold 所读取的 inbox 标记；一次性 in-process 路径折叠同一个答案，不会把被中途切断的一次性 child 归类为 `completed`。
+- `Activation` 保留确切的 parent Agent 与 `announced`：结算拒绝已被替换的 parent，发布回滚保持静默。
+- `foldConsumedWork()` 属于 `dsh-agent`，本地 activation 结果捕获所使用的已消费输入标记由它拥有。
 - 单元覆盖固定了无条件约定、每种终止原因、空闲与繁忙两种调度、批量语义、维护期回归、释放前顺序、父级已消失，以及一次不得让拆卸失败的发送被拒。
 - 三个 ACP 场景使用显式的结算围栏，`subagent-send-message` 固定 Agent 消息先于结算的 next-step 顺序。
 - 一个无密钥的 headless Loader 快照固定了「后台启动 → 管理器写入的结算通知 → 父级最终答案」路径，其中没有轮询，也没有 child 编写的消息。

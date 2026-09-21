@@ -43,7 +43,7 @@ bash seam（[能力 seam](../architecture/2026-06-13-capability-seams.zh.md)）�
 
 ### 原语：异步 `start → SubagentRun`
 
-提供方暴露 `start(request) → Promise<SubagentRun>`。完成时发布一个子 agent，并将其运行句柄转交给调用方。发布前失败的工作会拒绝 `start()`，而发布后的提示词、轮次、取消与基础设施结果会通过 `run.result` 结算，且不会隐藏 child id。同一个信号覆盖发布前后的取消；`dispose()`（资源释放）取消剩余工作并等待完全停稳。启动被拒绝时会清理未发布资源，且不发出生命周期事件；发布后的结果失败则会结束已经发布的生命周期事件对。`start` 与传输方式无关；`spawn` 仅指代全新的进程内后端。
+本地提供方暴露 `prepareContinuable(request)` 并返回独立的创建输入；外部提供方暴露 `start(request)`，把持有的 `SubagentRun` 移交给管理器。`startActivation()` 向调用方返回包含 child 身份、结果与确切 activation dispose 能力的回执。启动失败会回滚未发布资源。调用方 signal 持有未发布工作；发布后由管理器持有取消、结算与清理。
 
 ### 两类可选能力，两种发现方式
 
@@ -56,11 +56,11 @@ bash seam（[能力 seam](../architecture/2026-06-13-capability-seams.zh.md)）�
 
 ### 子 agent 隔离与父日志
 
-每个进程内 subagent 运行在**自己的 `Session`** 中（独立 id、`parentSession` 谱系），独立持久化。远端 ACP 和一次性产品提供方则会生成一个父级作用域的生命周期 id，且不暴露本地 `Agent` 或子 `Session`；其内部状态留在远端进程中。两种形式下，父日志都仅记录 spawn `tool/call` 及其 `tool/result`（子 agent 的最终输出，或带可选提供方诊断的失败结果），而子 agent 的步骤和工具调用均留在父日志之外。
+每个本地 subagent 持有独立持久化的 `Session`。外部提供方不暴露本地 child Agent 或 Session。两者都会发布父级持有的 catalog 事实与生命周期观察；parent 投递还会记录结算通知。child 的 step 与工具调用仍保留在父级日志之外。
 
-### 同步收集（首版）
+### 结果接收方
 
-`dsh-tool-subagent` 将其执行信号传给 `start()`，等待子 agent 结果，并在报告前 dispose 该 run。非完成态的结果变为错误结果，而非成功的部分输出；它会把由[非交互权限决策](2026-08-15-product-subagent-noninteractive-permissions.zh.md)负责的可选安全诊断与部分 assistant 文本分开呈现。结果与 dispose 的拒绝仍可彼此独立地观察。
+`dsh-tool-subagent` 使用 `delivery: 'parent'` 启动，并在发布后返回 child id。管理器随后投递执行结果与[非交互权限决策](2026-08-15-product-subagent-noninteractive-permissions.zh.md)拥有的可选安全诊断。Workflow 消费方选择 `delivery: 'caller'` 并等待回执结果。执行失败与清理失败仍可独立观察。
 
 ### 传输提供方选择是配置，不面向模型
 
@@ -73,6 +73,6 @@ bash seam（[能力 seam](../architecture/2026-06-13-capability-seams.zh.md)）�
 ## 后果
 
 - **递归。** 如果不设限制，进程内子 agent 能看到委派工具并递归调用。进程内后端实现了可选的绝对深度限制和有作用域的实时全局 `toolFilter`；ACP 声明这两项能力为关闭状态，并拒绝此类请求。[subagent 组合控制 Agent Note](2026-07-12-subagent-persona-tool-filter-and-depth.zh.md) 负责定义它们的确切语义和安全边界。
-- **阻塞父轮次。** 前台收集在子 agent 的整个持续时间内保持父 agent 的步骤打开。后台委派使用共享的 `ctx.jobs` 运行时与通用 `job_*` 工具，与后台 bash 共用同一套收集机制；subagent seam 本身仍不感知任务。
+- **父级进度。** 模型委派在发布后返回；workflow 收集会等待结果。Subagent 不使用 `ctx.jobs` 或 `job_*` 工具。
 - **实时进度。** 仅暴露生命周期事件与最终结果；逐分片的子→父更新流推迟到后台重新设计时一并处理。
 - **ACP 客户端接口。** 将 ACP 子 agent 的 `fs`/`terminal` 代理回父 agent（共享工作区模式）是后续工作；该后端不声明这两项能力，子 agent 在自己的进程中自行服务。

@@ -12,9 +12,9 @@ Status: implemented
 
 共享 activation 入口、外部执行所有权，以及调用方与父级之间的结果投递选择由[统一 subagent activation](../simplification/2026-09-17-unified-subagent-activations.zh.md) 决策拥有。本记录保留下述独立理由。
 
-Subagent 服务通过 `maxActiveSubagents` 配置容量，默认值为 8。每个存活的非可续接父代理拥有一个进程内池，通过连续的可续接父子关系按引用共享。池的所有者自身不计入。一次性运行和外部提供方工作不进入此池。一次性中间父代理为其可续接子代理建立独立的池；跨一次性代理的容量池继承暂不实现。委派深度仍独立配置。
+subagent 服务配置 `maxActiveSubagents`，默认值为 8。每个顶层在线 parent 拥有一个进程本地容量池，沿受管理的本地 parent 链共享。本地与外部 activation 从同一池预留槽位；顶层所有者自身不计入。委派深度仍独立配置。
 
-Activation registry 在新建或冷恢复重建首次让出执行前预占唯一名额。在 Activation 接管名额前，由 materialization 负责回滚；未发布回滚和失败的 materialization 可以安全地释放同一个 token。handle 释放先于名额归还，名额归还先于父代理完成通知。向已有 Activation 发送消息复用其名额。
+管理器在新建或冷恢复重建首次让出执行前预占唯一名额。在 Activation 接管名额前，由 materialization 负责回滚；未发布回滚和失败的 materialization 可以安全地释放同一个 token。handle 释放先于名额归还，名额归还先于父代理完成通知。向已有 Activation 发送消息复用其名额。
 
 池查找、接纳和释放的摊还时间复杂度均为常数。根代理的弱引用映射不会保留已结束的根 Agent；每个池只持有已占用的 token。不增加 Session 目录扫描、树遍历、持久计数器或公开的容量查询 API。
 
