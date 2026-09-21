@@ -482,8 +482,9 @@ describe('continuable activation capacity', () => {
       const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'parent' })
       await vi.waitFor(() => { expect(adapter.requests).toHaveLength(1) })
       const activation = continuationActivations(ctx).get(started.childId)!
-      const dispose = activation.driver.dispose.bind(activation.driver)
-      activation.driver.dispose = async () => {
+      const driver = continuationActivations(ctx).localDriver(activation)
+      const dispose = driver.dispose.bind(driver)
+      driver.dispose = async () => {
         entered.resolve(undefined)
         await releaseDisposal.promise
         await dispose()
@@ -693,8 +694,9 @@ describe('SubagentRuntime.startActivation', () => {
       if (type === 'subagent/catalog') {
         const activation = continuationActivations(ctx).get(childId)
         if (activation === undefined) throw new Error('expected live Activation')
-        const dispose = activation.driver.dispose.bind(activation.driver)
-        vi.spyOn(activation.driver, 'dispose').mockImplementation(async () => {
+        const driver = continuationActivations(ctx).localDriver(activation)
+        const dispose = driver.dispose.bind(driver)
+        vi.spyOn(driver, 'dispose').mockImplementation(async () => {
           await dispose()
           throw cleanupFailure
         })
@@ -724,8 +726,9 @@ describe('SubagentRuntime.startActivation', () => {
     ctx.on('subagent/start', () => {
       const activation = continuationActivations(ctx).get(childId)
       if (activation === undefined) throw new Error('expected live Activation')
-      const dispose = activation.driver.dispose.bind(activation.driver)
-      vi.spyOn(activation.driver, 'dispose').mockImplementation(async () => {
+      const driver = continuationActivations(ctx).localDriver(activation)
+      const dispose = driver.dispose.bind(driver)
+      vi.spyOn(driver, 'dispose').mockImplementation(async () => {
         await dispose()
         throw cleanupFailure
       })
@@ -1623,8 +1626,9 @@ describe('continuable durability and teardown', () => {
     const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'parent' })
     await vi.waitFor(() => { expect(adapter.requests).toHaveLength(1) })
     const activation = continuationActivations(ctx).get(started.childId)!
-    const realDispose = activation.driver.dispose.bind(activation.driver)
-    activation.driver.dispose = async () => {
+    const driver = continuationActivations(ctx).localDriver(activation)
+    const realDispose = driver.dispose.bind(driver)
+    driver.dispose = async () => {
       await realDispose()
       throw new Error('normal settlement cleanup failed')
     }
@@ -1810,8 +1814,9 @@ describe('continuable durability and teardown', () => {
     const target = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'parent' })
     await vi.waitFor(() => { expect(adapter.requests).toHaveLength(1) })
     const activation = continuationActivations(ctx).get(target.childId)!
-    const realDispose = activation.driver.dispose.bind(activation.driver)
-    activation.driver.dispose = async () => {
+    const driver = continuationActivations(ctx).localDriver(activation)
+    const realDispose = driver.dispose.bind(driver)
+    driver.dispose = async () => {
       await realDispose()
       throw new Error('selected cleanup failed')
     }
@@ -1941,8 +1946,9 @@ describe('continuable durability and teardown', () => {
     const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'parent' })
     await vi.waitFor(() => { expect(adapter.requests).toHaveLength(1) })
     const activation = continuationActivations(ctx).get(started.childId)!
-    const realDispose = activation.driver.dispose.bind(activation.driver)
-    activation.driver.dispose = async () => {
+    const driver = continuationActivations(ctx).localDriver(activation)
+    const realDispose = driver.dispose.bind(driver)
+    driver.dispose = async () => {
       await realDispose()
       throw new Error('scoped child reap failed')
     }
@@ -2257,8 +2263,9 @@ describe('continuable review regressions', () => {
     ctx.on('subagent/end', ended)
     const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'parent' })
     const activation = continuationActivations(ctx).get(started.childId)!
-    const realDispose = activation.driver.dispose.bind(activation.driver)
-    activation.driver.dispose = async () => {
+    const driver = continuationActivations(ctx).localDriver(activation)
+    const realDispose = driver.dispose.bind(driver)
+    driver.dispose = async () => {
       cleaning.resolve(undefined)
       await cleanup.promise
       await realDispose()
@@ -2295,8 +2302,9 @@ describe('continuable review regressions', () => {
       expect(found).toBeDefined()
       return found!
     })
-    const realDispose = activation.driver.dispose.bind(activation.driver)
-    activation.driver.dispose = async () => {
+    const driver = continuationActivations(ctx).localDriver(activation)
+    const realDispose = driver.dispose.bind(driver)
+    driver.dispose = async () => {
       await realDispose()
       throw new Error('scoped cleanup failed')
     }
@@ -2316,7 +2324,8 @@ describe('continuable review regressions', () => {
 
     const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'parent' })
     const activation = continuationActivations(ctx).get(started.childId)!
-    activation.driver.capture = () => { throw new Error('capture failed') }
+    const driver = continuationActivations(ctx).localDriver(activation)
+    driver.capture = () => { throw new Error('capture failed') }
 
     const drained = drainManager(ctx)
     hold.resolve(undefined)
@@ -2333,7 +2342,8 @@ describe('continuable review regressions', () => {
     ctx.on('subagent/end', info => void ends.push(info))
 
     const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'parent' })
-    continuationActivations(ctx).get(started.childId)!.driver.capture = () => {
+    const driver = continuationActivations(ctx).localDriver(continuationActivations(ctx).get(started.childId)!)
+    driver.capture = () => {
       throw new Error('capture failed')
     }
 
@@ -2349,9 +2359,10 @@ describe('continuable review regressions', () => {
     const { ctx, parent } = await setupWith(adapter)
     const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'parent' })
     const activation = continuationActivations(ctx).get(started.childId)!
-    const realDispose = activation.driver.dispose.bind(activation.driver)
-    activation.driver.capture = () => { throw new Error('capture failed') }
-    activation.driver.dispose = async () => {
+    const driver = continuationActivations(ctx).localDriver(activation)
+    const realDispose = driver.dispose.bind(driver)
+    driver.capture = () => { throw new Error('capture failed') }
+    driver.dispose = async () => {
       await realDispose()
       throw new Error('scoped cleanup failed')
     }
@@ -2434,7 +2445,8 @@ describe('continuable review regressions', () => {
     const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'caller' })
     const activation = continuationActivations(ctx).get(started.childId)!
     const child = ctx.agents.get(started.childId)!
-    const disposed = vi.spyOn(activation.driver, 'dispose')
+    const driver = continuationActivations(ctx).localDriver(activation)
+    const disposed = vi.spyOn(driver, 'dispose')
     const ended = vi.fn()
     ctx.on('subagent/end', ended)
     const lock = await holdChildLock(ctx, started.childId)
@@ -3040,8 +3052,9 @@ describe('continuable settlement delivery', () => {
       expect(live).toBeDefined()
       return live!
     })
-    const dispose = activation.driver.dispose.bind(activation.driver)
-    activation.driver.dispose = async () => {
+    const driver = continuationActivations(ctx).localDriver(activation)
+    const dispose = driver.dispose.bind(driver)
+    driver.dispose = async () => {
       await dispose()
       throw new Error('scope unwind failed')
     }
@@ -3472,8 +3485,9 @@ describe('continuable errors', () => {
     // Make the grandchild's own handle disposal reject: scope teardown failure
     // propagates, unlike a contained `agent/disposed` listener throw.
     const branch = continuationActivations(ctx).get(grandchild.childId)!
-    const realDispose = branch.driver.dispose.bind(branch.driver)
-    branch.driver.dispose = async () => {
+    const driver = continuationActivations(ctx).localDriver(branch)
+    const realDispose = driver.dispose.bind(driver)
+    driver.dispose = async () => {
       await realDispose()
       throw new Error('grandchild reap failed')
     }

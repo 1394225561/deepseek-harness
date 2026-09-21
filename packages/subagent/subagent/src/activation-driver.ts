@@ -1,6 +1,5 @@
 /**
- * Activation execution and settlement over a local Agent or an external run.
- * The manager owns admission and residency; each driver owns its execution handle.
+ * Local Agent input, idle admission, and activation output capture.
  *
  * @module @deepseek-ai/dsh-subagent/activation-driver
  */
@@ -11,65 +10,14 @@ import { finalAssistantOutput } from './assistant-output.ts'
 import { SubagentError } from './error.ts'
 import { epochStopReason } from './lifecycle.ts'
 import type { SubagentDelivery } from './control-types.ts'
-import type { SubagentResult, SubagentRun } from './types.ts'
+import type { SubagentResult } from './types.ts'
 import type { StructuredAttachment } from './structured.ts'
 
-/** Local or external execution; only the local driver accepts further input. */
-export type ActivationDriver = LocalActivationDriver | ExternalActivationDriver
-
-/** Execution operations used by the activation manager. */
-interface ActivationLifecycle {
-  /** The local Agent, absent for an external product run. */
-  readonly agent: Agent | undefined
-  /** Whether accepted input remains unclaimed. */
-  readonly hasPending: boolean
-  /** Monotonic revision for detecting work committed during settlement. */
-  readonly version: number
-  /**
-   * Wait until execution and maintenance reach quiescence.
-   * @returns fulfillment after current activity settles.
-   */
-  whenIdle(): Promise<void>
-  /**
-   * Cancel active execution and optionally preserve unclaimed input.
-   * @param kind - the actor requesting cancellation.
-   * @param keepInbox - preserve local queued input when true.
-   */
-  cancel(kind: 'user' | 'parent', keepInbox?: boolean): void
-  /**
-   * Flush owned durable state; failures remain visible to the manager.
-   * @returns fulfillment after persistence completes.
-   */
-  flush(): Promise<void>
-  /**
-   * Read the settled outcome of this activation's own execution.
-   * @returns final output and stop reason, with any committed structured value.
-   * @throws when an external result has not settled yet.
-   */
-  capture(): SubagentResult
-  /**
-   * Claim idle execution and synchronously close manager admission.
-   * The callback starts teardown but must not await it or throw.
-   * @param close - synchronously close admission and start resource release.
-   * @returns whether idle execution was claimed and admission closed.
-   */
-  closeWhenIdle(close: () => void): boolean
-  /**
-   * Subscribe for the driver's lifetime to input removal.
-   * @param wake - wake the manager's settlement observation.
-   */
-  onInputRemoved(wake: () => void): void
-  /**
-   * Release the owned execution handle and reach quiescence.
-   * @returns fulfillment after resource release.
-   */
-  dispose(): Promise<void>
-}
-
 /** Local execution with output restricted to events produced during residency. */
-export class LocalActivationDriver implements ActivationLifecycle {
+export class LocalActivationDriver {
   /** Execution with a local Agent inbox. */
   readonly kind = 'local'
+  /** The live Agent retained for this residency epoch. */
   readonly agent: Agent
   private readonly boundary: SessionLogOffset
 
@@ -86,14 +34,20 @@ export class LocalActivationDriver implements ActivationLifecycle {
     this.boundary = this.agent.session.seq
   }
 
+  /** Whether accepted local input remains unclaimed. */
   get hasPending(): boolean {
     return this.agent.inbox.nextTurn.length > 0 || this.agent.inbox.nextStep.length > 0
   }
 
+  /** Session revision used to recheck idle admission after persistence. */
   get version(): number {
     return this.agent.session.seq
   }
 
+  /**
+   * Wait until execution and maintenance reach quiescence.
+   * @returns fulfillment after current activity settles.
+   */
   whenIdle(): Promise<void> {
     return this.agent.whenIdle()
   }
@@ -112,15 +66,28 @@ export class LocalActivationDriver implements ActivationLifecycle {
     else this.agent.followup(message)
   }
 
+  /**
+   * Cancel active execution and optionally preserve unclaimed input.
+   * @param kind - the actor requesting cancellation.
+   * @param keepInbox - preserve local queued input when true.
+   */
   cancel(kind: 'user' | 'parent', keepInbox?: boolean): void {
     if (keepInbox === undefined) this.agent.cancel({ kind })
     else this.agent.cancel({ kind }, { keepInbox })
   }
 
+  /**
+   * Flush owned durable state; failures remain visible to the manager.
+   * @returns fulfillment after persistence completes.
+   */
   async flush(): Promise<void> {
     await this.agent.ctx.sessions.flush(this.agent.session)
   }
 
+  /**
+   * Read the settled outcome of this activation's own execution.
+   * @returns final output and stop reason, with any committed structured value.
+   */
   capture(): SubagentResult {
     // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
     const events = this.agent.session.snapshotEvents(this.boundary)
@@ -134,6 +101,12 @@ export class LocalActivationDriver implements ActivationLifecycle {
     return { output, stopReason }
   }
 
+  /**
+   * Claim idle execution and synchronously close manager admission.
+   * The callback starts teardown but must not await it or throw.
+   * @param close - synchronously close admission and start resource release.
+   * @returns whether idle execution was claimed and admission closed.
+   */
   closeWhenIdle(close: () => void): boolean {
     try {
       void this.agent.runMaintenance(() => {
@@ -147,84 +120,20 @@ export class LocalActivationDriver implements ActivationLifecycle {
     }
   }
 
+  /**
+   * Subscribe for the local handle's lifetime to input removal.
+   * @param wake - wake the manager's settlement observation.
+   */
   onInputRemoved(wake: () => void): void {
     this.agent.ctx.on('agent/inbox/claimed', wake)
     this.agent.ctx.on('agent/inbox/discarded', wake)
   }
 
+  /**
+   * Release the owned execution handle and reach quiescence.
+   * @returns fulfillment after resource release.
+   */
   dispose(): Promise<void> {
     return this.handle.dispose()
-  }
-}
-
-/** External execution that settles once and accepts no further input. */
-export class ExternalActivationDriver implements ActivationLifecycle {
-  /** Execution without continuation input. */
-  readonly kind = 'external'
-  readonly agent = undefined
-  readonly hasPending = false
-  private terminal: SubagentResult | undefined
-  private failure: { error: unknown } | undefined
-  private readonly settled: Promise<void>
-  private disposal: Promise<void> | undefined
-
-  /**
-   * Observe one published external run until its terminal result is available.
-   * @param run - provider-owned execution handle.
-   * @param controller - cancellation controller passed to the provider at start.
-   */
-  constructor(
-    private readonly run: SubagentRun,
-    private readonly controller: AbortController,
-  ) {
-    this.settled = run.result.then(
-      (result) => { this.terminal = result },
-      (error: unknown) => {
-        this.failure = { error }
-        this.terminal = {
-          output: [],
-          stopReason: 'error',
-          diagnostic: 'External subagent execution failed before returning a result.',
-        }
-      },
-    )
-  }
-
-  get version(): number {
-    return this.terminal === undefined ? 0 : 1
-  }
-
-  whenIdle(): Promise<void> {
-    return this.settled
-  }
-
-  cancel(kind: 'user' | 'parent', _keepInbox?: boolean): void {
-    this.controller.abort({ kind })
-    void this.dispose().catch(() => undefined)
-  }
-
-  flush(): Promise<void> {
-    return Promise.resolve()
-  }
-
-  capture(): SubagentResult {
-    if (this.failure !== undefined) throw this.failure.error
-    if (this.terminal === undefined) {
-      throw new SubagentError(`subagent "${this.run.id}" has not settled`, 'NOT_IDLE')
-    }
-    return this.terminal
-  }
-
-  closeWhenIdle(close: () => void): boolean {
-    if (this.terminal === undefined) return false
-    close()
-    return true
-  }
-
-  onInputRemoved(_wake: () => void): void {}
-
-  dispose(): Promise<void> {
-    this.disposal ??= Promise.resolve().then(() => this.run.dispose())
-    return this.disposal
   }
 }

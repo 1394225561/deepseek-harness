@@ -169,7 +169,7 @@ interface ContinuableCreateSpec {
 
 ## Messages and interruption
 
-sendMessage authorizes the exact live sender and permits only adjacent local agents. Running children receive steering input; absent continuable children resume from persistence. External executions reject follow-ups. Local children report their content through send_message; their parent receives an automatic status-only settlement notice. External executions automatically report their final text, structured result, diagnostic, and status. caller delivery suppresses these notices. drainDescendants and drainChildren await owned work teardown for both drivers.
+sendMessage authorizes the exact live sender and permits only adjacent local agents. Running children receive steering input; absent continuable children resume from persistence. External executions reject follow-ups. Local children report their content through send_message; their parent receives an automatic status-only settlement notice. External executions automatically report their final text, structured result, diagnostic, and status. caller delivery suppresses these notices. drainDescendants and drainChildren await owned work teardown for local and external activations.
 
 ```ts type-equiv
 /** Durable attribution for one model-authored message between adjacent Agents. */
@@ -240,7 +240,7 @@ type SubagentDescendantListEntry = SubagentListEntry & {
 
 ## Results and backend handles
 
-SubagentResult is available to program consumers. The external driver retains the backend handle until disposal completes. A cleanup failure does not overwrite an already returned result; the parent log retains that output and records the final failure status. Backend-owned diagnostics must satisfy the safe-detail requirements below.
+SubagentResult is available to program consumers. The activation registry retains the external backend handle until disposal completes. A cleanup failure does not overwrite an already returned result; the parent log retains that output and records the final failure status. Backend-owned diagnostics must satisfy the safe-detail requirements below.
 
 ```ts type-equiv
 /**
@@ -298,7 +298,7 @@ interface SubagentStopReasonMap {
 
 ```ts type-equiv
 /**
- * Backend execution handle owned by the external activation driver.
+ * Backend execution handle owned directly by the activation registry.
  * A result may become available before resource release; the manager always
  * disposes the handle and awaits cleanup. Backend startup failures clean up
  * partial resources before rejecting, while accepted execution failures settle
@@ -325,7 +325,7 @@ interface SubagentRun {
 
 ## The provider contract: SubagentProvider
 
-Spawn and Fork contribute detached creation inputs to the local driver. Codex, Claude Code, ACP, and DSH SDK contribute one execution handle to the external driver; they do not gain multiple turns. Both paths share admission, capacity, parent ownership, cancellation, and disposal. The [package reference](../../packages/subagent/subagent/README.md) describes composition and deployment requirements.
+Spawn and Fork contribute detached creation inputs to the local driver. Codex, Claude Code, ACP, and DSH SDK contribute one execution handle directly to the activation registry; they do not gain multiple turns. External completion follows the handle’s result promise; inbox and idle admission belong only to local execution. Both paths share admission, capacity, parent ownership, cancellation, and disposal. The [package reference](../../packages/subagent/subagent/README.md) describes composition and deployment requirements.
 
 ```ts type-equiv
 /**

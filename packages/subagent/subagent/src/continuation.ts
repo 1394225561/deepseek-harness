@@ -278,7 +278,8 @@ export class SubagentContinuationManager {
     this.activations.assertAdmitting(sender)
     const senderActivation = this.activations.get(sender.id)
     if (senderActivation !== undefined
-      && senderActivation.driver.agent === sender
+      && senderActivation.execution.kind === 'local'
+      && senderActivation.execution.agent === sender
       && senderActivation.parent.id === targetId) {
       options.signal.throwIfAborted()
       return this.sendToParent(senderActivation, sender, content)

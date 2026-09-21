@@ -282,7 +282,7 @@ export interface SubagentResult {
 }
 
 /**
- * Backend execution handle owned by the external activation driver.
+ * Backend execution handle owned directly by the activation registry.
  * A result may become available before resource release; the manager always
  * disposes the handle and awaits cleanup. Backend startup failures clean up
  * partial resources before rejecting, while accepted execution failures settle

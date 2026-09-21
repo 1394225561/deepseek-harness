@@ -208,6 +208,70 @@ describe('external subagent activations', () => {
     expect(dispose).toHaveBeenCalledTimes(1)
   })
 
+  it.each(['user', 'ancestor'] as const)('interrupts an external run with %s authority and joins cleanup', async (kind) => {
+    const backend = execution()
+    let providerSignal: AbortSignal | undefined
+    const aborted: SubagentResult = { output: [], stopReason: 'aborted' }
+    const dispose = vi.fn(() => {
+      backend.result.resolve(aborted)
+      return backend.dispose()
+    })
+    const fixture = await setup(async ({ signal }) => {
+      providerSignal = signal
+      return { ...backend.run, dispose }
+    })
+    const activation = await fixture.start()
+    const authority = kind === 'user'
+      ? { kind, parentSessionId: fixture.parent.id }
+      : { kind, agent: fixture.parent }
+    fixture.ctx.subagents.interrupt(activation.childId, authority)
+    fixture.ctx.subagents.interrupt(activation.childId, authority)
+    await backend.cleaning.promise
+    const disposal = activation.dispose()
+    const observed = vi.fn()
+    void activation.result.then(observed, observed)
+    try {
+      expect(providerSignal?.reason).toEqual({ kind: kind === 'user' ? 'user' : 'parent' })
+      expect(dispose).toHaveBeenCalledTimes(1)
+      expect(observed).not.toHaveBeenCalled()
+      if (kind === 'ancestor') {
+        const rejected = expect(disposal).rejects.toThrow('interrupt cleanup failed')
+        backend.cleanup.reject(new Error('interrupt cleanup failed'))
+        await rejected
+      } else {
+        backend.cleanup.resolve(undefined)
+        await disposal
+      }
+      await expect(activation.result).resolves.toEqual(aborted)
+      expect(dispose).toHaveBeenCalledTimes(1)
+      expect(fixture.parent.inbox.nextTurn).toEqual([])
+    } finally {
+      backend.cleanup.resolve(undefined)
+      await disposal.catch(() => undefined)
+    }
+  })
+
+  it('releases an external handle when caller cancellation prevents publication', async () => {
+    const backend = execution()
+    const error = new Error('startup cancelled')
+    const fixture = await setup(async () => {
+      fixture.controller.abort(error)
+      backend.result.resolve(completed)
+      return backend.run
+    })
+    const rejected = expect(fixture.start()).rejects.toBe(error)
+    await backend.cleaning.promise
+    try {
+      expect(backend.dispose).toHaveBeenCalledTimes(1)
+      expect(fixture.records()).toEqual([])
+      expect(fixture.parent.inbox.nextTurn).toEqual([])
+    } finally {
+      backend.cleanup.resolve(undefined)
+      await rejected
+    }
+    await expect(fixture.ctx.subagents.waitForChildren(fixture.parent)).resolves.toBe(false)
+  })
+
   it.each(['parent', 'caller'] as const)('delivers the full failed result with %s delivery', async (delivery) => {
     const backend = execution()
     backend.cleanup.resolve(undefined)

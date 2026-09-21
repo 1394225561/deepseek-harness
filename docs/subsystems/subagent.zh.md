@@ -169,7 +169,7 @@ interface ContinuableCreateSpec {
 
 ## 消息与中断
 
-sendMessage 根据确切的在线发送者实例授权，仅允许相邻本地代理通信。运行中的子代理接收引导输入；不在线的可继续子代理从持久化恢复。外部执行拒绝后续消息。本地子代理通过 send_message 汇报内容；其父代理收到的自动结束通知仅包含状态。外部执行自动回传最终文本、结构化结果、诊断和状态。caller 回传会抑制这些通知。drainDescendants 与 drainChildren 对两种 driver 都等待所属任务清理完成。
+sendMessage 根据确切的在线发送者实例授权，仅允许相邻本地代理通信。运行中的子代理接收引导输入；不在线的可继续子代理从持久化恢复。外部执行拒绝后续消息。本地子代理通过 send_message 汇报内容；其父代理收到的自动结束通知仅包含状态。外部执行自动回传最终文本、结构化结果、诊断和状态。caller 回传会抑制这些通知。drainDescendants 与 drainChildren 对本地和外部 activation 都等待所属任务清理完成。
 
 ```ts type-equiv
 /** Durable attribution for one model-authored message between adjacent Agents. */
@@ -240,7 +240,7 @@ type SubagentDescendantListEntry = SubagentListEntry & {
 
 ## 结果与后端句柄
 
-SubagentResult 供程序消费方读取。外部 driver 保留后端句柄，直到释放完成。清理失败不会覆盖已经返回的结果；父日志保留该输出并记录最终失败状态。后端提供的诊断必须满足下述安全信息要求。
+SubagentResult 供程序消费方读取。activation 注册表保留外部后端句柄，直到释放完成。清理失败不会覆盖已经返回的结果；父日志保留该输出并记录最终失败状态。后端提供的诊断必须满足下述安全信息要求。
 
 ```ts type-equiv
 /**
@@ -298,7 +298,7 @@ interface SubagentStopReasonMap {
 
 ```ts type-equiv
 /**
- * Backend execution handle owned by the external activation driver.
+ * Backend execution handle owned directly by the activation registry.
  * A result may become available before resource release; the manager always
  * disposes the handle and awaits cleanup. Backend startup failures clean up
  * partial resources before rejecting, while accepted execution failures settle
@@ -325,7 +325,7 @@ interface SubagentRun {
 
 ## 提供方约定：SubagentProvider
 
-Spawn 与 Fork 向本地 driver 提供独立的创建输入。Codex、Claude Code、ACP 和 DSH SDK 向外部 driver 提供一个执行句柄，不增加多轮能力。两条路径共用准入、容量、父子所有权、取消和释放机制。[包参考](../../packages/subagent/subagent/README.zh.md)说明组合与部署要求。
+Spawn 与 Fork 向本地 driver 提供独立的创建输入。Codex、Claude Code、ACP 和 DSH SDK 直接向 activation 注册表提供一个执行句柄，不增加多轮能力。外部完成由句柄的 result promise 确定；inbox 与空闲准入仅属于本地执行。两条路径共用准入、容量、父子所有权、取消和释放机制。[包参考](../../packages/subagent/subagent/README.zh.md)说明组合与部署要求。
 
 ```ts type-equiv
 /**
