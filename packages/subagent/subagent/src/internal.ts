@@ -9,7 +9,7 @@ import type { ContentBlock, MessageId, MessageSource } from '@deepseek-ai/dsh-ll
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools'
 import type SubagentRuntime from './index.ts'
-import type { SubagentPromptRequest } from './control-types.ts'
+import type { SubagentDelivery } from './control-types.ts'
 
 /** Process-stable identity carried only by the standard adjacent-Agent messaging tool. */
 export const adjacentAgentSendMessageTool = Symbol.for('dsh.subagent.adjacentAgentSendMessageTool')
@@ -49,7 +49,7 @@ export interface HostPromptDeliverer {
     content: ContentBlock[],
     source: MessageSource,
     signal: AbortSignal,
-    delivery: SubagentPromptRequest['delivery'],
+    delivery: SubagentDelivery,
   ): Promise<MessageId>
 }
 

@@ -39,7 +39,7 @@ import { createSettlementMessage } from './continuation-messages.ts'
 import type { SubagentDescriptorData } from './descriptor.ts'
 import { SubagentError } from './error.ts'
 import { isAdjacentAgentSendMessageTool } from './internal.ts'
-import type { SubagentPromptRequest } from './control-types.ts'
+import type { SubagentDelivery } from './control-types.ts'
 import type { ActivationObserver } from './lifecycle.ts'
 
 /** Process-local slots shared through uninterrupted continuable parent links. */
@@ -260,7 +260,7 @@ export class ContinuableActivationRegistry {
   }
 
   /** Admit local input synchronously before any teardown can begin. */
-  private deliver(activation: Activation, message: UserMessage, delivery: SubagentPromptRequest['delivery']): void {
+  private deliver(activation: Activation, message: UserMessage, delivery: SubagentDelivery): void {
     if (activation.closing !== undefined) {
       throw new SubagentError(
         'subagent activation is being disposed; the message was not accepted',
@@ -365,7 +365,7 @@ export class ContinuableActivationRegistry {
    * @param message - durable user message to deliver.
    * @param delivery - receiving inbox destination.
    */
-  sendWaking(parent: Agent, message: UserMessage, delivery: SubagentPromptRequest['delivery']): void {
+  sendWaking(parent: Agent, message: UserMessage, delivery: SubagentDelivery): void {
     const parentActivation = this.resident.get(parent.id)
     if (parentActivation !== undefined && parentActivation.driver.agent === parent) {
       try {
@@ -571,7 +571,7 @@ export class ContinuableActivationRegistry {
   submitAdmitted(
     activation: Activation,
     message: UserMessage,
-    delivery: SubagentPromptRequest['delivery'],
+    delivery: SubagentDelivery,
     parent: Agent,
     signal: AbortSignal,
   ): MessageId {

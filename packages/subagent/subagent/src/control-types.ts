@@ -84,6 +84,9 @@ export type SubagentAddress =
     | { readonly mode: 'unknown' }
   )
 
+/** One Agent inbox destination, as the prompt request selects it. */
+export type SubagentDelivery = SubagentPromptRequest['delivery']
+
 /** One human message addressed to a continuable direct child. */
 export interface SubagentPromptRequest {
   /** Identity persisted on the accepted message, minted before the call. */

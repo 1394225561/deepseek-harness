@@ -10,7 +10,7 @@ import type { SessionLogOffset, UserMessage } from '@deepseek-ai/dsh-session'
 import { finalAssistantOutput } from './assistant-output.ts'
 import { SubagentError } from './error.ts'
 import { epochStopReason } from './lifecycle.ts'
-import type { SubagentPromptRequest } from './control-types.ts'
+import type { SubagentDelivery } from './control-types.ts'
 import type { SubagentResult, SubagentRun } from './types.ts'
 import type { StructuredAttachment } from './structured.ts'
 
@@ -104,7 +104,7 @@ export class LocalActivationDriver implements ActivationLifecycle {
    * @param delivery - queue a new turn or steer the nearest step.
    * @throws when this activation has already submitted its structured result.
    */
-  deliver(message: UserMessage, delivery: SubagentPromptRequest['delivery']): void {
+  deliver(message: UserMessage, delivery: SubagentDelivery): void {
     if (this.structured?.captured() !== undefined) {
       throw new SubagentError('subagent already submitted its structured result; wait for this activation to close before sending another message', 'INPUT_CLOSED')
     }

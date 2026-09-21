@@ -2697,7 +2697,7 @@ export interface Config {
 }
 ```
 
-Source: [`packages/subagent/subagent/src/index.ts:175`](../packages/subagent/subagent/src/index.ts)
+Source: [`packages/subagent/subagent/src/index.ts:176`](../packages/subagent/subagent/src/index.ts)
 
 <a id="deepseek-aidsh-subagent-acp"></a>
 

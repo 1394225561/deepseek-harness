@@ -2699,7 +2699,7 @@ export interface Config {
 }
 ```
 
-来源： [`packages/subagent/subagent/src/index.ts:191`](../packages/subagent/subagent/src/index.ts)
+来源： [`packages/subagent/subagent/src/index.ts:176`](../packages/subagent/subagent/src/index.ts)
 
 <a id="deepseek-aidsh-subagent-acp"></a>
 

@@ -37,6 +37,7 @@ import {
   rejectPrompt, validateControlRequest,
 } from './control.ts'
 import type {
+  SubagentDelivery,
   SubagentInterruptReceipt,
   SubagentPromptReceipt,
   SubagentPromptRequest,
@@ -325,7 +326,7 @@ export class SubagentRuntime extends TypertRemoteService {
     content: ContentBlock[],
     source: MessageSource,
     signal: AbortSignal,
-    delivery: SubagentPromptRequest['delivery'],
+    delivery: SubagentDelivery,
   ): Promise<MessageId> {
     return delivery === 'steer'
       ? this.requireContinuations().steerPrompt(parent, childId, content, source, signal)
