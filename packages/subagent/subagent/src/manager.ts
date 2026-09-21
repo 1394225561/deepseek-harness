@@ -1112,7 +1112,7 @@ export class SubagentManager {
     this.resident.delete(childId)
     activation.releaseSlot()
     const terminal: SubagentResult = failure === undefined ? result : { output: [], stopReason: 'error' }
-    this.notifySettlement(activation, terminal, includeOutput)
+    this.notifySettlement(activation, result, includeOutput)
     this.releaseOwnership(childId)
     activation.observer.settle(terminal)
     if (resultFailure === undefined) activation.result.resolve(result)
@@ -1120,7 +1120,7 @@ export class SubagentManager {
     if (failure !== undefined) throw failure
   }
 
-  /** Tell the durable direct parent how this Activation ended. */
+  /** Deliver the captured execution result to the durable direct parent after cleanup. */
   private notifySettlement(activation: Activation, terminal: SubagentResult, includeOutput: boolean): void {
     if (!activation.announced || activation.delivery === 'caller') return
     try {

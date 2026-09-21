@@ -3058,7 +3058,7 @@ describe('continuable settlement delivery', () => {
     )
   })
 
-  it('withholds an outcome the harness could not durably release', async () => {
+  it('delivers the captured answer when local handle cleanup fails', async () => {
     const { ctx, parent } = await setup([textResponse('the answer'), textResponse('parent ack')])
     const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'parent' })
     const activation = await vi.waitFor(() => {
@@ -3076,8 +3076,10 @@ describe('continuable settlement delivery', () => {
     await waitNoActivation(ctx, started.childId)
     await vi.waitFor(() => { expect(settlementNotices(parent)).toHaveLength(1) })
     expect(settlementNotices(parent)[0]!.text).toBe(
-      `Background subagent ${started.childId} failed before it finished.\nIt left no closing message.`,
+      `Background subagent ${started.childId} finished and will do no further work unless you send it more.\nIts closing message:\nthe answer`,
     )
+    await expect(started.result).resolves.toMatchObject({ stopReason: 'completed' })
+    await expect(started.dispose()).rejects.toThrow('scope unwind failed')
   })
 
   it('gives an idle parent one ordinary turn on the notice', async () => {

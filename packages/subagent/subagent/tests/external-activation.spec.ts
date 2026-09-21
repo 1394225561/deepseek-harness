@@ -298,10 +298,12 @@ describe('external subagent activations', () => {
     }
   })
 
-  it('reports cleanup failure separately from a completed result without exposing the private cause', async () => {
+  it.each(['parent', 'caller'] as const)('preserves the completed result for %s delivery when cleanup fails', async (delivery) => {
     const backend = execution()
     const fixture = await setup(async () => backend.run)
-    const activation = await fixture.start()
+    const ended = vi.fn()
+    fixture.ctx.on('subagent/end', ended)
+    const activation = await fixture.start(delivery)
     backend.result.resolve(completed)
     await backend.cleaning.promise
     const disposal = activation.dispose()
@@ -316,6 +318,21 @@ describe('external subagent activations', () => {
     expect(fixture.records()).toMatchObject([{
       id: activation.childId, mode: 'external',
     }])
+    expect(ended).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ stopReason: 'error' }))
+    if (delivery === 'parent') {
+      expect(fixture.parent.inbox.nextTurn).toHaveLength(1)
+      const notice = fixture.parent.inbox.nextTurn[0]!
+      expect(notice.source).toMatchObject({ kind: 'subagent-settled', senderSessionId: activation.childId })
+      const text = notice.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('\n')
+      expect(text).toContain('finished')
+      expect(text).toContain('Reviewed three files.')
+      expect(text).toContain('Structured result: {"files":3}')
+      expect(text).not.toContain('failed before it finished')
+      expect(text).not.toContain('SECRET_TOKEN')
+      expect(text).not.toContain('/private/path')
+    } else {
+      expect(fixture.parent.inbox.nextTurn).toEqual([])
+    }
   })
 })
 
