@@ -991,7 +991,7 @@ it('shows external membership without an execution status or child Session navig
   const input = props(catalog({ entries: [
     { id: CHILD, mode: 'external', label: 'External review', activity: 'inactive' },
   ] }))
-  render(<SubagentHeaderLineage {...input} />)
+  render(<HeaderCatalog {...input} />)
   hoverCatalog(screen.getByRole('button', { name: /子代理/ }))
   const row = screen.getByRole('treeitem', { name: /External review.*外部任务/ })
   expect(row.getAttribute('aria-disabled')).toBe('true')
