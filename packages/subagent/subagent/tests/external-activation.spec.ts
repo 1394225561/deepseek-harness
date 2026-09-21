@@ -8,7 +8,7 @@ import SubagentRuntime from '../src/index.ts'
 import { TestSessionQuery } from './test-session-query.ts'
 import type { SubagentStartRequest, SubagentCapabilities, SubagentResult, SubagentRun } from '../src/types.ts'
 import { externalTestParent } from './external-activation-helpers.ts'
-import { continuationManager } from './continuation-internals.ts'
+import { subagentManager } from './manager-internals.ts'
 
 const capabilities: SubagentCapabilities = {
   agentOptions: false, outputSchema: false, depthLimit: false, toolFilter: false, persona: false,
@@ -91,7 +91,7 @@ describe('external subagent activations', () => {
       let drain = Promise.resolve()
       fixture.ctx.on('subagent/start', () => {
         if (change === 'drain') {
-          drain = continuationManager(fixture.ctx).drain()
+          drain = subagentManager(fixture.ctx).drain()
         } else {
           detachParent()
           if (change === 'parent-replace') {

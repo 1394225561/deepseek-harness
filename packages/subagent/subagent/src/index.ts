@@ -60,7 +60,7 @@ import { SubagentError } from './error.ts'
 import { assertSubagentMaxDepth } from './depth.ts'
 import { createActivationObserver, createLifecycleEmitter } from './lifecycle.ts'
 import type { ActivationObserver, LifecycleEmitter } from './lifecycle.ts'
-import SubagentContinuationManager from './continuation.ts'
+import SubagentManager from './manager.ts'
 import { listChildren as listSubagentChildren, listDescendants as listSubagentDescendants } from './list-children.ts'
 import type { SubagentDescendantListEntry } from './list-children.ts'
 import type { SubagentCatalogEntry } from './projection-types.ts'
@@ -188,7 +188,7 @@ export class SubagentRuntime extends TypertRemoteService {
   })
   private settingsSource: () => Config
   private providers = new Map<string, SubagentProvider>()
-  private continuations: SubagentContinuationManager | undefined
+  private manager: SubagentManager | undefined
   /**
    * The contained lifecycle-edge publisher. Built here because scoped dispatch
    * keys its carrier by this exact service instance, whose own context filter
@@ -209,7 +209,7 @@ export class SubagentRuntime extends TypertRemoteService {
     })
     this.emitLifecycle = createLifecycleEmitter(this.ctx, parent => scopeTarget(this, parent))
     ctx.inject(['agents'], (childCtx: Context) => {
-      const manager = new SubagentContinuationManager(childCtx, {
+      const manager = new SubagentManager(childCtx, {
         startExternal: (name, request) => {
           const provider = this.expectProvider(name) as SubagentProvider & Required<Pick<SubagentProvider, 'start'>>
           return provider.start(request)
@@ -217,11 +217,11 @@ export class SubagentRuntime extends TypertRemoteService {
         prepareContinuable: (name, request) => this.prepareContinuable(name, request),
         observeActivation: (provider, childId, parent) => this.observeActivation(provider, childId, parent),
       }, () => (this.settingsSource() as Required<Config>).maxActiveSubagents)
-      this.continuations = manager
+      this.manager = manager
       childCtx.effect(() => () => {
         /* v8 ignore else -- one injected binding owns the slot until its fiber disposes. */
-        if (this.continuations === manager) this.continuations = undefined
-      }, 'subagents.continuationBinding()')
+        if (this.manager === manager) this.manager = undefined
+      }, 'subagents.managerBinding()')
     })
     ctx.inject(['sessionProjections'], (projectionCtx) => {
       projectionCtx.sessionProjections.register(subagentCatalogProjectionDefinition)
@@ -270,10 +270,10 @@ export class SubagentRuntime extends TypertRemoteService {
       throw new SubagentError('subagent creation requires the exact live parent agent', 'UNAUTHORIZED')
     }
     if (spec.request.outputSchema !== undefined) assertObjectJsonSchema(spec.request.outputSchema)
-    const manager = this.requireContinuations()
+    const manager = this.requireManager()
     return provider.prepareContinuable === undefined
       ? manager.startExternal(spec)
-      : manager.startContinuable(spec)
+      : manager.startLocal(spec)
   }
 
   /**
@@ -282,7 +282,7 @@ export class SubagentRuntime extends TypertRemoteService {
    * @returns whether any work was observed; hosts recheck parent idle after true.
    */
   async waitForChildren(parent: Agent): Promise<boolean> {
-    return this.continuations?.waitForChildren(parent) ?? false
+    return this.manager?.waitForChildren(parent) ?? false
   }
 
   /**
@@ -305,7 +305,7 @@ export class SubagentRuntime extends TypertRemoteService {
     content: ContentBlock[],
     options: SubagentSendMessageOptions,
   ): Promise<MessageId> {
-    return this.requireContinuations().sendMessage(sender, targetId, content, options)
+    return this.requireManager().sendMessage(sender, targetId, content, options)
   }
 
   /**
@@ -329,8 +329,8 @@ export class SubagentRuntime extends TypertRemoteService {
     delivery: SubagentDelivery,
   ): Promise<MessageId> {
     return delivery === 'steer'
-      ? this.requireContinuations().steerPrompt(parent, childId, content, source, signal)
-      : this.requireContinuations().queuePrompt(parent, childId, content, source, signal)
+      ? this.requireManager().steerPrompt(parent, childId, content, source, signal)
+      : this.requireManager().queuePrompt(parent, childId, content, source, signal)
   }
 
   /**
@@ -339,7 +339,7 @@ export class SubagentRuntime extends TypertRemoteService {
    * signal is issued before this returns, but the target may keep running
    * until it observes the signal. Unclaimed pending inbox work, the Activation,
    * and published descendants are preserved; claimed work is not requeued.
-   * Once the interrupted driver is idle, a waking send resumes the parked FIFO
+   * Once the interrupted Agent is idle, a waking send resumes the parked FIFO
    * queue. External backends stop their single execution. An absent target
    * is an accepted no-op, as is a manager-less composition, which cannot own a
    * live Activation.
@@ -349,7 +349,7 @@ export class SubagentRuntime extends TypertRemoteService {
    *   live target.
    */
   interrupt(targetSessionId: SessionId, authority: SubagentInterruptAuthority): void {
-    this.continuations?.interrupt(targetSessionId, authority)
+    this.manager?.interrupt(targetSessionId, authority)
   }
 
   /**
@@ -359,11 +359,11 @@ export class SubagentRuntime extends TypertRemoteService {
    * lasts until each exact parent leaves the registry; unrelated parent trees
    * remain live.
    * @param parents - exact host-owned parent Agents entering teardown.
-   * @returns once every retained descendant activation released its driver.
+   * @returns once every retained descendant activation released its execution handle.
    * @throws an aggregate error after all branches settle when any failed.
    */
   async drainDescendants(parents: readonly Agent[]): Promise<void> {
-    const manager = this.continuations
+    const manager = this.manager
     // An absent activation manager cannot own materialized children.
     if (manager === undefined) return
     await manager.drainDescendants(parents)
@@ -375,12 +375,12 @@ export class SubagentRuntime extends TypertRemoteService {
    * Absent targets and a manager-less composition are accepted no-ops.
    * @param parent - exact live direct parent authorizing the selected release.
    * @param childIds - durable direct-child ids to release when resident.
-   * @returns once every selected activation released its driver.
+   * @returns once every selected activation released its execution handle.
    * @throws {SubagentError} `UNAUTHORIZED` when a resident target belongs to a
    *   different parent or the supplied parent identity is stale.
    */
   async drainChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void> {
-    const manager = this.continuations
+    const manager = this.manager
     if (manager === undefined) return
     await manager.drainChildren(parent, childIds)
   }
@@ -590,15 +590,15 @@ export class SubagentRuntime extends TypertRemoteService {
     return provider
   }
 
-  /** Resolve the optional continuable-subagent manager or fail loud. */
-  private requireContinuations(): SubagentContinuationManager {
-    if (this.continuations === undefined) {
+  /** Resolve the subagent manager or fail loud. */
+  private requireManager(): SubagentManager {
+    if (this.manager === undefined) {
       throw new SubagentError(
         'continuable subagents require the agents service',
         'CONTINUATION_UNAVAILABLE',
       )
     }
-    return this.continuations
+    return this.manager
   }
 
   /**
