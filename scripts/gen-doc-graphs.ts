@@ -223,6 +223,13 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Owns append-only Session instances and emits the durable session event feed.',
   },
   {
+    key: 'speechController',
+    pkg: 'experimental-api-speech-to-text',
+    title: 'Experimental transcription Remote',
+    mode: 'core',
+    note: 'Validates bounded browser audio before provider dispatch.',
+  },
+  {
     key: 'sessionController',
     pkg: 'api-session-controller',
     title: 'Host Session Remote controller',
@@ -662,6 +669,15 @@ const SERVICE_ROLES: ServiceRole[] = [
     implementations: ['subagent-spawn-in-process', 'subagent-fork-in-process', 'subagent-acp', 'subagent-codex', 'subagent-claude-code', 'subagent-dsh-sdk'],
     consumers: ['tool-subagent', 'tool-subagent-control', 'tool-ralph'],
     note: 'Providers prepare local children or execute external tasks; one activation manager owns both lifecycles. The delegation tool selects a backend, control tools deliver local follow-ups, and workflows await activation results.',
+  },
+  {
+    key: 'speechToText',
+    pkg: 'experimental-speech-to-text',
+    title: 'Experimental speech recognition providers',
+    mode: 'seam',
+    implementations: ['experimental-speech-to-text-sensevoice'],
+    consumers: ['experimental-api-speech-to-text'],
+    note: 'Routes explicit recognizers; the browser uses the authenticated Remote and keeps transcripts in the draft until submission.',
   },
   {
     key: 'agentTeams',
