@@ -25,7 +25,7 @@ type Catalogs = Readonly<Record<SessionId, SubagentCatalogSnapshot>>
 export interface SubagentCatalogInjected {
   openChild: (address: SubagentAddress) => void
   openChildAside: (address: SubagentAddress) => void
-  refresh: (parentSessionId: SessionId) => void
+  refreshProjection: (parentSessionId: SessionId) => void
 }
 
 /** Full props for the session-header lineage renderer. */
@@ -42,7 +42,7 @@ interface CatalogRowsProps {
   level: number
   openChild: (address: SubagentAddress) => void
   openChildAside: (address: SubagentAddress) => void
-  refresh: (parentSessionId: SessionId) => void
+  refreshProjection: (parentSessionId: SessionId) => void
   toggleBranch: (childSessionId: SessionId) => void
   closeCatalog: () => void
 }
@@ -200,7 +200,7 @@ function isKnownLeaf(catalog: SubagentCatalogSnapshot | undefined): boolean {
 /** Render one catalog level and recurse only through explicitly expanded rows. */
 function CatalogRows({
   parentSessionId, currentSessionId, catalog, catalogs, summaries, expanded, level,
-  openChild, openChildAside, refresh, toggleBranch, closeCatalog, t,
+  openChild, openChildAside, refreshProjection, toggleBranch, closeCatalog, t,
 }: CatalogRowsProps & { t: TranslateNS<typeof NS> }) {
   const [now, setNow] = useState(() => Date.now())
   const running = catalog.entries.some(entry => entry.activity === 'running')
@@ -222,7 +222,7 @@ function CatalogRows({
           <button
             type="button"
             className={css.refresh}
-            onClick={() => { refresh(parentSessionId) }}
+            onClick={() => { refreshProjection(parentSessionId) }}
           >
             <IconRefreshOutlineRegular size={14} />
             {t('retry')}
@@ -386,7 +386,7 @@ function CatalogRows({
                       level={level + 1}
                       openChild={openChild}
                       openChildAside={openChildAside}
-                      refresh={refresh}
+                      refreshProjection={refreshProjection}
                       toggleBranch={toggleBranch}
                       closeCatalog={closeCatalog}
                       t={t}
@@ -449,7 +449,7 @@ function catalogMenuPosition(trigger: HTMLButtonElement): CSSProperties {
 /** One trigger-plus-tree dropdown over the catalog rooted at `rootSessionId`. */
 function CatalogDropdown({
   rootSessionId, currentSessionId, displayTitle, openTitle, variant, separator = false,
-  useSessions, useSessionStatus, openChild, openChildAside, refresh, t,
+  useSessions, useSessionStatus, openChild, openChildAside, refreshProjection, t,
 }: CatalogDropdownProps) {
   const ancestorSwitcher = variant === 'switcher' && openTitle !== undefined
   const projections = useSessions(state => state.projectionsBySession)
@@ -509,7 +509,6 @@ function CatalogDropdown({
       if (trigger === null) return
       setOpen(true)
       setMenuPosition(catalogMenuPosition(trigger))
-      refresh(rootSessionId)
     }
     else {
       setOpen(false)
@@ -558,7 +557,7 @@ function CatalogDropdown({
       return
     }
     setExpanded(current => new Set(current).add(childSessionId))
-    refresh(childSessionId)
+    refreshProjection(childSessionId)
   }
 
   useEffect(() => {
@@ -714,7 +713,7 @@ function CatalogDropdown({
             level={1}
             openChild={openChild}
             openChildAside={openChildAside}
-            refresh={refresh}
+            refreshProjection={refreshProjection}
             toggleBranch={toggleBranch}
             closeCatalog={() => { changeOpen(false) }}
             t={t}
@@ -732,7 +731,7 @@ function CatalogDropdown({
  */
 export function SubagentHeaderLineage({
   lineageSessionId, displayTitle, openTitle,
-  useSessions, useSession, useSessionStatus, openChild, openChildAside, refresh, t,
+  useSessions, useSession, useSessionStatus, openChild, openChildAside, refreshProjection, t,
 }: SubagentHeaderLineageProps) {
   const address = useSession(session => session.subagent?.address)
   const parentId = useSessions((state) => {
@@ -742,7 +741,7 @@ export function SubagentHeaderLineage({
     }
     return undefined
   })
-  const shared = { useSessions, useSessionStatus, openChild, openChildAside, refresh, t }
+  const shared = { useSessions, useSessionStatus, openChild, openChildAside, refreshProjection, t }
   if (parentId === undefined) {
     return (
       <CatalogDropdown
