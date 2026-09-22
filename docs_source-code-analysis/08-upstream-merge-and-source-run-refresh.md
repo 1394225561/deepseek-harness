@@ -96,7 +96,107 @@ pnpm dsh web                # 或 pnpm dsh --profile headless "…" 做启动冒
 3. **Node 版本落在 engines 之外**：CI 的 source-launch smoke（`apps/cli/tests/source-launch.compat.spec.ts`）会红；本地表现为启动失败或语法拒绝。
 4. **只 typecheck 不 build web**：Web UI 要么报缺产物，要么继续用旧 bundle。
 
-## 五、一句话总结
+## 五、构建覆盖面与「最新代码生效」的判定模型
+
+本节把「三条命令执行完之后，还有哪些东西可能是旧的」系统化，依据是一次真实的合并后重建排障（2026-09-22，fork 的 dev 分支，Node v22.21.1 / Windows，源码启动 `pnpm dsh web --no-open`）。
+
+### 1. 三条命令各自负责什么
+
+| 命令 | 覆盖 | 明确不覆盖 |
+|---|---|---|
+| `pnpm install` | workspace 链接与 `node_modules`；postinstall 安装的 Lefthook 钩子与翻译 merge driver | Harness 家目录下的 profile（`~/.dsh/profiles/*`） |
+| `pnpm run clean` | 按 tsconfig 项目引用图删除所有 outDir（各包 `lib/`、`apps/web/lib`、native entry lib）、`.dsh-build`、根级遗留 `*.tsbuildinfo`、以及「只剩已知生成物」的孤儿包目录 | `apps/web/dist`（Vite 产物）；profile 与任何仓库外目录 |
+| `pnpm run build` | `build:native-system`（仅 Host Node 插件）→ `build:lib`（host/client 各一遍 `tsc -b` + tsdown）→ `build:web`（Vite）→ 写回 client build record | Desktop 产物、完整原生二进制集、Python 主运行时 |
+
+`pnpm run build` 已内含两侧类型检查：`build:lib:host` 与 `build:lib:client` 分别执行 `tsc -b tsconfig.host.json` 与 `tsc -b tsconfig.client.json`，与 `pnpm run typecheck` 覆盖的是同两个程序，因此 build 成功之后不必再单独跑 typecheck。`clean` 在跨上游更新时值得保留（尤其是上游增删包），日常同分支迭代可以省掉——`tsc -b`、tsdown 与 Vite 的增量都是安全的。
+
+### 2. 判定模型：安装域与 profile 域，只有一类受仓库命令刷新
+
+`createRuntimeResolution`（`packages/boot/app-boot/src/profile.ts:404`）把可见包分成两个作用域，`entries` 按「安装域 → profile 域」排列：
+
+- **安装域**：`collectInstallationScopePackages`（同文件 336 行）从正在运行的 dsh 安装的 `package.json` 出发，对依赖与 peerDependencies 做 BFS。源码启动时锚点是 `apps/cli/package.json`，每个包都经 `apps/cli/node_modules/@deepseek-ai/*` symlink 指向仓库 workspace——**这一域完全受 `pnpm install` + `pnpm run build` 刷新**。
+- **profile 域**：`collectProfileScopePackages`（同文件 511 行）取「不在安装域中的 bundle 层」再做依赖闭包；`installedProfilePackageNames`（同文件 463 行）只认 profile 自己 `node_modules` 里真实存在的依赖。这一域的代码位于 Harness 家目录，仓库的三条命令碰不到。
+
+自检方法：读 `~/.dsh/profiles/<name>/package.json`。`dependencies` 为空（本次排查的 web profile 即为空）说明没有域外包，三条命令足够；非空则列出的每个包都是家目录里的独立副本，只能通过插件管理器的安装流程更新，与仓库构建无关。所有出厂 bundle（`dsh-base`、`dsh-web-app`、`dsh-headless`、`dsh-acp-app`、`dsh-sdk-app`、`dsh-sdk-minimal`）都是 `apps/cli` 的依赖，因此默认 profile 的 bundle 层及其插件闭包整体落在安装域内；profile 域只在家目录安装了域外 bundle 或第三方插件时才出现。
+
+### 3. 三条命令之外仍需单独执行的产物
+
+| 产物 | 命令 | 何时需要 |
+|---|---|---|
+| Python 主运行时与锁定 wheels | `pnpm run prepare:primary-runtime` | 使用 PTC / workspace-dependencies 相关功能；需联网，按 `scripts/primary-runtime/lock.json` 校验下载 |
+| Desktop 应用 | `pnpm run build:desktop` | 使用桌面端；`pnpm run build` 不产出 |
+| 完整原生二进制集 | `pnpm run build:native-system`（不带 `--host-addon-only`） | 需要 Host Node 插件之外的原生二进制 |
+
+### 4. 已排除的怀疑：tsx 转换缓存
+
+`pnpm dsh` 走 `node --import tsx/esm`，tsx 会在 `%TEMP%\tsx-<user>` 落一份转换缓存（本次排查时有 1058 个条目）。缓存键是 `sha1(源码 + 文件URL + esbuild 选项 + tsx 版本 + 缓存格式版本)`，**源码文本进键**，文件一改动键必然变化，不可能读到旧转换；进程内的 `Map` 随退出清空，磁盘条目按 `floor(Date.now()/1e8)` 分桶、超过 7 桶（约 8 天）删除。因此更新代码后不需要手动清理该目录，也不必设置 `TSX_DISABLE_CACHE`。
+
+### 5. 真正会让「最新代码不生效」的失效模式
+
+1. **改了客户端代码却只重启 `pnpm dsh web`**：Host 侧跑 TS 源码，浏览器加载的却是 `apps/web/dist` 里的构建产物。改 client 代码后要么补跑 `pnpm run build:web`，要么改用 `pnpm run dev:web`（它监听并重建 client bundle）。每次全量 `pnpm run build` 的用法不受影响。
+2. **上游删了包，`pnpm run clean` 会直接失败**：规划阶段发现无 `package.json` 的包目录里含未知文件时整体拒绝删除并列出条目，按提示手动清理后重跑。
+3. **切换 Node 主版本**：原生插件 ABI 变化，需重跑 `pnpm install` 与 `pnpm run build`。
+4. **postinstall 被跳过或依赖从缓存还原**：补跑 `node scripts/install-lefthook.mjs`；只影响 Git 钩子，不影响运行时代码。
+5. **浏览器缓存**：Vite 产物使用内容 hash 文件名，基本无虞；个别情况硬刷新即可。
+
+### 6. 案例：合并重建后设置页全部插件报「包元信息错误」
+
+这是一次「构建完全成功、行为却仍旧不对」的完整定位记录，用来说明第 5 条之外的第六类失效模式——源码与产物都是新的，但一条既有代码路径在新的启动方式下假设失效。
+
+**现象**：`pnpm install` → `pnpm run clean` → `pnpm run build` → `pnpm dsh web --no-open` 之后，设置页「内置插件」里每个插件卡片都显示 `包元信息错误：Plugin metadata for @deepseek-ai/dsh-<pkg>: TypeError: Cannot assign to read only property 'stack' of object 'Error: Package subpath './locale/en.json' is not defined by "exports" in …package.json imported from …\profiles\web\'`。
+
+**定位链**：`packages/host/plugin-inventory/src/index.ts:88` → `PluginPackages.metaOf`（`packages/boot/app-boot/src/profile-resolution/service.ts:114`）→ `readPluginMeta`（`packages/boot/app-boot/src/package-meta.ts:148`）。
+
+**设计意图是软失败**：`readPluginMeta` 先探测 `<pkg>/locale/en.json`。抽查的内置插件（`dsh-tool-bash`、`dsh-agent-instructions`、`dsh-persona`）既没有 `locale/` 目录，`exports` 里也没有 `./locale/*`，只有真正带本地化元数据的包才导出它（例如 `packages/experimental/agent-team`，其 `locale/en.json` 与 `locale/zh.json` 存在）。因此 Node 抛 `ERR_PACKAGE_PATH_NOT_EXPORTED` 是预期结果，`optionalResourcePath` 配 `missingResource`（同文件 59-72 行）本应吞掉它并回退到 package.json 的 `name`/`description`；`docs/cookbook/adding-a-package.zh.md` 也要求导出 `<包名>/locale/en.json` 供 locale 查询，即未导出等于无本地化元数据。
+
+**缺陷点**：解析被 `installRuntimeInterception` 路由到安装域副本，失败时走 `throwWithImporter`（`packages/boot/app-boot/src/profile-resolution/resolver.ts:655`）。它先改 `error.message`，再无条件执行 `error.stack = stack.replace(...)`（665 行）。在 `node --import tsx/esm` 启动下，从 `loader.resolveSync` 抛出的错误是一个包装后的 Error，其 `stack` 是**只读数据属性**（`writable: false`），这行赋值于是抛出 `TypeError`。该 TypeError 没有 `code`，`missingResource` 不认识它，于是一路冒泡到 `package-meta.ts:170`，拼成界面上的「包元信息错误」。报错里的 importer 已从路由父目录改写回 profile 目录，证明消息改写确实发生过、失败发生在紧随其后的栈赋值上。
+
+**最小复现**（在能解析到该包的目录下执行，例如 `apps/cli`）：
+
+```mjs
+try {
+  import.meta.resolve('@deepseek-ai/dsh-tool-bash/locale/en.json')
+} catch (error) {
+  const descriptor = Object.getOwnPropertyDescriptor(error, 'stack')
+  console.log('code:', error.code, '| writable:', descriptor?.writable, '| accessor:', !!descriptor?.get)
+}
+```
+
+分别用 `node` 与 `node --import tsx/esm` 运行，得到下表中的两行结果（Node v22.21.1，同一 specifier、同一父 URL）：
+
+| 启动方式 | 错误对象 `stack` | 赋值结果 |
+|---|---|---|
+| `node repro.mjs` | 访问器（get/set，configurable） | 成功 |
+| `node --import tsx/esm repro.mjs` | 数据属性，`writable: false` | `TypeError: Cannot assign to read only property 'stack'` |
+
+用 `throwWithImporter` + `optionalResourcePath` 的等价模拟做端到端验证：现状精确复现报错文案，加锁后返回 `undefined`，与普通 node 一致。
+
+**为什么仓库门禁没有抓到**：触发需要三个条件同时成立——tsx 源码启动、profile 解析拦截层已安装、目标插件没有 `./locale/*` 导出。仓库测试跑在 vitest 下（未注册 ESM hook，拿到的是原始 Node 错误，栈可写）；`scripts/verify-package-meta.ts` 虽然也用 tsx 运行，但不安装拦截层，根本不经过 `throwWithImporter`。
+
+**影响面**：仅展示元数据。`PluginLocalizedMeta` 只被 client 展示层消费（`packages/client/ui-plugin-manager/src/client/presentation.ts` 在没有 `meta.title` 时回退为模块名），插件加载、启停、装包与会话均不受影响，`packages/llm/plugin-package-inventory-deepseek` 也不读它。附带代价更值得注意：任何被路由的 ESM 解析失败（`ERR_MODULE_NOT_FOUND` 与 `ERR_PACKAGE_PATH_NOT_EXPORTED` 都已实测为只读栈）都会被改写成这个 TypeError，真实原因被抹掉——排障时看到它就等于「某个模块没解析到」，与构建新旧无关。
+
+**修复**：`resolver.ts:665` 增加可写判断，只重写可写的栈，消息改写保留：
+
+```ts
+    const stack = error.stack
+    error.message = message
+    /* v8 ignore next -- Node's resolver errors always carry a stack */
+    if (stack !== undefined && Object.getOwnPropertyDescriptor(error, 'stack')?.writable !== false) {
+      error.stack = stack.replace(originalMessage, message)
+    }
+```
+
+CommonJS 路径实测不受影响（tsx 下 `require.resolve` 的错误栈仍是可写访问器），因此 `throwWithoutCjsAnchor`（688 行）暂时不必改；但它是同一段模式，将来 CJS 解析若也经过 hook 包装会复现。
+
+**未定边界**：只确认了「是什么/什么时候发生」（tsx 启动下 resolver 错误的 `stack` 变为只读数据属性），没有定位到 Node/tsx 内部具体是哪一层创建的该属性；已排除 JS 层 `Object.defineProperty`、hook 数量、`setSourceMapsEnabled`、`Error.prepareStackTrace`、`Object.freeze/seal` 等解释。修复不依赖这一层机制。
+
+**临时规避**：用普通 node 跑已构建的 CLI，绕过 tsx hook——`node apps/cli/lib/bin.js web --no-open`（`apps/cli/package.json` 的 bin 即 `lib/bin.js`）。这只是诊断捷径，不是受支持的开发loop。
+
+### 7. 更新后的最小验证组合
+
+`pnpm run build` 成功即代表两侧类型检查与全部产物就绪。再要一道行为信号，选覆盖合并面的最小检查：`pnpm run test:snapshot`（keyless 录播回放，不需要 API key）比全量 `pnpm run test` 便宜，又能抓到产物层面的回归；随后照常做一次启动冒烟（`pnpm dsh web --no-open` 或 `pnpm dsh --profile headless "…"`）。设置页出现「包元信息错误」时按第 6 节判定，不要去折腾构建。
+
+## 六、一句话总结
 
 `git merge` → 核对 engines/packageManager → `pnpm install` →（有删包则 `pnpm run clean`）→ `pnpm run build` → typecheck + 聚焦测试 + 启动冒烟。
 
@@ -112,3 +212,15 @@ pnpm dsh web                # 或 pnpm dsh --profile headless "…" 做启动冒
 - `scripts/clean.ts`：`knownOrphanEntries`、先校验后删除的整体拒绝语义
 - `docs/development.md`「TypeScript project layout」附近：root build 的依赖顺序、Typert 仅在 Host tsdown 运行、typecheck 先行 Host lib、静态面经 `paths` 解析到 `src`
 - `native/README.md`：landlock-run 属于根 workspace、平台包为 optionalDependencies
+- `packages/boot/app-boot/src/profile.ts`：`collectInstallationScopePackages` 的安装域 BFS、`installedProfilePackageNames` 与 `collectProfileScopePackages` 的 profile 域、`createRuntimeResolution` 的 installation→profile 条目顺序
+- `packages/boot/app-boot/src/profile-resolution/resolver.ts`：`throwWithImporter` 的消息与栈改写、`throwWithoutCjsAnchor` 的同模式 CJS 版本、`installRuntimeInterception` 的 ESM 适配与 `restoreImporter`
+- `packages/boot/app-boot/src/package-meta.ts`：`missingResource`/`optionalResourcePath` 的软失败设计、`readPluginMeta` 的诊断包装
+- `packages/boot/app-boot/src/profile-resolution/service.ts` 与 `packages/host/plugin-inventory/src/index.ts`：`PluginPackages.metaOf` 及其以 `ctx.baseUrl` 调用的位置
+- `packages/client/ui-plugin-manager/src/client/presentation.ts`：`meta.title` 缺失时回退为模块名，证明元信息仅作用于展示
+- `docs/development.md`「Application commands」：`start:web` 与 `pnpm dsh web` 是同一次启动、`dev:web` 重建 client bundle、浏览器加载的是构建产物
+- `docs/cookbook/adding-a-package.zh.md`：导出 `<包名>/locale/en.json` 供 locale 查询的要求，以及 package.json 字段回退
+- `apps/cli/package.json`：六个出厂 bundle 均为其依赖（安装域判定依据）、`bin.dsh` 指向 `lib/bin.js`（临时规避）
+- `packages/shell/tool-bash/package.json` 等内置插件清单：无 `./locale/*` 导出且无 `locale/` 目录；对照 `packages/experimental/agent-team` 的 `./locale/*.json` 导出与 `locale/en.json`、`locale/zh.json`
+- `scripts/primary-runtime/prepare.ts` 与 `scripts/primary-runtime/lock.json`：Python 主运行时的锁定下载，不在 `pnpm run build` 内
+- `scripts/verify-package-meta.ts`：不安装拦截层，因此不经过 `throwWithImporter`（门禁未抓到该缺陷的原因）
+- tsx 4.22.4 `dist/index-XurvG3JN.mjs`：`FileCache` 的键构造（源码文本进键）与按 `floor(Date.now()/1e8)` 分桶的过期清理
