@@ -19,6 +19,7 @@
 | 11 | 子代理并发数不可配的现状与 tool-subagent 插件详解 | [11-subagent-concurrency-and-tool-subagent.md](11-subagent-concurrency-and-tool-subagent.md) |
 | 12 | 会话数据落盘机制：sessions 目录结构与 JSONL.zstd 格式详解 | [12-session-jsonl-zstd-storage.md](12-session-jsonl-zstd-storage.md) |
 | 13 | SQLite 使用现状：内置机制齐全，默认组合下不承担任何存储 | [13-sqlite-usage-status.md](13-sqlite-usage-status.md) |
+| 14 | 设置文件迁移：`settings.yaml` 一次性导入 profile `cordis.patch.yml` | [14-settings-yaml-profile-patch-migration.md](14-settings-yaml-profile-patch-migration.md) |
 
 ## 阅读顺序建议
 
@@ -38,3 +39,4 @@
 - **Landlock 只在 Linux 链上是回退**；macOS 用原生 Seatbelt（`sandbox-exec`），同为 `full` 强制级别，无 Landlock 无实际影响。
 - **运行期磁盘数据**全部收拢在 `$DSH_HOME`（默认 `~/.dsh`）单根下：会话日志（`sessions/`）、身份（`.anonymous-user-id`）、设置/凭据/附件、profiles 清单；另有 `os.tmpdir()` 下的 spill/子进程/sandbox 临时目录（见 06 篇）。
 - **会话日志** = 每会话一个 `session.jsonl.zstd`（Zstandard 多帧拼接的追加式 JSONL，文件夹名是 session id 而非哈希）；仓库内置 SQLite 机制但默认组合下不承担任何存储（见 12、13 篇）。
+- **设置文件已迁移**：home 级 `settings.yaml` 机制被移除，首次启动改名成 `settings.yaml.imported` 并一次性导入当前 profile 的 `cordis.patch.yml`，此后只改 profile patch（见 14 篇）。
