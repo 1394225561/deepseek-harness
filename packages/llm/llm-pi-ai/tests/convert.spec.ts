@@ -84,10 +84,10 @@ describe('toPiContext', () => {
       })],
       tools: [{ name: 'f', description: 'F', parameters: { type: 'object', properties: {} } }],
     })
-    expect(context.systemPrompt).toBe('be helpful')
-    expect(context.messages).toEqual([{ role: 'user', content: 'hi', timestamp: 0 }])
-    expect(context.tools).toEqual([
-      { name: 'f', description: 'F', parameters: { type: 'object', properties: {} } },
+    expect(context.messages).toEqual([
+      { role: 'system', content: 'be helpful', timestamp: 0,
+        toolsAdded: [{ name: 'f', description: 'F', parameters: { type: 'object', properties: {} } }] },
+      { role: 'user', content: 'hi', timestamp: 0 },
     ])
   })
 
@@ -317,7 +317,7 @@ describe('toPiContext', () => {
     })
   })
 
-  it('splits mixed user text + tool results and lifts a leading system message into systemPrompt', () => {
+  it('preserves the leading system message ahead of user text and tool results', () => {
     const context = toPiContext({
       provider: 'deepseek',
       model: 'm',
@@ -337,8 +337,8 @@ describe('toPiContext', () => {
         }),
       ],
     })
-    expect(context.systemPrompt).toBe('rule')
-    expect(context.messages.map(message => message.role)).toEqual(['user', 'toolResult'])
+    expect(context.messages[0]).toEqual({ role: 'system', content: 'rule', timestamp: 0 })
+    expect(context.messages.map(message => message.role)).toEqual(['system', 'user', 'toolResult'])
   })
 
   it('skips plugin-added (unknown) blocks in assistant content', () => {
@@ -368,7 +368,7 @@ describe('toPiContext', () => {
       content: [
         { type: 'thinking', thinking: 'private reasoning', thinkingSignature: 'think-sig', redacted: true },
         { type: 'text', text: 'calling', textSignature: 'text-sig' },
-        { type: 'toolCall', id: 'c1', name: 'f', arguments: { a: 1 }, thoughtSignature: 'tool-sig' },
+        { type: 'toolCall', id: 'c1', name: 'f', arguments: { a: 1 }, thoughtSignature: 'tool-sig', namespace: 'functions' },
       ],
     }))
     const context = toPiContext({
@@ -399,7 +399,7 @@ describe('toPiContext', () => {
       content: [
         { type: 'thinking', thinking: 'private reasoning', thinkingSignature: 'think-sig', redacted: true },
         { type: 'text', text: 'calling', textSignature: 'text-sig' },
-        { type: 'toolCall', id: 'c1', name: 'f', arguments: { a: 1 }, thoughtSignature: 'tool-sig' },
+        { type: 'toolCall', id: 'c1', name: 'f', arguments: { a: 1 }, thoughtSignature: 'tool-sig', namespace: 'functions' },
       ],
     })
   })
@@ -677,6 +677,7 @@ describe('toPiContext', () => {
     ['null block', { ...validReplay, blocks: [null] }, 'block 0 must be an object'],
     ['array block', { ...validReplay, blocks: [[]] }, 'block 0 must be an object'],
     ['unknown block type', { ...validReplay, blocks: [{ type: 'audio' }] }, 'block 0 has an unknown type'],
+    ['non-string namespace', { ...validReplay, blocks: [{ type: 'tool-call', namespace: 1 }] }, 'namespace must be a string'],
     ['non-string signature', { ...validReplay, blocks: [{ type: 'text', textSignature: 1 }] }, 'textSignature must be a string'],
     ['non-boolean redaction', { ...validReplay, blocks: [{ type: 'reasoning', redacted: 'yes' }] }, 'redacted must be boolean'],
   ])('degrades malformed replay state: %s', (_name, replayState, message) => {

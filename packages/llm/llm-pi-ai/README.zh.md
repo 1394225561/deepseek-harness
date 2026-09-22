@@ -185,7 +185,7 @@ Config 更新严格验证发生变化的 provider。初始加载将已存储的�
 
 #### 模型看到什么
 
-所选目录模型会收到一条系统提示词（`GenerateOptions.system`，否则取历史中首条 `system` 消息的文本；首条 system 消息文本为空时不发送系统提示词）、其余历史、工具与 pi-ai 通用流式 API 支持的采样字段。每张保留图片前都会有文本，注明其完整附件 id 与实际请求尺寸。当前执行文件系统可以映射附件提供方的宿主对象时，该文本还会携带只读规范化对象路径，并警告规范化或请求投影可能缩放或重新编码上传内容。日志中的图片省略决策选中的每个出现位置都会在替换文本中保留自己的身份与当前已解析访问方式，其规范化附件不会读取或变换。当保留的出现位置按精确 base64 载荷仍超过路由的 `maxRequestImageBytes` 时，调用以 `IMAGE_OFFLOAD_REQUIRED` 失败，由 `dsh-compaction-image-offload` 用 `image/offload` 事件记录所选位置并重试步骤。提供方原生回放元数据只在适配器针对历史内容校验通过后恢复。
+所选目录模型会收到完整的系统提示词快照、对话历史、工具以及支持的采样字段。支持对话中系统消息的模型会在用户或工具结果轮次之后、下一条助手消息之前保留完整的更新提示词；其他模型在开头收到最新提示词。单次调用的 `GenerateOptions.system` 放在初始历史提示词之前。重复的提示词快照仍会重复发送。工具更新能力选择共享的历史声明投影；pi-ai 接收初始可用工具，以及按开发者消息分组的新增和受支持的移除更新。回放会保留工具调用命名空间，以支持动态加载的 Responses 工具。每张保留图片前都会有文本，注明其完整附件 id 与实际请求尺寸。当前执行文件系统可以映射附件提供方的宿主对象时，该文本还会携带只读规范化对象路径，并警告规范化或请求投影可能缩放或重新编码上传内容。日志中的图片省略决策选中的每个出现位置都会在替换文本中保留自己的身份与当前已解析访问方式，其规范化附件不会读取或变换。当保留的出现位置按精确 base64 载荷仍超过路由的 `maxRequestImageBytes` 时，调用以 `IMAGE_OFFLOAD_REQUIRED` 失败，由 `dsh-compaction-image-offload` 用 `image/offload` 事件记录所选位置并重试步骤。提供方原生回放元数据只在适配器针对历史内容校验通过后恢复。
 
 #### Token 影响
 
@@ -229,7 +229,7 @@ pi-ai 事件变成 harness 的推理、文本、工具调用、用量与 finish 
 - **模态声明不受校验**——声明 `image` 而其网关不支持的模型会在提示词准入后被提供方拒绝。持久图片仍留在历史中，同一误声明模型可能再次失败；切换到纯文本模型仍然可行，因为共享 LLM 运行时会针对该请求把图片引用投影为稳定文本。
 - **未认证路由取决于其协议**——不点名凭据的路由解析为已配置但无密钥，但 pi-ai 的 OpenAI 兼容实现仍要求 API 密钥或 `Authorization` 标头，因此无密钥本地服务器需要由 `apiKeyEnv` 引用或 `headers` 中的 `Authorization` 条目提供的占位凭据。
 - **不支持 `GenerateOptions.stop`**——pi-ai 的通用流式选项无法跨提供方保证停止序列行为。
-- **只有历史中首条 `system` 消息会成为 pi-ai 的 `systemPrompt`**——本适配器使用 pi-ai 的单一 `systemPrompt` 输入，因此后续的 `system` 消息，或在同时设置了 `GenerateOptions.system` 时的首条消息，会在原位置折叠为 `user` 消息；系统提示词的提供方专属放置遵循 pi-ai，而非 harness 自有的协议覆盖。system 或 assistant 历史中的图片（包括首条系统消息中的图片）在两条转换路径上都会以 `UNSUPPORTED_CONTENT` 失败。
+- **Anthropic 更新需要至少一个初始可用工具**——当所有投影后的声明均为延迟加载时，包含工具更新的请求会在网络 I/O 之前以 `UNSUPPORTED_CONTENT` 失败，而不是允许 pi-ai 将激活时机移到初始声明。system 或 assistant 历史中的图片在两条转换路径上都会以 `UNSUPPORTED_CONTENT` 失败。
 - **提供方 HTTP 状态不可用**——pi-ai 错误事件不跨提供方暴露稳定 HTTP 状态。
 - **重试策略由提供方自有，而非 SDK 重试**——pi-ai SDK 重试保持禁用，因此持久 agent（智能体）步骤与 `llm/retry` 事件拥有每个可见尝试，直接 `ctx.llm.stream()` 调用仍是单次尝试。
 - **流式工具调用参数只在调用结束时解析一次**——安装的 pi-ai 带有 [`patches/@earendil-works__pi-ai@1.0.2.patch`](../../../patches/@earendil-works__pi-ai@1.0.2.patch)，它移除了每个流适配器中对整段累计参数 JSON 的逐 delta 重新解析（上游 [earendil-works/pi#9265](https://github.com/earendil-works/pi/issues/9265)）；未打补丁时，数 MB 的参数流会在事件循环上消耗 O(n²) CPU，并使进程内所有会话停滞。在 `toolcall_end` 之前，pi-ai partial 的工具调用 `arguments` 保持为 `{}`；本适配器只读取 delta 字符串与最终参数。每次升级 pi-ai 时都要重新应用或撤销该补丁。

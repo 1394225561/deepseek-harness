@@ -59,7 +59,7 @@ import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attac
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { toPiContext } from './context.ts'
-import { createModels, getSupportedThinkingLevels } from './models.ts'
+import { conversationUpdates, createModels, getSupportedThinkingLevels } from './models.ts'
 import { toStreamChunks } from './stream.ts'
 
 /** One resolution's frozen view: the profiles and the collection built from them. */
@@ -312,6 +312,7 @@ export class PiAiAdapter extends LlmAdapter {
       context: { contextWindow: resolvedModel.contextWindow },
       ...configuredMaxTokens === undefined ? {} : { defaultMaxTokens: configuredMaxTokens },
       ...reasoningInfo(resolvedModel, defaultLevel),
+      ...conversationUpdates(resolvedModel),
     }
   }
 
@@ -341,6 +342,17 @@ export class PiAiAdapter extends LlmAdapter {
     // the one it started with and the next call picks up the new one.
     const profile = this.profileOf(snapshot, options.provider)
     const model = this.modelOf(snapshot, options.provider, options.model)
+    const updates = conversationUpdates(model)
+    // pi-ai collapses Anthropic tool updates without an initially active declaration.
+    if (model.api === 'anthropic-messages' && updates.toolUpdate === 'in-history'
+      && !options.tools?.some(tool => !tool.deferLoading)
+      && options.messages.some(message => message.role === 'developer'
+        && message.content.some(block => block.type === 'tool-addition' || block.type === 'tool-removal'))) {
+      throw new LlmError(
+        'pi-ai Anthropic tool updates require an initially active tool; this request would otherwise move tool activation out of history.',
+        'UNSUPPORTED_CONTENT',
+      )
+    }
     const reasoning = resolveReasoningLevel(
       model,
       options.reasoningEffort ?? profile.reasoning,
@@ -367,7 +379,7 @@ export class PiAiAdapter extends LlmAdapter {
         this.config.onReplayDegrade?.({ provider: options.provider, model: options.model, reason })
       }
       const context = attachments === undefined
-        ? toPiContext(options, undefined, onReplayDegrade)
+        ? toPiContext(options, undefined, onReplayDegrade, updates.systemPromptUpdate)
         : await toPiContext({ ...options, signal: watchdog.signal }, {
           attachments,
           resolveImageAccess: ref => this.config.resolveImageAccess?.(attachments, ref),
@@ -376,7 +388,7 @@ export class PiAiAdapter extends LlmAdapter {
             maxPixels: profile.requestImagePixelBudget,
             maxBytes: profile.requestImageMaxBytes,
           },
-        }, onReplayDegrade)
+        }, onReplayDegrade, updates.systemPromptUpdate)
       const events = snapshot.models.streamSimple(model, context, {
         ...profileOptions(profile, reasoning, apiKey),
         ...options.temperature === undefined ? {} : { temperature: options.temperature },
