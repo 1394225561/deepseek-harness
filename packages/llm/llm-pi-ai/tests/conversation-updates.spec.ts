@@ -52,7 +52,7 @@ describe('conversation capability mapping', () => {
 
 afterEach(closeMockServers)
 
-async function send(provider: string, modelId: string, options: Omit<GenerateOptions, 'provider' | 'model'>) {
+async function send(provider: string, modelId: string, options: Omit<GenerateOptions, 'provider' | 'model'>, apiKey = 'fixture-key') {
   const server = await mockServer([{ status: 401, body: JSON.stringify({ error: { message: 'fixture rejection' } }) }])
   const ctx = new Context()
   const runtime = ctx.plugin(LlmRuntime)
@@ -60,8 +60,8 @@ async function send(provider: string, modelId: string, options: Omit<GenerateOpt
     await runtime
     // The serializer requires an API key even though the local server does not authenticate.
     const adapter = new LlmPiAi.PiAiAdapter({
-      profiles: () => resolveProfiles({ [provider]: { baseURL: server.url } }),
-      resolveApiKey: () => Promise.resolve('fixture-key'),
+      profiles: () => resolveProfiles({ [provider]: { baseURL: server.url, apiKeyEnv: 'PI_CONVERSATION_TEST_KEY', transport: 'sse' } }),
+      resolveApiKey: () => Promise.resolve(apiKey),
       auth: memoryAuth(),
     })
     // Use the runtime's own tool projection with this explicitly authenticated adapter.
@@ -79,6 +79,27 @@ const addition = () => createDeveloperMessage({ source: { kind: 'tool-registry' 
 ] })
 
 describe('serialized conversation updates', () => {
+  it.each(['anthropic', 'openai'] as const)('omits an empty initial prompt while retaining the later update through %s', async (provider) => {
+    const modelId = provider === 'anthropic' ? 'claude-opus-4-8' : 'gpt-5.4'
+    const { requests } = await send(provider, modelId, {
+      messages: [system(''), user('first'), system('later prompt')],
+    })
+    expect(requests).toHaveLength(1)
+    const request = requests[0]
+    expect(request).not.toHaveProperty('system')
+    if (provider === 'anthropic') {
+      expect(request).toMatchObject({ messages: [
+        { role: 'user', content: 'first' },
+        { role: 'system', content: [{ type: 'text', text: 'later prompt' }] },
+      ] })
+    } else {
+      expect(request).toMatchObject({ input: [
+        { role: 'user', content: [{ type: 'input_text', text: 'first' }] },
+        { role: 'developer', content: 'later prompt' },
+      ] })
+    }
+  })
+
   it('sends full prompt snapshots and grouped tool additions through Anthropic', async () => {
     const update = addition()
     const { requests } = await send('anthropic', 'claude-opus-4-8', {
@@ -130,6 +151,46 @@ describe('serialized conversation updates', () => {
 })
 
 describe('historical tool availability on the wire', () => {
+  it('anchors Kimi tool additions after user input in Chat Completions', async () => {
+    const update = addition()
+    const { requests } = await send('moonshotai', 'kimi-k3', {
+      messages: [user('first'), update], tools: [baseline, added],
+      toolHistory: { tools: [baseline], updates: [{ messageId: update.id, additions: [added] }] },
+    })
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({
+      tools: [{ type: 'function', function: { name: 'read' } }],
+      messages: [
+        { role: 'user', content: 'first' },
+        { role: 'system', tools: [{ type: 'function', function: { name: 'search', description: added.description, parameters: added.parameters } }] },
+        { role: 'system', content: 'Instruction one.\nInstruction two.' },
+      ],
+    })
+  })
+
+  it('loads Codex tool additions through tool-search output', async () => {
+    // Codex extracts an account id from the token before contacting the mock server.
+    const payload = Buffer.from(JSON.stringify({ 'https://api.openai.com/auth': { chatgpt_account_id: 'fixture-account' } })).toString('base64url')
+    const token = `e30.${payload}.fixture`
+    const update = addition()
+    const { requests } = await send('openai-codex', 'gpt-5.5', {
+      messages: [user('first'), update], tools: [baseline, added],
+      toolHistory: { tools: [baseline], updates: [{ messageId: update.id, additions: [added] }] },
+    }, token)
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({
+      tools: [{ type: 'function', name: 'read' }],
+      input: [
+        { role: 'user', content: [{ type: 'input_text', text: 'first' }] },
+        { type: 'tool_search_call', execution: 'client', arguments: { query: 'search', limit: 1 } },
+        { type: 'tool_search_output', execution: 'client', tools: [
+          { type: 'function', name: 'search', description: added.description, parameters: added.parameters, defer_loading: true },
+        ] },
+        { role: 'developer', content: 'Instruction one.\nInstruction two.' },
+      ],
+    })
+  })
+
   it('retains removed declarations and reactivates them through Anthropic history', async () => {
     const remove = createDeveloperMessage({ source: { kind: 'tool-registry' }, content: [{ type: 'tool-removal', toolName: 'search' }] })
     const restore = createDeveloperMessage({ source: { kind: 'tool-registry' }, content: [{ type: 'tool-addition', toolName: 'search' }] })

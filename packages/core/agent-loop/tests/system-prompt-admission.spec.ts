@@ -189,7 +189,7 @@ describe('prepared-route prompt admission', () => {
     const adapter = provider === 'capable' ? h.capable : h.plain
     const cleared = adapter.requests.at(-1)!
     expect(systemTexts(cleared)).toEqual([])
-    expect(toPiContext(cleared).systemPrompt).toBeUndefined()
+    expect(toPiContext(cleared).messages.filter(message => message.role === 'system')).toEqual([])
     expect(JSON.stringify(toPiContext(cleared))).not.toContain('prompt ')
     const clearEvents = h.agent.session.snapshotEvents().filter(event => event.type === 'system/message').filter(event => event.data.turn === 4)
     expect(clearEvents).toHaveLength(3)

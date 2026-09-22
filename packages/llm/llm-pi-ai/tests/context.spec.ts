@@ -596,7 +596,7 @@ describe('pi-ai system prompt source', () => {
     await expect(toPiContext(options, imageContext(attachments), undefined, 'in-history')).rejects.toThrow(error)
   })
 
-  it('keeps developer text and tool changes together at their activation position', async () => {
+  it('keeps developer text and tool changes together after the following user turn', async () => {
     const lookup = { name: 'lookup', description: 'initial', parameters: { type: 'object' } }
     const search = { name: 'search', description: 'later', parameters: { type: 'object' }, deferLoading: true }
     const update = createDeveloperMessage({ source: { kind: 'test' }, content: [
