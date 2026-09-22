@@ -271,6 +271,18 @@ export const InputBar = memo(function InputBar({
     keepDraftFocus(e, editor)
   }
 
+  const onCardMouseDown = (e: MouseEvent<HTMLDivElement>): void => {
+    if (!editable || editor === null || e.button !== 0 || e.defaultPrevented) return
+    const target = e.target
+    if (!(target instanceof Element) || !e.currentTarget.contains(target)) return
+    if (scrollRef.current?.contains(target)) return
+    const control = target.closest('button, a, input, select, textarea, [role="button"], [contenteditable], [tabindex]')
+    if (control !== null && e.currentTarget.contains(control)) return
+    e.preventDefault()
+    // Native caret moves can precede Lexical's selectionchange listener.
+    if (document.activeElement !== editor.getRootElement()) focusDraftEditor(editor, revealSelection)
+  }
+
   const onToggleCommandMenu = (): void => {
     if (keyboard === undefined) return
     // The menu is a combobox over the editor, so the keyboard has to be there
@@ -379,6 +391,7 @@ export const InputBar = memo(function InputBar({
         data-composer-card
         onClick={workspaceTrigger ? onRequestWorkspace : undefined}
         onPointerDown={workspaceTrigger ? (e) => { e.stopPropagation() } : undefined}
+        onMouseDown={onCardMouseDown}
       >
         {sessionId !== undefined && (
           <div className={css.overlayAnchor}>{renderSlot('conversation.input.overlay', {})}</div>
