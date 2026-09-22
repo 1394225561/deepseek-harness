@@ -309,6 +309,28 @@ describe('composer focus handoff', () => {
     expect(lexicalFocus).not.toHaveBeenCalled()
   })
 
+  it('leaves embedded overlay options, status text and scrollbars with the focused search field', () => {
+    const { view, shell } = bench({
+      overlay: <div>
+        <input aria-label="Filter models" />
+        <div role="listbox"><div role="option" aria-selected={false}>Model option</div></div>
+        <div>Loading models</div>
+      </div>,
+    })
+    const search = view.getByRole('textbox', { name: 'Filter models' })
+    act(() => { search.focus() })
+    const lexicalFocus = vi.spyOn(shell.editor, 'focus')
+
+    for (const target of [
+      view.getByRole('option'), view.getByRole('listbox'), view.getByText('Loading models'),
+      view.container.querySelector('[data-composer-overlay]')!,
+    ]) {
+      expect(fireEvent.mouseDown(target, { button: 0 })).toBe(true)
+      expect(document.activeElement).toBe(search)
+    }
+    expect(lexicalFocus).not.toHaveBeenCalled()
+  })
+
   it('keeps a focused editor\'s native caret without restoring an older Lexical selection', () => {
     const { view, shell, textarea } = bench()
     act(() => { shell.focus() })

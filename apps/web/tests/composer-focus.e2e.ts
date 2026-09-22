@@ -2,12 +2,12 @@
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { chromium, type Page } from 'playwright'
-import { expect, it, onTestFinished } from 'vitest'
+import { expect, it, onTestFailed, onTestFinished } from 'vitest'
 import {
   assertFixtureInventory, compareOrRefreshGolden, launchWebScaffold, seedSession, watchConsole, webSnapshotMode,
 } from './scaffold.ts'
 import { createChatScrollFixture } from './chat-scroll-fixture.ts'
-import { connectFreshWorkspace, newEnglishPage } from './support.ts'
+import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './support.ts'
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('./expected/composer-focus', import.meta.url))
 const EXPECTED = join(SNAPSHOT_DIR, 'focus.expected.md')
@@ -31,6 +31,15 @@ async function selectionState(page: Page) {
 }
 
 /**
+ * Format observed browser focus and selection for the golden file.
+ * @param state - Current browser selection.
+ * @returns Focus, selected text and directed offsets.
+ */
+function describeSelection(state: Awaited<ReturnType<typeof selectionState>>): string {
+  return `${state.focused ? 'focused' : 'unfocused'}; selection ${JSON.stringify(state.text)} (${state.anchor} → ${state.focus})`
+}
+
+/**
  * Exercise the card's top, inter-row gap, toolbar gap and bottom padding.
  * @param page - Page containing an editable composer.
  * @returns Stable behavior observations for the expected-output file.
@@ -48,11 +57,15 @@ async function exerciseComposer(page: Page): Promise<string[]> {
   const points = await page.locator('[data-composer-card]').evaluate((card) => {
     const box = card.getBoundingClientRect()
     const scroll = card.querySelector('[data-input-scroll]')!.getBoundingClientRect()
-    const row = card.querySelector('[data-input-scroll]')!.nextElementSibling!.getBoundingClientRect()
+    const rowElement = card.querySelector('[data-input-scroll]')!.nextElementSibling!
+    const row = rowElement.getBoundingClientRect()
+    const tools = rowElement.firstElementChild!.getBoundingClientRect()
+    const trailing = rowElement.lastElementChild!.getBoundingClientRect()
+    if (trailing.left <= tools.right) throw new Error('Composer toolbar has no unused gap')
     return [
       { name: 'top padding', x: box.x + box.width / 2, y: (box.top + scroll.top) / 2 },
       { name: 'row gap', x: box.x + box.width / 2, y: (scroll.bottom + row.top) / 2 },
-      { name: 'toolbar gap', x: box.x + box.width / 2, y: row.top + row.height / 2 },
+      { name: 'toolbar gap', x: (tools.right + trailing.left) / 2, y: row.top + row.height / 2 },
       { name: 'bottom padding', x: box.x + box.width / 2, y: box.bottom - 2 },
     ]
   })
@@ -60,7 +73,7 @@ async function exerciseComposer(page: Page): Promise<string[]> {
   for (const point of points) {
     await page.mouse.click(point.x, point.y)
     await expect.poll(() => selectionState(page)).toEqual(selected)
-    observations.push(`- ${point.name}: focused; selection "beta" (10 → 6)`)
+    observations.push(`- ${point.name}: ${describeSelection(await selectionState(page))}`)
   }
 
   const top = points[0]!
@@ -69,7 +82,7 @@ async function exerciseComposer(page: Page): Promise<string[]> {
   await expect.poll(async () => (await selectionState(page)).focused).toBe(false)
   await page.mouse.click(top.x, top.y)
   await expect.poll(() => selectionState(page)).toEqual(selected)
-  observations.push('- return from outside: previous selection restored (10 → 6)')
+  observations.push(`- return from outside: ${describeSelection(await selectionState(page))}`)
 
   await page.keyboard.insertText('BETA')
   await expect.poll(() => input.textContent()).toBe('alpha BETA gamma')
@@ -80,7 +93,7 @@ async function exerciseComposer(page: Page): Promise<string[]> {
   await expect.poll(() => selectionState(page)).toEqual(caret)
   await page.keyboard.insertText('!')
   await expect.poll(() => input.textContent()).toBe('alpha BET!A gamma')
-  observations.push('- typing replaces the restored selection and resumes at the restored caret: alpha BET!A gamma')
+  observations.push(`- typing replaces the restored selection and resumes at the restored caret: ${await input.textContent()}`)
   return observations
 }
 
@@ -95,6 +108,7 @@ it('restores the previous caret or selection in fresh and existing sessions', as
   const fixture = createChatScrollFixture({ markerPrefix: 'COMPOSER_FOCUS', title: 'Composer focus', turns: 1 })
   await seedSession(scaffold, fixture.log, 'composer-focus-web-e2e')
   const page = await newEnglishPage(browser)
+  onTestFailed(() => saveFailureShot(page, 'web-e2e-composer-focus'))
   const tripwire = watchConsole(page)
   await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
   await connectFreshWorkspace(page, scaffold.workspaceCwd, 'composer-focus')
@@ -113,6 +127,6 @@ it('restores the previous caret or selection in fresh and existing sessions', as
     '', '## Existing session', '', ...docked,
   ].join('\n'), webSnapshotMode())
   await assertFixtureInventory(SNAPSHOT_DIR, ['focus.expected.md'])
-  expect(tripwire.warnings).toEqual([])
+  if (webSnapshotMode() !== 'record') expect(tripwire.warnings).toEqual([])
   expect(tripwire.pageErrors).toEqual([])
 }, 180_000)

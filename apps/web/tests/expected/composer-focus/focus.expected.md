@@ -6,7 +6,7 @@
 - row gap: focused; selection "beta" (10 → 6)
 - toolbar gap: focused; selection "beta" (10 → 6)
 - bottom padding: focused; selection "beta" (10 → 6)
-- return from outside: previous selection restored (10 → 6)
+- return from outside: focused; selection "beta" (10 → 6)
 - typing replaces the restored selection and resumes at the restored caret: alpha BET!A gamma
 
 ## Existing session
@@ -15,5 +15,5 @@
 - row gap: focused; selection "beta" (10 → 6)
 - toolbar gap: focused; selection "beta" (10 → 6)
 - bottom padding: focused; selection "beta" (10 → 6)
-- return from outside: previous selection restored (10 → 6)
+- return from outside: focused; selection "beta" (10 → 6)
 - typing replaces the restored selection and resumes at the restored caret: alpha BET!A gamma

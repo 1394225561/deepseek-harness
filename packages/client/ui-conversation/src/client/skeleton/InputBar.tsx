@@ -275,11 +275,13 @@ export const InputBar = memo(function InputBar({
     if (!editable || editor === null || e.button !== 0 || e.defaultPrevented) return
     const target = e.target
     if (!(target instanceof Element) || !e.currentTarget.contains(target)) return
+    if (target.closest('[data-composer-overlay]') !== null) return
     if (scrollRef.current?.contains(target)) return
     const control = target.closest('button, a, input, select, textarea, [role="button"], [contenteditable], [tabindex]')
     if (control !== null && e.currentTarget.contains(control)) return
     e.preventDefault()
-    // Native caret moves can precede Lexical's selectionchange listener.
+    // Lexical's stored selection can lag behind native caret moves, so calling
+    // editor.focus() on a focused editor can restore an older caret.
     if (document.activeElement !== editor.getRootElement()) focusDraftEditor(editor, revealSelection)
   }
 
@@ -394,7 +396,7 @@ export const InputBar = memo(function InputBar({
         onMouseDown={onCardMouseDown}
       >
         {sessionId !== undefined && (
-          <div className={css.overlayAnchor}>{renderSlot('conversation.input.overlay', {})}</div>
+          <div className={css.overlayAnchor} data-composer-overlay>{renderSlot('conversation.input.overlay', {})}</div>
         )}
         {accessory !== undefined && <div className={css.accessory}>{accessory}</div>}
         {renderSlot('conversation.input.attachments', {
