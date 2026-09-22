@@ -71,7 +71,7 @@ function systemTexts(request: GenerateOptions) {
 function expectPlain(request: GenerateOptions, prompt: string) {
   expect(systemTexts(request)).toEqual([[{ type: 'text', text: prompt }]])
   const converted = toPiContext(request)
-  expect(converted.systemPrompt).toBe(prompt)
+  expect(converted.messages[0]).toMatchObject({ role: 'system', content: prompt })
   expect(converted.messages.filter(message => message.role === 'user').map(message => message.content))
     .not.toContain('prompt one')
   expect(converted.messages.filter(message => message.role === 'user').map(message => message.content))
