@@ -324,6 +324,8 @@ export function checkExperimentalManifest(
 }
 
 function isReleaseMemberDirectory(dir: string): boolean {
+  // The SSH carrier is distributed as executable archives, never as an npm application.
+  if (dir === 'packages/ssh/ssh-helper-runtime') return false
   return standardReleaseMemberDirectory.test(dir) || isPublicExperimentalPackageDirectory(dir)
 }
 

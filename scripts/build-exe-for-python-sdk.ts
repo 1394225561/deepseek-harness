@@ -7,12 +7,13 @@
  */
 
 import { spawn } from 'node:child_process'
+import { materializeStagedLinks, pnpmInvocation, restoreLegacyHoists } from './executable-packaging.ts'
 import { existsSync, statSync } from 'node:fs'
-import { chmod, copyFile, cp, lstat, mkdir, readFile, readdir, realpath, rm, writeFile } from 'node:fs/promises'
+import { chmod, copyFile, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { basename, dirname, extname, join, resolve, sep } from 'node:path'
+import { basename, dirname, join, resolve, sep } from 'node:path'
 import { parseArgs } from 'node:util'
-import { resolveLinuxNodePtyAddon, resolveWindowsNodePtyAddons } from './build-exe-for-python-sdk-native-pty.ts'
+import { resolveLinuxNodePtyAddon, resolveWindowsNodePtyAddons } from './executable-native-pty.ts'
 import { copyOfficeSidecar, OFFICE_ASSET_IGNORES } from './build-exe-for-python-sdk-office.ts'
 import { preparePrimaryRuntime, smokePrimaryRuntime, type PrimaryRuntimeTarget } from './primary-runtime/prepare.ts'
 
@@ -222,29 +223,6 @@ class BuildCli {
   }
 }
 
-function pnpmInvocation(args: string[]): [command: string, args: string[]] {
-  const entrypoint = process.env.npm_execpath?.trim()
-  if (entrypoint !== undefined && entrypoint !== '') {
-    const extension = extname(entrypoint).toLowerCase()
-    if (extension === '.js' || extension === '.cjs' || extension === '.mjs') {
-      return [process.execPath, [entrypoint, ...args]]
-    }
-    if (extension !== '.cmd') return [entrypoint, args]
-  }
-  const home = process.env.PNPM_HOME?.trim()
-  if (home !== undefined && home !== '') {
-    const packageBin = resolve(home, '..', 'pnpm', 'bin')
-    for (const filename of ['pnpm.mjs', 'pnpm.cjs']) {
-      const candidate = resolve(packageBin, filename)
-      if (existsSync(candidate)) return [process.execPath, [candidate, ...args]]
-    }
-  }
-  if (process.platform === 'win32') {
-    throw new Error('build-exe-for-python-sdk: pnpm must expose a JavaScript entrypoint through npm_execpath or PNPM_HOME on Windows.')
-  }
-  return ['pnpm', args]
-}
-
 /**
  * Render a command for logs and errors, quoting arguments with spaces.
  * @param command - the executable.
@@ -289,7 +267,7 @@ class SingleExeBuild {
     }
     if (this.cli.dryRun) console.log(`build-exe-for-python-sdk: [dry-run] rm -rf ${this.staging}`)
     else await rm(this.staging, { recursive: true, force: true })
-    await this.runPnpm('deploy', [
+    try { await this.runPnpm('deploy', [
       '--filter',
       DEPLOY_ROOT_PACKAGE,
       'deploy',
@@ -301,7 +279,10 @@ class SingleExeBuild {
       '--config.auto-install-peers=false',
       '--config.link-workspace-packages=true',
       this.staging,
-    ])
+    ]) } finally {
+      // Legacy deploy records production-only workspace state; restore the development installation before exec.
+      await this.runPnpm('restore development dependencies', ['install', '--offline', '--frozen-lockfile', '--prod=false', '--ignore-scripts'])
+    }
     await this.restoreLegacyHoists()
     await this.materializeStagedLinks()
     if (this.cli.dryRun) {
@@ -322,38 +303,8 @@ class SingleExeBuild {
       console.log('build-exe-for-python-sdk: [dry-run] restore direct dependencies omitted by legacy deploy')
       return
     }
-    const manifestPath = join(this.staging, 'package.json')
-    const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
-      dependencies?: Record<string, string>
-    }
-    const sourceNodeModules = resolve(root, DEPLOY_SOURCE_NODE_MODULES)
-    const restored: string[] = []
-    for (const dependency of Object.keys(manifest.dependencies ?? {}).sort()) {
-      const destination = join(this.staging, 'node_modules', dependency)
-      if (existsSync(destination)) continue
-      const source = join(sourceNodeModules, dependency)
-      if (!existsSync(source)) {
-        throw new Error(
-          `build-exe-for-python-sdk: deployed dependency ${dependency} is absent from both ${destination} and ${source}.`,
-        )
-      }
-      await mkdir(dirname(destination), { recursive: true })
-      const nestedNodeModules = join(source, 'node_modules')
-      await cp(source, destination, {
-        recursive: true,
-        dereference: true,
-        filter: path => path !== nestedNodeModules && !path.startsWith(nestedNodeModules + sep),
-      })
-      restored.push(dependency)
-    }
-    const stillMissing = Object.keys(manifest.dependencies ?? {})
-      .filter(dependency => !existsSync(join(this.staging, 'node_modules', dependency)))
-    if (stillMissing.length > 0) {
-      throw new Error(`build-exe-for-python-sdk: staged dependencies remain missing: ${stillMissing.join(', ')}.`)
-    }
-    if (restored.length > 0) {
-      console.log(`build-exe-for-python-sdk: restored legacy deploy hoists: ${restored.join(', ')}`)
-    }
+    const restored = await restoreLegacyHoists(this.staging, resolve(root, DEPLOY_SOURCE_NODE_MODULES))
+    if (restored.length > 0) console.log(`build-exe-for-python-sdk: restored legacy deploy hoists: ${restored.join(', ')}`)
   }
 
   /** Replace deploy-time package links with files and reject any remaining link. */
@@ -362,41 +313,7 @@ class SingleExeBuild {
       console.log('build-exe-for-python-sdk: [dry-run] materialize staged package links')
       return
     }
-    const nodeModules = join(this.staging, 'node_modules')
-    let remaining = await this.findSymlink(nodeModules)
-    while (remaining !== undefined) {
-      const segments = remaining.slice(nodeModules.length + 1).split(sep)
-      const binIndex = segments.lastIndexOf('.bin')
-      if (binIndex >= 0) {
-        await rm(join(nodeModules, ...segments.slice(0, binIndex + 1)), { recursive: true, force: true })
-        remaining = await this.findSymlink(nodeModules)
-        continue
-      }
-      const destination = remaining
-      const source = await realpath(destination)
-      const nestedNodeModules = join(source, 'node_modules')
-      await rm(destination, { recursive: true, force: true })
-      await cp(source, destination, {
-        recursive: true,
-        dereference: true,
-        filter: path => path !== nestedNodeModules && !path.startsWith(nestedNodeModules + sep),
-      })
-      remaining = await this.findSymlink(nodeModules)
-    }
-  }
-
-  /** Return the first symbolic link below a directory, if one exists. */
-  private async findSymlink(directory: string): Promise<string | undefined> {
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
-      const path = join(directory, entry.name)
-      const metadata = await lstat(path)
-      if (metadata.isSymbolicLink()) return path
-      if (metadata.isDirectory()) {
-        const nested = await this.findSymlink(path)
-        if (nested !== undefined) return nested
-      }
-    }
-    return undefined
+    await materializeStagedLinks(join(this.staging, 'node_modules'))
   }
 
   /** Add the executable entry and pkg assets to the staged manifest. */

@@ -533,7 +533,7 @@ describe('CI workflow', () => {
       })
       .map(([name]) => name)
       .sort()
-    expect(pushReachable).toEqual(['python-runtime', 'serial-linux-selfhosted', 'serial-windows', 'windows'])
+    expect(pushReachable).toEqual(['python-runtime', 'serial-linux-selfhosted', 'serial-windows', 'ssh-helper', 'windows'])
 
     // Manual benchmarks retain their bounded fan-out.
     for (const name of ['larger-runner-benchmark', 'consolidated-runner-benchmark']) {
@@ -605,6 +605,58 @@ describe('CI workflow', () => {
       },
     })
     expect(aggregate.needs).toContain('python-runtime')
+  })
+
+  it('requires SSH helper acceptance before publication and PR aggregation', () => {
+    const ci = loadWorkflow('.github/workflows/ci.yml')
+    expect(workflowJob(ci, 'ssh-helper')).toMatchObject({
+      uses: './.github/workflows/build-exe-for-ssh-helper.yml', with: { targets: 'node24-linux-x64' },
+    })
+    expect(workflowJob(ci, 'all-checks-passed').needs).toContain('ssh-helper')
+    const master = workflowJob(loadWorkflow('.github/workflows/ci-master.yml'), 'ssh-helper')
+    expect(master.if).toContain("inputs.suite == 'ssh-helper'")
+    if (!isRecord(master.with)) throw new Error('SSH master caller must select native targets')
+    expect(evaluateRunsOn(master.with.targets, { github: { event_name: 'push' } })).toBe('node24-linux-arm64,node24-macos-arm64,node24-macos-x64')
+    expect(evaluateRunsOn(master.with.targets, { github: { event_name: 'workflow_dispatch' } })).toBe('node24-linux-x64,node24-linux-arm64,node24-macos-arm64,node24-macos-x64')
+    const workflow = loadWorkflow('.github/workflows/build-exe-for-ssh-helper.yml')
+    const build = workflowJob(workflow, 'build')
+    if (!Array.isArray(build.steps)) throw new Error('SSH build must define its verification steps')
+    const steps = build.steps.filter(isRecord)
+    const artifact = steps.findIndex(step => String(step.run).includes('scripts/verify-ssh-helper-artifact.ts'))
+    const transport = steps.findIndex(step => String(step.run).includes('scripts/verify-ssh-helper-ssh.ts'))
+    const landlock = steps.findIndex(step => String(step.run).includes('--backend=landlock-run'))
+    const upload = steps.findIndex(step => String(step.uses).startsWith('actions/upload-artifact@'))
+    expect(artifact).toBeGreaterThan(-1)
+    expect(landlock).toBeGreaterThan(artifact)
+    expect(transport).toBeGreaterThan(artifact)
+    expect(upload).toBeGreaterThan(transport)
+    for (const index of [artifact, transport, landlock, upload]) expect(steps[index]).not.toHaveProperty('continue-on-error', true)
+    const publish = loadWorkflow('.github/workflows/publish-ssh-helper.yml')
+    expect(publish.permissions).toEqual({ contents: 'read' })
+    expect(workflowJob(publish, 'build')).toMatchObject({ needs: 'validate', with: { release: true } })
+    expect(workflowJob(publish, 'publish')).toMatchObject({ needs: ['validate', 'build'], permissions: { contents: 'write' } })
+  })
+
+  it('validates the SSH native matrix before allocating runners', () => {
+    const plan = workflowJob(loadWorkflow('.github/workflows/build-exe-for-ssh-helper.yml'), 'plan')
+    if (!Array.isArray(plan.steps)) throw new Error('SSH matrix plan has no steps')
+    const step: unknown = plan.steps.find(value => isRecord(value) && value.id === 'targets')
+    if (!isRecord(step) || typeof step.run !== 'string') throw new Error('SSH matrix plan has no script')
+    const source = step.run.split("<<'JS'\n")[1]?.split('\nJS')[0]?.replace(/^import .*;\n/gm, '')
+    if (source === undefined) throw new Error('SSH matrix plan must be an executable Node script')
+    const evaluate = (requested: string): unknown => {
+      let output = ''
+      runInNewContext(source, {
+        process: { env: { REQUESTED_TARGETS: requested, GITHUB_OUTPUT: 'output' } },
+        appendFileSync: (_path: string, text: string) => { output += text },
+      }, { timeout: 1000 })
+      return JSON.parse(output.slice('matrix='.length))
+    }
+    expect(evaluate('')).toHaveLength(4)
+    expect(evaluate('node24-linux-arm64')).toEqual([{ target: 'node24-linux-arm64', runner: 'ubuntu-24.04-arm' }])
+    for (const invalid of ['node24-linux-arm64,node24-linux-arm64', 'node24-win-x64', 'node24-linux-x64,', ' ']) {
+      expect(() => evaluate(invalid)).toThrow('Invalid or duplicate')
+    }
   })
 
   it('keeps every Vitest project process-isolated on native Windows', () => {
