@@ -35,7 +35,7 @@ changes:
 <a id="compatibility"></a>
 ## 兼容性
 
-已有 version-0 和 version-1 的 one-shot 与 continuable 事实仍然有效；version 1 还保留 unknown 模式。新外部执行写入 payload version 2 和 external 模式，不使用单独的标记。创建时写入一次成员事实，执行和清理不更新它。重复的子 id 仍然无效。这替换本 PR 中尚未接受的 external 标记新增项，不改变已发布的代际或 Session 格式版本。
+已有 version-0 和 version-1 的 one-shot 与 continuable 事实仍然有效；version 1 还保留 unknown 模式。新外部执行写入 payload version 2 和 external 模式，不使用单独的标记。创建时写入一次成员事实，执行和清理不更新它。重复的子 id 仍然无效。这不改变已发布的代际或 Session 格式版本。
 
 <a id="verification"></a>
 ## 验证

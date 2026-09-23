@@ -35,7 +35,7 @@ changes:
 <a id="compatibility"></a>
 ## Compatibility
 
-Existing version-0 and version-1 one-shot and continuable facts remain valid; version 1 also retains unknown mode. New external executions write payload version 2 with mode external, without a separate marker. Creation writes one membership fact; execution and cleanup do not update it. Duplicate child ids remain invalid. This replaces the unaccepted external-marker addition in this PR and does not change released generations or the Session format version.
+Existing version-0 and version-1 one-shot and continuable facts remain valid; version 1 also retains unknown mode. New external executions write payload version 2 with mode external, without a separate marker. Creation writes one membership fact; execution and cleanup do not update it. Duplicate child ids remain invalid. This does not change released generations or the Session format version.
 
 <a id="verification"></a>
 ## Verification

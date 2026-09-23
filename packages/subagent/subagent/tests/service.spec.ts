@@ -610,10 +610,14 @@ describe('subagent descriptors', () => {
   })
 })
 
-it('rejects external execution when a provider implements neither execution method', async () => {
-  const { subagents } = await service()
-  subagents.registerProvider({ name: 'empty', capabilities: NO_CAPS, inheritsParentContext: false })
-  await expect(start(subagents, 'empty', baseRequest())).rejects.toMatchObject({ code: 'UNSUPPORTED_CAPABILITY' })
+it('rejects registration when a provider implements neither execution method', async () => {
+  const { ctx, subagents } = await service()
+  const added = vi.fn()
+  ctx.on('subagent/provider-added', added)
+  expect(() => subagents.registerProvider({ name: 'empty', capabilities: NO_CAPS, inheritsParentContext: false }))
+    .toThrow(expect.objectContaining({ code: 'UNSUPPORTED_CAPABILITY' }))
+  expect(subagents.getProvider('empty')).toBeUndefined()
+  expect(added).not.toHaveBeenCalled()
 })
 
 it('rejects a disposed parent before starting provider execution', async () => {

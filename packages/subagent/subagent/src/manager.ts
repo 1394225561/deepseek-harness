@@ -26,7 +26,7 @@ import { createAgentMessage, withContinuableReturnGuidance, createSettlementMess
 import { assertSubagentMaxDepth } from './depth.ts'
 import { foldSubagentDescriptor, snapshotSubagentDescriptor } from './descriptor.ts'
 import type { SubagentDescriptorData } from './descriptor.ts'
-import { establishCatalogChild } from './catalog.ts'
+import { establishCatalogChild, establishExternalCatalogChild } from './catalog.ts'
 import { SubagentError } from './error.ts'
 import { isAdjacentAgentSendMessageTool } from './internal.ts'
 import type { ActivationObserver } from './lifecycle.ts'
@@ -463,12 +463,9 @@ export class SubagentManager {
         }),
       })
       this.assertAdmitting(parent)
-      this.authorizeLineage(parent, activation.childId, activation.parent.id)
+      this.assertLiveParent(parent, activation.childId)
       spec.signal.throwIfAborted()
-      const childId = activation.childId
-      parent.session.append('subagent/catalog', {
-        version: 2, childId, childCreatedAt: Date.now(), mode: 'external', label: spec.label,
-      })
+      establishExternalCatalogChild(parent.session, activation.childId, spec.label)
       this.announce(activation)
       return this.receipt(activation)
     } catch (error: unknown) {
@@ -476,7 +473,7 @@ export class SubagentManager {
         try {
           await this.dispose(activation)
         } catch (cleanupError: unknown) {
-          this.ctx.logger.warn(`subagent "${activation.childId}" admission rollback failed: ${(cleanupError as SubagentError).message}`)
+          this.ctx.logger.warn(`subagent "${activation.childId}" admission rollback failed: ${failureMessage(cleanupError)}`)
         }
       }
       throw error
@@ -670,14 +667,19 @@ export class SubagentManager {
     childId: SessionId,
     parentSession: SessionId | undefined,
   ): void {
+    this.assertLiveParent(parent, childId)
+    if (parentSession !== parent.id) {
+      throw new SubagentError(`subagent "${childId}" belongs to another parent session`, 'UNAUTHORIZED')
+    }
+  }
+
+  /** Reject parent authority after the live registry entry changes. */
+  private assertLiveParent(parent: Agent, childId: SessionId): void {
     if (this.ctx.agents.get(parent.id) !== parent) {
       throw new SubagentError(
         `subagent "${childId}" delivery requires the exact live parent agent`,
         'UNAUTHORIZED',
       )
-    }
-    if (parentSession !== parent.id) {
-      throw new SubagentError(`subagent "${childId}" belongs to another parent session`, 'UNAUTHORIZED')
     }
   }
 

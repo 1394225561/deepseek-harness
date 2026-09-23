@@ -149,3 +149,22 @@ export function establishCatalogChild(
     label: descriptor.label,
   })
 }
+
+/** Catalog payload version emitted by external execution creation. */
+const EXTERNAL_SUBAGENT_CATALOG_VERSION = 2
+
+/**
+ * Record an external execution without a local child Session.
+ * @param parent - durable direct parent receiving the discovery fact.
+ * @param childId - identity returned by the external provider.
+ * @param label - display label assigned by the caller.
+ */
+export function establishExternalCatalogChild(parent: Session, childId: SessionId, label: string): void {
+  parent.append('subagent/catalog', {
+    version: EXTERNAL_SUBAGENT_CATALOG_VERSION,
+    childId,
+    childCreatedAt: Date.now(),
+    mode: 'external',
+    label,
+  })
+}

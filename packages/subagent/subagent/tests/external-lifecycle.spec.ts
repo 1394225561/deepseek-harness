@@ -101,6 +101,25 @@ describe('external activation ownership', () => {
     await activation.dispose()
   })
 
+  it('retains the catalog failure and reports cleanup failure during admission rollback', async () => {
+    // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- external backends can reject without an Error.
+    const dispose = vi.fn(() => Promise.reject(null))
+    const fixture = await setup(() => Promise.resolve(run('rollback-child', Promise.resolve(complete), dispose)))
+    const failure = new Error('catalog unavailable')
+    const append = vi.spyOn(fixture.parent.session, 'append').mockImplementationOnce(() => { throw failure })
+    const warning = vi.spyOn(fixture.ctx.logger, 'warn')
+    try {
+      await expect(fixture.start()).rejects.toBe(failure)
+      expect(dispose).toHaveBeenCalledOnce()
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining('admission rollback failed:'))
+      expect(warning).toHaveBeenCalledWith(expect.stringContaining('unknown teardown failure'))
+      await expect(fixture.ctx.subagents.waitForChildren(fixture.parent)).resolves.toBe(false)
+    } finally {
+      append.mockRestore()
+      warning.mockRestore()
+    }
+  })
+
   it('contains a non-Error backend cleanup rejection and retains the execution result', async () => {
     const result = Promise.withResolvers<SubagentResult>()
     const cleanup = Promise.withResolvers<undefined>()

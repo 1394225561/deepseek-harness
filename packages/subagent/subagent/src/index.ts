@@ -13,8 +13,8 @@
  *
  * `startActivation` establishes every child under the activation manager, which
  * owns execution, result delivery, and resource release. Local providers seed
- * resumable Agents; external providers expose one execution through a shared
- * adapter. `sendMessage` steers between adjacent local Agents without exposing
+ * resumable Agents; external providers return a single execution handle.
+ * `sendMessage` steers between adjacent local Agents without exposing
  * whether a child is resident. Discovery combines real child Sessions with
  * parent-owned records for external executions.
  *
@@ -211,10 +211,7 @@ export class SubagentRuntime extends TypertRemoteService {
     ctx.inject(['agents'], (childCtx: Context) => {
       const manager = new SubagentManager(childCtx, {
         startExternal: (name, request) => {
-          const provider = this.expectProvider(name)
-          if (provider.start === undefined) {
-            throw new SubagentError(`subagent provider "${name}" does not support external execution`, 'UNSUPPORTED_CAPABILITY')
-          }
+          const provider = this.expectProvider(name) as SubagentProvider & Required<Pick<SubagentProvider, 'start'>>
           return provider.start(request)
         },
         prepareContinuable: (name, request) => this.prepareContinuable(name, request),
@@ -532,12 +529,16 @@ export class SubagentRuntime extends TypertRemoteService {
   /**
    * Register a provider under its name. Registration is effect-scoped and HMR
    * safe; removing a provider blocks new starts but does not revoke runs that
-   * were already returned to their holders.
+   * were already returned to their holders. Providers without either execution
+   * method are rejected with UNSUPPORTED_CAPABILITY before registration.
    * @param provider - the trusted provider implementation.
    * @returns the exact Cordis effect disposer.
    */
   registerProvider(provider: SubagentProvider): () => void {
     const name = provider.name
+    if (provider.start === undefined && provider.prepareContinuable === undefined) {
+      throw new SubagentError(`subagent provider "${name}" must implement start or prepareContinuable`, 'UNSUPPORTED_CAPABILITY')
+    }
     // oxlint-disable-next-line typescript/no-misused-promises -- synchronous disposer
     return this.ctx.effect(function* (this: SubagentRuntime) {
       if (this.providers.has(name)) {
