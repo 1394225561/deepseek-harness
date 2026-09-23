@@ -61,8 +61,7 @@ import { assertSubagentMaxDepth } from './depth.ts'
 import { createActivationObserver, createLifecycleEmitter } from './lifecycle.ts'
 import type { ActivationObserver, LifecycleEmitter } from './lifecycle.ts'
 import SubagentManager from './manager.ts'
-import { listChildren as listSubagentChildren, listDescendants as listSubagentDescendants } from './list-children.ts'
-import type { SubagentDescendantListEntry } from './list-children.ts'
+import { listChildren as listSubagentChildren } from './list-children.ts'
 import type { SubagentCatalogEntry } from './projection-types.ts'
 import { subagentIdentityProjectionDefinition, subagentTimingProjectionDefinition } from './projection.ts'
 import { subagentCatalogProjectionDefinition } from './catalog.ts'
@@ -114,7 +113,6 @@ export {
 export type { ChildComposition, DelegatedPolicyOverrides } from './child-agent.ts'
 export type { AgentMessageSource, SubagentSettledMessageSource } from './continuation-messages.ts'
 export type * from './control-types.ts'
-export type { SubagentDescendantListEntry } from './list-children.ts'
 export type { SubagentRunEndInfo, SubagentRunInfo } from './types.ts'
 export type { SubagentCatalogEntry, SubagentIdentityProjection, SubagentTimingProjection } from './projection-types.ts'
 
@@ -397,26 +395,6 @@ export class SubagentRuntime extends TypertRemoteService {
   listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentCatalogEntry[]> {
     return listSubagentChildren(this.ctx, parentSessionId, signal)
   }
-
-  /**
-   * Enumerate the root's complete session-backed subagent tree in stable
-   * pre-order from one live-preferred corpus, without loading or resuming an
-   * Agent. Ordinary sessions and one-shot children remain traversal nodes so
-   * continuable descendants below them are discovered; each returned entry
-   * adds its durable `parentId` and root-relative `depth`. Identity resolution,
-   * diagnostics, optional persistence, and cancellation use the registered
-   * child identity projection and complete Session corpus.
-   * @param rootSessionId - session whose complete descendant tree is listed.
-   * @param signal - caller-owned cancellation forwarded to persistence reads
-   *   and observed around every read await.
-   * @returns children and per-candidate diagnostics with tree position, in
-   *   stable pre-order.
-   * @throws {@link SubagentError} when listing dependencies are unavailable or the caller cancels.
-   */
-  listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]> {
-    return listSubagentDescendants(this.ctx, rootSessionId, signal)
-  }
-
 
   /**
    * Deliver one browser-authored message to a continuable child through the

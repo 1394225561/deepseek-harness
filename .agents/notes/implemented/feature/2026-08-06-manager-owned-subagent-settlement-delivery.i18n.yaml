@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-06-manager-owned-subagent-settlement-delivery.md
-2026-08-06-manager-owned-subagent-settlement-delivery.md: a839eebb7a723bc169fc539327b419f71a76de49
-2026-08-06-manager-owned-subagent-settlement-delivery.zh.md: b98c4af1c162e287c92399e45ad6c020589dfc97
+2026-08-06-manager-owned-subagent-settlement-delivery.md: 61e7dcb09e13abc1a935256ef2ad349bb00b8bcc
+2026-08-06-manager-owned-subagent-settlement-delivery.zh.md: d286c3d37e0607f1f591e28babd7839e3636f753

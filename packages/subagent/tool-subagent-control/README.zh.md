@@ -53,7 +53,7 @@ kind: "package-reference"
 
 ### list_agents
 
-列出调用方 agent 下方可继续的子代理：`children`（默认）只显示直接子级，`descendants` 按稳定前序遍历整棵树，并为每个条目标注其持久化直接父级会话 ID 与深度。状态来自在线 Agent 注册表：`running` 表示正在执行轮次；`inactive` 包括轮次之间的驻留子级，以及已卸载但可以恢复的子级。一次性子级（包括外部执行）被省略。无法读取的候选项仅在 `descendants` 作用域中以诊断信息呈现。
+列出调用方 agent 目录中可继续的直接子级，不接受参数。调用方拥有的执行（包括工作流子级）不进入此目录。状态来自在线 Agent 注册表：`running` 表示正在执行轮次；`inactive` 包括轮次之间的驻留子级，以及已卸载但可以恢复的子级。历史一次性子级与外部执行被省略。
 
 -----
 
@@ -75,14 +75,14 @@ kind: "package-reference"
 
 ### 列表投影
 
-`list_agents` 从调用 agent 推导根 id，不使用 cursor 读取服务目录，筛选可继续子级，并通过在线 Agent 注册表细化其状态。一次性子级不出现在输出中，但仍作为遍历节点，以发现其可继续后代。diagnostic 在 descendants scope 中保留其位置，且绝不暴露描述符内容。
+`list_agents` 从调用 agent 推导父级 id，不使用 cursor 读取其目录，筛选可继续子级，并通过在线 Agent 注册表细化状态。它不读取子级日志，也不遍历后代。
 
 ### 源码地图
 
 | 文件 | 职责 |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `send_message` 与 `interrupt_agent` 注册 |
-| [`src/list-agents.ts`](src/list-agents.ts) | `list_agents` 注册：作用域、状态细化、投影 |
+| [`src/list-agents.ts`](src/list-agents.ts) | `list_agents` 注册：直接子级发现与状态细化 |
 | — | 不发布运行时不变式伴生入口；这个面向模型的适配器没有独立的生命周期流；投递与激活关系由其调用的 subagent 服务负责。 |
 
 </details>
@@ -107,7 +107,7 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-已生成的 [schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-subagent-control)：`send_message` 接受 `agent_id` 与 `message`；`interrupt_agent` 接受 `agent_id`；`list_agents` 接受可选的 `scope` 枚举。
+已生成的 [schema](../../../docs/tool-catalog.zh.md#deepseek-aidsh-tool-subagent-control)：`send_message` 接受 `agent_id` 与 `message`；`interrupt_agent` 接受 `agent_id`；`list_agents` 不接受参数。
 
 #### Token 影响
 
@@ -149,11 +149,11 @@ kind: "package-reference"
 
 #### 模型看到什么
 
-按稳定目录顺序，每个子级占一行：`<id> [<status>] — <label>`（`running` 表示正在执行轮次；`inactive` 表示当前没有轮次执行，无论子级驻留还是可从存储恢复），另为无法读取的候选项渲染 `<id> [diagnostic: <reason>]`。`descendants` 作用域会在每行标签的破折号之前按前序插入 ` parent=<id> depth=<n>`。一次性子级被省略；`(no subagents)` 表示投影后没有留下子级或诊断信息。
+按稳定目录顺序，每个子级占一行：`<id> [<status>] — <label>`（`running` 表示正在执行轮次；`inactive` 表示当前没有轮次执行，无论子级驻留还是可从存储恢复）。仅展示可继续子级；`(no subagents)` 表示筛选后没有子级。
 
 #### Token 影响
 
-随所列子级数量线性增长——`descendants` 作用域下为整棵树；没有游标或上限，因此长期存活且有许多持久化子级的父级每次调用都会承担完整列表成本。
+随所列直接子级数量线性增长。没有游标或上限，因此长期存活且有许多目录条目的父级每次调用都会承担完整列表成本。
 
 #### KV Cache 影响
 

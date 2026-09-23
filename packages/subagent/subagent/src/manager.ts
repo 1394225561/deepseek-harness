@@ -429,7 +429,9 @@ export class SubagentManager {
             : request.prompt,
           { source: { kind: 'user' }, signal: spec.signal, delivery: 'queue' },
           parent,
-          () => { establishCatalogChild(parent.session, childHeader, descriptor) },
+          () => {
+            if (spec.delivery === 'parent') establishCatalogChild(parent.session, childHeader, descriptor)
+          },
         )
       })
       return { ...this.receipt(established), childId, messageId }
@@ -465,7 +467,9 @@ export class SubagentManager {
       this.assertAdmitting(parent)
       this.assertLiveParent(parent, activation.childId)
       spec.signal.throwIfAborted()
-      establishExternalCatalogChild(parent.session, activation.childId, spec.label)
+      if (spec.delivery === 'parent') {
+        establishExternalCatalogChild(parent.session, activation.childId, spec.label)
+      }
       this.announce(activation)
       return this.receipt(activation)
     } catch (error: unknown) {

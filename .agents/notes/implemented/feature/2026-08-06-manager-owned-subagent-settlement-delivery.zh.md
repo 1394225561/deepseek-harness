@@ -108,7 +108,7 @@ keyless headless Loader 快照执行后台委派、消费管理器编写的 `sub
 
 通知只是被投递，而不是被确认。没有持久化 mailbox、回执或重试：不在线的父级会丢失它，child 的 Session 仍是唯一的持久记录。要补上这一点，需要一套带有自身寻址、授权与重放规则的离线 mailbox 协议。
 
-当父级紧接着被 dispose 时（每个拆卸调用方都会这么做），在拆卸期间被 inject 的通知不会被模型读到：dispose 的 cancel 会清除这条未被认领的消息，而日志保留 insert/cancel 这一对作为记录。要让拆卸期投递在 resume 之后仍可读，要么需要上面那套离线 mailbox，要么需要改变 dispose 对持久待处理工作的处理方式。dispose 会丢弃每一条未被认领的 inbox 项，用户输入也不例外，因此改变该行为是一个 core-agent 决策，而不是结算投递的细节。resume 后的父级可以发现 child，但不会收到结局：`list_agents` 只报告存在性与「在线/仅存储」状态——`SubagentListEntry.activity` 就是这么写的——要取回结局，必须通过 `send_message` 去问那个 child。
+当父级紧接着被 dispose 时（每个拆卸调用方都会这么做），在拆卸期间被 inject 的通知不会被模型读到：dispose 的 cancel 会清除这条未被认领的消息，而日志保留 insert/cancel 这一对作为记录。要让拆卸期投递在 resume 之后仍可读，要么需要上面那套离线 mailbox，要么需要改变 dispose 对持久待处理工作的处理方式。dispose 会丢弃每一条未被认领的 inbox 项，用户输入也不例外，因此改变该行为是一个 core-agent 决策，而不是结算投递的细节。resume 后的父级可以发现 child，但不会收到结局：`list_agents` 只报告存在性与「在线/仅存储」状态；要取回结局，必须通过 `send_message` 去问那个 child。
 
 终止原因的归因是对日志既有 splice 词汇的尽力而为，偏向永不高估成功。`Inbox.remove()` 与拆卸的 `clear()` 写出的取消 splice 完全相同，因此删除一条内容仍保留在别处的消息——`agent-instructions` 清理待处理的 instructions 刷新、或结算自身的 cancel 清掉一条仍在挂起的这类消息——可能被读作「工作被丢弃且从未运行」，把已完成的 child 报成被停下。区分二者需要 `dsh-agent` 提供更丰富的删除词汇；在该词汇可用前，这项误读的范围很窄，且错的方向是让父级复查一个已完成的 child，而永远不是信任一个未完成的 child。
 

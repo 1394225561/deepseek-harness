@@ -1,5 +1,5 @@
 /**
- * Client-safe complete-descendant rows and browser continuation requests,
+ * Client-safe browser continuation requests,
  * receipts, and failures.
  *
  * @module @deepseek-ai/dsh-subagent/control-types
@@ -18,58 +18,6 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
  * rather than imported.
  */
 export type SubagentPromptRequestId = Branded<'session-request-id'>
-
-/** Shared child fields for complete-descendant listing. */
-export type SubagentCatalogRow =
-  & {
-    /** The durable child session id, stable across Activations. */
-    readonly id: SessionId
-    /**
-     * Whether complete-descendant listing observed a resident Session. This
-     * does not encode a durable outcome or guarantee continuation delivery.
-     */
-    readonly activity: 'running' | 'inactive'
-  } & (
-    | {
-      /** A terminal one-shot child. */
-      readonly mode: 'one-shot'
-      /** Optional durable creation label from the owning catalog or child descriptor. */
-      readonly label?: string
-    }
-    | {
-      /** A resumable conversation. */
-      readonly mode: 'continuable'
-      /** Durable creation label from the owning catalog or child descriptor. */
-      readonly label: string
-    }
-  )
-
-/**
- * One complete-descendant row. Enumeration may also return diagnostics for
- * child identity observations from the complete Session corpus.
- */
-export type SubagentListEntry =
-  | SubagentCatalogRow & {
-    readonly kind: 'child'
-    /** Whether complete-corpus enumeration observed a direct child. */
-    readonly hasChildren: boolean
-  }
-  | {
-    readonly kind: 'diagnostic'
-    /** The candidate's session id. */
-    readonly id: SessionId
-    /**
-     * Why the candidate has no `child` row: `corrupt` for a settled candidate
-     * whose projection fold served no identity (a missing, malformed, or
-     * unrecognized-version descriptor — deliberately undistinguished), and
-     * for any candidate whose log makes a registered unit's fold or schema
-     * throw (deterministic data damage, contained per child); `unavailable`
-     * when the candidate's Session observation was absent or transiently
-     * unreadable (retried on the next listing). `unsupported` is never produced; it remains in the
-     * union for consumers that route on it.
-     */
-    readonly reason: 'corrupt' | 'unsupported' | 'unavailable'
-  }
 
 /** Durable parent/child browsing address; unknown mode is resolved when child history is read. */
 export type SubagentAddress =

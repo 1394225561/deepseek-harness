@@ -14,7 +14,7 @@ child descriptor 对恢复与 composition 仍然必要，但它不能作为 disc
 
 共享 activation 入口、外部执行所有权，以及调用方与父级之间的结果投递选择由[统一 subagent activation](../simplification/2026-09-17-unified-subagent-activations.zh.md) 决策拥有。本记录保留下述独立理由。
 
-父级 Session 的必读 `subagent/catalog` 事件是发现直接子级的持久化权威。每个事件包含 `childId`、`childCreatedAt`、mode 与按 mode 区分的 label。本地子级使用 `continuable`；外部执行使用 `external`，不能作为本地 Session 打开。历史 `one-shot` 与 `unknown` 条目仍可读取。无效的自身事实（包括不支持的载荷版本）会使投影恢复失败，因为静默丢弃必读事实将返回不完整的 catalog。
+父级 Session 的必读 `subagent/catalog` 事件是发现直接子级的持久化权威。只有 parent 投递的子级进入目录；caller 拥有的执行保留调用方自己的成员记录。每个事件包含 `childId`、`childCreatedAt`、mode 与按 mode 区分的 label。本地子级使用 `continuable`；外部执行使用 `external`，不能作为本地 Session 打开。历史 `one-shot` 与 `unknown` 条目仍可读取。无效的自身事实（包括不支持的载荷版本）会使投影恢复失败，因为静默丢弃必读事实将返回不完整的 catalog。
 
 创建只发布成功事实。本地 activation 先接纳初始提示词，再追加 catalog 事件。外部 activation 在提供方启动后、返回回执前追加事件。准入或发布失败会释放未发布的执行；不存在补偿 catalog 事件或回滚协议。
 
@@ -46,6 +46,6 @@ snapshot normalizer 会把 `childCreatedAt` 归零，因为它来自 process clo
 
 ## 后果
 
-Session observation 与 client snapshot 通过 `projections.values.subagentCatalog` 暴露直接子级列表。目录状态变化时，projection change feed 发布完整列表。每次 view 的成本为 O(D)，因此 D 次创建可能累计产生 O(D²) 的 view 工作量；这沿用现有 projection 机制。`listChildren()` 通过一次 live-preferred Session observation 读取父 projection；后代枚举使用 Session 语料库与子身份 projection。[Web projection 消费决策](../simplification/2026-09-08-web-subagent-catalog-projections.zh.md) 说明浏览器加载与同步。
+Session observation 与 client snapshot 通过 `projections.values.subagentCatalog` 暴露直接子级列表。目录状态变化时，projection change feed 发布完整列表。每次 view 的成本为 O(D)，因此 D 次创建可能累计产生 O(D²) 的 view 工作量；这沿用现有 projection 机制。`listChildren()` 通过一次 live-preferred Session observation 读取父 projection。[Web projection 消费决策](../simplification/2026-09-08-web-subagent-catalog-projections.zh.md) 说明浏览器加载与同步。
 
 [创建元数据排除决策](../simplification/2026-09-16-subagent-catalog-membership-only.zh.md) 说明目录事实为何不包含模型配置。

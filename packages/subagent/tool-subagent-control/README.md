@@ -53,7 +53,7 @@ Stops only the target's current turn: queued messages stay parked until a later 
 
 ### list_agents
 
-Lists continuable subagents below the calling agent: `children` (default) shows direct children, `descendants` walks the whole tree in stable pre-order, annotating each entry with its durable direct-parent session id and depth. Status comes from the live Agent registry: `running` means a turn is executing; `inactive` includes resident children between turns and unloaded children that can be resumed. One-shot children, including external executions, are omitted. Unreadable candidates appear as diagnostics only in `descendants` scope.
+Lists direct continuable children in the calling agent's catalog, without parameters. Caller-owned executions, including workflow children, are absent from this catalog. Status comes from the live Agent registry: `running` means a turn is executing; `inactive` includes resident children between turns and unloaded children that can be resumed. Historical one-shot children and external executions are omitted.
 
 -----
 
@@ -75,14 +75,14 @@ The tool forwards its execution signal, which owns admission only until inbox ac
 
 ### Listing projection
 
-`list_agents` derives the root id from the calling agent, reads the service catalog without a cursor, selects continuable children, and refines their status through the live Agent registry. One-shot children are omitted from output but remain traversal nodes for discovering continuable descendants. Diagnostics keep their positions in the descendants scope and never expose descriptor contents.
+`list_agents` derives the parent id from the calling agent, reads its catalog without a cursor, selects continuable children, and refines their status through the live Agent registry. It reads no child logs and does not traverse descendants.
 
 ### Source map
 
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | `send_message` and `interrupt_agent` registration |
-| [`src/list-agents.ts`](src/list-agents.ts) | `list_agents` registration: scopes, status refinement, projection |
+| [`src/list-agents.ts`](src/list-agents.ts) | `list_agents` registration: direct-child discovery and status refinement |
 | — | No runtime invariant companion is published; this model-facing adapter has no independent lifecycle stream; delivery and activation relations are owned by the subagent service it calls. |
 
 </details>
@@ -107,7 +107,7 @@ Read these pages when the package-level contract is not enough; they move from t
 
 #### What the model sees
 
-The generated [schemas](../../../docs/tool-catalog.md#deepseek-aidsh-tool-subagent-control): `send_message` takes `agent_id` and `message`; `interrupt_agent` takes `agent_id`; `list_agents` takes the optional `scope` enum.
+The generated [schemas](../../../docs/tool-catalog.md#deepseek-aidsh-tool-subagent-control): `send_message` takes `agent_id` and `message`; `interrupt_agent` takes `agent_id`; `list_agents` takes no parameters.
 
 #### Token effect
 
@@ -149,11 +149,11 @@ Append-only; newly visible content follows the reusable request prefix and does 
 
 #### What the model sees
 
-One line per child in stable catalog order: `<id> [<status>] — <label>` (`running` = executing a turn; `inactive` = no turn executing, whether resident or resumable from storage), plus `<id> [diagnostic: <reason>]` for a candidate that could not be read. The `descendants` scope inserts ` parent=<id> depth=<n>` before the label dash on every line, in pre-order. One-shot children are omitted; `(no subagents)` means no child or diagnostic survived the projection.
+One line per child in stable catalog order: `<id> [<status>] — <label>` (`running` = executing a turn; `inactive` = no turn executing, whether resident or resumable from storage). Only continuable children appear; `(no subagents)` means none remain after filtering.
 
 #### Token effect
 
-Grows linearly with the listed children — the whole tree under the `descendants` scope; there is no cursor or cap, so long-lived parents with many persisted children pay the full list each call.
+Grows linearly with the listed direct children. There is no cursor or cap, so long-lived parents with many catalog entries pay the full list each call.
 
 #### KV Cache effect
 

@@ -71,6 +71,7 @@ return { prose, verdict: judged.verdict, confidence: judged.confidence }`,
     await run.dispose()
     expect(parentFollowup).not.toHaveBeenCalled()
     expect(parentSteer).not.toHaveBeenCalled()
+    expect(parent.session.snapshotEvents().filter(event => event.type === 'subagent/catalog')).toEqual([])
     // Both children were disposed to quiescence — no live child agents remain.
     expect(childIds.length).toBe(2)
     for (const childId of childIds) {

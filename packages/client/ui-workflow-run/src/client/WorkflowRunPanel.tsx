@@ -188,15 +188,15 @@ function navigableMembers(
   parentId: SessionId,
   statuses: SessionStatusSnapshot,
 ): ReadonlyMap<SessionId, ChildMode> {
-  const catalog = sessions.projectionsBySession[parentId]
   const result = new Map<SessionId, ChildMode>()
   for (const phase of phases) {
     for (const member of phase.members) {
-      const child = catalog?.values.subagentCatalog?.find(entry => entry.id === member.childId)
+      const child = sessions.byId[member.childId]
+      const identity = sessions.projectionsBySession[member.childId]?.values.subagent
       if (member.status === 'running'
-        && child !== undefined && child.mode !== 'external'
-        && (statuses.get(child.id)?.running ?? sessions.byId[child.id]?.running) === true) {
-        result.set(member.childId, child.mode)
+        && child?.parentId === parentId && identity !== undefined && identity !== null
+        && (statuses.get(child.id)?.running ?? child.running)) {
+        result.set(member.childId, identity.mode)
       }
     }
   }

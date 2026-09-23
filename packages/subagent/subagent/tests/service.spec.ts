@@ -85,13 +85,13 @@ async function service(withAgents = true): Promise<{ ctx: Context; subagents: Su
 }
 
 /** Start through the managed API with a real parent owned by the fixture. */
-async function start(subagents: SubagentRuntime, provider: string, request: SubagentStartRequest): Promise<SubagentActivation> {
+async function start(subagents: SubagentRuntime, provider: string, request: SubagentStartRequest, delivery: 'parent' | 'caller' = 'caller'): Promise<SubagentActivation> {
   const ctx = contexts.get(subagents)!
   const parent = ctx.agents.get(request.parent.id)
     ?? (await ctx.agents.create({ sessionId: request.parent.id })).agent
   const { label, signal, ...options } = request
   return subagents.startActivation({
-    provider, label: label ?? provider, request: { ...options, parent }, signal, delivery: 'caller',
+    provider, label: label ?? provider, request: { ...options, parent }, signal, delivery,
   })
 }
 
@@ -345,7 +345,7 @@ describe('SubagentRuntime', () => {
       throw catalogFailure
     })
 
-    await expect(start(subagents, 'catalog-failure', baseRequest({ parent })))
+    await expect(start(subagents, 'catalog-failure', baseRequest({ parent }), 'parent'))
       .rejects.toBe(catalogFailure)
     expect(append).toHaveBeenCalledOnce()
     expect(dispose).toHaveBeenCalledOnce()

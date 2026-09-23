@@ -14,7 +14,7 @@ The child descriptor remains necessary for recovery and composition, but it cann
 
 The shared activation entry point, external execution ownership, and caller-versus-parent result delivery are governed by [Unified subagent activations](../simplification/2026-09-17-unified-subagent-activations.md). This record retains the independent rationale described below.
 
-The parent Session's required `subagent/catalog` events are the persistent authority for direct-child discovery. Each event contains `childId`, `childCreatedAt`, mode, and the mode-discriminated label. Local children use `continuable`; external executions use `external` and cannot be opened as local Sessions. Historical `one-shot` and `unknown` entries remain readable. Invalid own facts, including unsupported payload versions, reject projection restoration because silently dropping a required fact would return an incomplete catalog.
+The parent Session's required `subagent/catalog` events are the persistent authority for direct-child discovery. Only parent-delivery children enter the catalog; caller-owned executions retain their caller's membership records. Each event contains `childId`, `childCreatedAt`, mode, and the mode-discriminated label. Local children use `continuable`; external executions use `external` and cannot be opened as local Sessions. Historical `one-shot` and `unknown` entries remain readable. Invalid own facts, including unsupported payload versions, reject projection restoration because silently dropping a required fact would return an incomplete catalog.
 
 Creation publishes only successful facts. A local activation admits the initial prompt before appending its catalog event. An external activation appends its event after provider startup and before returning the receipt. Failed admission or publication releases the unpublished execution; there is no compensating catalog event or rollback protocol.
 
@@ -46,6 +46,6 @@ Current-writer snapshot expectations include catalog facts even when replay inpu
 
 ## Consequences
 
-Session observations and client snapshots expose the direct-child list through `projections.values.subagentCatalog`. The projection change feed publishes a complete list when catalog state changes. Each view costs O(D), so D creations can incur O(D²) cumulative view work; this follows the existing projection mechanism. `listChildren()` reads the parent projection through one live-preferred Session observation; descendant listing uses the Session corpus and child identity projection. [Web projection consumption](../simplification/2026-09-08-web-subagent-catalog-projections.md) owns browser loading and synchronization.
+Session observations and client snapshots expose the direct-child list through `projections.values.subagentCatalog`. The projection change feed publishes a complete list when catalog state changes. Each view costs O(D), so D creations can incur O(D²) cumulative view work; this follows the existing projection mechanism. `listChildren()` reads the parent projection through one live-preferred Session observation. [Web projection consumption](../simplification/2026-09-08-web-subagent-catalog-projections.md) owns browser loading and synchronization.
 
 [Creation metadata exclusion](../simplification/2026-09-16-subagent-catalog-membership-only.md) records why model configuration is absent from catalog facts.

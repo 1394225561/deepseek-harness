@@ -29,7 +29,7 @@ interface SubagentCapabilities {
 interface SubagentActivationSpec {
   /** Registered backend to use. */
   readonly provider: string
-  /** Short task label retained in the parent catalog. */
+  /** Short task label; parent delivery retains it in the parent catalog. */
   readonly label: string
   /** Optional reserved identity for a local child; external backends allocate their own ids. */
   readonly childId?: SessionId
@@ -37,7 +37,7 @@ interface SubagentActivationSpec {
   readonly request: Omit<SubagentStartRequest, 'label' | 'signal'>
   /** Cancellation before publication; callers own later cancellation through dispose. */
   readonly signal: AbortSignal
-  /** Parent-model notification or a program-owned result. */
+  /** Parent delivery records catalog membership and notifies the model; caller delivery only returns the result. */
   readonly delivery: 'parent' | 'caller'
 }
 ```
@@ -222,21 +222,7 @@ type SubagentInterruptAuthority =
 
 ## 持久枚举
 
-`listChildren` 读取父级拥有的目录。`listDescendants` 通过语料中的身份枚举具有 Session 的子级。外部条目携带 `mode: 'external'`，不能打开子 Session 或接受后续消息。目录在创建时记录成员关系，不携带执行状态。完整结果交给调用方或父级完成通知。`list_agents` 只展示可继续子级，其活跃状态为 `running` 或 `inactive`；作用域与诊断信息见[控制工具](../../packages/subagent/tool-subagent-control/README.zh.md#list_agents)。
-
-```ts type-equiv
-/**
- * One entry of a descendant listing: the interpreted subagent facts plus its
- * position in the complete session tree. `parentId` is the durable direct
- * parent from the enumerated header, and `depth` counts edges from the root.
- */
-type SubagentDescendantListEntry = SubagentListEntry & {
-  /** Durable direct parent of this candidate in the enumerated tree. */
-  readonly parentId: SessionId
-  /** Edge distance from the requested root; direct children are `1`. */
-  readonly depth: number
-}
-```
+`listChildren` 读取父级拥有的目录，其中只包含 parent 投递的子级。caller 投递的执行不进入此目录，其调用方负责成员关系与结果收集。外部条目携带 `mode: 'external'`，不能打开子 Session 或接受后续消息。目录在创建时记录成员关系，不携带执行状态。`list_agents` 展示可继续的直接子级，其活跃状态为 `running` 或 `inactive`；参见[控制工具](../../packages/subagent/tool-subagent-control/README.zh.md#list_agents)。
 
 ## 结果与后端句柄
 
@@ -508,23 +494,6 @@ async drainChildren(parent: Agent, childIds: readonly SessionId[]): Promise<void
  * @throws SessionQueryError when the parent cannot be read or the query is cancelled.
  */
 listChildren(parentSessionId: SessionId, signal?: AbortSignal): Promise<SubagentCatalogEntry[]>
-
-/**
- * Enumerate the root's complete session-backed subagent tree in stable
- * pre-order from one live-preferred corpus, without loading or resuming an
- * Agent. Ordinary sessions and one-shot children remain traversal nodes so
- * continuable descendants below them are discovered; each returned entry
- * adds its durable `parentId` and root-relative `depth`. Identity resolution,
- * diagnostics, optional persistence, and cancellation use the registered
- * child identity projection and complete Session corpus.
- * @param rootSessionId - session whose complete descendant tree is listed.
- * @param signal - caller-owned cancellation forwarded to persistence reads
- *   and observed around every read await.
- * @returns children and per-candidate diagnostics with tree position, in
- *   stable pre-order.
- * @throws {@link SubagentError} when listing dependencies are unavailable or the caller cancels.
- */
-listDescendants(rootSessionId: SessionId, signal?: AbortSignal): Promise<SubagentDescendantListEntry[]>
 
 /**
  * Deliver one browser-authored message to a continuable child through the

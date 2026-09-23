@@ -146,7 +146,7 @@ describe('external subagent activations', () => {
     await expect(waiting).resolves.toBe(true)
     await activation.dispose()
     expect(backend.dispose).toHaveBeenCalledTimes(1)
-    expect(fixture.records()).toMatchObject([{ id: activation.childId, mode: 'external' }])
+    expect(fixture.records()).toEqual([])
     expect(fixture.parent.inbox.nextTurn).toEqual([])
   })
 
@@ -283,7 +283,7 @@ describe('external subagent activations', () => {
     backend.result.resolve(failed)
     await expect(activation.result).resolves.toEqual(failed)
     await activation.dispose()
-    expect(fixture.records()).toMatchObject([{ id: activation.childId, mode: 'external' }])
+    expect(fixture.records()).toMatchObject(delivery === 'parent' ? [{ id: activation.childId, mode: 'external' }] : [])
     if (delivery === 'caller') {
       expect(fixture.parent.inbox.nextTurn).toEqual([])
     } else {
@@ -315,9 +315,9 @@ describe('external subagent activations', () => {
     expect((error as Error).message).not.toContain('/private/path')
     await expect(activation.result).resolves.toEqual(completed)
     expect(activation.dispose()).toBe(disposal)
-    expect(fixture.records()).toMatchObject([{
+    expect(fixture.records()).toMatchObject(delivery === 'parent' ? [{
       id: activation.childId, mode: 'external',
-    }])
+    }] : [])
     expect(ended).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ stopReason: 'error' }))
     if (delivery === 'parent') {
       expect(fixture.parent.inbox.nextTurn).toHaveLength(1)
@@ -344,10 +344,9 @@ it('records external membership at creation without publishing settlement update
   fixture.ctx.sessionProjections.snapshot(fixture.parent.session)
   const unsubscribe = fixture.ctx.sessionProjections.onChanged(() => { snapshots.push(fixture.records()) })
   try {
-    const activation = await fixture.start()
+    const activation = await fixture.start('parent')
     const expected = { id: activation.childId, mode: 'external', label: 'External work' }
     expect(await fixture.ctx.subagents.listChildren(fixture.parent.id)).toMatchObject([expected])
-    expect(await fixture.ctx.subagents.listDescendants(fixture.parent.id)).toEqual([])
     expect(fixture.ctx.sessions.get(activation.childId)).toBeUndefined()
     const result: SubagentResult = { output: [{ type: 'text', text: 'x'.repeat(100_000) }], stopReason: 'completed' }
     backend.result.resolve(result)
