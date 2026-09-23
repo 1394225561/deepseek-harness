@@ -32,11 +32,11 @@ env:
 
 jobs:
   ssh-helper:
-    if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || (github.event_name == 'workflow_dispatch' && inputs.suite == 'ssh-helper')
+    if: github.event_name == 'workflow_dispatch' && inputs.suite == 'ssh-helper'
     name: ssh helper / native artifacts
     uses: ./.github/workflows/build-exe-for-ssh-helper.yml
     with:
-      targets: ${{ github.event_name == 'workflow_dispatch' && 'node24-linux-x64,node24-linux-arm64,node24-macos-arm64,node24-macos-x64' || 'node24-linux-arm64,node24-macos-arm64,node24-macos-x64' }}
+      targets: node24-linux-x64,node24-linux-arm64,node24-macos-arm64,node24-macos-x64
 
   # These native runtime carriers are post-merge checks; release keeps all targets.
   python-runtime:

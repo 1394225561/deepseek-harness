@@ -494,13 +494,6 @@ jobs:
     secrets:
       DEEPSEEK_API_KEY_EXTERNAL: ${{ secrets.DEEPSEEK_API_KEY_EXTERNAL }}
 
-  ssh-helper:
-    if: github.event_name == 'pull_request'
-    name: ssh helper / Linux x64
-    uses: ./.github/workflows/build-exe-for-ssh-helper.yml
-    with:
-      targets: node24-linux-x64
-
   # Native builds and process tests block pull requests independently of coverage.
   # Observational checks reuse the successful build and remain non-blocking.
   # Dependabot PRs are excluded from the self-hosted pool and stay queued for
@@ -721,7 +714,7 @@ jobs:
           && github.event.pull_request.user.login != 'dependabot[bot]'
           && fromJSON('["self-hosted", "linux", "x64", "vm-backup"]')
           || 'ubuntu-latest' }}
-    needs: [node-24, node-24-coverage, node-24-bench, node-24-consumers, node-compat, python-sdk, python-runtime, ssh-helper, windows-build, windows-native-tests]
+    needs: [node-24, node-24-coverage, node-24-bench, node-24-consumers, node-compat, python-sdk, python-runtime, windows-build, windows-native-tests]
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     steps:
       - name: Fail if any needed job did not succeed
