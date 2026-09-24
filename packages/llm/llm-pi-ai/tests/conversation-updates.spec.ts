@@ -121,19 +121,26 @@ describe('serialized conversation updates', () => {
     })
   })
 
-  it('refuses an empty initial Anthropic tool set before provider I/O', async () => {
+  it('anchors Anthropic tool updates with a placeholder when every declaration is deferred', async () => {
     const update = addition()
-    const { result, requests } = await send('anthropic', 'claude-opus-4-8', {
+    const { requests } = await send('anthropic', 'claude-opus-4-8', {
       messages: [user('first'), update], tools: [added],
       toolHistory: { tools: [], updates: [{ messageId: update.id, additions: [added] }] },
     })
-    expect(requests).toEqual([])
-    expect(result.finish).toMatchObject({
-      kind: 'error', failure: {
-        code: 'UNSUPPORTED_CONTENT',
-        message: 'pi-ai Anthropic tool updates require an initially active tool; this request would otherwise move tool activation out of history.',
-      },
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toMatchObject({
+      messages: [
+        { role: 'user', content: 'first' },
+        { role: 'system', content: [
+          { type: 'text', text: 'Instruction one.\nInstruction two.' },
+          { type: 'tool_addition', tool: { type: 'tool_reference', name: 'search' } },
+        ] },
+      ],
     })
+    const tools = (requests[0] as { tools: { name?: string; defer_loading?: boolean }[] }).tools
+    expect(tools.map(tool => [tool.name, tool.defer_loading])).toEqual([
+      ['DeferredToolPlaceholder', undefined], ['__pi_deferred_placeholder__', true], ['search', true],
+    ])
   })
 
   it('sends only the latest prompt and current tools on unsupported routes', async () => {

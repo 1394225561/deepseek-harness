@@ -54,6 +54,7 @@ import type {
   ReasoningEffortId as ReasoningEffortIdType,
   ResolvedRetryPolicy,
   StreamChunk,
+  ToolSchema,
 } from '@deepseek-ai/dsh-llm'
 import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { idleWatchdog, timeoutOf } from '@deepseek-ai/dsh-timeout'
@@ -61,6 +62,16 @@ import type { ResolvedPiAiProviderProfile } from './config.ts'
 import { toPiContext } from './context.ts'
 import { conversationUpdates, createModels, getSupportedThinkingLevels } from './models.ts'
 import { toStreamChunks } from './stream.ts'
+
+/**
+ * Initially active declaration added to an Anthropic request whose projected
+ * tools are all deferred, because Anthropic rejects a tool list without one.
+ */
+const ANTHROPIC_TOOL_UPDATE_PLACEHOLDER: ToolSchema = {
+  name: 'DeferredToolPlaceholder',
+  description: 'Reserved placeholder that keeps deferred tool loading active; never call this tool.',
+  parameters: { type: 'object', properties: {} },
+}
 
 /** One resolution's frozen view: the profiles and the collection built from them. */
 interface PiAiSnapshot {
@@ -344,15 +355,14 @@ export class PiAiAdapter extends LlmAdapter {
     const model = this.modelOf(snapshot, options.provider, options.model)
     const updates = conversationUpdates(model)
     // pi-ai collapses Anthropic tool updates without an initially active declaration.
-    if (model.api === 'anthropic-messages' && updates.toolUpdate === 'in-history'
-      && !options.tools?.some(tool => !tool.deferLoading)
+    const tools = options.tools ?? []
+    const needsPlaceholder = model.api === 'anthropic-messages' && updates.toolUpdate === 'in-history'
+      && tools.every(tool => tool.deferLoading === true)
       && options.messages.some(message => message.role === 'developer'
-        && message.content.some(block => block.type === 'tool-addition' || block.type === 'tool-removal'))) {
-      throw new LlmError(
-        'pi-ai Anthropic tool updates require an initially active tool; this request would otherwise move tool activation out of history.',
-        'UNSUPPORTED_CONTENT',
-      )
-    }
+        && message.content.some(block => block.type === 'tool-addition' || block.type === 'tool-removal'))
+    const request = needsPlaceholder
+      ? { ...options, tools: [ANTHROPIC_TOOL_UPDATE_PLACEHOLDER, ...tools] }
+      : options
     const reasoning = resolveReasoningLevel(
       model,
       options.reasoningEffort ?? profile.reasoning,
@@ -379,8 +389,8 @@ export class PiAiAdapter extends LlmAdapter {
         this.config.onReplayDegrade?.({ provider: options.provider, model: options.model, reason })
       }
       const context = attachments === undefined
-        ? toPiContext(options, undefined, onReplayDegrade, updates.systemPromptUpdate)
-        : await toPiContext({ ...options, signal: watchdog.signal }, {
+        ? toPiContext(request, undefined, onReplayDegrade, updates.systemPromptUpdate)
+        : await toPiContext({ ...request, signal: watchdog.signal }, {
           attachments,
           resolveImageAccess: ref => this.config.resolveImageAccess?.(attachments, ref),
           maxRequestImageBytes: profile.maxRequestImageBytes,
