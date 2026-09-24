@@ -548,6 +548,8 @@ async function main(): Promise<void> {
         const stillActive = await host.updateTasks('lock')
         if (stillActive && !active) throw new DesktopUpdatePreparationError('tasks-changed', locale.messages.updateTasksChanged)
         mandatoryUI?.preparingRestart(stillActive)
+        // The embedded Platform document holds credentials issued by the Host that is about to stop.
+        await platformView.closeAndWait()
         requireCleanStop = true
         updateStopFailure = undefined
         await backend.stop()
@@ -685,6 +687,21 @@ async function main(): Promise<void> {
   ipcMain.handle(DESKTOP_IPC.updatesStatus, (event) => {
     assertProductSender(event)
     return presentDesktopUpdate(updates.state)
+  })
+  ipcMain.handle(DESKTOP_IPC.onboardingApiKey, async (event) => {
+    assertProductSender(event)
+    return (await readWelcomeState()).hasApiKey
+  })
+  ipcMain.on(DESKTOP_IPC.onboardingActive, (event, active: unknown) => {
+    const window = mainWindow
+    if (window === undefined || window.isDestroyed() || event.sender !== window.webContents
+      || event.senderFrame !== window.webContents.mainFrame
+      || !event.senderFrame.url.startsWith(`${SCHEME}://app/`) || typeof active !== 'boolean') return
+    window.setMinimumSize(active ? 960 : 520, 600)
+    if (active) {
+      const { width, height } = window.getBounds()
+      if (width < 960) window.setSize(960, height)
+    }
   })
   ipcMain.handle(DESKTOP_IPC.updatesOpen, async (event) => {
     assertProductSender(event)
@@ -1068,6 +1085,8 @@ async function main(): Promise<void> {
     if (shellInstallerOwnsQuit) {
       updateDialog.dispose()
       mandatoryUI?.dispose()
+      // Installation preparation already awaited Platform storage cleanup.
+      void platformView.dispose().catch((error: unknown) => { console.error(error) })
       return
     }
     if (quitting) return
@@ -1079,7 +1098,9 @@ async function main(): Promise<void> {
     updateSchedule.dispose()
     updateDialog.dispose()
     mandatoryUI?.dispose()
-    void Promise.all([Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()), backend.close()])
+    void Promise.all([Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()), backend.close(),
+      // A Platform cleanup failure is logged without cutting the remaining Host shutdown short.
+      platformView.dispose().catch((error: unknown) => { console.error(error) })])
       .catch((error: unknown) => { console.error(error) }).finally(() => { app.quit() })
   })
 
