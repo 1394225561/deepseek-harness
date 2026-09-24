@@ -129,7 +129,11 @@ function piTool(tool: NonNullable<GenerateOptions['tools']>[number]): PiTool {
   return { name: tool.name, description: tool.description, parameters: tool.parameters }
 }
 
-/** Serialize complete prompt snapshots and projected tool updates using DeepSeek Messages ordering. */
+/**
+ * Serialize complete prompt snapshots and projected tool updates. Pending
+ * updates are emitted immediately before the next assistant message or at the
+ * end of the history, and must follow a user or tool-result message.
+ */
 function conversationContext(
   options: GenerateOptions,
   history: readonly RequestMessage[],
