@@ -42,12 +42,15 @@ export class LegacyTeamDelivery {
     const existing = this.recoveries.get(root.id)
     if (existing !== undefined) {
       await existing
+      await this.recoverFor(agent, signal)
       return
     }
     const operation = Promise.resolve().then(async () => {
       const state = this.journal.state(root)
+      // A failed old message must not be overtaken by later messages to its target.
       const blockedTargets = new Set<SessionId>()
       for (const message of state.messages) {
+        if (membership.role !== 'lead' && message.targetId !== agent.id) continue
         if (state.delivered.includes(message.id) || blockedTargets.has(message.targetId)) continue
         signal.throwIfAborted()
         if (!await this.dispatchOnce(root, message, signal)) blockedTargets.add(message.targetId)
@@ -121,7 +124,7 @@ export class LegacyTeamDelivery {
     return true
   }
 
-  /** Record delivery unless the acknowledgement already exists. */
+  /** Record the receipt selected by the serialized recovery pass. */
   private async markDelivered(root: Agent, messageId: TeamMessageId, targetId: SessionId): Promise<void> {
     await this.journal.transact(root.id, async () => {
       await this.journal.appendAndFlush(root, 'team/message/delivered', {

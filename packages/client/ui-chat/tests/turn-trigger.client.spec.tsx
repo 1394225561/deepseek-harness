@@ -6,7 +6,7 @@ import type { ChatNode } from '../src/client/contract/chat-nodes.ts'
 import { TurnTriggerNodeView } from '../src/client/chat/TurnTriggerNodeView.tsx'
 import { turnTriggerDetails } from '../src/client/chat/turn-trigger.ts'
 import { contextForm, contextProducer } from '../src/client/conversation-nodes/event-projection.ts'
-import { en } from '../src/client/locale.ts'
+import { en, zh } from '../src/client/locale.ts'
 
 afterEach(cleanup)
 
@@ -43,6 +43,30 @@ describe('Turn trigger notices', () => {
     expect(view.getByRole('button').textContent).toContain(title)
     expect(view.getByRole('button').querySelector('svg')).not.toBeNull()
     expect(view.container.querySelector('time')?.dateTime).toBe('2023-11-14T22:13:20.000Z')
+  })
+
+  it.each([
+    [en, 'Team message received'],
+    [zh, '收到团队消息'],
+  ])('preserves the Team title and icon for a direct inbox relay', (locale, title) => {
+    const node = trigger({ kind: 'agent-message', form: 'relay', senderSessionId: 'sender' })
+    node.data.content = [{ type: 'text', text: 'Team message from reviewer-2:' }, { type: 'text', text: 'Ready.' }]
+    expect(turnTriggerDetails(node.data)).toEqual({ title: 'message.trigger.team', icon: 'team' })
+    const view = render(<TurnTriggerNodeView node={node} t={makeTranslate(locale)} />)
+    expect(view.getByRole('button').textContent).toContain(title)
+    fireEvent.click(view.getByRole('button'))
+    expect(view.container.querySelector('[data-context-text]')?.textContent).toContain('Team message from reviewer-2:')
+  })
+
+  it.each([
+    [{ kind: 'agent-message', form: 'notice' }, ['Team message from reviewer:']],
+    [{ kind: 'agent-message', form: 'relay' }, ['Ordinary message', 'Team message from reviewer:']],
+    [{ kind: 'agent-message', form: 'relay' }, ['Team message from reviewer: extra text']],
+    [{ kind: 'agent-message', form: 'relay' }, []],
+  ])('keeps other Agent messages in the generic presentation', (source, texts) => {
+    const node = trigger(source)
+    node.data.content = texts.map(text => ({ type: 'text', text }))
+    expect(turnTriggerDetails(node.data)).toEqual({ title: 'message.trigger.agent', icon: 'agent' })
   })
 
   it('opens the recorded notice body and closes it independently of the Turn', () => {

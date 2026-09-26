@@ -86,6 +86,7 @@ function content(text: string) {
 
 interface TeamServiceInternals {
   readonly legacyDelivery: LegacyTeamDelivery
+  readonly lifecycle: TeamRuntimeLifecycle
   readonly roster: {
     readonly inFlightCreations: Set<Promise<unknown>>
     checkpointInitialPrompt(childId: SessionId, messageId: string, signal: AbortSignal): Promise<void>
@@ -905,6 +906,58 @@ describe('Historical Team message compatibility', () => {
     await lead.whenIdle()
   })
 
+  it('recovers only the newly created teammate target through the Agent lifecycle', async () => {
+    const { ctx, lead } = await setup(['hang', textResponse('initial'), textResponse('other initial'), 'hang'])
+    lead.followup(createUserMessage({ content: content('busy lead'), source: { kind: 'user' } }))
+    await waitRunning(ctx, lead.id)
+    const target = await spawn(ctx, lead, 'target')
+    await waitNoAgent(ctx, target.member.id)
+    const other = await spawn(ctx, lead, 'other')
+    await waitNoAgent(ctx, other.member.id)
+    const message = enqueue(lead, 'target-old', target.member.id)
+    const untouched = enqueue(lead, 'other-old', other.member.id)
+    const accepted = await ctx.agentTeams.sendMessage(lead, { target: 'target', content: content('resume'), signal: SIGNAL })
+    await vi.waitFor(() => { expect(durable(lead).pendingMessages.map(item => item.id)).toEqual([untouched.id]) })
+    const live = await waitRunning(ctx, target.member.id)
+    const recorded = [...live.inbox.nextStep, ...live.session.snapshotEvents().flatMap(event => event.type === 'user/message' ? [event.data] : [])]
+    expect(recorded.some(item => item.id === accepted.messageId)).toBe(true)
+    expect(recorded.filter(item => item.source.kind === 'team-message' && item.source.messageId === message.id)).toHaveLength(1)
+    expect(ctx.agents.get(other.member.id)).toBeUndefined()
+  })
+
+  it('retains a second teammate recovery trigger while another target is checkpointing', async () => {
+    const { ctx, lead } = await setup(['hang', textResponse('first'), textResponse('second'), 'hang', 'hang'])
+    lead.followup(createUserMessage({ content: content('busy lead'), source: { kind: 'user' } }))
+    await waitRunning(ctx, lead.id)
+    const first = await spawn(ctx, lead, 'first')
+    await waitNoAgent(ctx, first.member.id)
+    const second = await spawn(ctx, lead, 'second')
+    await waitNoAgent(ctx, second.member.id)
+    enqueue(lead, 'first-old', first.member.id)
+    enqueue(lead, 'second-old', second.member.id)
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    const flush = ctx.sessions.flush.bind(ctx.sessions)
+    const checkpoint = vi.spyOn(ctx.sessions, 'flush').mockImplementation(async (session) => {
+      if (session.id === first.member.id && session.snapshotEvents().some(event => event.type === 'agent/inbox/spliced'
+        && event.data.inserted.some(message => message.source.kind === 'team-message'))) {
+        entered.resolve(undefined)
+        await release.promise
+      }
+      return await flush(session)
+    })
+    try {
+      await ctx.agentTeams.sendMessage(lead, { target: 'first', content: content('resume first'), signal: SIGNAL })
+      await entered.promise
+      await ctx.agentTeams.sendMessage(lead, { target: 'second', content: content('resume second'), signal: SIGNAL })
+      release.resolve(undefined)
+      await vi.waitFor(() => { expect(durable(lead).pendingMessages).toEqual([]) })
+    } finally {
+      release.resolve(undefined)
+      checkpoint.mockRestore()
+    }
+  })
+
   it('retains old pending data and reports inspection and delivery failures', async () => {
     const { ctx, lead } = await setup([textResponse('done')])
     const target = await spawn(ctx, lead, 'target')
@@ -1406,6 +1459,29 @@ describe('Team direct messages and waiting', () => {
     expect(outcome).toBe('disposed')
     expect(drain).toHaveBeenCalledWith(lead, [started.member.id])
     expect(ctx.get('agentTeams')).toBeUndefined()
+  })
+
+  it('shares one settlement deadline across sends, creations, and legacy recovery', async () => {
+    const { ctx } = await setup([], { disposalTimeoutMs: 25 })
+    const internal = teamInternals(ctx)
+    const release = Promise.withResolvers<undefined>()
+    void internal.lifecycle.track(release.promise)
+    internal.roster.inFlightCreations.add(release.promise)
+    const pending = vi.spyOn(internal.legacyDelivery, 'pendingDispatches').mockReturnValue([release.promise])
+    vi.useFakeTimers()
+    let failure: unknown
+    const disposal = internal.disposeRuntime().catch((error: unknown) => { failure = error })
+    try {
+      await vi.advanceTimersByTimeAsync(25)
+      expect(failure).toBeInstanceOf(AggregateError)
+      await disposal
+    } finally {
+      release.resolve(undefined)
+      internal.roster.inFlightCreations.delete(release.promise)
+      pending.mockRestore()
+      vi.useRealTimers()
+      await disposal
+    }
   })
 
   it('bounds disposal while an admitted creation ignores cancellation', async () => {

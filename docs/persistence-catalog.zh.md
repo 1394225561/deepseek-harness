@@ -984,7 +984,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 #### `team/message/delivered` — log-only
 
 ```ts persistence-catalog
-/** Durable acknowledgement that the target Session recorded the message. */
+/** Compatibility acknowledgement that the target Session recorded a historical message. */
 'team/message/delivered': {
   version: 2
   teamId: TeamId
@@ -1002,7 +1002,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 #### `team/message/queued` — log-only
 
 ```ts persistence-catalog
-/** Durable mailbox enqueue, stored before delivery is attempted. */
+/** Historical mailbox enqueue; new sends use the target Agent inbox. */
 'team/message/queued': { version: 2; teamId: TeamId; message: TeamMessageSnapshot }
 ```
 

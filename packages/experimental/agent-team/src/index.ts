@@ -277,9 +277,11 @@ export class TeamService extends Service {
     this.activity.close()
 
     const failures: unknown[] = []
-    await this.lifecycle.settle(this.lifecycle.pending(), failures)
-    await this.lifecycle.settle(this.roster.pendingCreations(), failures)
-    await this.lifecycle.settle(this.legacyDelivery.pendingDispatches(), failures)
+    await this.lifecycle.settle([
+      ...this.lifecycle.pending(),
+      ...this.roster.pendingCreations(),
+      ...this.legacyDelivery.pendingDispatches(),
+    ], failures)
     for (const [root, childIds] of this.roster.liveChildrenByRoot()) {
       try {
         await this.roster.stopTeammates(root, childIds)

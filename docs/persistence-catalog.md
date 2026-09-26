@@ -982,7 +982,7 @@ Source: [`packages/experimental/agent-team/src/types.ts:230`](../packages/experi
 #### `team/message/delivered` — log-only
 
 ```ts persistence-catalog
-/** Durable acknowledgement that the target Session recorded the message. */
+/** Compatibility acknowledgement that the target Session recorded a historical message. */
 'team/message/delivered': {
   version: 2
   teamId: TeamId
@@ -1000,7 +1000,7 @@ Source: [`packages/experimental/agent-team/src/types.ts:236`](../packages/experi
 #### `team/message/queued` — log-only
 
 ```ts persistence-catalog
-/** Durable mailbox enqueue, stored before delivery is attempted. */
+/** Historical mailbox enqueue; new sends use the target Agent inbox. */
 'team/message/queued': { version: 2; teamId: TeamId; message: TeamMessageSnapshot }
 ```
 

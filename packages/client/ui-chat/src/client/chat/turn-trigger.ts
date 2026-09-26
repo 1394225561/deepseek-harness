@@ -32,10 +32,14 @@ export function turnTriggerDetails(node: ContextMessageNode): {
       icon = 'goal'
       break
     }
-    case 'agent-message':
-      title = 'message.trigger.agent'
-      icon = 'agent'
+    case 'agent-message': {
+      const first = node.content[0]
+      const team = field(source, 'form') === 'relay' && first?.type === 'text'
+        && /^Team message from [a-z0-9]+(?:-[a-z0-9]+)*:$/u.test(first.text)
+      title = team ? 'message.trigger.team' : 'message.trigger.agent'
+      icon = team ? 'team' : 'agent'
       break
+    }
     case 'team-message':
       title = 'message.trigger.team'
       icon = 'team'

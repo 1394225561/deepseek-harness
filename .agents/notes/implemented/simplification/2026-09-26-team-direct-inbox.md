@@ -24,4 +24,4 @@ Historical pending messages retain compatibility recovery, receipt inspection, a
 
 ## Consequences
 
-New attempts have one identity and one inbox owner. A failed attempt is visible to its caller and has no Team retry promise. Historical logs still cost decoder, projection, and recovery code; new sends do not wait for or trigger that recovery. Tests cover direct Lead/peer acceptance, cold recovery, sender attribution, failures, cancellation, disposal, and historical receipt recovery.
+New attempts have one identity and one inbox owner. A failed attempt is visible to its caller and has no Team retry promise. Historical logs still cost decoder, projection, and recovery code; new sends do not directly invoke or await recovery, although cold resume triggers the target’s Agent-creation recovery hook. Tests cover direct Lead/peer acceptance, cold recovery, sender attribution, failures, cancellation, disposal, and historical receipt recovery.
