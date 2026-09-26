@@ -2265,7 +2265,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `send_message`
 
-向另一名 Team member 发送一条持久消息。running target 会在最近的步骤边界收到消息；inactive target 会启动或恢复一个 turn。
+向另一名 Team member 发送一条消息，并返回获准消息 id。running target 会在最近的步骤边界收到消息；inactive target 会启动或恢复一个 turn。
 
 ```json
 {
@@ -2497,7 +2497,7 @@ lsp 工具将提供方选择和语言服务器子进程置于 ctx.lsp 之后，�
 
 ### `wait_agent`
 
-等待本次调用开始后下一次 teammate 状态、mailbox 或共享任务变更。它绝不会唤醒 inactive member；若没有其他 member 正在 running 或 provisioning，则立即返回 noProgress。唤醒或超时后应重新列出状态，而不是轮询。
+等待本次调用开始后下一次 teammate 状态、消息或共享任务变更。它绝不会唤醒 inactive member；若没有其他 member 正在 running 或 provisioning，则立即返回 noProgress。唤醒或超时后应重新列出状态，而不是轮询。
 
 ```json
 {

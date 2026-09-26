@@ -2255,7 +2255,7 @@ Source: [`packages/experimental/tool-agent-team/src/index.ts`](../packages/exper
 
 ### `send_message`
 
-Send one durable message to another Team member. A running target receives it at the nearest step boundary; an inactive target starts or resumes a turn.
+Send one message to another Team member and return its accepted message id. A running target receives it at the nearest step boundary; an inactive target starts or resumes a turn.
 
 ```json
 {
@@ -2487,7 +2487,7 @@ Source: [`packages/experimental/tool-agent-team/src/index.ts`](../packages/exper
 
 ### `wait_agent`
 
-Wait for the next teammate status, mailbox, or shared-task change after this call starts. This never wakes inactive members and returns noProgress immediately when no other member is running or provisioning. Re-list after wakeup or timeout instead of polling.
+Wait for the next teammate status, message, or shared-task change after this call starts. This never wakes inactive members and returns noProgress immediately when no other member is running or provisioning. Re-list after wakeup or timeout instead of polling.
 
 ```json
 {

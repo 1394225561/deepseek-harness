@@ -1,5 +1,6 @@
 /** Public Agent Teams identities, durable records, and service request values. */
 
+import type { MessageId } from '@deepseek-ai/dsh-llm/brand'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm/types'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -154,8 +155,6 @@ export interface Config {
   readonly maxMembers?: number
   /** Maximum non-deleted tasks retained by one Team. */
   readonly maxTasks?: number
-  /** Maximum queued-minus-delivered messages for one target member. */
-  readonly maxPendingMessagesPerMember?: number
   /** Maximum UTF-8 bytes in one complete sender-framed delivery. */
   readonly maxMessageBytes?: number
   /** Maximum milliseconds allowed for Team-owned runtime disposal. */
@@ -177,17 +176,16 @@ export interface SpawnTeammateResult {
   readonly member: TeamMemberView
 }
 
-/** Input for one durable peer message. */
+/** Input for one direct peer-message attempt. */
 export interface SendTeamMessageRequest {
   readonly target: string
   readonly content: ContentBlock[]
   readonly signal: AbortSignal
 }
 
-/** Result after a peer message enters the durable mailbox. */
+/** Target inbox acceptance under ordinary Agent persistence; no Team retry or deduplication. */
 export interface SendTeamMessageResult {
-  readonly messageId: TeamMessageId
-  readonly status: 'accepted' | 'queued'
+  readonly messageId: MessageId
 }
 
 /** Input for creating one shared task. */

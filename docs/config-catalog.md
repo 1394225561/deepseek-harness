@@ -807,7 +807,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-experimental-agent-team`
 
 - `inject`: `agents` · `sessions` · `sessionPersistence` · `sessionProjections` · `subagents`
-- `source`: [`packages/experimental/agent-team/src/types.ts:152`](../packages/experimental/agent-team/src/types.ts)
+- `source`: [`packages/experimental/agent-team/src/types.ts:153`](../packages/experimental/agent-team/src/types.ts)
 
 ```ts config-catalog
 /** Team-service deployment limits. */
@@ -816,8 +816,6 @@ export interface Config {
   readonly maxMembers?: number
   /** Maximum non-deleted tasks retained by one Team. */
   readonly maxTasks?: number
-  /** Maximum queued-minus-delivered messages for one target member. */
-  readonly maxPendingMessagesPerMember?: number
   /** Maximum UTF-8 bytes in one complete sender-framed delivery. */
   readonly maxMessageBytes?: number
   /** Maximum milliseconds allowed for Team-owned runtime disposal. */

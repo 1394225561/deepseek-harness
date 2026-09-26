@@ -14,7 +14,8 @@ import SubagentService, { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-su
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import TeamService, { TeamId, TeamMessageId } from '../src/index.ts'
-import type { TeamMailbox } from '../src/mailbox.ts'
+import type { LegacyTeamDelivery } from '../src/legacy-delivery.ts'
+import { readPersistedSession } from '../src/persisted.ts'
 import { teamProjectionDefinition } from '../src/projection.ts'
 import type { TeamMemberSnapshot, TeamMessageSnapshot, TeamTaskSnapshot } from '../src/index.ts'
 import { TestSessionQuery } from './test-session-query.ts'
@@ -53,8 +54,8 @@ async function storedEvents(ctx: Context, id: SessionId): Promise<readonly Sessi
 
 /** Await mailbox acknowledgements through their flush and dispatch completion. */
 async function settleMailbox(ctx: Context): Promise<void> {
-  const { mailbox } = ctx.agentTeams as unknown as { readonly mailbox: TeamMailbox }
-  await Promise.all(mailbox.pendingDispatches())
+  const { legacyDelivery } = ctx.agentTeams as unknown as { readonly legacyDelivery: LegacyTeamDelivery }
+  await Promise.all(legacyDelivery.pendingDispatches())
 }
 
 async function disposeContext(ctx: Context): Promise<void> {
@@ -165,6 +166,40 @@ async function persistedChild(
 
 for (const backend of backends) {
   describe(`${backend.name} Agent Teams recovery`, () => {
+    it('restores a directly accepted target inbox from its flushed crash prefix without Team intent', async () => {
+      const liveRoot = mkdtempSync(join(tmpdir(), 'dsh-team-live-'))
+      const crashRoot = mkdtempSync(join(tmpdir(), 'dsh-team-crash-'))
+      roots.push(liveRoot, crashRoot)
+      const first = await stack(backend, liveRoot, ['hang'])
+      const lead = await first.ctx.agentLoop.create(SessionId('direct-root'), { provider: 'mock', model: 'mock' })
+      const target = await first.ctx.agentTeams.spawnTeammate(lead, {
+        name: 'worker', description: 'pending inbox recovery', prompt: [{ type: 'text', text: 'initial' }],
+        context: 'fresh', provider: 'spawn', signal: SIGNAL,
+      })
+      const child = first.ctx.agents.get(target.member.id)!
+      const receipt = await first.ctx.agentTeams.sendMessage(lead, {
+        target: 'worker', content: [{ type: 'text', text: 'accepted before crash' }], signal: SIGNAL,
+      })
+      await first.ctx.sessions.flush(child.session)
+      const prefix = await readPersistedSession(first.ctx.sessionPersistence, child.id, SIGNAL)
+      expect(prefix.events.some(event => event.type === 'agent/inbox/spliced'
+        && event.data.inserted.some(message => message.id === receipt.messageId))).toBe(true)
+      expect(lead.session.snapshotEvents().some(event => event.type.startsWith('team/message/'))).toBe(false)
+      await first.dispose()
+      const second = await stack(backend, crashRoot, [textResponse('recovered')])
+      const writer = await second.ctx.sessionPersistence.create(prefix.header)
+      try { await writer.append(prefix.events) } finally { await writer.close() }
+      const resumed = await second.ctx.agents.resume({
+        resumeSessionId: child.id, agentOptions: { provider: 'mock', model: 'mock' },
+      })
+      expect(resumed.agent.inbox.nextStep.find(message => message.id === receipt.messageId)).toMatchObject({
+        source: { kind: 'agent-message', form: 'relay', senderSessionId: lead.id },
+        content: [{ type: 'text', text: 'Team message from lead:' }, { type: 'text', text: 'accepted before crash' }],
+      })
+      await resumed.dispose()
+      await second.dispose()
+    })
+
     it('reconciles a persisted child to active and a missing child to durable failed', {
       timeout: PERSISTENCE_TEST_TIMEOUT_MS,
     }, async () => {
@@ -231,7 +266,7 @@ for (const backend of backends) {
         content: [{ type: 'text', text: 'resume after reconciliation' }],
         signal: SIGNAL,
       })
-      expect(receipt.status).toBe('accepted')
+      expect(receipt.messageId).toEqual(expect.any(String))
       await vi.waitFor(() => { expect(second.ctx.agents.get(childId)).toBeUndefined() }, { timeout: 5_000 })
       await vi.waitFor(() => { expect(durable(activeHandle.agent).pendingMessages).toEqual([]) })
 
@@ -299,15 +334,14 @@ for (const backend of backends) {
         signal: SIGNAL,
       })
       await vi.waitFor(() => { expect(first.ctx.agents.get(started.member.id)).toBeUndefined() }, { timeout: 5_000 })
-      vi.spyOn(first.ctx.sessionPersistence, 'open')
-        .mockRejectedValueOnce(new Error('temporary target read failure'))
-      const queued = await first.ctx.agentTeams.sendMessage(firstLead, {
-        target: 'mail-worker',
-        content: [{ type: 'text', text: 'durable retry context' }],
-        signal: SIGNAL,
+      const queued = { messageId: TeamMessageId('legacy-pending') }
+      firstLead.session.append('team/message/queued', {
+        version: 2, teamId: TeamId(rootId), message: {
+          id: queued.messageId, senderId: rootId, senderName: 'lead', targetId: started.member.id,
+          content: [{ type: 'text', text: 'durable retry context' }],
+        },
       })
-      expect(queued.status).toBe('queued')
-      expect(durable(firstLead).pendingMessages.map(message => message.id)).toEqual([queued.messageId])
+      await first.ctx.sessions.flush(firstLead.session)
       await first.dispose()
 
       const second = await stack(backend, storageRoot, [textResponse('resumed teammate answer')])
@@ -388,7 +422,7 @@ for (const backend of backends) {
       await first.dispose()
 
       const second = await stack(backend, storageRoot, [])
-      const { mailbox } = second.ctx.agentTeams as unknown as { readonly mailbox: TeamMailbox }
+      const { legacyDelivery } = second.ctx.agentTeams as unknown as { readonly legacyDelivery: LegacyTeamDelivery }
       const flush = second.ctx.sessions.flush.bind(second.ctx.sessions)
       const checkpointEntered = Promise.withResolvers<undefined>()
       const releaseCheckpoint = Promise.withResolvers<undefined>()
@@ -408,7 +442,7 @@ for (const backend of backends) {
         })
         await checkpointEntered.promise
         expect(durable(rootHandle.agent).pendingMessages).toEqual([])
-        expect(mailbox.pendingDispatches().length).toBeGreaterThan(0)
+        expect(legacyDelivery.pendingDispatches().length).toBeGreaterThan(0)
         let settled = false
         const settlement = settleMailbox(second.ctx).then(() => { settled = true })
         await Promise.resolve()

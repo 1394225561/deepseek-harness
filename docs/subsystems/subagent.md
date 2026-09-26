@@ -171,7 +171,7 @@ Every Activation owns its `AgentHandle` and an `ownedChildren: Set<SessionId>`; 
 Final settlement awaits `ctx.sessions.flush(session)` but ignores its participation boolean because an arbitrary listener cannot prove that a persistence backend stored the state. Rejection is logged without failing the Activation, and the manager still disposes the handle and releases ownership; the persisted child state may then be missing or stale on a later resume. Manager unload invokes an internal manager-wide drain that closes admission and disposes every live forest; `drainContinuableDescendants(parents)` closes admission only below exact live host-owned Agents and disposes their continuable descendants while unrelated forests remain live. Both await already-admitted materializations in their scope, propagate cancellation top-down, release handles child-first, and await every selected branch despite individual failures. Durable child Sessions survive that process-local teardown.
 
 ```ts type-equiv
-/** Durable attribution for one model-authored message between adjacent Agents. */
+/** Durable attribution for one model-authored message between Agents. */
 interface AgentMessageSource {
   readonly kind: 'agent-message'
   /** A message another agent addressed to this one (`relay` context form). */

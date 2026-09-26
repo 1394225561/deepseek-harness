@@ -481,10 +481,10 @@ describe('dsh-tool-team', () => {
     expect(text(roster)).toBe(JSON.stringify(JSON.parse(text(roster))))
     const peer = await execute(ctx, child, 'send_message', { target: 'lead', message: 'progress report' })
     expect(peer.isError).toBe(false)
-    expect(JSON.parse(text(peer))).toMatchObject({ status: 'accepted' })
+    expect(JSON.parse(text(peer))).toHaveProperty('messageId')
     const followup = await execute(ctx, child, 'send_message', { target: 'lead', message: 'review the report' })
     expect(followup.isError).toBe(false)
-    expect(JSON.parse(text(followup))).toMatchObject({ status: 'accepted' })
+    expect(JSON.parse(text(followup))).toHaveProperty('messageId')
     await lead.whenIdle()
 
     const created = await execute(ctx, lead, 'team_task_create', {
@@ -693,7 +693,7 @@ describe('dsh-tool-team', () => {
       content: [{ type: 'text', text: 'resume with Team scope' }],
       signal: SIGNAL,
     })
-    expect(receipt.status).toBe('accepted')
+    expect(receipt.messageId).toEqual(expect.any(String))
     const resumed = await waitRunning(ctx, childId)
     expect((await assembly(ctx, resumed)).tools.map(schema => schema.name)
       .filter(name => TOOL_NAMES.includes(name)).sort()).toEqual(TOOL_NAMES)
