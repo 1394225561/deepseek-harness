@@ -7,8 +7,8 @@ import type {
   MessageImageLoader, MessageImagesOwnerProps, RenderMessageImages, TurnLocation,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
-  InjectFace, KeyedSnapshotSelectorHook, PropsLocale, PropsRenderSlots, PropsRuntime, PropsStore,
-  SlotHookFactory, SnapshotSelectorHook,
+  HostObservable, InjectFace, KeyedSnapshotSelectorHook, PropsLocale, PropsRenderSlots, PropsRuntime,
+  PropsStore, SlotHookFactory, SnapshotSelectorHook,
 } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { MarkdownFileMentions } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -57,6 +57,56 @@ export interface AssistantActionOwnerProps {
   messageId: MessageId
 }
 
+/** Stable quota failure codes retained in the Session log; both raise the frame-wide notice. */
+export type QuotaNoticeCode = 'QUOTA' | 'ACCOUNT_QUOTA'
+
+/** The notice on display; `seq` keys remounts so an unretained later notice restarts its transient display. */
+export interface QuotaNoticeState {
+  /** Stable failure code retained in the Session log. */
+  code: QuotaNoticeCode
+  /** Per-publication sequence; the host keys its surface by it. */
+  seq: number
+}
+
+/** Owner currency of one quota notice offered to the frame-wide chain. */
+export interface QuotaNoticeOwnerProps {
+  /** Stable failure code retained in the Session log. */
+  code: QuotaNoticeCode
+  /** Provider-neutral notice copy in the active locale. */
+  message: string
+  /** Take the notice down. */
+  dismiss: () => void
+  /**
+   * Prevent later quota failures from replacing this notice. Dismissal clears
+   * all holds; releasing the last hold resumes future notices without replay.
+   * Callers must release on unmount.
+   * @returns idempotent release that cannot clear another hold.
+   */
+  keepOpen: () => () => void
+}
+
+/** Quota notice host share: the notice on display and its dismissal. */
+export interface QuotaNoticeInjected {
+  hooks: {
+    /** The notice on display, or none. */
+    notice: HostObservable<QuotaNoticeState | null>
+  }
+  /** Take the notice down. */
+  dismissNotice: () => void
+  /**
+   * Acquire a hold with the lifecycle defined by QuotaNoticeOwnerProps.keepOpen.
+   * @returns idempotent release, or a no-op when no notice is live.
+   */
+  keepNoticeOpen: () => () => void
+}
+
+/** Full props of the Chat-owned frame-wide quota notice host. */
+export type QuotaNoticeHostProps =
+  PropsRuntime<'shell.overlay'>
+  & PropsLocale<'chat'>
+  & PropsRenderSlots<'shell.quota-notice'>
+  & InjectFace<QuotaNoticeInjected>
+
 /** Optional prose file-mention provider consumed by Chat. */
 export interface ChatFileMentions {
   /**
@@ -80,9 +130,30 @@ export type UseChatNodeTurnData = <Key extends Extract<keyof ConversationTurnDat
   key: Key,
 ) => Readonly<ConversationTurnDataMap[Key]> | undefined
 
-/** Slot-level Hook factory for keyed Chat renderers. */
-export interface ChatNodeTurnDataInjected {
-  hooks: { turnData: SlotHookFactory<'conversation.chat.node', UseChatNodeTurnData> }
+/**
+ * Subscribe to enclosing-Turn resets and own one initially collapsed disclosure.
+ * Each invocation has independent open state; display-mode changes do not reset it.
+ * @returns the current open state, explicit setter, and toggle action.
+ */
+export type UseDisclosure = () => {
+  readonly expanded: boolean
+  /** @param open - whether this disclosure is expanded. */
+  readonly setExpanded: (open: boolean) => void
+  readonly toggle: () => void
+}
+
+/** Stable sources bound to one rendered Chat Node. */
+export interface ChatNodeHookContext {
+  readonly turnData: ConversationLocationDataStore<ConversationTurnDataMap> | undefined
+  readonly disclosureReset: ObservableSnapshot<number>
+}
+
+/** Slot-level Hook factories for keyed Chat renderers. */
+export interface ChatNodeInjected {
+  hooks: {
+    turnData: SlotHookFactory<'conversation.chat.node', UseChatNodeTurnData>
+    disclosure: SlotHookFactory<'conversation.chat.node', UseDisclosure>
+  }
 }
 
 /** Stable owner currency delivered to a keyed Chat renderer. */
@@ -110,6 +181,8 @@ export interface ChatNodeOwnerProps {
 
 /** Shared presentation state for one Turn-process answer generation. */
 export interface TurnProcessOwnerProps {
+  /** Process content eligible to share one Turn-level disclosure. */
+  readonly hasContent: boolean
   readonly spec: TurnProcessSpec
   readonly foldable: boolean
   readonly open: boolean
@@ -219,8 +292,8 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
       scope: 'session'
       owner: ChatNodeOwnerProps
       keyProps: { [Kind in ChatNodeKind]: { node: ChatNode<Kind> } }
-      hookContext: ConversationLocationDataStore<ConversationTurnDataMap> | undefined
-      inject: ChatNodeTurnDataInjected
+      hookContext: ChatNodeHookContext
+      inject: ChatNodeInjected
     }
     /**
      * Renderer for one consecutive group of durable message images. The owner
@@ -246,5 +319,13 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
      * that entry. With no entries, the standard action row remains unchanged.
      */
     'conversation.chat.assistant-actions': { kind: 'list'; scope: 'session'; owner: AssistantActionOwnerProps }
+    /**
+     * Frame-wide quota notice chain. The Chat-owned host in `shell.overlay`
+     * offers the one live notice; the first entry whose selector claims its
+     * code takes over the surface, and the all-decline case renders the host's
+     * generic warning Toast. The host lives outside the Chat panel, so a notice
+     * survives switching or closing the panel that reported it.
+     */
+    'shell.quota-notice': { kind: 'chain'; scope: 'root'; owner: QuotaNoticeOwnerProps }
   }
 }

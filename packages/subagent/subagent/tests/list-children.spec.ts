@@ -6,15 +6,18 @@ import { Context } from '@deepseek-ai/cordis'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
+import type { Session } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { generationLogPath } from '../../../session/session-persistence-jsonl/src/format.ts'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
+import type { SubagentCatalogEntry } from '@deepseek-ai/dsh-subagent'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import * as SubagentFork from '@deepseek-ai/dsh-subagent-fork-in-process'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import { startTestActivation } from './local-activation.ts'
+import { seedStoredSession } from './persistence-helpers.ts'
 import { TestSessionQuery } from './test-session-query.ts'
 
 type Script = ConstructorParameters<typeof MockAdapter>[0]
@@ -23,6 +26,7 @@ const roots: string[] = []
 const persistenceDisposers: Array<() => Promise<void>> = []
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   await Promise.all(persistenceDisposers.splice(0).map(dispose => dispose()))
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 })
@@ -246,5 +250,220 @@ describe('SubagentRuntime.listChildren', () => {
     await expect(withoutProjection.subagents.listChildren(parent.id)).rejects.toMatchObject({
       code: 'SUBAGENT_CONTROL_QUERY_UNAVAILABLE',
     })
+  })
+
+
+})
+
+/** Add discovery facts without requiring a child descriptor. */
+function catalog(parent: Session, children: SubagentCatalogEntry[]): void {
+  for (const { id, createdAt, ...identity } of children) {
+    parent.append('subagent/catalog', identity.mode === 'external'
+      ? { version: 2, childId: id, childCreatedAt: createdAt, ...identity }
+      : { version: 1, childId: id, childCreatedAt: createdAt, ...identity })
+  }
+}
+
+function child(id: string, mode: SubagentCatalogEntry['mode'] = 'continuable'): SubagentCatalogEntry {
+  return { id: SessionId(id), createdAt: 1, mode, label: id }
+}
+
+describe('SubagentRuntime.listDescendants', () => {
+  it('lists external entries as leaves without observing a nonexistent child Session', async () => {
+    const { ctx, parent } = await setup([])
+    const local = ctx.sessions.create(SessionId('local-child'))
+    catalog(parent.session, [child('external-child', 'external'), child('local-child')])
+    catalog(local, [child('nested-external', 'external')])
+    const observe = vi.spyOn(ctx.sessionQuery, 'observeSession')
+
+    expect(await ctx.subagents.listDescendants(parent.id)).toEqual([
+      { kind: 'child', id: SessionId('external-child'), mode: 'external', label: 'external-child',
+        activity: 'inactive', hasChildren: false, parentId: parent.id, depth: 1 },
+      { kind: 'child', id: local.id, mode: 'continuable', label: 'local-child',
+        activity: 'running', hasChildren: true, parentId: parent.id, depth: 1 },
+      { kind: 'child', id: SessionId('nested-external'), mode: 'external', label: 'nested-external',
+        activity: 'inactive', hasChildren: false, parentId: local.id, depth: 2 },
+    ])
+    expect(observe.mock.calls.map(([id]) => id)).toEqual([parent.id, local.id])
+  })
+
+  it('walks parent catalogs in event order without enumerating unrelated Sessions or reading descriptors', async () => {
+    const { ctx, parent } = await setup([])
+    const branch = ctx.sessions.create(SessionId('branch'))
+    const leaf = ctx.sessions.create(SessionId('leaf'))
+    const sibling = ctx.sessions.create(SessionId('sibling'))
+    ctx.sessions.create(SessionId('unrelated'))
+    catalog(parent.session, [{ ...child('branch'), createdAt: 20 }, { ...child('sibling', 'one-shot'), createdAt: 10 }])
+    catalog(branch, [child('leaf')])
+    const listSessions = vi.spyOn(ctx.sessionQuery, 'listSessions')
+    const observeSession = vi.spyOn(ctx.sessionQuery, 'observeSession')
+
+    expect(await ctx.subagents.listDescendants(parent.id)).toEqual([
+      { kind: 'child', id: branch.id, mode: 'continuable', label: 'branch', activity: 'running', hasChildren: true, parentId: parent.id, depth: 1 },
+      { kind: 'child', id: leaf.id, mode: 'continuable', label: 'leaf', activity: 'running', hasChildren: false, parentId: branch.id, depth: 2 },
+      { kind: 'child', id: sibling.id, mode: 'one-shot', label: 'sibling', activity: 'running', hasChildren: false, parentId: parent.id, depth: 1 },
+    ])
+    expect(listSessions).not.toHaveBeenCalled()
+    expect(observeSession.mock.calls.map(([id]) => id)).toEqual([parent.id, branch.id, leaf.id, sibling.id])
+  })
+
+  it('reads a cold child catalog without loading an Agent or requiring a descriptor', async () => {
+    const { ctx, parent } = await setup([])
+    const id = SessionId('cold-child')
+    await seedStoredSession(ctx.sessionPersistence, {
+      version: SESSION_FORMAT_VERSION, id, createdAt: 1, isSeeded: false,
+      origin: 'subagent', parentSession: parent.id,
+    }, [])
+    catalog(parent.session, [{ id, createdAt: 1, mode: 'one-shot' }])
+    expect(await ctx.subagents.listDescendants(parent.id)).toEqual([
+      { kind: 'child', id, mode: 'one-shot', activity: 'inactive', hasChildren: false, parentId: parent.id, depth: 1 },
+    ])
+    expect(ctx.agents.get(id)).toBeUndefined()
+    expect(ctx.sessions.get(id)).toBeUndefined()
+  })
+
+  it('traverses one-shot and unknown-mode catalog entries to reach continuable children', async () => {
+    const { ctx, parent } = await setup([])
+    const once = ctx.sessions.create(SessionId('once'))
+    const unknown = ctx.sessions.create(SessionId('unknown'))
+    const leaf = ctx.sessions.create(SessionId('leaf'))
+    catalog(parent.session, [child('once', 'one-shot')])
+    catalog(once, [child('unknown', 'unknown')])
+    catalog(unknown, [child('leaf')])
+    const rows = await ctx.subagents.listDescendants(parent.id)
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toMatchObject({ kind: 'child', id: once.id, hasChildren: true })
+    expect(rows[1]).toEqual({ kind: 'diagnostic', id: unknown.id, reason: 'unsupported', parentId: once.id, depth: 2 })
+    expect(rows[2]).toMatchObject({ kind: 'child', id: leaf.id, parentId: unknown.id, depth: 3 })
+  })
+
+  it('visits each catalog once when persisted membership repeats or cycles', async () => {
+    const { ctx, parent } = await setup([])
+    const branch = ctx.sessions.create(SessionId('branch'))
+    const leaf = ctx.sessions.create(SessionId('leaf'))
+    catalog(parent.session, [child('branch'), child('leaf')])
+    catalog(branch, [child('leaf')])
+    catalog(leaf, [child('parent'), child('branch')])
+    const observe = vi.spyOn(ctx.sessionQuery, 'observeSession')
+    const rows = await ctx.subagents.listDescendants(parent.id)
+    expect(rows.map(row => row.id)).toEqual([branch.id, leaf.id])
+    expect(observe).toHaveBeenCalledTimes(3)
+  })
+
+  it('returns no descendants from an empty root catalog', async () => {
+    const { ctx, parent } = await setup([])
+    expect(await ctx.subagents.listDescendants(parent.id)).toEqual([])
+  })
+
+  it('omits an ordinary Session fork and its cataloged children from the source listing', async () => {
+    const { ctx, parent } = await setup([])
+    const fork = ctx.sessions.fork(parent.session, undefined, SessionId('ordinary-fork'))
+    const leaf = ctx.sessions.create(SessionId('fork-child'))
+    catalog(fork, [child('fork-child')])
+
+    expect(await ctx.subagents.listDescendants(parent.id)).toEqual([])
+    expect(await ctx.subagents.listDescendants(fork.id)).toEqual([
+      { kind: 'child', id: leaf.id, mode: 'continuable', label: 'fork-child',
+        activity: 'running', hasChildren: false, parentId: fork.id, depth: 1 },
+    ])
+  })
+
+  it.each([
+    ['corrupt', Object.assign(new Error('corrupt branch'), { code: 'SESSION_QUERY_CORRUPT_SESSION' })],
+    ['corrupt', Object.assign(new Error('conflicting branch'), { code: 'SESSION_QUERY_SOURCE_CONFLICT' })],
+    ['unavailable', new Error('unavailable branch')],
+    ['unavailable', 'unavailable branch'],
+  ] as const)('contains a %s branch read failure and continues with siblings', async (reason, failure) => {
+    const { ctx, parent } = await setup([])
+    const branch = ctx.sessions.create(SessionId('branch'))
+    const hidden = ctx.sessions.create(SessionId('hidden'))
+    const sibling = ctx.sessions.create(SessionId('sibling'))
+    catalog(parent.session, [child('branch'), child('sibling')])
+    catalog(branch, [child('hidden')])
+    const observe = ctx.sessionQuery.observeSession.bind(ctx.sessionQuery)
+    vi.spyOn(ctx.sessionQuery, 'observeSession').mockImplementation((id, options) => {
+      if (id === branch.id) {
+        // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- Persistence failures can reject with non-Error values.
+        return Promise.reject(failure)
+      }
+      return observe(id, options)
+    })
+    const rows = await ctx.subagents.listDescendants(parent.id)
+    expect(rows[0]).toEqual({ kind: 'diagnostic', id: branch.id, parentId: parent.id, depth: 1, reason })
+    expect(rows[1]).toMatchObject({ kind: 'child', id: sibling.id })
+    expect(rows.some(row => row.id === hidden.id)).toBe(false)
+  })
+
+  it('reports invalid live catalog data as corrupt and continues with siblings', async () => {
+    const { ctx, parent } = await setup([])
+    const branch = ctx.sessions.create(SessionId('branch'))
+    const sibling = ctx.sessions.create(SessionId('sibling'))
+    catalog(parent.session, [child('branch'), child('sibling')])
+    catalog(branch, [{ ...child('invalid'), createdAt: -1 }])
+
+    expect(await ctx.subagents.listDescendants(parent.id)).toEqual([
+      { kind: 'diagnostic', id: branch.id, parentId: parent.id, depth: 1, reason: 'corrupt' },
+      { kind: 'child', id: sibling.id, mode: 'continuable', label: 'sibling',
+        activity: 'running', hasChildren: false, parentId: parent.id, depth: 1 },
+    ])
+  })
+
+  it('reports a missing child as unavailable', async () => {
+    const { ctx, parent } = await setup([])
+    catalog(parent.session, [child('missing')])
+    expect(await ctx.subagents.listDescendants(parent.id)).toEqual([
+      { kind: 'diagnostic', id: SessionId('missing'), parentId: parent.id, depth: 1, reason: 'unavailable' },
+    ])
+  })
+
+  it('propagates root read failures and missing catalog projections', async () => {
+    const { ctx, parent } = await setup([])
+    const observe = ctx.sessionQuery.observeSession.bind(ctx.sessionQuery)
+    const failure = new Error('root unavailable')
+    vi.spyOn(ctx.sessionQuery, 'observeSession').mockRejectedValueOnce(failure)
+    await expect(ctx.subagents.listDescendants(parent.id)).rejects.toBe(failure)
+    const branch = ctx.sessions.create(SessionId('branch'))
+    catalog(parent.session, [child('branch')])
+    vi.spyOn(ctx.sessionQuery, 'observeSession').mockImplementation((id, options) =>
+      observe(id, id === branch.id ? { ...options, projectionMode: 'none' } : options),
+    )
+    await expect(ctx.subagents.listDescendants(parent.id)).rejects.toMatchObject({ code: 'SUBAGENT_CONTROL_PROJECTIONS_UNAVAILABLE' })
+  })
+
+  it('fails before reading when the Session store or query service is absent', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SubagentRuntime)
+    await expect(ctx.subagents.listDescendants(SessionId('root'))).rejects.toMatchObject({ code: 'SUBAGENT_CONTROL_SESSION_STORE_UNAVAILABLE' })
+    await ctx.plugin(SessionStore)
+    await expect(ctx.subagents.listDescendants(SessionId('root'))).rejects.toMatchObject({ code: 'SUBAGENT_CONTROL_QUERY_UNAVAILABLE' })
+  })
+
+  it('cancels before observing the root', async () => {
+    const { ctx, parent } = await setup([])
+    const controller = new AbortController()
+    controller.abort()
+    const observe = vi.spyOn(ctx.sessionQuery, 'observeSession')
+    await expect(ctx.subagents.listDescendants(parent.id, controller.signal)).rejects.toMatchObject({ code: 'CANCELLED' })
+    expect(observe).not.toHaveBeenCalled()
+  })
+
+  it.each([false, true])('cancels the traversal when a branch read settles (failure: %s)', async (reject) => {
+    const { ctx, parent } = await setup([])
+    const branch = ctx.sessions.create(SessionId('branch'))
+    catalog(parent.session, [child('branch')])
+    const controller = new AbortController()
+    const observe = ctx.sessionQuery.observeSession.bind(ctx.sessionQuery)
+    const observed = vi.spyOn(ctx.sessionQuery, 'observeSession').mockImplementation(async (id, options) => {
+      if (id !== branch.id) return observe(id, options)
+      const observation = await observe(id, options)
+      controller.abort()
+      if (reject) {
+        observation[Symbol.dispose]()
+        throw new Error('read failed during cancellation')
+      }
+      return observation
+    })
+    await expect(ctx.subagents.listDescendants(parent.id, controller.signal)).rejects.toMatchObject({ code: 'CANCELLED' })
+    expect(observed.mock.calls.every(([, options]) => options?.signal === controller.signal)).toBe(true)
   })
 })

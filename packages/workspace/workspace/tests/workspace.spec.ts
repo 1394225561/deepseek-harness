@@ -957,6 +957,85 @@ describe('registry-global session archive', () => {
     expect(storedState(result.pool).archivedSessionIds).toEqual([])
   })
 
+  it('refuses a session the activity waterfall reports active and writes nothing', async () => {
+    const dir = await makeDir('archive-active')
+    const result = await harness({ sessions: [header('busy', dir, 100), header('quiet', dir, 200)] })
+    const asked: SessionId[] = []
+    result.ctx.on('workspace/session-activity', async ({ sessionId }, next) => {
+      asked.push(sessionId)
+      const rest = await next()
+      return sessionId === 'busy'
+        ? [{ kind: 'probe' }, { kind: 'probe-items', items: [{ id: 'item-1', label: 'build' }] }, ...rest]
+        : rest
+    })
+
+    await expect(result.registry.archiveSession(SessionId('busy'))).rejects.toMatchObject({
+      name: 'WorkspaceActiveSessionError',
+      sessionId: 'busy',
+      activity: [{ kind: 'probe' }, { kind: 'probe-items', items: [{ id: 'item-1', label: 'build' }] }],
+    })
+    expect(result.registry.archivedSessionIds).toEqual([])
+    expect(storedState(result.pool).archivedSessionIds).toEqual([])
+    expect(result.changes.filter(change => change.table === '')).toEqual([])
+
+    await result.registry.archiveSession(SessionId('quiet'))
+    expect(result.registry.archivedSessionIds).toEqual(['quiet'])
+    expect(asked).toEqual(['busy', 'quiet'])
+
+    // The idempotent repeat resolves before any activity question is asked.
+    await result.registry.archiveSession(SessionId('quiet'))
+    expect(asked).toEqual(['busy', 'quiet'])
+  })
+
+  it('with stopActivity, writes the archive and then asks providers to stop, even when one of them fails', async () => {
+    const dir = await makeDir('archive-stop')
+    const result = await harness({ sessions: [header('busy', dir, 100)] })
+    const order: string[] = []
+    result.ctx.on('workspace/session-activity', async ({ sessionId }, next) => {
+      order.push(`activity:${sessionId}`)
+      return [{ kind: 'probe' }, ...(await next())]
+    })
+    result.ctx.on('workspace/session-stop', ({ sessionId }) => { order.push(`stop:${sessionId}`) })
+    result.ctx.on('workspace/session-stop', () => { throw new Error('job kill exploded') })
+    result.ctx.on('domain/changed', (change) => { if (change.table === '') order.push('write') })
+    const warn = vi.spyOn(result.ctx.logger, 'warn').mockImplementation(() => {})
+
+    await result.registry.archiveSession(SessionId('busy'), { stopActivity: true })
+    expect(result.registry.archivedSessionIds).toEqual(['busy'])
+    expect(storedState(result.pool).archivedSessionIds).toEqual(['busy'])
+    // The archive write lands first, so a provider's gate sees the archived
+    // set before any stop-induced wake; the activity question is not asked
+    // because the caller already chose to stop what runs.
+    expect(order).toEqual(['write', 'stop:busy'])
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('job kill exploded'))
+
+    // A repeat resolves before stopping anything again.
+    order.length = 0
+    await result.registry.archiveSession(SessionId('busy'), { stopActivity: true })
+    expect(order).toEqual([])
+    // An unknown session is still refused before any provider is asked to stop.
+    await expect(result.registry.archiveSession(SessionId('ghost'), { stopActivity: true }))
+      .rejects.toThrow(/cannot archive session 'ghost'/)
+    expect(order).toEqual([])
+  })
+
+  it('asks about activity only after the session is known, and archives when every listener delegates', async () => {
+    const dir = await makeDir('archive-quiet')
+    const result = await harness({ sessions: [header('known', dir, 100)] })
+    const asked: SessionId[] = []
+    result.ctx.on('workspace/session-activity', ({ sessionId }, next) => {
+      asked.push(sessionId)
+      return next()
+    })
+    await expect(result.registry.archiveSession(SessionId('ghost')))
+      .rejects.toThrow(/cannot archive session 'ghost'/)
+    expect(asked).toEqual([])
+
+    await result.registry.archiveSession(SessionId('known'))
+    expect(asked).toEqual(['known'])
+    expect(result.registry.archivedSessionIds).toEqual(['known'])
+  })
+
   it('restores the archive set across restarts and defaults it for pre-field media', async () => {
     const dir = await makeDir('archive-restart')
     const pool = new MemoryMediaPool()
@@ -1168,7 +1247,7 @@ describe('first-use Workspace preparation', () => {
     const directoryRoot = await makeDir('first-use')
     const result = await harness({ liveSessions: [], ...options })
     contexts.push(result.ctx)
-    const resolveDirectory = vi.fn(async () => ({ path: join(directoryRoot, 'nested', 'Workspace'), title: 'Workspace' }))
+    const resolveDirectory = vi.fn(async () => join(directoryRoot, 'nested', 'Workspace'))
     return { ...result, directoryRoot, resolveDirectory }
   }
 
@@ -1183,6 +1262,7 @@ describe('first-use Workspace preparation', () => {
     expect(h.resolveDirectory).toHaveBeenCalledOnce()
     expect(laterDirectory).not.toHaveBeenCalled()
     expect(first?.path).toBe(await realpath(join(h.directoryRoot, 'nested', 'Workspace')))
+    // The caller supplies no title: the initial one is the directory's final segment.
     expect(first?.title).toBe('Workspace')
     expect(h.registry.list()).toEqual([first])
     expect(storedState(h.pool).defaultWorkspaceId).toBe(first?.id)
@@ -1211,7 +1291,7 @@ describe('first-use Workspace preparation', () => {
   it('rejects a relative candidate before creating its directory', async () => {
     const h = await firstUse()
     const candidate = join(h.directoryRoot, 'relative')
-    h.resolveDirectory.mockResolvedValueOnce({ path: relative(process.cwd(), candidate), title: 'Workspace' })
+    h.resolveDirectory.mockResolvedValueOnce(relative(h.directoryRoot, candidate))
     await expect(h.registry.initializeDefault(h.resolveDirectory)).rejects.toThrow('fully qualified')
     await expect(realpath(candidate)).rejects.toMatchObject({ code: 'ENOENT' })
     expect(h.registry.list()).toEqual([])
@@ -1264,6 +1344,19 @@ describe('first-use Workspace preparation', () => {
     expect((await h.registry.initializeDefault(h.resolveDirectory))?.path).toBe(path)
   })
 
+  it('titles the Workspace after the requested directory when that path is a symlink', async () => {
+    const h = await firstUse()
+    const target = join(h.directoryRoot, 'elsewhere')
+    await mkdir(target)
+    await mkdir(join(h.directoryRoot, 'nested'))
+    await symlink(target, join(h.directoryRoot, 'nested', 'Workspace'))
+    const workspace = await h.registry.initializeDefault(h.resolveDirectory)
+    expect(workspace?.path).toBe(await realpath(target))
+    // Not 'elsewhere': the title names the directory the caller asked for, so
+    // the caller can still recognize a Workspace it has not renamed.
+    expect(workspace?.title).toBe('Workspace')
+  })
+
   it.each(['persisted', 'live'] as const)('refuses registration when a %s Session appears during directory preparation', async (kind) => {
     const h = await firstUse()
     const arrived = header('arrived-during-preparation')
@@ -1298,3 +1391,11 @@ describe('first-use Workspace preparation', () => {
     expect(await h.registry.initializeDefault(h.resolveDirectory)).toBeDefined()
   })
 })
+
+// The registry knows no family: the providers merge theirs, and this suite merges its own.
+declare module '@deepseek-ai/dsh-workspace/types' {
+  interface SessionActivityKindMap {
+    probe: true
+    'probe-items': true
+  }
+}

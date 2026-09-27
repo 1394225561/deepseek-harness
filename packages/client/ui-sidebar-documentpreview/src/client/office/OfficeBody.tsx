@@ -68,13 +68,11 @@ export function OfficeBody(props: OfficeBodyProps): ReactNode {
       <Button size="sm" onClick={request.reload}>{t('retry')}</Button>
     </div>
   }
-  if (file === undefined) return <LoadingIndicator className={common.statusLine} label={t('loading')} />
+  if (file === undefined) return <LoadingIndicator label={t('loading')} />
   return <div className={css.body}>
-    <div className={css.scrollport} ref={props.scrollportRef}>
-      {props.renderSlot('sidebar.right.tab.document.office.pdf', {
-        resourceAddress, content: { kind: 'bytes', data: file.data }, wrap: props.wrap, scrollportRef: props.scrollportRef,
-        addResource: props.addResource, setResources: props.setResources,
-      }, { entryKey: '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/office', hookContext: props.useTabInfo })}
-    </div>
+    {props.renderSlot('sidebar.right.tab.document.office.pdf', {
+      resourceAddress, content: { kind: 'bytes', data: file.data }, wrap: props.wrap, scrollportRef: props.scrollportRef,
+      addResource: props.addResource, setResources: props.setResources,
+    }, { entryKey: '@deepseek-ai/dsh-client-ui-sidebar-documentpreview/office', hookContext: props.useTabInfo })}
   </div>
 }

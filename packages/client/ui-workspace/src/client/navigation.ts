@@ -16,9 +16,7 @@ import type {
 } from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
-import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type { RowToast } from './contract/slots.ts'
-import { en, zh } from './locales.ts'
 import { pinOrderAccounts, pinOrderSource } from './pin-order.ts'
 import type { WorkspaceViewStoreActions } from './stores.ts'
 
@@ -37,7 +35,8 @@ export interface UiWorkspace {
   /**
    * Connect a Workspace and open its Session unless a later navigation supersedes it.
    * @param workspaceId - target Workspace.
-   * @param beforeOpen - optional synchronous preparation for the selected Session, skipped after supersession.
+   * @param beforeOpen - optional synchronous preparation for the selected Session,
+   * skipped after supersession; a throw aborts the open and releases the retained reference.
    * @returns completion; a superseded request may create a Session but does not open it.
    * @throws on failure; a refused creation is also shown through the Workspace
    * notice unless a later navigation or disposal superseded the request.
@@ -46,9 +45,10 @@ export interface UiWorkspace {
   /**
    * Fork a Session without changing the current selection.
    * @param sessionId - source Session.
-   * @returns completion after child creation and inherited-title increment.
+   * @param onCreated - observer before the optional child-title update.
+   * @returns the child SessionId after creation and inherited-title increment.
    */
-  forkSession(sessionId: SessionId): Promise<void>
+  forkSession(sessionId: SessionId, onCreated?: (childId: SessionId) => void): Promise<SessionId>
   /**
    * Resolve the reusable or newly created blank Session for a Workspace.
    * @param workspaceId - target Workspace.
@@ -64,8 +64,9 @@ export interface UiWorkspace {
   /**
    * Archive a Session and clear it when it is the current selection.
    * @param sessionId - Session to archive.
+   * @param options - `stopActivity` asks the Host to stop the Session's running work instead of refusing.
    */
-  archiveSession(sessionId: SessionId): Promise<void>
+  archiveSession(sessionId: SessionId, options?: { readonly stopActivity?: boolean }): Promise<void>
   /**
    * Unarchive a Session, restoring it to its recorded Workspace position.
    * @param sessionId - Session to unarchive.
@@ -215,8 +216,8 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     this.replaceMain(sessionId, navigation, 'reveal', beforeOpen)
   }
 
-  async forkSession(sessionId: SessionId): Promise<void> {
-    await this.sessions.fork({ sessionId, increaseTitle: true })
+  async forkSession(sessionId: SessionId, onCreated?: (childId: SessionId) => void): Promise<SessionId> {
+    return this.sessions.fork({ sessionId, increaseTitle: true, ...onCreated === undefined ? {} : { onCreated } })
   }
 
   startSession(workspaceId?: WorkspaceId): void {
@@ -239,8 +240,8 @@ class UiWorkspaceService extends Service implements UiWorkspace {
     )
   }
 
-  async archiveSession(sessionId: SessionId): Promise<void> {
-    await this.workspaces.archiveSession(sessionId)
+  async archiveSession(sessionId: SessionId, options: { readonly stopActivity?: boolean } = {}): Promise<void> {
+    await this.workspaces.archiveSession(sessionId, options)
     if (this.mainReference?.sessionId === sessionId) this.clearMain()
   }
 
@@ -346,13 +347,8 @@ class UiWorkspaceService extends Service implements UiWorkspace {
   }
 
   private async initializeDefaultWorkspace(signal: AbortSignal): Promise<WorkspaceView | undefined> {
-    const language = this.ctx.locale.getSnapshot().active.toLowerCase().split('-')[0]
-    const title = (language === 'zh' ? zh : en)['defaultWorkspace.title']
     try {
-      return await this.workspaces.initializeDefault({
-        directoryName: language === 'zh' || language === 'en' ? title : 'default-workspace',
-        title,
-      }, signal)
+      return await this.workspaces.initializeDefault(signal)
     } catch (_error: unknown) {
       if (!signal.aborted) this.notify({ kind: 'defaultWorkspaceFailed' })
       return undefined

@@ -11,7 +11,7 @@ import { externalTestParent } from './external-activation-helpers.ts'
 
 const complete: SubagentResult = { output: [], stopReason: 'completed' }
 
-async function setup(start: (request: SubagentStartRequest) => Promise<SubagentRun>) {
+async function setup(start: (request: SubagentStartRequest) => Promise<SubagentRun>, delivery: 'caller' | 'parent' = 'caller') {
   const ctx = new Context()
   await ctx.plugin(SessionProjectionRegistry)
   await ctx.plugin(SubagentRuntime)
@@ -24,7 +24,7 @@ async function setup(start: (request: SubagentStartRequest) => Promise<SubagentR
   return {
     ctx, parent,
     start: (owner: Agent = parent) => ctx.subagents.startActivation({
-      provider: 'external', label: 'External work', signal: new AbortController().signal, delivery: 'caller',
+      provider: 'external', label: 'External work', signal: new AbortController().signal, delivery,
       request: { parent: owner, prompt: [{ type: 'text', text: 'work' }] },
     }),
   }
@@ -104,7 +104,7 @@ describe('external activation ownership', () => {
   it('retains the catalog failure and reports cleanup failure during admission rollback', async () => {
     // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- external backends can reject without an Error.
     const dispose = vi.fn(() => Promise.reject(null))
-    const fixture = await setup(() => Promise.resolve(run('rollback-child', Promise.resolve(complete), dispose)))
+    const fixture = await setup(() => Promise.resolve(run('rollback-child', Promise.resolve(complete), dispose)), 'parent')
     const failure = new Error('catalog unavailable')
     const append = vi.spyOn(fixture.parent.session, 'append').mockImplementationOnce(() => { throw failure })
     const warning = vi.spyOn(fixture.ctx.logger, 'warn')

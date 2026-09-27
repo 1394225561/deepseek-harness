@@ -3,10 +3,13 @@ import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { Remote, RemoteError, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import { bindScopeParent, createScope, scopeOf, type Scope, type ScopeKey, type ScopeParentBinding } from '@deepseek-ai/dsh-scope'
+import { entryListSchema } from '@deepseek-ai/cordis-plugin-include'
+import { dump } from 'js-yaml'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { SettingsScope } from '@deepseek-ai/dsh-settings'
+// Type-only: the optional `settings` service this registry keeps off the generated pages.
+import type {} from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-tools'
-import type { AgentPresetRoster } from './types.ts'
+import type { AgentPresetDocument, AgentPresetRoster } from './types.ts'
 import { entryListProblem, type PresetDefinition } from './definition.ts'
 import type { AgentPreset, Config } from './preset.ts'
 import { agentPresetProjectionDefinition } from './session.ts'
@@ -17,16 +20,6 @@ export { agentPresetProjectionDefinition } from './session.ts'
 export { entryListProblem, type PresetDefinition } from './definition.ts'
 export { auditRows, livePresetMounts, leakedServices, serviceForAgent, standingMountFor, type PresetMount, type RowAudit } from './mount.ts'
 export type { AgentPreset, Config } from './preset.ts'
-
-/** User-selected default and visibility of the new-session chooser. */
-export interface AgentPresetSettings {
-  default: string
-  modeSelectionEnabled: boolean
-}
-/** Accepted settings fields. */
-export const AgentPresetSettingsSchema: z<AgentPresetSettings> = z.object({
-  default: z.string(), modeSelectionEnabled: z.boolean(),
-})
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -57,37 +50,28 @@ interface Binding {
 /** Registry of YAML-declared presets and the revisions live Agents retain. */
 export class AgentPresetRegistry extends TypertRemoteService {
   static inject = ['loader', 'sessionProjections']
-  static Config: z<Config> = z.object({ default: z.string().required() })
+  static Config = z.object({
+    default: z.string().required(),
+    selectedDefault: z.string().volatile(),
+  })
   private readonly owner: Context
   private readonly definitions = new Map<string, Definition>()
   private readonly generations = new Map<ScopeKey, Generation>()
   private readonly bindings = new WeakMap<ScopeKey, Binding>()
   private readonly switches = new Map<string, Promise<unknown>>()
-  private settings: SettingsScope<AgentPresetSettings> | undefined
 
   constructor(ctx: Context, public config: Config) {
     super(ctx, 'agentPresets')
     this.owner = ctx
     ctx.sessionProjections.register(agentPresetProjectionDefinition)
-    ctx.inject(['settings'], (settingsCtx) => {
-      this.settings = settingsCtx.settings.register('agent-presets', AgentPresetSettingsSchema, {
-        base: { default: config.default, modeSelectionEnabled: true },
-      })
-      settingsCtx.effect(() => () => { this.settings = undefined }, 'agent-presets.settings')
-    })
+    ctx.inject(['settings'], (child) => { child.effect(() => child.settings.configure({ auto: false }, ctx.fiber)) })
     ctx.on('session/event', (session, event) => {
       if (event.type === 'agent-preset/selected') ctx.emit('agent-preset/selected', session.id, event.data.agentPreset)
     })
   }
 
   /** Default preset for a subsequently created session. */
-  get defaultId(): string { return this.policy().defaultId }
-
-  private policy(): { enabled: boolean; defaultId: string } {
-    const settings = this.settings?.get()
-    const enabled = settings?.modeSelectionEnabled ?? true
-    return { enabled, defaultId: enabled ? settings?.default ?? this.config.default : this.config.default }
-  }
+  get defaultId(): string { return this.config.selectedDefault.get() ?? this.config.default }
 
   /** Register and eagerly load a definition; activation failure remains visible in the roster.
    * @param definition Parsed configuration supplied by the declaring plugin.
@@ -180,14 +164,13 @@ export class AgentPresetRegistry extends TypertRemoteService {
     return rows.sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.id.localeCompare(b.id))
   }
 
-  /** Read the selection roster and chooser policy.
-   * @returns Current presets, default and chooser policy.
+  /** Read the selection roster.
+   * @returns Current presets, each marked when it is the default.
    */
   @Remote('list')
   async remoteExportList(): Promise<AgentPresetRoster> {
-    const policy = this.policy()
-    return { presets: (await this.list()).map(row => ({ ...row, isDefault: row.id === policy.defaultId })),
-      modeSelectionEnabled: policy.enabled }
+    const defaultId = this.defaultId
+    return { presets: (await this.list()).map(row => ({ ...row, isDefault: row.id === defaultId })) }
   }
 
   /** Resolve an identity without starting an Agent.
@@ -201,6 +184,25 @@ export class AgentPresetRegistry extends TypertRemoteService {
       { agentPreset: wanted, available: [...this.definitions.keys()] })
     const broken = await this.diagnostic(record)
     return { id: wanted, ...(broken === undefined ? {} : { broken }) }
+  }
+
+  /** Read one declaration's child plugin list as YAML, for viewing only.
+   * @param agentPreset Preset identity.
+   * @returns The declared composition beside its published metadata.
+   */
+  @Remote('read')
+  readDocument(agentPreset: string): Promise<AgentPresetDocument> {
+    const record = this.definitions.get(agentPreset)
+    if (record === undefined) {
+      return Promise.reject(new RemoteError('agent-preset/not-found', `Unknown agent preset: ${agentPreset}`,
+        { agentPreset, available: [...this.definitions.keys()] }))
+    }
+    const { id, name, description, plugins } = record.config
+    // The Loader's own dialect, so `!!js` conditions read as declared rather than as expression objects.
+    const content = dump(plugins, { schema: entryListSchema, noRefs: true, lineWidth: -1 })
+    return Promise.resolve({
+      agentPreset: id, content, ...(name === undefined ? {} : { name }), ...(description === undefined ? {} : { description }),
+    })
   }
 
   private async retain(id?: string): Promise<Generation> {

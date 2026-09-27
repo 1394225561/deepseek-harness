@@ -404,7 +404,7 @@ describe('dsh-tool-subagent', () => {
     await ctx.plugin(SubagentRuntime)
     const backend = await mock.mountScriptedProvider(ctx, { name: 'mock' }) // fresh conversation (descriptor: false)
     await ctx.plugin(tool, { provider: 'mock' })
-    expect(ctx.tools.schemas().find(s => s.name === 'subagent')!.description).toContain('does not see this conversation')
+    expect(ctx.tools.schemas().find(s => s.name === 'subagent')!.description).toContain('works in its own context')
 
     // Backend unloads (HMR shape): the tool must not outlive its provider.
     await backend.dispose()
@@ -458,7 +458,7 @@ describe('dsh-tool-subagent', () => {
     // unregistering (removed-event with another name) must not touch the tool.
     const other = await mock.mountScriptedProvider(ctx, { name: 'other', inheritsParentContext: true })
     expect(ctx.tools.schemas().filter(s => s.name === 'subagent')).toHaveLength(1)
-    expect(ctx.tools.schemas().find(s => s.name === 'subagent')!.description).toContain('does not see this conversation')
+    expect(ctx.tools.schemas().find(s => s.name === 'subagent')!.description).toContain('works in its own context')
     await other.dispose()
     expect(ctx.tools.schemas().some(s => s.name === 'subagent')).toBe(true)
   })
@@ -466,7 +466,7 @@ describe('dsh-tool-subagent', () => {
   it('derives spawn-shaped wording from a fresh-conversation provider (default mock)', async () => {
     const ctx = await setup({ provider: 'mock' })
     const schema = ctx.tools.schemas().find(s => s.name === 'subagent')!
-    expect(schema.description).toContain('does not see this conversation')
+    expect(schema.description).toContain('works in its own context')
     const props = (schema.parameters as { properties: Record<string, { description: string }> }).properties
     expect(props['prompt']!.description).toContain('include everything it needs')
   })

@@ -7,13 +7,14 @@ import type {} from '@deepseek-ai/dsh-agent-default-model'
 import {
   captureStableAria, compareOrRefreshGolden, launchWebScaffold, watchConsole, webSnapshotMode,
 } from './scaffold.ts'
-import { connectFreshWorkspace, newEnglishPage, writeComposerDraft } from './support.ts'
+import { connectFreshWorkspace, expandOwningTurnProcess, newEnglishPage, writeComposerDraft } from './support.ts'
 
 const SUMMARY = `Next paragraph: ${'inspect the loaded context and pending tools '.repeat(8).trim()}`
 const DELTAS = ['First paragraph', `\nDetails\n\n\n${SUMMARY}`, '\nMore detail']
 const UI_EXPECTED = fileURLToPath(new URL('./expected/reasoning-preview/running.expected.md', import.meta.url))
 
 class PausedReasoningAdapter extends LlmAdapter {
+  override async listModels(provider: string) { return [{ provider, id: 'paused', name: `${provider}/paused` }] }
   readonly stages = DELTAS.map(text => ({
     text,
     arrived: Promise.withResolvers<undefined>(),
@@ -62,6 +63,7 @@ it('shows completed paragraph first lines across blank lines with a right-edge f
       if (first === undefined || second === undefined || third === undefined) throw new Error('preview stages are incomplete')
       await first.arrived.promise
       const reasoning = page.locator('[data-variant="think"][data-state="running"]')
+      await expandOwningTurnProcess(page, reasoning)
       await reasoning.waitFor()
       expect(await reasoning.getAttribute('data-preview')).toBeNull()
 

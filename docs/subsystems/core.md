@@ -421,7 +421,7 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 ### `ctx.agentDefaultModel` — `AgentDefaultModelConfig`
 
-Owns the default model selection independently of any Host or transport. The composition entry remains usable without a settings provider; when one is mounted, its user layer is read live.
+Owns the default model selection independently of any Host or transport. Each operation reads the owning Config references.
 
 ```ts cordis-catalog
 /**
@@ -431,10 +431,11 @@ Owns the default model selection independently of any Host or transport. The com
 currentSelection(): ModelSelection
 
 /**
- * Save the complete default model selection. A deployment without a settings
- * provider keeps its composition entry.
+ * Save the complete default model selection. A deployment without a configuration
+ * editor keeps its composition entry. Saves commit in submission order; a failed
+ * save rejects its caller without blocking later saves.
  * @param next - resolved selection accepted by an entry point.
- * @returns fulfillment after the optional settings write settles.
+ * @returns fulfillment after the optional profile write settles.
  */
 async saveSelection(next: ModelSelection): Promise<void>
 ```
@@ -499,8 +500,8 @@ async register(definition: PresetDefinition): Promise<() => Promise<void>>
  */
 async list(): Promise<AgentPreset[]>
 
-/** Read the selection roster and chooser policy.
- * @returns Current presets, default and chooser policy.
+/** Read the selection roster.
+ * @returns Current presets, each marked when it is the default.
  */
 @Remote('list') async remoteExportList(): Promise<AgentPresetRoster>
 
@@ -509,6 +510,12 @@ async list(): Promise<AgentPreset[]>
  * @returns Current metadata, including failure when activation failed.
  */
 async resolve(id?: string): Promise<AgentPreset>
+
+/** Read one declaration's child plugin list as YAML, for viewing only.
+ * @param agentPreset Preset identity.
+ * @returns The declared composition beside its published metadata.
+ */
+@Remote('read') readDocument(agentPreset: string): Promise<AgentPresetDocument>
 
 /** Bind an unpublished Agent to the current preset revision.
  * @param ctx Agent context from its setup callback.

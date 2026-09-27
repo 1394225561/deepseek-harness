@@ -39,6 +39,10 @@
 - Viewer menu hidden: true
 - Worker: dsh-pdf
 - Continuous pages: 2
+- Zoom reveal: hidden -> bottom hover -> delayed hidden
+- Zoom modes: fit width -> 100% -> 150% -> fit width
+- Paper layout: 12px page gaps and outer backdrop insets in both themes
+- Settled zoom redraws the page at device resolution
 - Horizontal overflow: false
 - Canvas fills: red -> blue -> blue
 - Same tab: true
@@ -57,10 +61,17 @@
 - Table selection: forward and backward drags exclude later sections
 - Line-break highlight: transparent
 
+## Image zoom
+
+- Small PNG fit width remains at intrinsic size; 200% doubles it
+- SVG fit width -> 100% -> fit width toggles horizontal overflow: false -> true -> false
+- Image and Blob identities remain stable while zoom changes
+
 ## Code paging
 
 - Viewer: Code
 - Initial reading indicator: true
+- Loading feedback: centered 28px spinner with "Rendering document..."
 - Lines: 64 -> 65
 - Prefix retained: true
 - Tail: const tail = "CODE_TAIL";
@@ -77,6 +88,8 @@
 - Opens without the Office conversion service
 - Sheets: 季度预算 | 公式与格式; hidden worksheet omitted
 - Formula workbooks use a compact warning beside fx; notice rows absent
+- Unsupported XLSX content: This preview does not support charts, conditional formatting in this workbook. Open it in a system application for the full experience.
+- Drawing parts omitted; styled cells and cached formulas retained; notice cleared on file replacement
 - Formatted percent copied: 80.0%; date copied: 2026-09-16
 - Cached XLOOKUP result copied: 42; typing leaves it unchanged
 - Formula bar is read-only; PDF body and editing toolbar absent

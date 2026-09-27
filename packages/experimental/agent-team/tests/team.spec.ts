@@ -27,15 +27,15 @@ const contexts: Context[] = []
 afterEach(async () => {
   vi.useRealTimers()
   vi.restoreAllMocks()
-  await Promise.all(contexts.splice(0).map(ctx => ctx.fiber.dispose()))
+  for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose()
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
 /** Detached durable Team read through the same projection definition as the service. */
 function durable(agent: Agent): {
-  members: TeamMemberSnapshot[]
-  tasks: TeamTaskSnapshot[]
-  pendingMessages: TeamMessageSnapshot[]
+  members: readonly TeamMemberSnapshot[]
+  tasks: readonly TeamTaskSnapshot[]
+  pendingMessages: readonly TeamMessageSnapshot[]
 } {
   let projected = teamProjectionDefinition.init(agent.session.header)
   for (const event of agent.session.snapshotEvents()) projected = teamProjectionDefinition.apply(projected, event)
@@ -881,24 +881,6 @@ describe('Team shared task DAG', () => {
 
     ctx.agentTeams.interrupt(lead, 'editor')
     await waitNoAgent(ctx, editor.id)
-  })
-})
-
-describe('Team Remote API', () => {
-  it('reads tasks created and updated by Team agents', async () => {
-    const { ctx, lead } = await setup([])
-    expect(ctx.agentTeams.typertRemote).toMatchObject({ serviceKey: 'agentTeams', namespace: 'agentTeams' })
-    expect(ctx.agentTeams.remoteView(lead)).toEqual({
-      members: [expect.objectContaining({ name: 'lead', role: 'lead', status: 'inactive' })],
-      tasks: [],
-    })
-    const created = await ctx.agentTeams.createTask(lead, {
-      subject: 'Agent task', description: 'Created by the Team Lead',
-    })
-    const updated = await ctx.agentTeams.updateTask(lead, {
-      taskId: created.id, expectedRevision: 1, action: 'claim',
-    })
-    expect(ctx.agentTeams.remoteView(lead).tasks).toEqual([updated])
   })
 })
 

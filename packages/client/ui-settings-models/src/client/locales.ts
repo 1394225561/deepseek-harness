@@ -3,6 +3,7 @@
 /** English strings (the key-set source of truth for this pair). */
 export const en = {
   nav: 'Models',
+  deepSeekAccount: 'DeepSeek Account',
   title: 'Models',
   intro: 'Enter your API keys to use models from the following providers.',
   edit: 'Edit',
@@ -71,7 +72,7 @@ export const en = {
   modelNameInvalid: 'Display name cannot be empty.',
   modelContextInvalid: 'Context window must be a positive count, like 131072, 256K, or 1M.',
   modelMaxTokensInvalid: 'Max output tokens must be a positive count, like 8192, 64K, or 1M.',
-  advancedHint: 'Other fields live in settings.yaml; edit that section directly.',
+  advancedHint: 'Other fields live in cordis.patch.yml; edit that section directly.',
   modelCapacityInvalid: 'A capacity must be a number, optionally suffixed K or M.',
   modelDuplicate: 'Each model ID may appear once.',
   fetchModels: 'Fetch available models',
@@ -122,6 +123,7 @@ export type ModelsKey = keyof typeof en
 /** Chinese strings (same keys as {@link en}). */
 export const zh: { [Key in keyof typeof en]: string } = {
   nav: '模型',
+  deepSeekAccount: 'DeepSeek 账号',
   title: '模型',
   intro: '填入各提供商的 API 密钥即可使用其模型。',
   edit: '编辑',
@@ -190,7 +192,7 @@ export const zh: { [Key in keyof typeof en]: string } = {
   modelNameInvalid: '显示名称不能为空。',
   modelContextInvalid: '上下文窗口必须是正数，例如 131072、256K 或 1M。',
   modelMaxTokensInvalid: '最大输出 token 数必须是正数，例如 8192、64K 或 1M。',
-  advancedHint: '其余字段在 settings.yaml 中，请直接编辑对应段。',
+  advancedHint: '其余字段在 cordis.patch.yml 中，请直接编辑对应段。',
   modelCapacityInvalid: '容量需为数字，可加 K 或 M 后缀。',
   modelDuplicate: '每个模型 ID 只能出现一次。',
   fetchModels: '获取可用模型',
