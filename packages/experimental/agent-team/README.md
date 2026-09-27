@@ -150,7 +150,7 @@ Mailbox projection and checkpoint admission preserve every decoded JSON field of
 
 ### Disposal
 
-Disposal closes admission, aborts and awaits admitted sends and creations, then releases the roster’s live children and descendants. Non-Team children remain untouched. Admitted operations share one `disposalTimeoutMs` settlement deadline; each subsequent Team child drain has its own deadline. This value is not a whole-service shutdown bound. Cleanup failures are reported.
+The runtime lifecycle tracks sends and complete creation transactions in one operation set. Disposal closes admission, aborts and awaits those operations, then releases the roster’s live children and descendants. Non-Team children remain untouched. Admitted operations share one `disposalTimeoutMs` settlement deadline; each subsequent Team child drain has its own deadline. This value is not a whole-service shutdown bound. Cleanup failures are reported.
 
 </details>
 

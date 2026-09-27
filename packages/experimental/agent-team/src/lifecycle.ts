@@ -48,7 +48,7 @@ export class TeamRuntimeLifecycle {
   }
 
   /**
-   * Track an admitted operation until it settles.
+   * Track an admitted send or complete creation transaction until it settles.
    * @param operation - asynchronous work owned by this runtime.
    * @returns the same operation.
    */

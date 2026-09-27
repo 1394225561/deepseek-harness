@@ -150,7 +150,7 @@ Mailbox 投影与 checkpoint 准入保留本地声明的校验器之外获准内
 
 ### Dispose
 
-dispose 关闭准入，中止并等待已获准的发送和创建，然后释放 roster 中的 live child 及其后代。非 Team child 不受影响。已获准操作共享一个 `disposalTimeoutMs` 等待期限；随后每个 Team 的 child drain 各有独立期限。此值不是整个服务关闭的总时限。清理失败会明确报告。
+运行时生命周期用同一个操作集合跟踪发送和完整创建事务。dispose 关闭准入，中止并等待这些操作，然后释放 roster 中的 live child 及其后代。非 Team child 不受影响。已获准操作共享一个 `disposalTimeoutMs` 等待期限；随后每个 Team 的 child drain 各有独立期限。此值不是整个服务关闭的总时限。清理失败会明确报告。
 
 </details>
 

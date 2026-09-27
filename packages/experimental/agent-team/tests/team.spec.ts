@@ -86,7 +86,6 @@ function content(text: string) {
 interface TeamServiceInternals {
   readonly lifecycle: TeamRuntimeLifecycle
   readonly roster: {
-    readonly inFlightCreations: Set<Promise<unknown>>
     checkpointInitialPrompt(childId: SessionId, messageId: string, signal: AbortSignal): Promise<void>
     reconcileProvisioning(root: Agent, signal: AbortSignal): Promise<void>
     recoverFor(agent: Agent, signal: AbortSignal): Promise<void>
@@ -1173,13 +1172,11 @@ describe('Team direct messages and waiting', () => {
     expect(ctx.get('agentTeams')).toBeUndefined()
   })
 
-  it('retains an in-flight creation cleanup failure during disposal', async () => {
+  it('retains an in-flight operation failure during disposal', async () => {
     const { ctx } = await setup([])
     const internal = teamInternals(ctx)
-    const cleanupFailure = new Error('creation cleanup failed')
-    const rejected = Promise.reject(cleanupFailure)
-    void rejected.catch(() => undefined)
-    internal.roster.inFlightCreations.add(rejected)
+    const cleanupFailure = new Error('operation failed')
+    void internal.lifecycle.track(Promise.reject(cleanupFailure))
 
     await expect(internal.disposeRuntime()).rejects.toMatchObject({ errors: [cleanupFailure] })
   })
@@ -1304,12 +1301,13 @@ describe('Team direct messages and waiting', () => {
     expect(ctx.get('agentTeams')).toBeUndefined()
   })
 
-  it('shares one settlement deadline across sends and creations', async () => {
+  it('shares one settlement deadline across admitted operations', async () => {
     const { ctx } = await setup([], { disposalTimeoutMs: 25 })
     const internal = teamInternals(ctx)
-    const release = Promise.withResolvers<undefined>()
-    void internal.lifecycle.track(release.promise)
-    internal.roster.inFlightCreations.add(release.promise)
+    const first = Promise.withResolvers<undefined>()
+    const second = Promise.withResolvers<undefined>()
+    void internal.lifecycle.track(first.promise)
+    void internal.lifecycle.track(second.promise)
     vi.useFakeTimers()
     let failure: unknown
     const disposal = internal.disposeRuntime().catch((error: unknown) => { failure = error })
@@ -1318,17 +1316,17 @@ describe('Team direct messages and waiting', () => {
       expect(failure).toBeInstanceOf(AggregateError)
       await disposal
     } finally {
-      release.resolve(undefined)
-      internal.roster.inFlightCreations.delete(release.promise)
+      first.resolve(undefined)
+      second.resolve(undefined)
       vi.useRealTimers()
       await disposal
     }
   })
 
-  it('bounds disposal while an admitted creation ignores cancellation', async () => {
+  it('bounds disposal while an admitted operation ignores cancellation', async () => {
     const { ctx, lead } = await setup([], { disposalTimeoutMs: 25 })
     const internal = teamInternals(ctx)
-    internal.roster.inFlightCreations.add(new Promise(() => {}))
+    void internal.lifecycle.track(new Promise(() => {}))
 
     await expect(internal.disposeRuntime()).rejects.toBeInstanceOf(AggregateError)
     await expect(ctx.agentTeams.spawnTeammate(lead, {
