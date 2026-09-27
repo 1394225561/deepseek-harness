@@ -234,12 +234,7 @@ export class TeamService extends Service {
     if (Buffer.byteLength(JSON.stringify(content), 'utf8') > this.config.maxMessageBytes) {
       throw new TeamError(`team message exceeds ${this.config.maxMessageBytes} bytes`, 'TEAM_MESSAGE_TOO_LARGE')
     }
-    const source = {
-      kind: 'team-relay' as const,
-      form: 'relay' as const,
-      senderSessionId: caller.id,
-      senderName: membership.name,
-    }
+    const source = { kind: 'agent-message' as const, form: 'relay' as const, senderSessionId: caller.id }
     let messageId
     if (target.id === root.id) {
       const input = createUserMessage({ content, source })

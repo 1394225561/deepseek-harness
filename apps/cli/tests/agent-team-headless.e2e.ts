@@ -106,7 +106,7 @@ describe('dsh run with Agent Teams enabled', () => {
       expect(eventTypes).not.toContain('team/message/queued')
       expect(eventTypes).not.toContain('team/message/delivered')
       const peerMessages = parsed.flatMap(log => log.filter(record => record.type === 'user/message'
-        && (record.data as { source: { kind: string } }).source.kind === 'team-relay'))
+        && (record.data as { source: { kind: string } }).source.kind === 'agent-message'))
       expect(peerMessages).toHaveLength(2)
       const taskEvents = root!.filter(record => record.type === 'team/task')
       expect(taskEvents.filter((record) => {

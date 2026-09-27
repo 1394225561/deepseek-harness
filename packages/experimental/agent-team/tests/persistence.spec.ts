@@ -106,13 +106,12 @@ async function stack(
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(SubagentService)
   await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
-  const teamFiber = await ctx.plugin(TeamService)
+  await ctx.plugin(TeamService)
   const adapter = new MockAdapter(script)
   ctx.llm.registerAdapter(['mock'], adapter)
   return {
     ctx,
     adapter,
-    teamFiber,
     dispose: async () => { await disposeContext(ctx) },
   }
 }
@@ -160,7 +159,7 @@ async function persistedChild(
 
 for (const backend of backends) {
   describe(`${backend.name} Agent Teams recovery`, () => {
-    it('restores a directly accepted target inbox and sender attribution without the Team producer', async () => {
+    it('restores a directly accepted target inbox from its flushed crash prefix without Team intent', async () => {
       const liveRoot = mkdtempSync(join(tmpdir(), 'dsh-team-live-'))
       const crashRoot = mkdtempSync(join(tmpdir(), 'dsh-team-crash-'))
       roots.push(liveRoot, crashRoot)
@@ -181,14 +180,13 @@ for (const backend of backends) {
       expect(lead.session.snapshotEvents().some(event => event.type.startsWith('team/message/'))).toBe(false)
       await first.dispose()
       const second = await stack(backend, crashRoot, [textResponse('recovered')])
-      await second.teamFiber.dispose()
       const writer = await second.ctx.sessionPersistence.create(prefix.header)
       try { await writer.append(prefix.events) } finally { await writer.close() }
       const resumed = await second.ctx.agents.resume({
         resumeSessionId: child.id, agentOptions: { provider: 'mock', model: 'mock' },
       })
       expect(resumed.agent.inbox.nextStep.find(message => message.id === receipt.messageId)).toMatchObject({
-        source: { kind: 'team-relay', form: 'relay', senderSessionId: lead.id, senderName: 'lead' },
+        source: { kind: 'agent-message', form: 'relay', senderSessionId: lead.id },
         content: [{ type: 'text', text: 'Team message from lead:' }, { type: 'text', text: 'accepted before crash' }],
       })
       await resumed.dispose()

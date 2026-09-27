@@ -890,7 +890,7 @@ describe('Team direct messages and waiting', () => {
       expect(Object.keys(result)).toEqual(['messageId'])
       expect(result.messageId).toBeTypeOf('string')
       expect(agent.inbox.nextStep.find(message => message.id === result.messageId)).toMatchObject({
-        source: { kind: 'team-relay', form: 'relay', senderSessionId: alpha.id, senderName: 'alpha' },
+        source: { kind: 'agent-message', form: 'relay', senderSessionId: alpha.id },
         content: [{ type: 'text', text: 'Team message from alpha:' }, { type: 'text', text: 'update' }],
       })
     }
@@ -913,7 +913,7 @@ describe('Team direct messages and waiting', () => {
     for (const [id, receipt] of [[lead.id, leadResult], [beta.member.id, peerResult]] as const) {
       const messages = (await storedEvents(ctx, id)).flatMap(event => event.type === 'user/message' ? [event.data] : [])
       expect(messages.find(message => message.id === receipt.messageId)).toMatchObject({
-        source: { kind: 'team-relay', senderSessionId: alpha.id, senderName: 'alpha' },
+        source: { kind: 'agent-message', senderSessionId: alpha.id },
       })
     }
   })

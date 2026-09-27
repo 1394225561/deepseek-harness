@@ -25,7 +25,7 @@ interface TeamMemberSnapshot {
 
 ## 消息与历史 mailbox
 
-新发送返回 inbox 接收结果或拒绝。目标保存 Team 所属的 `team-relay` source，包含真实发送者 Session id 和成员名称。正文前缀也向模型标明发送者。Team 不为新消息提供 outbox 或重发去重。[包约定](../../packages/experimental/agent-team/README.zh.md#understand-the-implementation)定义持久化。以下 mailbox 类型继续可读，以便历史 Lead 日志仍能回放；Team 不投递其中的 pending 记录。
+新发送返回 inbox 接收结果或拒绝。目标保存现有 `agent-message` source，包含真实发送者 Session id 和发送者名称正文前缀。Team 不为新消息提供 outbox 或重发去重。[包约定](../../packages/experimental/agent-team/README.zh.md#understand-the-implementation)定义持久化。以下 mailbox 类型继续可读，以便历史 Lead 日志仍能回放；Team 不投递其中的 pending 记录。
 
 ```ts type-equiv
 /** One peer message recorded by the historical Team mailbox. */
