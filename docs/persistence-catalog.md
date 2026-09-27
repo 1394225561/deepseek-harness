@@ -982,7 +982,7 @@ Source: [`packages/experimental/agent-team/src/types.ts:230`](../packages/experi
 #### `team/message/delivered` — log-only
 
 ```ts persistence-catalog
-/** Compatibility acknowledgement that the target Session recorded a historical message. */
+/** Historical acknowledgement that the target Session recorded a queued message. */
 'team/message/delivered': {
   version: 2
   teamId: TeamId

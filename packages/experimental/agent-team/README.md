@@ -114,7 +114,6 @@ The [Agent Teams Agent Note](../../../.agents/notes/implemented/feature/2026-08-
 |---|---|
 | [`src/index.ts`](src/index.ts) | Plugin entry: `Config` schema, service registration, recovery scheduling |
 | [`src/roster.ts`](src/roster.ts) | Team identity, membership resolution, provisioning, and roster teardown |
-| [`src/legacy-delivery.ts`](src/legacy-delivery.ts) | Compatibility drain for historical queued messages |
 | [`src/task-board.ts`](src/task-board.ts) | Task CAS commands, DAG validation, and derived views |
 | [`src/journal.ts`](src/journal.ts) | Serialized Lead-log transactions and commit notification |
 | [`src/projection.ts`](src/projection.ts) | Strict replay projection that decodes and validates Team events and publishes the `agentTeam` client view |
@@ -129,7 +128,7 @@ Every ordinary runtime root is the implicit Lead of a Team whose `TeamId` equals
 
 ### Direct messages and historical compatibility
 
-`sendMessage()` checks exact caller membership, rejects self-messaging, and bounds the complete sender-framed UTF-8 content. It returns the existing inbox identity and emits Team activity only after acceptance. The target stores `agent-message` source with the actual `senderSessionId`; the first content block is `Team message from <name>:`. No new `team/message/queued` or `team/message/delivered` records are written for these sends. Team adds no per-target send ordering or historical catch-up barrier; delivery order belongs to the target inbox. The client recognizes the recorded Team framing for its message title and icon.
+`sendMessage()` checks exact caller membership, rejects self-messaging, and bounds the complete sender-framed UTF-8 content. It returns the existing inbox identity and emits Team activity only after acceptance. The target stores `agent-message` source with the actual `senderSessionId`; the first content block is `Team message from <name>:`. No new `team/message/queued` or `team/message/delivered` records are written for these sends. Team adds no per-target send ordering; delivery order belongs to the target inbox. The client recognizes the recorded Team framing for its message title and icon.
 
 Lead delivery calls `Agent.steer()` directly. Teammate delivery uses the continuation owner's host-only Steer path, which preserves the Team sender source while authorizing the Lead-to-child edge and cold-resuming inactive targets. Sibling messages never impersonate the Lead through the public adjacent-Agent messaging operation.
 
@@ -143,15 +142,15 @@ Tasks are complete versioned snapshots; every mutation carries `expectedRevision
 
 ### Durability model
 
-Roster and task mutations append `team/member` and `team/task` to the exact live Lead Session and flush before reporting success or waking waiters. Historical `team/message/queued` records remain readable; compatibility recovery writes `team/message/delivered` only after confirming a persisted target receipt. All four event types are log-only: they never enter the conversation surface, so derived model history is untouched by coordination records. Session event `seq` and `time` own ordering and timing; snapshots do not duplicate them. The `./invariant` companion replays each candidate Team event against its committed prefix and rejects invalid transitions before append.
+Roster and task mutations append `team/member` and `team/task` to the exact live Lead Session and flush before reporting success or waking waiters. Historical `team/message/queued` and `team/message/delivered` records remain readable; Team writes neither. All four event types are log-only: they never enter the conversation surface, so derived model history is untouched by coordination records. Session event `seq` and `time` own ordering and timing; snapshots do not duplicate them. The `./invariant` companion replays each candidate Team event against its committed prefix and rejects invalid transitions before append.
 
-Historical mailbox events and `team-message` sources remain readable. Plugin load schedules recovery for loaded members. Lead creation drains all old queued-minus-delivered records; teammate creation drains only records addressed to that teammate. Recovery checks target history and pending inbox before retrying and flushes target receipts before legacy acknowledgements. A failed item blocks later old items for the same target in that pass. Failures warn and retain pending data until a later load or Agent creation; there is no receipt listener or periodic retry. New sends do not directly invoke or await recovery; cold resume still triggers the target’s Agent-creation hook. Recovery passes serialize per Team and participate in disposal.
+Historical mailbox events and `team-message` sources remain readable, and the projection still reports queued-minus-delivered records. Team never delivers or acknowledges them: a historical message that its target had not recorded stays undelivered.
 
 Mailbox projection and checkpoint admission preserve every decoded JSON field of accepted content outside the locally declared validators, including an own `__proto__` key. Local field checks cover `text`, `reasoning`, `image`, and `tool-call`; accepted unknown tags remain opaque. Team projection cache version 4 rebuilds checkpoints from earlier cache versions from the Session log; the Session format version is unchanged.
 
 ### Disposal
 
-Disposal closes admission, aborts and awaits admitted sends, creations, and legacy recovery, then releases the roster’s live children and descendants. Non-Team children remain untouched. Admitted operations share one `disposalTimeoutMs` settlement deadline; each subsequent Team child drain has its own deadline. This value is not a whole-service shutdown bound. Cleanup failures are reported.
+Disposal closes admission, aborts and awaits admitted sends and creations, then releases the roster’s live children and descendants. Non-Team children remain untouched. Admitted operations share one `disposalTimeoutMs` settlement deadline; each subsequent Team child drain has its own deadline. This value is not a whole-service shutdown bound. Cleanup failures are reported.
 
 </details>
 
@@ -191,7 +190,7 @@ Each peer delivery adds the sender prefix plus message content to the target his
 
 #### KV Cache effect
 
-Peer messages append after the target's reusable history prefix. Cold resume reuses the persisted conversation before appending a previously undelivered item.
+Peer messages append after the target's reusable history prefix. Cold resume reuses the persisted conversation before appending the new message.
 
 ## Known Limitations and Deferred Work
 
@@ -206,7 +205,7 @@ These limits describe what a team cannot do yet or what needs special operationa
 - **Advisory write scopes** — Bash, formatters, code generators, and direct external writers can bypass filesystem version checks; Leads must coordinate ownership and review the final diff.
 - **Flat immutable roster** — only the Lead creates direct teammates; there is no nested Team, rename, deletion, or name reuse.
 - **No automatic ownership release** — inactivity, interruption, process exit, and failed work do not release a task owner.
-- **No send retry guarantee** — Team does not retain or deduplicate new attempts; concurrent processes over one Team are unsupported. Historical mailbox decoding and recovery remain necessary for accepted old data.
+- **No send retry guarantee** — Team does not retain or deduplicate new attempts; concurrent processes over one Team are unsupported. Historical queued messages that never reached their target are not delivered.
 
 <a id="dev-note"></a>
 ### Dev Note

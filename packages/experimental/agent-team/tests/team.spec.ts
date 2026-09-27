@@ -15,7 +15,6 @@ import * as SubagentFork from '@deepseek-ai/dsh-subagent-fork-in-process'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import TeamService, { TeamError, TeamId, TeamMessageId, TeamTaskId } from '../src/index.ts'
-import type { LegacyTeamDelivery } from '../src/legacy-delivery.ts'
 import { TeamRuntimeLifecycle } from '../src/lifecycle.ts'
 import { teamProjectionDefinition } from '../src/projection.ts'
 import type { TeamMemberSnapshot, TeamMessageSnapshot, TeamTaskSnapshot } from '../src/index.ts'
@@ -85,19 +84,18 @@ function content(text: string) {
 }
 
 interface TeamServiceInternals {
-  readonly legacyDelivery: LegacyTeamDelivery
   readonly lifecycle: TeamRuntimeLifecycle
   readonly roster: {
     readonly inFlightCreations: Set<Promise<unknown>>
     checkpointInitialPrompt(childId: SessionId, messageId: string, signal: AbortSignal): Promise<void>
     reconcileProvisioning(root: Agent, signal: AbortSignal): Promise<void>
+    recoverFor(agent: Agent, signal: AbortSignal): Promise<void>
     liveChildrenByRoot(): Map<Agent, SessionId[]>
   }
   readonly journal: {
     state(root: Agent): unknown
   }
   disposeRuntime(): Promise<void>
-  recoverFor(agent: Agent): Promise<void>
   scheduleRecovery(agent: Agent): void
 }
 
@@ -879,161 +877,6 @@ describe('Team shared task DAG', () => {
   })
 })
 
-describe('Historical Team message compatibility', () => {
-  function enqueue(lead: Agent, id: string, targetId: SessionId): TeamMessageSnapshot {
-    const message = { id: TeamMessageId(id), senderId: lead.id, senderName: 'lead', targetId, content: content(id) }
-    lead.session.append('team/message/queued', { version: 2, teamId: TeamId(lead.id), message })
-    return message
-  }
-
-  it('drains historical Lead and live-target messages once, including accepted pending receipts', async () => {
-    const { ctx, lead } = await setup(['hang', 'hang'])
-    const target = await waitRunning(ctx, (await spawn(ctx, lead, 'target')).member.id)
-    const recovery = teamInternals(ctx).legacyDelivery
-    await recovery.recoverFor(lead, SIGNAL)
-    const recorded = enqueue(lead, 'recorded', target.id)
-    target.steer(createUserMessage({ content: recorded.content, source: {
-      kind: 'team-message', teamId: TeamId(lead.id), messageId: recorded.id, senderId: lead.id, senderName: 'lead',
-    } }))
-    enqueue(lead, 'live', target.id)
-    enqueue(lead, 'report', lead.id)
-    await recovery.recoverFor(lead, SIGNAL)
-    expect(durable(lead).pendingMessages).toEqual([])
-    const count = target.inbox.nextStep.length
-    await recovery.recoverFor(lead, SIGNAL)
-    expect(target.inbox.nextStep).toHaveLength(count)
-    lead.cancel({ kind: 'parent' })
-    await lead.whenIdle()
-  })
-
-  it('recovers only the newly created teammate target through the Agent lifecycle', async () => {
-    const { ctx, lead } = await setup(['hang', textResponse('initial'), textResponse('other initial'), 'hang'])
-    lead.followup(createUserMessage({ content: content('busy lead'), source: { kind: 'user' } }))
-    await waitRunning(ctx, lead.id)
-    const target = await spawn(ctx, lead, 'target')
-    await waitNoAgent(ctx, target.member.id)
-    const other = await spawn(ctx, lead, 'other')
-    await waitNoAgent(ctx, other.member.id)
-    const message = enqueue(lead, 'target-old', target.member.id)
-    const untouched = enqueue(lead, 'other-old', other.member.id)
-    const accepted = await ctx.agentTeams.sendMessage(lead, { target: 'target', content: content('resume'), signal: SIGNAL })
-    await vi.waitFor(() => { expect(durable(lead).pendingMessages.map(item => item.id)).toEqual([untouched.id]) })
-    const live = await waitRunning(ctx, target.member.id)
-    const recorded = [...live.inbox.nextStep, ...live.session.snapshotEvents().flatMap(event => event.type === 'user/message' ? [event.data] : [])]
-    expect(recorded.some(item => item.id === accepted.messageId)).toBe(true)
-    expect(recorded.filter(item => item.source.kind === 'team-message' && item.source.messageId === message.id)).toHaveLength(1)
-    expect(ctx.agents.get(other.member.id)).toBeUndefined()
-  })
-
-  it('retains a second teammate recovery trigger while another target is checkpointing', async () => {
-    const { ctx, lead } = await setup(['hang', textResponse('first'), textResponse('second'), 'hang', 'hang'])
-    lead.followup(createUserMessage({ content: content('busy lead'), source: { kind: 'user' } }))
-    await waitRunning(ctx, lead.id)
-    const first = await spawn(ctx, lead, 'first')
-    await waitNoAgent(ctx, first.member.id)
-    const second = await spawn(ctx, lead, 'second')
-    await waitNoAgent(ctx, second.member.id)
-    enqueue(lead, 'first-old', first.member.id)
-    enqueue(lead, 'second-old', second.member.id)
-    const entered = Promise.withResolvers<undefined>()
-    const release = Promise.withResolvers<undefined>()
-    const flush = ctx.sessions.flush.bind(ctx.sessions)
-    const checkpoint = vi.spyOn(ctx.sessions, 'flush').mockImplementation(async (session) => {
-      if (session.id === first.member.id && session.snapshotEvents().some(event => event.type === 'agent/inbox/spliced'
-        && event.data.inserted.some(message => message.source.kind === 'team-message'))) {
-        entered.resolve(undefined)
-        await release.promise
-      }
-      return await flush(session)
-    })
-    try {
-      await ctx.agentTeams.sendMessage(lead, { target: 'first', content: content('resume first'), signal: SIGNAL })
-      await entered.promise
-      await ctx.agentTeams.sendMessage(lead, { target: 'second', content: content('resume second'), signal: SIGNAL })
-      release.resolve(undefined)
-      await vi.waitFor(() => { expect(durable(lead).pendingMessages).toEqual([]) })
-    } finally {
-      release.resolve(undefined)
-      checkpoint.mockRestore()
-    }
-  })
-
-  it('retains old pending data and reports inspection and delivery failures', async () => {
-    const { ctx, lead } = await setup([textResponse('done')])
-    const target = await spawn(ctx, lead, 'target')
-    await waitNoAgent(ctx, target.member.id)
-    const warnings: string[] = []
-    vi.spyOn(ctx.logger, 'warn').mockImplementation((value) => { warnings.push(String(value)) })
-    const message = enqueue(lead, 'retry-old', target.member.id)
-    const later = enqueue(lead, 'later-old', target.member.id)
-    const recovery = teamInternals(ctx).legacyDelivery
-    const open = vi.spyOn(ctx.sessionPersistence, 'open').mockRejectedValueOnce(new Error('read unavailable'))
-    await recovery.recoverFor(lead, SIGNAL)
-    open.mockRestore()
-    const delivery = vi.spyOn(hostDeliverer(ctx), deliverSubagentPrompt)
-      .mockRejectedValueOnce(new Error('delivery unavailable'))
-    await recovery.recoverFor(lead, SIGNAL)
-    delivery.mockRestore()
-    expect(durable(lead).pendingMessages.map(item => item.id)).toEqual([message.id, later.id])
-    expect(warnings.join(' ')).toContain('read unavailable')
-    expect(warnings.join(' ')).toContain('delivery unavailable')
-  })
-
-  it('checks persisted acceptance when a recovered target settles before dispatch returns', async () => {
-    const { ctx, lead } = await setup([textResponse('initial'), textResponse('resumed')])
-    const target = await spawn(ctx, lead, 'target')
-    await waitNoAgent(ctx, target.member.id)
-    const recovery = teamInternals(ctx).legacyDelivery
-    enqueue(lead, 'cold-old', target.member.id)
-    const runtime = hostDeliverer(ctx)
-    const deliver = runtime[deliverSubagentPrompt].bind(runtime)
-    const delivery = vi.spyOn(runtime, deliverSubagentPrompt).mockImplementation(async (...args) => {
-      const id = await deliver(...args)
-      await waitNoAgent(ctx, target.member.id)
-      return id
-    })
-    await recovery.recoverFor(lead, SIGNAL)
-    expect(durable(lead).pendingMessages).toEqual([])
-    delivery.mockImplementation(async () => createUserMessage({ content: content('cancelled acceptance'), source: { kind: 'user' } }).id)
-    enqueue(lead, 'not-retained', target.member.id)
-    await recovery.recoverFor(lead, SIGNAL)
-    expect(durable(lead).pendingMessages.map(item => item.id)).toEqual(['not-retained'])
-  })
-
-  it('waits for recovery receipt checkpoints during disposal and retains a removed receipt', async () => {
-    const { ctx, lead } = await setup(['hang'])
-    const recovery = teamInternals(ctx).legacyDelivery
-    await recovery.recoverFor(lead, SIGNAL)
-    enqueue(lead, 'removed', lead.id)
-    const entered = Promise.withResolvers<undefined>()
-    const release = Promise.withResolvers<undefined>()
-    const flush = ctx.sessions.flush.bind(ctx.sessions)
-    const flushSpy = vi.spyOn(ctx.sessions, 'flush').mockImplementationOnce(async (session) => {
-      entered.resolve(undefined)
-      await release.promise
-      lead.cancel({ kind: 'parent' })
-      await lead.whenIdle()
-      return await flush(session)
-    })
-    const recovering = recovery.recoverFor(lead, SIGNAL)
-    try {
-      await entered.promise
-      let disposed = false
-      const disposal = teamInternals(ctx).disposeRuntime().then(() => { disposed = true })
-      await Promise.resolve(undefined)
-      expect(disposed).toBe(false)
-      release.resolve(undefined)
-      await recovering
-      await disposal
-      expect(durable(lead).pendingMessages.map(item => item.id)).toEqual(['removed'])
-    } finally {
-      release.resolve(undefined)
-      await recovering
-      flushSpy.mockRestore()
-    }
-  })
-})
-
 describe('Team direct messages and waiting', () => {
   it('accepts peer and Lead messages with actual sender identity and wakes Team waits', async () => {
     const { ctx, lead, teamFiber } = await setup(['hang', 'hang', 'hang'])
@@ -1461,13 +1304,12 @@ describe('Team direct messages and waiting', () => {
     expect(ctx.get('agentTeams')).toBeUndefined()
   })
 
-  it('shares one settlement deadline across sends, creations, and legacy recovery', async () => {
+  it('shares one settlement deadline across sends and creations', async () => {
     const { ctx } = await setup([], { disposalTimeoutMs: 25 })
     const internal = teamInternals(ctx)
     const release = Promise.withResolvers<undefined>()
     void internal.lifecycle.track(release.promise)
     internal.roster.inFlightCreations.add(release.promise)
-    const pending = vi.spyOn(internal.legacyDelivery, 'pendingDispatches').mockReturnValue([release.promise])
     vi.useFakeTimers()
     let failure: unknown
     const disposal = internal.disposeRuntime().catch((error: unknown) => { failure = error })
@@ -1478,7 +1320,6 @@ describe('Team direct messages and waiting', () => {
     } finally {
       release.resolve(undefined)
       internal.roster.inFlightCreations.delete(release.promise)
-      pending.mockRestore()
       vi.useRealTimers()
       await disposal
     }
@@ -1509,7 +1350,7 @@ describe('Team direct messages and waiting', () => {
     const warnings: string[] = []
     ctx.logger.warn = ((value: unknown) => { warnings.push(String(value)) }) as typeof ctx.logger.warn
     const internal = teamInternals(ctx)
-    internal.recoverFor = async () => { throw new Error('forced recovery failure') }
+    internal.roster.recoverFor = async () => { throw new Error('forced recovery failure') }
     internal.scheduleRecovery(lead)
     await Promise.resolve(undefined)
     await Promise.resolve(undefined)
@@ -1529,7 +1370,7 @@ describe('Team direct messages and waiting', () => {
 
     const entered = Promise.withResolvers<undefined>()
     const release = Promise.withResolvers<undefined>()
-    internal.recoverFor = async () => {
+    internal.roster.recoverFor = async () => {
       entered.resolve(undefined)
       await release.promise
       throw new Error('failure after disposal')

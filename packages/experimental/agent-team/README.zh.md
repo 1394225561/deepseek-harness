@@ -114,7 +114,6 @@ Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息�
 |---|---|
 | [`src/index.ts`](src/index.ts) | 插件入口：`Config` schema、服务注册、恢复调度 |
 | [`src/roster.ts`](src/roster.ts) | Team 身份、成员关系解析、provisioning 与 roster 拆除 |
-| [`src/legacy-delivery.ts`](src/legacy-delivery.ts) | 历史排队消息的兼容补送 |
 | [`src/task-board.ts`](src/task-board.ts) | 任务 CAS 命令、DAG 校验与派生视图 |
 | [`src/journal.ts`](src/journal.ts) | 串行化的 Lead 日志事务与提交通知 |
 | [`src/projection.ts`](src/projection.ts) | 解码并校验 Team 事件、发布 `agentTeam` 客户端视图的严格回放投影 |
@@ -129,7 +128,7 @@ Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息�
 
 ### 直接消息与历史兼容
 
-`sendMessage()` 检查确切调用方的成员身份，拒绝自发消息，并限制包含发送者前缀的完整 UTF-8 内容大小。它返回现有 inbox 身份，并仅在接收后发出 Team activity。目标保存带真实 `senderSessionId` 的 `agent-message` source；首个内容块为 `Team message from <name>:`。这些发送不写入新的 `team/message/queued` 或 `team/message/delivered` 记录。Team 不额外保证同目标发送顺序，也不等待历史消息补送；投递顺序由目标 inbox 管理。客户端识别已记录的 Team 前缀，以展示对应消息标题和图标。
+`sendMessage()` 检查确切调用方的成员身份，拒绝自发消息，并限制包含发送者前缀的完整 UTF-8 内容大小。它返回现有 inbox 身份，并仅在接收后发出 Team activity。目标保存带真实 `senderSessionId` 的 `agent-message` source；首个内容块为 `Team message from <name>:`。这些发送不写入新的 `team/message/queued` 或 `team/message/delivered` 记录。Team 不额外保证同目标发送顺序；投递顺序由目标 inbox 管理。客户端识别已记录的 Team 前缀，以展示对应消息标题和图标。
 
 投递给 Lead 时直接调用 `Agent.steer()`。投递给 teammate 时使用 continuation owner 的 host-only Steer 路径；该路径会保留 Team 发送者 source，同时授权 Lead-to-child edge 并冷恢复 inactive target。sibling 消息绝不会通过公开的相邻 Agent 消息操作伪装成 Lead。
 
@@ -143,15 +142,15 @@ Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息�
 
 ### 持久性模型
 
-roster 与任务变更将 `team/member` 和 `team/task` 追加到精确的 live Lead 会话，并在报告成功或唤醒等待者之前 flush。历史 `team/message/queued` 记录仍可读取；兼容恢复仅在确认目标回执已持久化后写入 `team/message/delivered`。这四种事件仅存在于日志：它们从不进入会话表面，因此派生模型历史不受协作记录影响。顺序与时间由会话事件的 `seq` 与 `time` 负责，快照不重复保存。`./invariant` 伴生插件把每条候选 Team 事件对照已提交前缀回放，并在 append 前拒绝非法转换。
+roster 与任务变更将 `team/member` 和 `team/task` 追加到精确的 live Lead 会话，并在报告成功或唤醒等待者之前 flush。历史 `team/message/queued` 与 `team/message/delivered` 记录仍可读取；Team 不再写入这两种记录。这四种事件仅存在于日志：它们从不进入会话表面，因此派生模型历史不受协作记录影响。顺序与时间由会话事件的 `seq` 与 `time` 负责，快照不重复保存。`./invariant` 伴生插件把每条候选 Team 事件对照已提交前缀回放，并在 append 前拒绝非法转换。
 
-历史 mailbox 事件与 `team-message` source 仍可读取。插件加载为已加载的成员安排恢复。Lead 创建补送全部旧 queued-minus-delivered 记录；teammate 创建仅补送发给该 teammate 的记录。恢复在重试前检查目标历史与 pending inbox，并在旧确认前 flush 目标回执。一项失败会阻止本轮中发给同一目标的后续旧项。失败会记录警告，并保留 pending 数据，直到后续加载或 Agent 创建；没有收据监听器或定时重试。新发送不直接调用或等待恢复；冷恢复仍会触发目标的 Agent 创建钩子。恢复按 Team 串行执行，并参与 dispose 等待。
+历史 mailbox 事件与 `team-message` source 仍可读取，投影仍报告 queued-minus-delivered 记录。Team 不会投递或确认这些记录：目标尚未记录的历史消息保持未投递。
 
 Mailbox 投影与 checkpoint 准入保留本地声明的校验器之外获准内容中全部已解码 JSON 字段，包括自有 `__proto__` 键。本地字段检查覆盖 `text`、`reasoning`、`image` 和 `tool-call`；获准的未知标签保持不透明。Team 投影缓存版本 4 从 Session 日志重建较早缓存版本的 checkpoint；Session 格式版本保持不变。
 
 ### Dispose
 
-dispose 关闭准入，中止并等待已获准的发送、创建和旧消息恢复，然后释放 roster 中的 live child 及其后代。非 Team child 不受影响。已获准操作共享一个 `disposalTimeoutMs` 等待期限；随后每个 Team 的 child drain 各有独立期限。此值不是整个服务关闭的总时限。清理失败会明确报告。
+dispose 关闭准入，中止并等待已获准的发送和创建，然后释放 roster 中的 live child 及其后代。非 Team child 不受影响。已获准操作共享一个 `disposalTimeoutMs` 等待期限；随后每个 Team 的 child drain 各有独立期限。此值不是整个服务关闭的总时限。清理失败会明确报告。
 
 </details>
 
@@ -191,7 +190,7 @@ dispose 关闭准入，中止并等待已获准的发送、创建和旧消息恢
 
 #### KV Cache 影响
 
-Peer 消息追加在 target 可复用历史前缀之后。冷恢复会先复用持久对话，再追加尚未投递的消息。
+Peer 消息追加在 target 可复用历史前缀之后。冷恢复会先复用持久对话，再追加新消息。
 
 ## 已知限制与延期工作
 
@@ -206,7 +205,7 @@ Peer 消息追加在 target 可复用历史前缀之后。冷恢复会先复用�
 - **write scope 仅作提示**——Bash、formatter、代码生成器与直接外部写入可以绕过文件版本检查；Lead 必须协调 owner 并检查最终 diff。
 - **扁平且不可变的 roster**——只有 Lead 可以创建直接 teammate；不支持嵌套 Team、重命名、删除或名字复用。
 - **不会自动释放 owner**——成员不活动、interrupt、进程退出与工作失败都不会释放任务 owner。
-- **无发送重试保证**——Team 不保留新尝试，也不对其去重；不支持多个进程同时操作一个 Team。已接受的旧数据仍需要历史 mailbox 解码与恢复。
+- **无发送重试保证**——Team 不保留新尝试，也不对其去重；不支持多个进程同时操作一个 Team。从未到达目标的历史排队消息不会被投递。
 
 <a id="dev-note"></a>
 ### 开发备注

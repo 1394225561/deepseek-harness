@@ -12,7 +12,7 @@ Status: implemented
 
 新的 Team 发送返回获准 inbox 的 `MessageId` 或抛出错误。它们使用 live Lead Steer 或 host-only subagent Steer adapter，通过现有 `agent-message` source 保留真实发送者，并在正文中保留成员名称。接收遵循普通 Agent 的持久化策略，既不确认模型已处理，也不增加同步 flush 保证。Team 不保留尚未接收的发送意图，不在重启后重试，也不对显式重发去重。
 
-历史 pending 消息保留兼容恢复、回执检查和旧确认。删除其 decoder 或放弃 pending 数据会违反已接受的 Session 历史。这部分取代了 [Agent Teams](../feature/2026-08-05-agent-teams.zh.md) 的 mailbox 决策；roster 和任务决策仍由原记录负责。[包参考](../../../../packages/experimental/agent-team/README.zh.md#understand-the-implementation)定义恢复触发条件和限制。
+历史 mailbox 记录继续可解码并参与投影，使现有 Lead 日志能够回放，但 Team 不再投递或确认它们。该包是实验性的，没有稳定性承诺；另设一条带回执检查、同目标排序和独立 dispose 等待的投递路径，其代价高于它能补回的未投递旧消息。这部分取代了 [Agent Teams](../feature/2026-08-05-agent-teams.zh.md) 的 mailbox 决策；roster 和任务决策仍由原记录负责。[包参考](../../../../packages/experimental/agent-team/README.zh.md#understand-the-implementation)定义由此产生的限制。
 
 ## 考虑过的替代方案
 
@@ -20,8 +20,8 @@ Status: implemented
 
 **扩大公开的 sibling 消息权限。** Team 成员关系与 subagent parent 权限不同。host adapter 授权确切的 Lead，不会错误归属发送者，也不会扩大公开 child control 权限。
 
-**丢弃历史 pending 项。** 停止新写入并不解除已经接收的旧意图。在有明确的数据退役策略之前，兼容读取与补送必须保留。
+**重启后补送历史 pending 项。** 这能兑现已接收的旧意图，但会在 Agent inbox 之外保留第二个投递 owner，而这些数据只由实验性的可选组合写入。同时删除 decoder 的方案也被否决，因为包含 mailbox 记录的 Lead 日志将无法回放。
 
 ## 后果
 
-新尝试只有一个身份和一个 inbox owner。失败尝试会向调用方报告，且没有 Team 重试承诺。历史日志仍需要 decoder、投影和恢复代码；新发送不直接调用或等待恢复，但冷恢复会触发目标的 Agent 创建恢复钩子。测试覆盖直接 Lead／peer 接收、冷恢复、发送者归属、失败、取消、dispose（资源释放）和历史回执恢复。
+新尝试只有一个身份和一个 inbox owner。失败尝试会向调用方报告，且没有 Team 重试承诺。历史日志仍需要 decoder 与投影代码。升级前目标尚未记录的历史消息永远不会被投递。测试覆盖直接 Lead／peer 接收、冷恢复、发送者归属、失败、取消、dispose（资源释放），以及重启后历史排队消息仍可读取且不被投递。

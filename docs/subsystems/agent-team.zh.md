@@ -25,10 +25,10 @@ interface TeamMemberSnapshot {
 
 ## 消息与历史 mailbox
 
-新发送返回 inbox 接收结果或拒绝。目标保存现有 `agent-message` source，包含真实发送者 Session id 和发送者名称正文前缀。Team 不为新消息提供 outbox 或重发去重。[包约定](../../packages/experimental/agent-team/README.zh.md#understand-the-implementation)定义持久化与恢复。以下 mailbox 类型继续可读，以支持历史 pending 投递。
+新发送返回 inbox 接收结果或拒绝。目标保存现有 `agent-message` source，包含真实发送者 Session id 和发送者名称正文前缀。Team 不为新消息提供 outbox 或重发去重。[包约定](../../packages/experimental/agent-team/README.zh.md#understand-the-implementation)定义持久化。以下 mailbox 类型继续可读，以便历史 Lead 日志仍能回放；Team 不投递其中的 pending 记录。
 
 ```ts type-equiv
-/** One peer message retained until its target Session records it. */
+/** One peer message recorded by the historical Team mailbox. */
 interface TeamMessageSnapshot {
   readonly id: TeamMessageId
   readonly senderId: SessionId
@@ -40,10 +40,10 @@ interface TeamMessageSnapshot {
 
 每条消息都会尝试 Steer 投递。running target 在最近的步骤边界收到消息，inactive target 在已加载时启动一个轮次，否则冷恢复。调用方不能选择其他模式，因此持久记录不存储调度方式。
 
-历史 `team-message` source 保留旧消息 id 与发送者归属。兼容恢复使用这些字段在目标 inbox 与历史之间避免重复投递。
+历史 `team-message` source 保留旧消息 id 与发送者归属；客户端用它们展示消息标题和图标。
 
 ```ts type-equiv
-/** Source retained by the target Session for durable mailbox de-duplication. */
+/** Source recorded by a target Session for one historical Team mailbox delivery. */
 interface TeamMessageSource {
   readonly kind: 'team-message'
   readonly teamId: TeamId
@@ -122,7 +122,7 @@ interface TeamProjection {
 
 ## 回放
 
-`agentTeam` Session 投影把一个 Root Session 回放成roster、任务板与历史 queued-minus-delivered mailbox。它按 `TeamId` 选取记录，因此普通 fork 继承的 event 保留 ancestor id，绝不会进入新 Root 的状态。Session event 的 `seq` 与 `time` 继续负责顺序和时间记录，Team snapshot 不再重复保存它们。roster 与 task 读取以 view 形式到达调用方，而 pending 邮件仅供投递与恢复内部使用。包 [README](../../packages/experimental/agent-team/README.zh.md)负责 operation、authorization、recovery 和限制行为。
+`agentTeam` Session 投影把一个 Root Session 回放成roster、任务板与历史 queued-minus-delivered mailbox。它按 `TeamId` 选取记录，因此普通 fork 继承的 event 保留 ancestor id，绝不会进入新 Root 的状态。Session event 的 `seq` 与 `time` 继续负责顺序和时间记录，Team snapshot 不再重复保存它们。roster 与 task 读取以 view 形式到达调用方，而 pending 邮件不对调用方公开。包 [README](../../packages/experimental/agent-team/README.zh.md)负责 operation、authorization、recovery 和限制行为。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 

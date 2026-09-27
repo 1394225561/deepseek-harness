@@ -10,7 +10,6 @@ import { TeamActivity } from './activity.ts'
 import { errorMessage, TeamError } from './error.ts'
 import { TeamJournal } from './journal.ts'
 import { TeamRuntimeLifecycle } from './lifecycle.ts'
-import { LegacyTeamDelivery } from './legacy-delivery.ts'
 import { teamProjectionDefinition } from './projection.ts'
 import { resolveActiveMember, TeamRoster } from './roster.ts'
 import type { TeamMembership } from './roster.ts'
@@ -71,7 +70,6 @@ export class TeamService extends Service {
   private readonly lifecycle: TeamRuntimeLifecycle
   private readonly journal: TeamJournal
   private readonly roster: TeamRoster
-  private readonly legacyDelivery: LegacyTeamDelivery
   private readonly tasks: TeamTaskBoard
 
   constructor(ctx: Context, config: Config = {}) {
@@ -90,11 +88,6 @@ export class TeamService extends Service {
     this.lifecycle = new TeamRuntimeLifecycle(this.config.disposalTimeoutMs)
     this.journal = new TeamJournal(ctx, (root) => { this.activity.notify(TeamId(root.id)) })
     this.roster = new TeamRoster(ctx, this.journal, this.lifecycle, this.config.maxMembers)
-    this.legacyDelivery = new LegacyTeamDelivery(
-      ctx,
-      this.journal,
-      this.roster,
-    )
     this.tasks = new TeamTaskBoard(this.journal, this.config.maxTasks)
 
     ctx.on('agent/created', ({ agent }) => { this.scheduleRecovery(agent) })
@@ -254,21 +247,15 @@ export class TeamService extends Service {
     return { messageId }
   }
 
-  /** Queue one contained recovery pass after publication has unwound. */
+  /** Queue one contained provisioning reconciliation after publication has unwound. */
   private scheduleRecovery(agent: Agent): void {
     queueMicrotask(() => {
       if (this.lifecycle.disposed) return
-      void this.recoverFor(agent).catch((error: unknown) => {
+      void this.roster.recoverFor(agent, this.lifecycle.signal).catch((error: unknown) => {
         if (this.lifecycle.disposed) return
         this.ctx.logger.warn(`Agent Teams recovery for "${agent.id}" failed: ${errorMessage(error)}`)
       })
     })
-  }
-
-  /** Reconcile provisioning and drain only historical Team mailbox records. */
-  private async recoverFor(agent: Agent): Promise<void> {
-    await this.roster.recoverFor(agent, this.lifecycle.signal)
-    await this.legacyDelivery.recoverFor(agent, this.lifecycle.signal)
   }
 
   /** Stop Team-owned live branches and release every waiter before service disposal completes. */
@@ -280,7 +267,6 @@ export class TeamService extends Service {
     await this.lifecycle.settle([
       ...this.lifecycle.pending(),
       ...this.roster.pendingCreations(),
-      ...this.legacyDelivery.pendingDispatches(),
     ], failures)
     for (const [root, childIds] of this.roster.liveChildrenByRoot()) {
       try {

@@ -30,7 +30,7 @@ The `spawn_teammate` tool prefixes the initial task with a user-role `<system-re
 
 ## Provisioning and recovery
 
-Creation first appends and flushes a `team/member` provisioning snapshot in the Lead Session, then starts the reserved continuable child through the selected fresh or fork provider. Failure before initial inbox acceptance appends a failed snapshot. Success flushes the child's accepted inbox item before appending active. Recovery recognizes that initial message while it is still pending or after it enters user-message history. Names are reserved by the first provisioning record and never reused, including after failure. Disposal closes admission, aborts and awaits admitted creation and mailbox-dispatch transactions, then stops every live child recorded by the roster; a failed child remains cleanup-owned until its Activation exits, and cleanup rejection fails disposal.
+Creation first appends and flushes a `team/member` provisioning snapshot in the Lead Session, then starts the reserved continuable child through the selected fresh or fork provider. Failure before initial inbox acceptance appends a failed snapshot. Success flushes the child's accepted inbox item before appending active. Recovery recognizes that initial message while it is still pending or after it enters user-message history. Names are reserved by the first provisioning record and never reused, including after failure. Disposal closes admission, aborts and awaits admitted creation and send operations, then stops every live child recorded by the roster; a failed child remains cleanup-owned until its Activation exits, and cleanup rejection fails disposal.
 
 A root recovery reconciles an unterminated provisioning record against the child's independently persisted Session. Matching direct-parent and continuable descriptors plus a recorded initial user message prove successful admission and produce active; absence, corruption, mismatched provider/lineage, or a missing admitted message produces failed. The creator re-reads the terminal phase under the same Lead-log serializer; if recovery marked failed while creation succeeded, it drains the child and reports a provisioning conflict instead of retaining an orphan. This avoids reconstructing an initial prompt that was never retained in the Team log and contains plugin-reload races.
 
@@ -38,11 +38,11 @@ Fresh children have no inherited conversation. Fork children capture the Lead's 
 
 ## Mailbox and task transactions
 
-The historical Lead-log mailbox remains a compatibility format: queued records retain their stable identity and sender, and recovery acknowledges only flushed target inbox/history receipts. New sends follow the [direct inbox decision](../simplification/2026-09-26-team-direct-inbox.md). Team payload validation and legacy recovery remain necessary for accepted old records.
+The historical Lead-log mailbox remains a readable format: queued and delivered records keep their stable identity and sender, and Team payload validation still applies to them. Team no longer delivers or acknowledges them; new sends follow the [direct inbox decision](../simplification/2026-09-26-team-direct-inbox.md).
 
 Unknown mailbox content stays as decoded JSON during event projection and checkpoint admission. Validation inspects its type without rebuilding its fields, because generic object parsing can omit a valid own `__proto__` key. Locally declared content variants undergo structural validation; opaque plugin fields do not gain Team semantics. Cache invalidation is necessary because parser correction alone cannot recover keys omitted from cached state. The [Team documentation](../../../../packages/experimental/agent-team/README.md) owns the restore behavior.
 
-`send_message` uses Steer for running, idle, and cold targets. New sends return inbox acceptance; historical mailbox recovery retains receipt checks and legacy acknowledgements. The [Team Steer messaging decision](../../archived/simplification/2026-08-30-team-send-message-steer.md) records the single-tool scheduling rationale.
+`send_message` uses Steer for running, idle, and cold targets. New sends return inbox acceptance. The [Team Steer messaging decision](../../archived/simplification/2026-08-30-team-send-message-steer.md) records the single-tool scheduling rationale.
 
 Shared tasks are complete snapshots with Team-local ids and monotonic revisions. Every mutation carries `expectedRevision`. Any member creates, reads, or claims a ready unowned task; the owner or Lead edits and transitions it, while only the Lead assigns another member. Numeric task ids remain within the safe-integer allocation range, and exhaustion fails without reusing an id. Dependencies must name non-deleted tasks and form a complete DAG. Deleted tasks are retained tombstones. `writeScopes` are normalized path prefixes that produce overlap diagnostics but never block claim or authorize a write.
 
@@ -74,13 +74,13 @@ Publication requires `apply` to return a new state object per applied Team event
 
 **Enable Teams in the default catalog.** Rejected because scoped Team controls would shadow same-named legacy globals and unsolicited delegation would add latency and token cost to simple tasks. An opt-in profile bundle inserts Team and disables the legacy controls without adding Team packages to shipped dependency graphs.
 
-**Use an in-memory board and mailbox.** Roster and task state must survive settlement, HMR, and interruption. Historical accepted mailbox intent retains compatibility recovery; new message ownership follows the target inbox.
+**Use an in-memory board and mailbox.** Roster and task state must survive settlement, HMR, and interruption. Historical mailbox records stay readable; message ownership follows the target inbox.
 
 **Return Team tool results as untyped JSON.** Rejected because an undeclared result type lets `execute` drift from the value the model is promised without a compiler error, and it invites indentation that costs tokens on every roster, task, and receipt. Each Team tool therefore declares its complete result schema and one shared helper renders it compactly.
 
 ## Testing
 
-Package tests cover Team authority, provisioning durability, task transitions, direct inbox acceptance, sender attribution, lifecycle cancellation, and historical mailbox recovery. The keyless Team profile snapshot pins the policy, tools, and workflow; the CLI composition test checks persisted Team and child logs.
+Package tests cover Team authority, provisioning durability, task transitions, direct inbox acceptance, sender attribution, lifecycle cancellation, and historical mailbox readability. The keyless Team profile snapshot pins the policy, tools, and workflow; the CLI composition test checks persisted Team and child logs.
 
 Model-facing member identities and availability follow the [tool projection decision](../simplification/2026-09-15-model-agent-availability-and-team-targets.md); service residency and durable identity remain distinct.
 
@@ -88,6 +88,6 @@ Model-facing member identities and availability follow the [tool projection deci
 
 The Lead Session retains whole task/member snapshots and historical mailbox records. This favors inspectable recovery over compact deltas; deleted and delivered history remains append-only until broader Session retention applies.
 
-An active roster member can be non-resident, so `inactive` is not failure and sends can incur cold-resume latency. Admission failures reject new sends. Failed historical deliveries remain pending for compatibility recovery. Failed provisioning permanently consumes its name and member slot.
+An active roster member can be non-resident, so `inactive` is not failure and sends can incur cold-resume latency. Admission failures reject new sends. Historical pending mail is never delivered. Failed provisioning permanently consumes its name and member slot.
 
 Coordination reduces likely checkout conflicts but cannot eliminate writes outside filesystem compare-and-set tools. The final diff and tests remain the Lead's integration boundary.

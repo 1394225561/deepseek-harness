@@ -25,10 +25,10 @@ Every member starts in `provisioning` and reaches exactly one terminal roster ph
 
 ## Messages and historical mailbox
 
-New sends return inbox acceptance or reject. The target stores the existing `agent-message` source with the real sender Session id and a sender-name content prefix. Team has no new-message outbox or resend deduplication. The [package contract](../../packages/experimental/agent-team/README.md#understand-the-implementation) defines persistence and recovery. The following mailbox types remain readable for historical pending delivery.
+New sends return inbox acceptance or reject. The target stores the existing `agent-message` source with the real sender Session id and a sender-name content prefix. Team has no new-message outbox or resend deduplication. The [package contract](../../packages/experimental/agent-team/README.md#understand-the-implementation) defines persistence. The following mailbox types remain readable so historical Lead logs still replay; Team does not deliver their pending records.
 
 ```ts type-equiv
-/** One peer message retained until its target Session records it. */
+/** One peer message recorded by the historical Team mailbox. */
 interface TeamMessageSnapshot {
   readonly id: TeamMessageId
   readonly senderId: SessionId
@@ -40,10 +40,10 @@ interface TeamMessageSnapshot {
 
 Every message attempts Steer delivery. A running target receives it at the nearest step boundary; an inactive target starts a turn if loaded or cold-resumes otherwise. Scheduling is not stored in the durable record because callers cannot select another mode.
 
-Historical `team-message` sources retain the legacy message id and sender attribution. Compatibility recovery uses these fields to avoid duplicate delivery across target inbox and history.
+Historical `team-message` sources retain the old message id and sender attribution; the client uses them for the message title and icon.
 
 ```ts type-equiv
-/** Source retained by the target Session for durable mailbox de-duplication. */
+/** Source recorded by a target Session for one historical Team mailbox delivery. */
 interface TeamMessageSource {
   readonly kind: 'team-message'
   readonly teamId: TeamId
@@ -122,7 +122,7 @@ interface TeamProjection {
 
 ## Replay
 
-The `agentTeam` Session projection replays one root Session into the roster, task board, and historical queued-minus-delivered mailbox. It selects records by `TeamId`, so events inherited by an ordinary fork retain the ancestor id and never enter the new root's state. Session event `seq` and `time` remain the ordering and timing record; Team snapshots do not duplicate them. Roster and task reads reach callers as views; pending mail stays internal to delivery and recovery. The package [README](../../packages/experimental/agent-team/README.md) owns operation, authorization, recovery, and limit behavior.
+The `agentTeam` Session projection replays one root Session into the roster, task board, and historical queued-minus-delivered mailbox. It selects records by `TeamId`, so events inherited by an ordinary fork retain the ancestor id and never enter the new root's state. Session event `seq` and `time` remain the ordering and timing record; Team snapshots do not duplicate them. Roster and task reads reach callers as views; pending mail is not exposed to callers. The package [README](../../packages/experimental/agent-team/README.md) owns operation, authorization, recovery, and limit behavior.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 

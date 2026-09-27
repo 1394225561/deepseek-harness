@@ -125,7 +125,7 @@ declare module '@deepseek-ai/dsh-session-projection/types' {
   }
 }
 
-/** One peer message retained until its target Session records it. */
+/** One peer message recorded by the historical Team mailbox. */
 export interface TeamMessageSnapshot {
   readonly id: TeamMessageId
   readonly senderId: SessionId
@@ -134,7 +134,7 @@ export interface TeamMessageSnapshot {
   readonly content: ContentBlock[]
 }
 
-/** Source retained by the target Session for durable mailbox de-duplication. */
+/** Source recorded by a target Session for one historical Team mailbox delivery. */
 export interface TeamMessageSource {
   readonly kind: 'team-message'
   readonly teamId: TeamId
@@ -232,7 +232,7 @@ declare module '@deepseek-ai/dsh-session/types' {
     'team/task': { version: 2; teamId: TeamId; task: TeamTaskSnapshot }
     /** Historical mailbox enqueue; new sends use the target Agent inbox. */
     'team/message/queued': { version: 2; teamId: TeamId; message: TeamMessageSnapshot }
-    /** Compatibility acknowledgement that the target Session recorded a historical message. */
+    /** Historical acknowledgement that the target Session recorded a queued message. */
     'team/message/delivered': {
       version: 2
       teamId: TeamId

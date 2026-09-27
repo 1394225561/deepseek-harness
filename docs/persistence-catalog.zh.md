@@ -984,7 +984,7 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 #### `team/message/delivered` — log-only
 
 ```ts persistence-catalog
-/** Compatibility acknowledgement that the target Session recorded a historical message. */
+/** Historical acknowledgement that the target Session recorded a queued message. */
 'team/message/delivered': {
   version: 2
   teamId: TeamId
