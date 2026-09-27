@@ -47,27 +47,16 @@ describe('Turn trigger notices', () => {
   })
 
   it.each([
-    [en, 'Team message received'],
-    [zh, '收到团队消息'],
-  ])('preserves the Team title and icon for a direct inbox relay', (locale, title) => {
+    [en, 'Task message received'],
+    [zh, '收到任务消息'],
+  ])('presents Team relays as Agent messages while retaining the sender name', (locale, title) => {
     const node = trigger({ kind: 'agent-message', form: 'relay', senderSessionId: 'sender' })
     node.data.content = [{ type: 'text', text: 'Team message from reviewer-2:' }, { type: 'text', text: 'Ready.' }]
-    expect(turnTriggerDetails(node.data)).toEqual({ title: 'message.trigger.team', icon: 'team' })
+    expect(turnTriggerDetails(node.data)).toEqual({ title: 'message.trigger.agent', icon: 'agent' })
     const view = render(<TurnTriggerNodeView node={node} t={makeTranslate(locale)} />)
     expect(view.getByRole('button').textContent).toContain(title)
     fireEvent.click(view.getByRole('button'))
     expect(view.container.querySelector('[data-context-text]')?.textContent).toContain('Team message from reviewer-2:')
-  })
-
-  it.each([
-    [{ kind: 'agent-message', form: 'notice' }, ['Team message from reviewer:']],
-    [{ kind: 'agent-message', form: 'relay' }, ['Ordinary message', 'Team message from reviewer:']],
-    [{ kind: 'agent-message', form: 'relay' }, ['Team message from reviewer: extra text']],
-    [{ kind: 'agent-message', form: 'relay' }, []],
-  ])('keeps other Agent messages in the generic presentation', (source, texts) => {
-    const node = trigger(source)
-    node.data.content = texts.map(text => ({ type: 'text', text }))
-    expect(turnTriggerDetails(node.data)).toEqual({ title: 'message.trigger.agent', icon: 'agent' })
   })
 
   it.each([

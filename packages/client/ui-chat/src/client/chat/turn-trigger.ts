@@ -14,7 +14,7 @@ function field(source: Record<string, unknown>, key: string): string {
 }
 
 /**
- * Describe a waking message using its source and recognized producer framing.
+ * Describe a waking message using its recorded source.
  * @param node - durable context, including the original notification body.
  * @returns localized title key and source-family icon.
  */
@@ -32,14 +32,10 @@ export function turnTriggerDetails(node: ContextMessageNode): {
       icon = 'goal'
       break
     }
-    case 'agent-message': {
-      const first = node.content[0]
-      const team = field(source, 'form') === 'relay' && first?.type === 'text'
-        && /^Team message from [a-z0-9]+(?:-[a-z0-9]+)*:$/u.test(first.text)
-      title = team ? 'message.trigger.team' : 'message.trigger.agent'
-      icon = team ? 'team' : 'agent'
+    case 'agent-message':
+      title = 'message.trigger.agent'
+      icon = 'agent'
       break
-    }
     case 'team-message':
       title = 'message.trigger.team'
       icon = 'team'
