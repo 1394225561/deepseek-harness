@@ -293,12 +293,6 @@ function CatalogRows({
             toggleBranch(entry.id)
           }
         }
-        const openAside = (event: MouseEvent<HTMLButtonElement>): void => {
-          event.preventDefault()
-          event.stopPropagation()
-          openChildAside({ parentSessionId, childSessionId: entry.id, mode: entry.mode })
-          closeCatalog()
-        }
         const toggle = (event: MouseEvent<HTMLButtonElement>): void => {
           event.preventDefault()
           event.stopPropagation()
@@ -359,7 +353,12 @@ function CatalogRows({
                       type="button"
                       className={css.sidebarButton}
                       aria-label={t('open.sidebar.aria', { label })}
-                      onClick={openAside}
+                      onClick={(event) => {
+                        event.preventDefault()
+                        event.stopPropagation()
+                        openChildAside({ parentSessionId, childSessionId: entry.id, mode: entry.mode })
+                        closeCatalog()
+                      }}
                       onKeyDown={(event) => { event.stopPropagation() }}
                     >
                       <IconChevronRightOutlineRegular />
