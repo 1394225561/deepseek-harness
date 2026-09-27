@@ -25,7 +25,7 @@ Every member starts in `provisioning` and reaches exactly one terminal roster ph
 
 ## Messages and historical mailbox
 
-New sends return inbox acceptance or reject. The target stores the existing `agent-message` source with the real sender Session id and a sender-name content prefix. Team has no new-message outbox or resend deduplication. The [package contract](../../packages/experimental/agent-team/README.md#understand-the-implementation) defines persistence. The following mailbox types remain readable so historical Lead logs still replay; Team does not deliver their pending records.
+New sends return inbox acceptance or reject. The target stores Team-owned `team-relay` source with the real sender Session id and member name. The content prefix also names the sender for the model. Team has no new-message outbox or resend deduplication. The [package contract](../../packages/experimental/agent-team/README.md#understand-the-implementation) defines persistence. The following mailbox types remain readable so historical Lead logs still replay; Team does not deliver their pending records.
 
 ```ts type-equiv
 /** One peer message recorded by the historical Team mailbox. */

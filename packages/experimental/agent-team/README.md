@@ -128,7 +128,7 @@ Every ordinary runtime root is the implicit Lead of a Team whose `TeamId` equals
 
 ### Direct messages and historical compatibility
 
-`sendMessage()` checks exact caller membership, rejects self-messaging, and bounds the complete sender-framed UTF-8 content. It returns the existing inbox identity and emits Team activity only after acceptance. The target stores `agent-message` source with the actual `senderSessionId`; the first content block is `Team message from <name>:`. No new `team/message/queued` or `team/message/delivered` records are written for these sends. Team adds no per-target send ordering; delivery order belongs to the target inbox. The client presents these messages with the ordinary Agent title and icon; the message body retains the sender name.
+`sendMessage()` checks exact caller membership, rejects self-messaging, and bounds the complete sender-framed UTF-8 content. It returns the existing inbox identity and emits Team activity only after acceptance. The target stores Team-owned `team-relay` source with the actual `senderSessionId` and `senderName`; the first content block is `Team message from <name>:`. No new `team/message/queued` or `team/message/delivered` records are written for these sends. Team adds no per-target send ordering; delivery order belongs to the target inbox. The client selects the Team title and icon from `source.kind`; the message body retains the sender name.
 
 Lead delivery calls `Agent.steer()` directly. Teammate delivery uses the continuation owner's host-only Steer path, which preserves the Team sender source while authorizing the Lead-to-child edge and cold-resuming inactive targets. Sibling messages never impersonate the Lead through the public adjacent-Agent messaging operation.
 

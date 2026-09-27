@@ -145,6 +145,15 @@ export interface TeamMessageSource {
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {
+    /** Sender attribution survives reading without the Team producer.
+     * @persistenceAttribution
+     */
+    'team-relay': {
+      readonly kind: 'team-relay'
+      readonly form: 'relay'
+      readonly senderSessionId: SessionId
+      readonly senderName: string
+    }
     'team-message': TeamMessageSource
   }
 }

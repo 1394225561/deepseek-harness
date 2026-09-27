@@ -31,6 +31,7 @@ describe('Turn trigger notices', () => {
     [{ kind: 'goal' }, 'goal', 'Continuing goal'],
     [{ kind: 'agent-message' }, 'agent', 'Task message received'],
     [{ kind: 'team-message' }, 'team', 'Team message received'],
+    [{ kind: 'team-relay' }, 'team', 'Team message received'],
     [{ kind: 'subagent-settled' }, 'subagent', 'Subtask status updated'],
     [{ kind: 'webhook', provider: 'github' }, 'github', 'GitHub event received'],
     [{ kind: 'webhook', provider: 'custom' }, 'webhook', 'External event received'],
@@ -47,16 +48,22 @@ describe('Turn trigger notices', () => {
   })
 
   it.each([
-    [en, 'Task message received'],
-    [zh, '收到任务消息'],
-  ])('presents Team relays as Agent messages while retaining the sender name', (locale, title) => {
-    const node = trigger({ kind: 'agent-message', form: 'relay', senderSessionId: 'sender' })
+    [en, 'Team message received'],
+    [zh, '收到团队消息'],
+  ])('presents Team relays from their recorded source while retaining the sender name', (locale, title) => {
+    const node = trigger({ kind: 'team-relay', form: 'relay', senderSessionId: 'sender', senderName: 'reviewer-2' })
     node.data.content = [{ type: 'text', text: 'Team message from reviewer-2:' }, { type: 'text', text: 'Ready.' }]
-    expect(turnTriggerDetails(node.data)).toEqual({ title: 'message.trigger.agent', icon: 'agent' })
+    expect(turnTriggerDetails(node.data)).toEqual({ title: 'message.trigger.team', icon: 'team' })
     const view = render(<TurnTriggerNodeView node={node} t={makeTranslate(locale)} />)
     expect(view.getByRole('button').textContent).toContain(title)
     fireEvent.click(view.getByRole('button'))
     expect(view.container.querySelector('[data-context-text]')?.textContent).toContain('Team message from reviewer-2:')
+  })
+
+  it('does not classify Agent messages by Team-looking content', () => {
+    const node = trigger({ kind: 'agent-message', form: 'relay', senderSessionId: 'sender' })
+    node.data.content = [{ type: 'text', text: 'Team message from reviewer-2:' }]
+    expect(turnTriggerDetails(node.data)).toEqual({ title: 'message.trigger.agent', icon: 'agent' })
   })
 
   it.each([

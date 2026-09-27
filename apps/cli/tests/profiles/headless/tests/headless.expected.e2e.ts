@@ -788,14 +788,14 @@ describe('headless stream-json snapshots', () => {
               if (typeof message !== 'object' || message === null || Array.isArray(message)) return false
               const source = (message as JsonObject).source
               return typeof source === 'object' && source !== null && !Array.isArray(source)
-                && (source as JsonObject).kind === 'agent-message'
+                && (source as JsonObject).kind === 'team-relay'
             })
         })
         const steeredMessageIndex = implementerRows.findIndex((row) => {
           if (row.type !== 'user/message') return false
           const source = (row.data as JsonObject).source
           return typeof source === 'object' && source !== null && !Array.isArray(source)
-            && (source as JsonObject).kind === 'agent-message'
+            && (source as JsonObject).kind === 'team-relay'
         })
         const openTurnStart = implementerRows.findLastIndex((row, index) => (
           index < steeredMessageIndex && row.type === 'turn/start'

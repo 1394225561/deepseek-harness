@@ -128,7 +128,7 @@ Lead 可以停止 teammate 的当前轮次，而不会删除其排队的消息�
 
 ### 直接消息与历史兼容
 
-`sendMessage()` 检查确切调用方的成员身份，拒绝自发消息，并限制包含发送者前缀的完整 UTF-8 内容大小。它返回现有 inbox 身份，并仅在接收后发出 Team activity。目标保存带真实 `senderSessionId` 的 `agent-message` source；首个内容块为 `Team message from <name>:`。这些发送不写入新的 `team/message/queued` 或 `team/message/delivered` 记录。Team 不额外保证同目标发送顺序；投递顺序由目标 inbox 管理。客户端使用普通 Agent 消息标题和图标展示这些消息；正文保留发送者名称。
+`sendMessage()` 检查确切调用方的成员身份，拒绝自发消息，并限制包含发送者前缀的完整 UTF-8 内容大小。它返回现有 inbox 身份，并仅在接收后发出 Team activity。目标保存 Team 所属的 `team-relay` source，包含真实 `senderSessionId` 和 `senderName`；首个内容块为 `Team message from <name>:`。这些发送不写入新的 `team/message/queued` 或 `team/message/delivered` 记录。Team 不额外保证同目标发送顺序；投递顺序由目标 inbox 管理。客户端依据 `source.kind` 选择 Team 标题和图标；正文保留发送者名称。
 
 投递给 Lead 时直接调用 `Agent.steer()`。投递给 teammate 时使用 continuation owner 的 host-only Steer 路径；该路径会保留 Team 发送者 source，同时授权 Lead-to-child edge 并冷恢复 inactive target。sibling 消息绝不会通过公开的相邻 Agent 消息操作伪装成 Lead。
 
