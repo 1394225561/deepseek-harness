@@ -315,7 +315,7 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
       terminal,
       inspector,
       spec.graceMs,
-      this.internals.platform ?? process.platform,
+      platform,
       owner,
       scope?.resolveOutcome,
       activity,
