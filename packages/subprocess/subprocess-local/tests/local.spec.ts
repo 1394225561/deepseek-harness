@@ -6,6 +6,7 @@ import { basename, dirname, join, relative, resolve } from 'node:path'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { Context } from '@deepseek-ai/cordis'
+import type { IPtyForkOptions, IWindowsPtyForkOptions } from 'node-pty'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import type { SubprocessSpawnSpec, SubprocessTerminalHandle, SubprocessTerminalSpawnSpec } from '@deepseek-ai/dsh-subprocess'
 import { childEnv } from '../src/spawn.ts'
@@ -501,7 +502,9 @@ describe('LocalSubprocessRuntime', () => {
       write: () => {},
       kill: () => {},
     }
-    const nodePtySpawn = vi.fn(() => terminal)
+    const nodePtySpawn = vi.fn((
+      _file: string, _args: string[], _options: IPtyForkOptions | IWindowsPtyForkOptions,
+    ) => terminal)
     const inspector = {
       foregroundPgid: () => undefined,
       isStdinWaiting: () => false,
