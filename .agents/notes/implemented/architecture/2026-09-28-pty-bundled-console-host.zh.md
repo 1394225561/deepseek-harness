@@ -31,3 +31,7 @@ Windows 没有精确的 stdin-wait 档：`WindowsProcessInspector.isStdinWaiting
 Windows PTY 分配现在依赖 node-pty 自带的 OpenConsole 二进制。桌面端运行时文件策略已经保留 `node-pty/prebuilds/win32-x64/conpty/conpty.dll` 与 `OpenConsole.exe`，且包按自身 addon 位置解析它们，因此打包后的桌面运行时仍然可用；该策略现在对终端分配是承重的，不只是为了保留源码分发内容。
 
 控制台信号保持文档化的行为：SIGINT 仍以 `\x03` 输入写入投递、由控制台宿主转成控制台级 CTRL_C 事件，Windows inspector 未变。分配到的进程 id 仍然指向 shell：在池机器上 `pty.pid` 解析为 `pwsh.exe`，且与 shell 自己的 `$PID` 在两种控制台宿主下都相等。node-pty 把 `useConptyDll` 标为实验性，因此 node-pty 升级可能改变它；一条单测钉住该选项：`win32` 上存在、其它平台不存在。
+
+## 测试
+
+`packages/subprocess/subprocess-local/tests/local.spec.ts` 按平台钉住该选项：`win32` 上存在、POSIX 平台上不存在。池侧的端到端信号是下一次 master push 的 `serial / windows (self-hosted standby)` run——它的 send 将按提示符路径结算，而不是等满静默上界。e2e、snapshot、sandbox 三类不适用：本改动只选择 PTY 后端，本身不产生模型可见或产品用户可见的输出。打包路径由桌面端运行时 payload smoke 覆盖，它从保留了自带控制台宿主的运行时树里验证 PTY 输出。
