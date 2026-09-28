@@ -534,7 +534,7 @@ describe('LocalSubprocessRuntime', () => {
       const windows = await spawn('win32')
       expect(nodePtySpawn).toHaveBeenLastCalledWith('shell', [], expect.objectContaining({ useConptyDll: true }))
       const posix = await spawn('darwin')
-      expect(nodePtySpawn).toHaveBeenLastCalledWith('shell', [], expect.not.objectContaining({ useConptyDll: true }))
+      expect(nodePtySpawn.mock.calls.at(-1)?.[2]).not.toHaveProperty('useConptyDll')
 
       for (const listener of exitListeners) listener({ exitCode: 0 })
       await Promise.all([windows.done, posix.done])

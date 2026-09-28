@@ -279,13 +279,10 @@ export class LocalSubprocessRuntime extends SubprocessRuntime {
       cols: spec.cols,
       cwd: spec.cwd,
       env: { ...activity?.env ?? env, TERM: spec.terminalType },
-      // The console host the Windows images of the master standby pool provide
-      // (Server 2022, Windows 10 22H2) replays a prompt line that scrolled out of
-      // the viewport as `\ndsh>\x1b[1C`: the trailing space becomes a cursor
-      // move, so the persistent-pwsh readiness path never sees its `dsh> ` tail
-      // and every send waits out the silence tier. The console host node-pty
-      // ships emits the tail verbatim; the desktop runtime file policy already
-      // keeps its conpty assets.
+      // Windows' own console host (the standby pool runs Server 2022 and
+      // Windows 10 22H2) renders the persistent-pwsh prompt tail in a form the
+      // readiness path cannot match; the console host node-pty ships emits it
+      // verbatim, see [Agent Note](../../../../.agents/notes/implemented/bug-fix/2026-09-28-pty-bundled-console-host.md).
       ...(platform === 'win32' ? { useConptyDll: true } : {}),
     }
     let scope: ReturnType<typeof prepareLinuxTerminalScope> | undefined
