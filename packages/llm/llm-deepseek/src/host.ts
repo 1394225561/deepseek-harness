@@ -29,6 +29,9 @@ export function registerDeepSeekProvider<C extends DeepSeekConnectionOptions>(
     onExtensionsOmitted: ({ provider, model, fields, error }) => {
       ctx.logger.warn(`llm-deepseek: sending route "${provider}/${model}" without request extension fields ${fields.join(', ')} because they failed to serialize: %o`, error)
     },
+    onExtensionsUnaccepted: ({ provider, model, error }) => {
+      ctx.logger.warn(`llm-deepseek: route "${provider}/${model}" request extension acceptance failed; contributors resend on a later request: %o`, error)
+    },
     resolveAttachments: () => ctx.get('attachments'),
     resolveImageAccess: (attachments, ref) => resolveImageAttachmentAccess(
       attachments, hostPath => ctx.get('fs')?.processPathFromHostPath(hostPath), ref,

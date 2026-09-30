@@ -99,14 +99,14 @@ describe('Messages request extensions', () => {
     expect(JSON.parse(body)).toMatchObject({ dsh_messages_test: { value: 'inventory' } })
   })
 
-  it('rejects preparation before dispatch', async () => {
+  it('sends the request without a field whose preparation throws', async () => {
     const ctx = await boot()
     ctx.deepseekLlmApiExtensions.register('dsh_messages_test', { prepare() { throw new Error('inventory unavailable') } })
-    const fetch = vi.fn<typeof globalThis.fetch>()
+    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(sse(textEvents)))
     vi.stubGlobal('fetch', fetch)
     const result = await assemble(ctx.llm.stream(options()))
-    expect(result.assembler.finish).toMatchObject({ kind: 'error', failure: { code: 'REQUEST_EXTENSION' } })
-    expect(fetch).not.toHaveBeenCalled()
+    expect(result.assembler.finish.kind).toBe('stop')
+    expect(sentBody(fetch)).not.toHaveProperty('dsh_messages_test')
   })
 
   it.each(['http', 'transport', 'stream'] as const)('records acceptance only for HTTP success despite a later %s failure', async (failure) => {
@@ -123,15 +123,22 @@ describe('Messages request extensions', () => {
     expect(accept).toHaveBeenCalledTimes(failure === 'stream' ? 1 : 0)
   })
 
-  it('retains the extension error category when acceptance fails', async () => {
+  it('logs an acceptance failure and still streams the response', async () => {
     const ctx = await boot()
+    const warnings: unknown[][] = []
+    ctx.logger.exporter({ levels: { default: LoggerLevel.WARN }, export: (message) => { if (message.type === 'warn') warnings.push(message.args) } })
+    const failure = new Error('watermark storage failed')
     ctx.deepseekLlmApiExtensions.register('dsh_messages_test', {
-      prepare: () => ({ value: { value: 'log' }, accept() { throw new Error('watermark storage failed') } }),
+      prepare: () => ({ value: { value: 'log' }, accept() { throw failure } }),
     })
     vi.stubGlobal('fetch', vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(sse(textEvents))))
     const result = await assemble(ctx.llm.stream(options()))
-    expect(result.assembler.finish).toMatchObject({ kind: 'error', failure: { code: 'REQUEST_EXTENSION' } })
-    expect(result.message.content).toEqual([])
+    expect(result.assembler.finish.kind).toBe('stop')
+    expect(warnings).toEqual([[
+      'llm-deepseek: route "deepseek-official/deepseek-v4-flash" request extension acceptance failed;'
+        + ' contributors resend on a later request: %o',
+      failure,
+    ]])
   })
 
   it('sends the base request without extension fields when they fail to serialize', async () => {
