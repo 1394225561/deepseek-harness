@@ -11,6 +11,7 @@ import sys
 import tempfile
 
 import numpy
+# NumPy testing helpers require this native extension even without upstream test directories.
 import numpy._core._multiarray_tests
 import pandas
 from docx import Document
