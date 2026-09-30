@@ -114,6 +114,41 @@ describe('DeepSeek plugin package inventory', () => {
       .resolves.toMatchObject({ fields: { dsh_plugin_packages: { version: 1, packages: [] } } })
   })
 
+  it.each(['file', 'bare'])('omits an unversioned private %s package without borrowing its parent identity', async (kind) => {
+    const { ctx, root } = await harness(undefined, true)
+    const parent = await packagePlugin(root, 'node_modules/inspector', { name: 'inspector', version: '1.0.0' })
+    const nested = await packagePlugin(root, kind === 'file' ? 'node_modules/inspector/skill' : 'node_modules/inspector-skill',
+      { name: 'inspector-skill', private: true })
+    const versioned = await packagePlugin(root, 'versioned-private', { name: 'versioned-private', private: true, version: '2.0.0' })
+    await ctx.loader.create({ name: kind === 'file' ? pathToFileURL(join(root, nested)).href : 'inspector-skill/plugin.mjs' })
+    await ctx.loader.create({ name: versioned })
+
+    const prepared = await ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL })
+    expect(prepared.fields.dsh_plugin_packages?.packages).toEqual([
+      { name: 'versioned-private', version: '2.0.0' },
+    ])
+    await ctx.loader.create({ name: parent })
+    const withParent = await ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL })
+    expect(withParent.fields.dsh_plugin_packages?.packages).toEqual([
+      { name: 'inspector', version: '1.0.0' },
+      { name: 'versioned-private', version: '2.0.0' },
+    ])
+  })
+
+  it.each([
+    { name: 'private-invalid', private: true, version: '' },
+    { name: 'private-invalid', private: true, version: null },
+    { name: 'private-invalid', private: true, version: 1 },
+    { name: '', private: true },
+    { name: 'public-unversioned' },
+  ])('rejects malformed package identity %j', async (manifest) => {
+    const { ctx, root } = await harness()
+    const plugin = await packagePlugin(root, 'invalid', manifest)
+    await ctx.loader.create({ name: plugin })
+    await expect(ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL }))
+      .rejects.toThrow('must declare non-empty name and version')
+  })
+
   it('uses the host inventory when a request has no matching or joined live agent', async () => {
     const { ctx, root } = await harness()
     const plugin = await packagePlugin(root, 'host-only', { name: 'host-only', version: '3.0.0' })

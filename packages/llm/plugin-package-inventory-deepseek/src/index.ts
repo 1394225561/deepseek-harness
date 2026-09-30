@@ -42,6 +42,7 @@ export const Config: z<Config> = z.object({
 interface PackageManifest {
   readonly name?: unknown
   readonly version?: unknown
+  readonly private?: unknown
 }
 
 interface ActiveEntry {
@@ -58,10 +59,12 @@ function barePackageName(specifier: string): string | undefined {
   return first.startsWith('@') ? `${first}/${second}` : first
 }
 
-/** Read one manifest identity, optionally treating an absent name as a loose-module marker. */
+/** Read a versioned identity; omit unversioned private packages and optional anonymous module markers. */
 function identityFromManifest(path: string, allowAnonymous: boolean): DeepSeekPluginPackageIdentity | undefined {
   const manifest = JSON.parse(readFileSync(path, 'utf8')) as PackageManifest
   if (allowAnonymous && manifest.name === undefined) return undefined
+  if (manifest.private === true && manifest.version === undefined
+    && typeof manifest.name === 'string' && manifest.name.length > 0) return undefined
   if (typeof manifest.name !== 'string' || manifest.name.length === 0
     || typeof manifest.version !== 'string' || manifest.version.length === 0) {
     throw new Error(`plugin-package-inventory-deepseek: ${path} must declare non-empty name and version`)
