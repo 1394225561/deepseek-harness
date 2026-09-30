@@ -238,7 +238,10 @@ describe('DeepSeekAdapter against a mock server', () => {
       prepareExtensions: () => Promise.reject(new Error('metadata unavailable')),
     })
     await expect(drain(failed.stream({ provider: 'deepseek-official', model: 'm', messages: [] })))
-      .rejects.toMatchObject({ code: 'REQUEST_EXTENSION' })
+      .rejects.toMatchObject({
+        code: 'REQUEST_EXTENSION',
+        message: 'DeepSeek request extension preparation failed: metadata unavailable',
+      })
 
     const collision = new DeepSeekAdapter({
       ...base,
@@ -347,7 +350,11 @@ describe('DeepSeekAdapter against a mock server', () => {
     })
 
     await expect(drain(adapter.stream({ provider: 'deepseek-official', model: 'm', messages: [] })))
-      .rejects.toMatchObject({ code: 'REQUEST_EXTENSION', cause: failure })
+      .rejects.toMatchObject({
+        code: 'REQUEST_EXTENSION',
+        message: 'DeepSeek request extension acceptance failed: watermark append failed',
+        cause: failure,
+      })
     expect(server.requests).toHaveLength(1)
   })
 

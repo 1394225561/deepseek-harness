@@ -1,14 +1,15 @@
 /** Prepare plugin-contributed request fields and commit their delivery after HTTP acceptance. */
 
-import { LlmError } from '@deepseek-ai/dsh-llm'
+import { errorChain, LlmError } from '@deepseek-ai/dsh-llm'
 import type { DeepSeekLlmApiExtensionRequest, PreparedDeepSeekLlmApiExtensions } from '@deepseek-ai/dsh-deepseek-llm-api-extensions'
 import type { DeepSeekAdapterOptions } from './types.ts'
 
 /**
  * Merge contributions without replacing Messages fields. Preparation and
- * acceptance failures report REQUEST_EXTENSION. When the merged request fails
- * to serialize, the payload is the base request alone and acceptance is a no-op,
- * so contributors resend their unaccepted state on a later request.
+ * acceptance failures report REQUEST_EXTENSION with the cause chain appended to
+ * the message. When the merged request fails to serialize, the payload is the
+ * base request alone and acceptance is a no-op, so contributors resend their
+ * unaccepted state on a later request.
  * @param body - serialized Messages request before extension fields.
  * @param options - request identity, purpose, and cancellation.
  * @param prepare - contributor registry captured for this adapter.
@@ -25,7 +26,7 @@ export async function prepareRequestExtensions(
   try {
     extensions = await prepare({ body, ...options })
   } catch (error) {
-    throw new LlmError('DeepSeek request extension preparation failed', 'REQUEST_EXTENSION', { cause: error })
+    throw new LlmError(`DeepSeek request extension preparation failed: ${errorChain(error)}`, 'REQUEST_EXTENSION', { cause: error })
   }
   const fields = Object.keys(extensions.fields)
   for (const field of fields) {
@@ -48,7 +49,7 @@ export async function prepareRequestExtensions(
       try {
         await extensions.accept()
       } catch (error) {
-        throw new LlmError('DeepSeek request extension acceptance failed', 'REQUEST_EXTENSION', { cause: error })
+        throw new LlmError(`DeepSeek request extension acceptance failed: ${errorChain(error)}`, 'REQUEST_EXTENSION', { cause: error })
       }
     },
   }
