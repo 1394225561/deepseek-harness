@@ -88,6 +88,9 @@ importers:
       '@types/node':
         specifier: ^22.20.0
         version: 22.20.0
+      '@types/papaparse':
+        specifier: ^5.5.2
+        version: 5.5.2
       '@types/spdx-expression-parse':
         specifier: ^4.0.0
         version: 4.0.0
@@ -151,6 +154,9 @@ importers:
       oxlint-tsgolint:
         specifier: 7.0.2001
         version: 7.0.2001
+      papaparse:
+        specifier: 5.5.3
+        version: 5.5.3
       pnpm:
         specifier: 11.7.0
         version: 11.7.0
