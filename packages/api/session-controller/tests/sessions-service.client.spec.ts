@@ -730,7 +730,7 @@ describe('catalog-addressed navigation', () => {
     const b = bench()
     await feedList(b, [{ id: 'root' }])
     b.mock.remote.session.projections.mockResolvedValue(ok({
-      asOfSeq: 0, values: { subagentCatalog: [{ id: sid('child'), createdAt: 1, mode: 'continuable', label: 'Child' }] },
+      kind: 'sequenced', asOfSeq: 0, values: { subagentCatalog: [{ id: sid('child'), createdAt: 1, mode: 'continuable', label: 'Child' }] },
     }))
     await b.svc.refreshProjections(sid('root'))
     const address = b.svc.subagentAddress(sid('child'))!
@@ -761,7 +761,7 @@ describe('catalog-addressed navigation', () => {
         type: 'projection', sessionId: sid('one-shot'), key: 'title', value: title, seq: 2,
       })
       b.mock.remote.session.projections.mockResolvedValue(ok({
-        asOfSeq: 0, values: { subagentCatalog: [{ id: sid('one-shot'), createdAt: 1, mode: 'one-shot' }] },
+        kind: 'sequenced', asOfSeq: 0, values: { subagentCatalog: [{ id: sid('one-shot'), createdAt: 1, mode: 'one-shot' }] },
       }))
       await b.svc.refreshProjections(sid('root'))
       expect(b.svc.list.getSnapshot().byId[sid('one-shot')]?.displayTitle).toBe(title ?? 'one-shot')
@@ -780,16 +780,16 @@ describe('catalog-addressed navigation', () => {
     b.mock.remote.session.projections.mockImplementation((payload) => {
       const { sessionId } = payload as { sessionId: SessionId }
       if (sessionId === sid('root')) {
-        return Promise.resolve(ok({ asOfSeq: 0, values: { subagentCatalog: [{ createdAt: 1,
+        return Promise.resolve(ok({ kind: 'sequenced', asOfSeq: 0, values: { subagentCatalog: [{ createdAt: 1,
           id: sid('child'), mode: 'continuable', label: 'Child',
         }] } }))
       }
       if (sessionId === sid('child')) {
-        return Promise.resolve(ok({ asOfSeq: 0, values: { title: 'Child session title', subagentCatalog: [{ createdAt: 1,
+        return Promise.resolve(ok({ kind: 'sequenced', asOfSeq: 0, values: { title: 'Child session title', subagentCatalog: [{ createdAt: 1,
           id: sid('grandchild'), mode: 'continuable', label: 'Grandchild',
         }] } }))
       }
-      return Promise.resolve(ok({ asOfSeq: 0, values: { subagentCatalog: [] } }))
+      return Promise.resolve(ok({ kind: 'sequenced', asOfSeq: 0, values: { subagentCatalog: [] } }))
     })
     await feedList(b, [
       { id: 'root' },
@@ -819,16 +819,16 @@ describe('catalog-addressed navigation', () => {
     b.mock.remote.session.projections.mockImplementation((payload) => {
       const { sessionId } = payload as { sessionId: SessionId }
       if (sessionId === sid('root')) {
-        return Promise.resolve(ok({ asOfSeq: 0, values: { subagentCatalog: [{ createdAt: 1,
+        return Promise.resolve(ok({ kind: 'sequenced', asOfSeq: 0, values: { subagentCatalog: [{ createdAt: 1,
           id: sid('child'), mode: 'continuable', label: 'Child',
         }] } }))
       }
       if (sessionId === sid('child')) {
-        return Promise.resolve(ok({ asOfSeq: 0, values: { subagentCatalog: [{ createdAt: 1,
+        return Promise.resolve(ok({ kind: 'sequenced', asOfSeq: 0, values: { subagentCatalog: [{ createdAt: 1,
           id: sid('grandchild'), mode: 'continuable', label: 'Grandchild',
         }] } }))
       }
-      return Promise.resolve(ok({ asOfSeq: 0, values: { subagentCatalog: [] } }))
+      return Promise.resolve(ok({ kind: 'sequenced', asOfSeq: 0, values: { subagentCatalog: [] } }))
     })
     await feedList(b, [{ id: 'root' }])
     await b.svc.refreshProjections(sid('root'))
@@ -907,6 +907,38 @@ describe('create', () => {
 })
 
 describe('fork', () => {
+  it.for([undefined, false, true])('forwards migration permission %s without opening the source', async (allowMigration, { bench }) => {
+    const b = bench()
+    b.mock.remote.session.fork.mockResolvedValueOnce(ok({ sessionId: sid('child') }))
+    const source = sid('source')
+    const permission = allowMigration === undefined ? {} : { allowMigration }
+
+    await expect(b.svc.fork({ sessionId: source, atSeq: 7, ...permission })).resolves.toBe(sid('child'))
+
+    expect(b.mock.remote.session.fork).toHaveBeenCalledExactlyOnceWith({ sessionId: source, atSeq: 7, ...permission })
+    expect(b.svc.binding(source)).toBeUndefined()
+    expect(b.mock.log.requests(FOLLOW)).toHaveLength(0)
+  })
+
+  it('preserves the Host migration refusal without creating or opening a Session', async ({ bench }) => {
+    const b = bench()
+    const source = sid('source')
+    const error = new RemoteError('session/migration-required', 'migration required', { sessionId: source })
+    const onCreated = vi.fn<(childId: SessionId) => void>()
+    b.mock.remote.session.fork.mockResolvedValueOnce(err(error))
+
+    const failure = await b.svc.fork({ sessionId: source, allowMigration: false, onCreated })
+      .catch((cause: unknown) => cause)
+
+    expect(failure).toBeInstanceOf(SessionForkError)
+    expect(failure).toMatchObject({ sourceSessionId: source, rpcError: error })
+    expect(b.mock.remote.session.fork).toHaveBeenCalledExactlyOnceWith({ sessionId: source, allowMigration: false })
+    expect(onCreated).not.toHaveBeenCalled()
+    expect(b.mock.remote.session.rename).not.toHaveBeenCalled()
+    expect(b.svc.list.getSnapshot().ids).toEqual([])
+    expect(b.mock.log.requests(FOLLOW)).toHaveLength(0)
+  })
+
   it('propagates a failed fork without creating or retaining a child', async ({ bench }) => {
     const b = bench()
     const error = new RemoteError('session/not-found', 'source missing', { sessionId: sid('source') })
