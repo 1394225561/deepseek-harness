@@ -1,6 +1,6 @@
 /** Boot the materialized target runtime without access to a user's Harness profile. */
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFile } from 'node:child_process'
@@ -25,15 +25,34 @@ export async function smokeDesktopRuntime(
 ): Promise<void> {
   const home = mkdtempSync(join(tmpdir(), 'dsh-desktop-smoke-'))
   const profile = join(home, 'profiles', 'desktop')
-  const host = new DesktopHostProcess(node, root, profile, undefined, { ...environment, DSH_HOME: home },
+  const hostEnvironment = {
+    ...Object.fromEntries(Object.entries(environment).filter(([name]) => !/^(?:npm|pnpm|corepack)_/iu.test(name))),
+    DSH_HOME: home, HOME: home, USERPROFILE: home,
+    XDG_CONFIG_HOME: home, XDG_CACHE_HOME: home, XDG_STATE_HOME: home,
+  }
+  const host = new DesktopHostProcess(node, root, profile, undefined, hostEnvironment,
     undefined, join(resourcesRuntime, 'primary-runtime'),
-    { pnpm: join(resourcesRuntime, 'pnpm', 'bin', 'pnpm.cjs'), nodeBin: join(resourcesRuntime, 'bin') })
+    { pnpm: join(resourcesRuntime, 'primary-runtime', 'dependencies', 'pnpm', 'bin', 'pnpm.mjs'), nodeBin: join(resourcesRuntime, 'bin') })
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     createPluginProfile(profile)
     const pluginName = 'desktop-runtime-smoke-plugin'
-    const plugin = join(profile, 'node_modules', pluginName)
+    const plugin = join(home, pluginName)
     mkdirSync(plugin, { recursive: true })
+    const installedName = 'desktop-installed-smoke-plugin'
+    const installedPlugin = join(home, installedName)
+    mkdirSync(installedPlugin)
+    writeFileSync(join(installedPlugin, 'package.json'), JSON.stringify({
+      name: installedName, version: '1.0.0', type: 'module', exports: './index.js', dsh: { bundle: { patch: './bundle.yml' } },
+    }))
+    writeFileSync(join(installedPlugin, 'index.js'), `
+export function apply(ctx) {
+  ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke-installed',
+    handler(_request, response) { response.end('installed plugin ready') } }))
+}
+`)
+    writeFileSync(join(installedPlugin, 'bundle.yml'), `- insert:\n    - id: ${installedName}\n      name: ${installedName}\n      inject: [webServer]\n`)
+    writeFileSync(join(profile, 'pnpm-workspace.yaml'), 'nodeLinker: hoisted\nautoInstallPeers: false\noffline: true\nupdateNotifier: false\n')
     const primary = join(resourcesRuntime, 'primary-runtime')
     const dependencies = workspaceDependencyPaths(primary, await readPrimaryRuntime(primary))
     await promisify(execFile)(dependencies.python, ['-I', '-B',
@@ -56,6 +75,15 @@ export function apply(ctx) {
   if (!(ctx instanceof Context)) throw new Error('desktop runtime: external plugin loaded another Cordis instance')
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke',
     handler(_request, response) { response.end('plugin route ready') } }))
+  ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke-install',
+    async handler(_request, response) {
+      try {
+        response.end(JSON.stringify(await ctx.pluginManager.installBundle(${JSON.stringify(installedPlugin)})))
+      } catch (error) {
+        response.statusCode = 500
+        response.end(inspect(error, { depth: 5 }))
+      }
+    } }))
   ctx.effect(() => ctx.webServer.register({ kind: 'exact', path: '/desktop-smoke-office-cli',
     async handler(_request, response) {
       try {
@@ -90,12 +118,13 @@ export function apply(ctx) {
   }
 }
 `)
-    writeFileSync(join(plugin, 'bundle.yml'), '- insert:\n    - id: desktop-runtime-smoke-plugin\n      name: desktop-runtime-smoke-plugin\n      inject: [webServer, officeToPdf, skills]\n')
+    writeFileSync(join(plugin, 'bundle.yml'), '- insert:\n    - id: desktop-runtime-smoke-plugin\n      name: desktop-runtime-smoke-plugin\n      inject: [webServer, officeToPdf, skills, pluginManager]\n')
+    cpSync(plugin, join(profile, 'node_modules', pluginName), { recursive: true })
     const manifest = JSON.parse(readFileSync(join(profile, 'package.json'), 'utf8')) as {
       dependencies: Record<string, string>
       dsh: { profile: { bundles: string[] } }
     }
-    manifest.dependencies[pluginName] = '1.0.0'
+    manifest.dependencies[pluginName] = `file:${plugin}`
     manifest.dsh.profile.bundles.push(pluginName)
     writeFileSync(join(profile, 'package.json'), JSON.stringify(manifest))
     writeFileSync(join(profile, 'cordis.patch.yml'), '- id: webserver\n  config:\n    host: 127.0.0.1\n    port: 0\n')
@@ -111,6 +140,14 @@ export function apply(ctx) {
     }
     const pluginResponse = await fetch(new URL('/desktop-smoke', ready.url), { headers: { cookie } })
     if (await pluginResponse.text() !== 'plugin route ready') throw new Error('desktop runtime: plugin HTTP route failed')
+    const installation = await fetch(new URL('/desktop-smoke-install', ready.url), {
+      headers: { cookie }, signal: AbortSignal.timeout(120_000),
+    })
+    const installationResult = await installation.text()
+    const installed = await fetch(new URL('/desktop-smoke-installed', ready.url), { headers: { cookie } })
+    if (!installation.ok || !installed.ok || await installed.text() !== 'installed plugin ready') {
+      throw new Error(`desktop runtime: bundled pnpm plugin installation failed: ${installationResult}`)
+    }
     for (const { extension } of inputs) {
       const converted = await fetch(new URL(`/desktop-smoke-office/${extension}`, ready.url), {
         headers: { cookie }, signal: AbortSignal.timeout(120_000),
