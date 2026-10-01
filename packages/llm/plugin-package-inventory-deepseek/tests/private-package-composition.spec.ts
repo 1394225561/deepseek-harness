@@ -24,7 +24,7 @@ afterEach(async () => {
   }
 })
 
-it.each([true, false])('prepares inventory with a versioned sibling while omitting an unversioned package (private=%s)', async (isPrivate) => {
+it.each([true, false])('reports an unversioned package by name alongside a versioned sibling (private=%s)', async (isPrivate) => {
   root = await mkdtemp(join(tmpdir(), 'dsh-private-package-composition-'))
   const parent = join(root, 'inspector')
   const privateDir = join(parent, 'skill')
@@ -73,6 +73,9 @@ it.each([true, false])('prepares inventory with a versioned sibling while omitti
           {
             "name": "inspector-sibling",
             "version": "2.0.0",
+          },
+          {
+            "name": "inspector-skill",
           },
         ],
         "version": 1,

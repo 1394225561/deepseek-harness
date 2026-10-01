@@ -98,6 +98,19 @@ describe('DeepSeek plugin package inventory', () => {
     })
   })
 
+  it.each([false, true])('deduplicates name-only identities separately from versioned identities (reversed=%s)', async (reversed) => {
+    const { ctx, root } = await harness()
+    const versioned = await packagePlugin(root, 'versioned', { name: 'same', version: 'undefined' })
+    const unversioned = await packagePlugin(root, 'unversioned', { name: 'same' })
+    const entries = reversed ? [unversioned, versioned] : [versioned, unversioned]
+    for (const name of [...entries, ...entries]) await ctx.loader.create({ name })
+    const prepared = await ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL })
+    expect(prepared.fields.dsh_plugin_packages?.packages).toStrictEqual([
+      { name: 'same' },
+      { name: 'same', version: 'undefined' },
+    ])
+  })
+
   it.each(['invalid JSON', 'null', 'deleted'])('retains readable packages when another manifest is %s', async (kind) => {
     const { ctx, root } = await harness()
     const bad = await packagePlugin(root, 'bad', { name: 'bad', version: '1.0.0' })
@@ -119,7 +132,7 @@ describe('DeepSeek plugin package inventory', () => {
       .resolves.toMatchObject({ fields: { dsh_plugin_packages: { version: 1, packages: [] } } })
   })
 
-  it.each(['file', 'bare'])('omits an unversioned private %s package while retaining versioned packages', async (kind) => {
+  it.each(['file', 'bare'])('reports an unversioned private %s package by name alongside versioned packages', async (kind) => {
     const { ctx, root } = await harness(undefined, true)
     const parent = await packagePlugin(root, 'node_modules/inspector', { name: 'inspector', version: '1.0.0' })
     const nested = await packagePlugin(root, kind === 'file' ? 'node_modules/inspector/skill' : 'node_modules/inspector-skill',
@@ -130,12 +143,14 @@ describe('DeepSeek plugin package inventory', () => {
 
     const prepared = await ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL })
     expect(prepared.fields.dsh_plugin_packages?.packages).toEqual([
+      { name: 'inspector-skill' },
       { name: 'versioned-private', version: '2.0.0' },
     ])
     await ctx.loader.create({ name: parent })
     const withParent = await ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL })
     expect(withParent.fields.dsh_plugin_packages?.packages).toEqual([
       { name: 'inspector', version: '1.0.0' },
+      { name: 'inspector-skill' },
       { name: 'versioned-private', version: '2.0.0' },
     ])
   })
@@ -145,8 +160,8 @@ describe('DeepSeek plugin package inventory', () => {
     const { ctx, root } = await harness()
     const plugin = await packagePlugin(root, 'invalid', manifest)
     await ctx.loader.create({ name: plugin })
-    await expect(ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL }))
-      .resolves.toMatchObject({ fields: { dsh_plugin_packages: { version: 1, packages: [] } } })
+    const prepared = await ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL })
+    expect(prepared.fields.dsh_plugin_packages?.packages).toStrictEqual([{ name: 'optional-metadata' }])
   })
 
   it.each([undefined, '', '  ', 1])('omits unavailable package name %j', async (name) => {

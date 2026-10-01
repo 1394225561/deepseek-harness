@@ -59,12 +59,13 @@ function barePackageName(specifier: string): string | undefined {
   return first.startsWith('@') ? `${first}/${second}` : first
 }
 
-/** Read a versioned identity; omit manifests without non-empty string names and versions. */
+/** Read a named identity, including its version only when it is a non-blank string. */
 function identityFromManifest(path: string): DeepSeekPluginPackageIdentity | undefined {
   const manifest = JSON.parse(readFileSync(path, 'utf8')) as PackageManifest
-  if (typeof manifest.name !== 'string' || manifest.name.trim().length === 0
-    || typeof manifest.version !== 'string' || manifest.version.trim().length === 0) return undefined
-  return { name: manifest.name, version: manifest.version }
+  if (typeof manifest.name !== 'string' || manifest.name.trim().length === 0) return undefined
+  return typeof manifest.version === 'string' && manifest.version.trim().length > 0
+    ? { name: manifest.name, version: manifest.version }
+    : { name: manifest.name }
 }
 
 /** Resolve a bare package without requiring it to export `./package.json`. */
@@ -179,10 +180,10 @@ function collectActivePluginPackages(
       continue
     }
     if (identity === undefined) continue
-    unique.set(`${identity.name}\u0000${identity.version}`, identity)
+    unique.set(`${identity.name}\u0000${identity.version ?? ''}`, identity)
   }
   return [...unique.values()].sort((left, right) => (
-    compareWireText(left.name, right.name) || compareWireText(left.version, right.version)
+    compareWireText(left.name, right.name) || compareWireText(left.version ?? '', right.version ?? '')
   ))
 }
 
