@@ -98,12 +98,17 @@ describe('DeepSeek plugin package inventory', () => {
     })
   })
 
-  it('fails request preparation for an active package with malformed identity metadata', async () => {
+  it.each(['invalid JSON', 'null', 'deleted'])('retains readable packages when another manifest is %s', async (kind) => {
     const { ctx, root } = await harness()
-    const bad = await packagePlugin(root, 'bad', { name: 'bad' })
+    const bad = await packagePlugin(root, 'bad', { name: 'bad', version: '1.0.0' })
+    const good = await packagePlugin(root, 'good', { name: 'good', version: '2.0.0' })
     await ctx.loader.create({ name: bad })
-    await expect(ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL }))
-      .rejects.toThrow(/must declare non-empty name and version/)
+    await ctx.loader.create({ name: good })
+    const manifest = join(root, 'bad/package.json')
+    if (kind === 'deleted') await rm(manifest)
+    else await writeFile(manifest, kind === 'null' ? 'null' : '{')
+    const prepared = await ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL })
+    expect(prepared.fields.dsh_plugin_packages?.packages).toEqual([{ name: 'good', version: '2.0.0' }])
   })
 
   it('omits a loose ESM module whose nearest manifest only marks the module type', async () => {
@@ -114,7 +119,7 @@ describe('DeepSeek plugin package inventory', () => {
       .resolves.toMatchObject({ fields: { dsh_plugin_packages: { version: 1, packages: [] } } })
   })
 
-  it.each(['file', 'bare'])('omits an unversioned private %s package without borrowing its parent identity', async (kind) => {
+  it.each(['file', 'bare'])('omits an unversioned private %s package while retaining versioned packages', async (kind) => {
     const { ctx, root } = await harness(undefined, true)
     const parent = await packagePlugin(root, 'node_modules/inspector', { name: 'inspector', version: '1.0.0' })
     const nested = await packagePlugin(root, kind === 'file' ? 'node_modules/inspector/skill' : 'node_modules/inspector-skill',
@@ -135,18 +140,21 @@ describe('DeepSeek plugin package inventory', () => {
     ])
   })
 
-  it.each([
-    { name: 'private-invalid', private: true, version: '' },
-    { name: 'private-invalid', private: true, version: null },
-    { name: 'private-invalid', private: true, version: 1 },
-    { name: '', private: true },
-    { name: 'public-unversioned' },
-  ])('rejects malformed package identity %j', async (manifest) => {
+  it.each([true, false, undefined].flatMap(isPrivate => [undefined, '', '  ', null, 1, false, {}, []]
+    .map(version => ({ name: 'optional-metadata', private: isPrivate, version }))))('omits unavailable version metadata %j', async (manifest) => {
     const { ctx, root } = await harness()
     const plugin = await packagePlugin(root, 'invalid', manifest)
     await ctx.loader.create({ name: plugin })
     await expect(ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL }))
-      .rejects.toThrow('must declare non-empty name and version')
+      .resolves.toMatchObject({ fields: { dsh_plugin_packages: { version: 1, packages: [] } } })
+  })
+
+  it.each([undefined, '', '  ', 1])('omits unavailable package name %j', async (name) => {
+    const { ctx, root } = await harness()
+    const plugin = await packagePlugin(root, 'invalid', { name, version: '1.0.0' })
+    await ctx.loader.create({ name: plugin })
+    await expect(ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL }))
+      .resolves.toMatchObject({ fields: { dsh_plugin_packages: { version: 1, packages: [] } } })
   })
 
   it('uses the host inventory when a request has no matching or joined live agent', async () => {
@@ -197,7 +205,7 @@ describe('DeepSeek plugin package inventory', () => {
     ])
   })
 
-  it('fails when a Loader-resolved bare entry has no package manifest', async () => {
+  it('omits a Loader-resolved bare entry with no package manifest', async () => {
     const { ctx } = await harness()
     ctx.loader.internal = {
       version: 'v2',
@@ -205,7 +213,7 @@ describe('DeepSeek plugin package inventory', () => {
     } as unknown as NonNullable<typeof ctx.loader.internal>
     await ctx.loader.create({ name: 'missing-package' })
     await expect(ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL }))
-      .rejects.toThrow(/cannot resolve active package/)
+      .resolves.toMatchObject({ fields: { dsh_plugin_packages: { version: 1, packages: [] } } })
   })
 
   it('does not bypass the profile package service for a missing bare package', async () => {
@@ -217,7 +225,7 @@ describe('DeepSeek plugin package inventory', () => {
     await ctx.loader.create({ name: 'missing-profile-package' })
 
     await expect(ctx.deepseekLlmApiExtensions.prepare({ body: { messages: [] }, signal: SIGNAL }))
-      .rejects.toThrow(/cannot resolve active package/)
+      .resolves.toMatchObject({ fields: { dsh_plugin_packages: { version: 1, packages: [] } } })
   })
 
   it('supports a direct embedding whose context has no base URL', async () => {

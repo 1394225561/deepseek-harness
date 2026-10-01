@@ -42,7 +42,6 @@ export const Config: z<Config> = z.object({
 interface PackageManifest {
   readonly name?: unknown
   readonly version?: unknown
-  readonly private?: unknown
 }
 
 interface ActiveEntry {
@@ -59,16 +58,11 @@ function barePackageName(specifier: string): string | undefined {
   return first.startsWith('@') ? `${first}/${second}` : first
 }
 
-/** Read a versioned identity; omit unversioned private packages and optional anonymous module markers. */
-function identityFromManifest(path: string, allowAnonymous: boolean): DeepSeekPluginPackageIdentity | undefined {
+/** Read a versioned identity; omit manifests without non-empty string names and versions. */
+function identityFromManifest(path: string): DeepSeekPluginPackageIdentity | undefined {
   const manifest = JSON.parse(readFileSync(path, 'utf8')) as PackageManifest
-  if (allowAnonymous && manifest.name === undefined) return undefined
-  if (manifest.private === true && manifest.version === undefined
-    && typeof manifest.name === 'string' && manifest.name.length > 0) return undefined
-  if (typeof manifest.name !== 'string' || manifest.name.length === 0
-    || typeof manifest.version !== 'string' || manifest.version.length === 0) {
-    throw new Error(`plugin-package-inventory-deepseek: ${path} must declare non-empty name and version`)
-  }
+  if (typeof manifest.name !== 'string' || manifest.name.trim().length === 0
+    || typeof manifest.version !== 'string' || manifest.version.trim().length === 0) return undefined
   return { name: manifest.name, version: manifest.version }
 }
 
@@ -131,7 +125,7 @@ class PackageIdentityResolver {
         : new URL(entry.options.name, treeBase)
       if (moduleUrl.protocol === 'file:') manifest = nearestManifest(fileURLToPath(moduleUrl))
     }
-    const identity = manifest === undefined ? undefined : identityFromManifest(manifest, packageName === undefined)
+    const identity = manifest === undefined ? undefined : identityFromManifest(manifest)
     this.cache.set(key, identity)
     return identity
   }
@@ -156,7 +150,7 @@ function compareWireText(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0
 }
 
-/** Collect the full active package set for one request. */
+/** Collect available identities from active packages for one request. */
 async function collectActivePluginPackages(
   ctx: Context,
   resolver: PackageIdentityResolver,
@@ -178,7 +172,13 @@ async function collectActivePluginPackages(
   }
   const unique = new Map<string, DeepSeekPluginPackageIdentity>()
   for (const activeEntry of entries) {
-    const identity = resolver.resolve(activeEntry)
+    let identity: DeepSeekPluginPackageIdentity | undefined
+    try {
+      identity = resolver.resolve(activeEntry)
+    } catch (error) {
+      ctx.logger.warn('plugin-package-inventory-deepseek: omitting unreadable package identity for %s: %o', activeEntry.entry.options.name, error)
+      continue
+    }
     if (identity === undefined) continue
     unique.set(`${identity.name}\u0000${identity.version}`, identity)
   }

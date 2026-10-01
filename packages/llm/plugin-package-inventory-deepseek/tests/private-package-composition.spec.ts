@@ -1,4 +1,4 @@
-/** Unversioned private file plugins do not block Loader-composed DeepSeek requests. */
+/** Unversioned file plugins do not block Loader-composed DeepSeek requests. */
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -24,7 +24,7 @@ afterEach(async () => {
   }
 })
 
-it('prepares DeepSeek inventory with a versioned sibling while omitting a nested private package', async () => {
+it.each([true, false])('prepares inventory with a versioned sibling while omitting an unversioned package (private=%s)', async (isPrivate) => {
   root = await mkdtemp(join(tmpdir(), 'dsh-private-package-composition-'))
   const parent = join(root, 'inspector')
   const privateDir = join(parent, 'skill')
@@ -32,7 +32,7 @@ it('prepares DeepSeek inventory with a versioned sibling while omitting a nested
   await mkdir(privateDir, { recursive: true })
   await mkdir(siblingDir)
   await writeFile(join(parent, 'package.json'), JSON.stringify({ name: 'inspector', version: '1.0.0', type: 'module' }))
-  await writeFile(join(privateDir, 'package.json'), JSON.stringify({ name: 'inspector-skill', private: true, type: 'module' }))
+  await writeFile(join(privateDir, 'package.json'), JSON.stringify({ name: 'inspector-skill', private: isPrivate, type: 'module' }))
   await writeFile(join(siblingDir, 'package.json'), JSON.stringify({ name: 'inspector-sibling', version: '2.0.0', type: 'module' }))
   await writeFile(join(privateDir, 'plugin.js'), 'export default () => {}\n')
   await writeFile(join(siblingDir, 'plugin.js'), 'export default () => {}\n')
