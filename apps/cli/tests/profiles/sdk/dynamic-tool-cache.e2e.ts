@@ -46,14 +46,27 @@ async function recordedCalls(path: string): Promise<string[]> {
 }
 
 /**
- * Assert `earlier` ran before `later`. The model owns its plan beyond the required calls, so
- * extra add/remove cycles it chooses to make are legitimate and are not counted here.
+ * Assert the model called `earlier` and then `later`. The model owns its plan beyond the required
+ * calls, so extra add/remove cycles it chooses to make are legitimate and are not counted here.
  */
 function expectCalledBefore(calls: string[], earlier: string, later: string): void {
   const earlierIndex = calls.indexOf(earlier)
-  const laterIndex = calls.indexOf(later)
   expect(earlierIndex, `${earlier} was never called`).toBeGreaterThanOrEqual(0)
-  expect(laterIndex, `${later} was not called after ${earlier}`).toBeGreaterThan(earlierIndex)
+  const laterIndex = calls.indexOf(later, earlierIndex + 1)
+  expect(laterIndex, `${later} was never called after ${earlier}`).toBeGreaterThan(earlierIndex)
+}
+
+/**
+ * Net tool-registry change between two consecutive requests, matching how the agent loop derives
+ * a `developer/message` from the difference between the current and previous request headers.
+ */
+function registryChanges(previous: ObservedRequest, request: ObservedRequest): { type: string; toolName: string }[] {
+  const before = new Set(previous.body.tools?.map(tool => tool.name))
+  const after = new Set(request.body.tools?.map(tool => tool.name))
+  return [
+    ...[...after].filter(name => !before.has(name)).map(toolName => ({ type: 'tool-addition', toolName })),
+    ...[...before].filter(name => !after.has(name)).map(toolName => ({ type: 'tool-removal', toolName })),
+  ]
 }
 
 describe.skipIf(!process.env.DEEPSEEK_API_KEY)('SDK native tool updates with real DeepSeek', () => {
@@ -97,7 +110,7 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('SDK native tool updates with rea
     await run('Keep the reference records. Do not call tools. Reply READY.')
     expect(await run(`Use cache_tool_control with action add. After it returns, call ${sampleTool} exactly once and report the generated sample label. This is synthetic example data for this run. Call these separately in order.`)).toContain(sampleLabel)
     expectCalledBefore(await recordedCalls(callsPath), 'add', 'sample')
-    expect(await run('Use cache_tool_control with action remove. After it returns, reply REMOVED and do not call the sample tool.')).toContain('REMOVED')
+    expect(await run('Use cache_tool_control with action remove. Whether it removes the sample tool or reports that it is not registered, reply REMOVED and do not call the sample tool.')).toContain('REMOVED')
     const calls = await recordedCalls(callsPath)
     expectCalledBefore(calls, 'sample', 'remove')
 
@@ -130,12 +143,15 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('SDK native tool updates with rea
     expect(added.body.messages.flatMap(message => message.content)).toContainEqual({ type: 'tool_addition', tool: { type: 'tool_reference', name: sampleTool } })
     expect(removed.body.tools?.map(tool => tool.name)).toEqual(['cache_tool_control'])
     expect(removed.body.messages.flatMap(message => message.content).some(block => block.type === 'tool_addition')).toBe(false)
-    // Transcript registry history must match the fixture's successful calls one for one, so a
-    // model-chosen extra add/remove cycle adds a matching pair instead of failing the assertion.
-    expect(events.filter(event => event.type === 'developer/message').map(event => event.data.message.content)).toEqual(
-      calls.flatMap(call => call === 'add'
-        ? [[{ type: 'tool-addition', toolName: sampleTool }]]
-        : call === 'remove' ? [[{ type: 'tool-removal', toolName: sampleTool }]] : []),
-    )
+    // Transcript registry history is derived from the tool lists the provider saw, not from call
+    // counts: a model-chosen extra add/remove cycle changes both sides or neither.
+    const expectedRegistryHistory = requests.slice(1).flatMap((request, index) => {
+      const previous = requests[index]
+      if (previous === undefined) throw new Error('Missing preceding request')
+      const content = registryChanges(previous, request)
+      return content.length > 0 ? [content] : []
+    })
+    expect(events.filter(event => event.type === 'developer/message').map(event => event.data.message.content))
+      .toEqual(expectedRegistryHistory)
   })
 })
