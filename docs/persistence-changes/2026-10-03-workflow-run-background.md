@@ -35,7 +35,7 @@ changes:
 <a id="compatibility"></a>
 ## Compatibility
 
-Existing records remain valid. Absence means a foreground run, which matches every record written before background runs and every foreground run. The Web workflow node uses the marker to stop inferring interruption from the closed Tool Step of a run that belongs to a background job.
+Existing records remain valid. Writers add the marker only from this change onward: in new records, absence means a foreground run, while background runs recorded earlier also lack it and keep their interrupted presentation after the Tool Step closes. The Web workflow node uses the marker to stop inferring interruption from the closed Tool Step of a run that belongs to a background job.
 
 <a id="verification"></a>
 ## Verification
