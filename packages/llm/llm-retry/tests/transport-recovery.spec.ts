@@ -278,7 +278,7 @@ describe('bounded retry through the real DeepSeek HTTP/SSE adapter', () => {
         { status: 200, headers: { 'content-type': 'text/event-stream' } },
       ))
     })
-    context = await harness(server.baseURL, { streamIdleTimeoutMs: 50 })
+    context = await harness(server.baseURL, { streamIdleTimeoutMs: 1_000 })
     const agent = await context.agentLoop.create(SessionId('wire-ignored-abort'), {
       provider: 'deepseek-official',
       model: 'mock-model',

@@ -72,9 +72,12 @@ export interface IdleWatchdog {
    * @param iterator - iterator whose next value represents provider progress.
    * @returns the iterator's next result.
    * @throws The {@link TimeoutReason} of this watchdog when the idle interval
-   *   elapses first. The abandoned demand stays the caller's to release through
-   *   {@link IdleWatchdog.signal}; an async generator queues its own return
-   *   behind that demand, so callers must not await it.
+   *   elapses first. Only that deadline settles the demand: an upstream
+   *   cancellation reaches the iterator through {@link IdleWatchdog.signal} and
+   *   never shortens the wait. The abandoned demand stays the caller's to release
+   *   through that signal; an async generator queues its own return behind it, so
+   *   callers must not await it. Disposal clears the timer without settling an
+   *   outstanding demand.
    */
   next<T>(iterator: AsyncIterator<T>): Promise<IteratorResult<T>>
   /** Rearm an outstanding demand after transport activity that yields no iterator value; otherwise a no-op. */
@@ -144,9 +147,6 @@ export function idleWatchdog(
   // in-flight body read), so waiting for the iterator to observe the signal
   // would leave the caller waiting past its own deadline.
   const reason = new TimeoutReason(code, timeoutMs)
-  const expired = new Promise<never>((_resolve, reject) => {
-    timeout.signal.addEventListener('abort', () => { reject(reason) }, { once: true })
-  })
   let timer: ReturnType<typeof setTimeout> | undefined
   let outstanding = false
   let disposed = false
@@ -165,8 +165,16 @@ export function idleWatchdog(
       if (outstanding) throw new Error('idleWatchdog next is already outstanding')
       outstanding = true
       arm()
+      const expired = Promise.withResolvers<never>()
+      const onAbort = (): void => { expired.reject(reason) }
+      timeout.signal.addEventListener('abort', onAbort, { once: true })
       try {
-        return await Promise.race([iterator.next(), expired])
+        // Both reactions end with this demand: a deadline promise kept for the
+        // watchdog's lifetime would retain every value the settled races produced.
+        return await Promise.race([
+          iterator.next().finally(() => { timeout.signal.removeEventListener('abort', onAbort) }),
+          expired.promise,
+        ])
       } finally {
         clearTimeout(timer)
         timer = undefined
