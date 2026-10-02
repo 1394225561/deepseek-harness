@@ -47,6 +47,8 @@ interface WorkflowMemberState extends Omit<ToolWorkflowAgentStartData, 'runId'> 
 
 interface WorkflowState {
   readonly name: string
+  /** A background run outlives its Tool Step, so a closed Location does not imply interruption. */
+  readonly background: boolean
   readonly stopReason?: WorkflowStopReason
   readonly members: readonly WorkflowMemberState[]
 }
@@ -93,6 +95,7 @@ function projectWorkflow(
 ): WorkflowRunChatData {
   const state = context.state as WorkflowState
   const interrupted = state.stopReason === undefined
+    && !state.background
     && locationClosed(location)
   const phases = new Map<string, { phase: string | null; members: WorkflowRunMemberData[] }>()
   for (const member of state.members) {
@@ -162,7 +165,7 @@ export const workflowRunDefinition: ConversationNodeDefinition<WorkflowState> = 
     if (match.event.type !== 'tool-workflow/run-start') {
       throw new Error('workflow-run start requires tool-workflow/run-start')
     }
-    return { name: match.event.data.name, members: [] }
+    return { name: match.event.data.name, background: match.event.data.background === true, members: [] }
   },
   update: (context, match) => {
     if (match.event.type === 'tool-workflow/agent-start') {

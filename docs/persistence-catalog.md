@@ -69,7 +69,7 @@ The [format references](persistence-changes/historical-formats/README.md) cover 
 | `event:tool-workflow/agent-end` | event | `babf9ee4d1af62bf6c3a8103737f7a5e4e78ce179be835ce05a38803e15884b7` | [`{ type: "tool-workflow/agent-end" }`](#persistence-type-sha256-babf9ee4d1af62bf6c3a8103737f7a5e4e78ce179be835ce05a38803e15884b7) |
 | `event:tool-workflow/agent-start` | event | `5f26a6c20b37632f8f57729d171c671def4683d994ac6257a8dffcd855101627` | [`{ type: "tool-workflow/agent-start" }`](#persistence-type-sha256-5f26a6c20b37632f8f57729d171c671def4683d994ac6257a8dffcd855101627) |
 | `event:tool-workflow/run-end` | event | `42e0916e0dda5f6d1e7bb05d8514717147c036a79c9f36085683469516c1fd3f` | [`{ type: "tool-workflow/run-end" }`](#persistence-type-sha256-42e0916e0dda5f6d1e7bb05d8514717147c036a79c9f36085683469516c1fd3f) |
-| `event:tool-workflow/run-start` | event | `c1f9e0405de6d18cabb9ee70782a027f9bbdc57e5abec9dcccdd56119e2e9058` | [`{ type: "tool-workflow/run-start" }`](#persistence-type-sha256-c1f9e0405de6d18cabb9ee70782a027f9bbdc57e5abec9dcccdd56119e2e9058) |
+| `event:tool-workflow/run-start` | event | `0dea366b90e202fdbb1a8d79aef14ffc6716b31000e5116309af6ae65d67cecc` | [`{ type: "tool-workflow/run-start" }`](#persistence-type-sha256-0dea366b90e202fdbb1a8d79aef14ffc6716b31000e5116309af6ae65d67cecc) |
 | `event:tool/call` | event | `3b1be838223869fe0a08210db85bf773796ed3f2373ac16555dff227cade0c48` | [`{ type: "tool/call" }`](#persistence-type-sha256-3b1be838223869fe0a08210db85bf773796ed3f2373ac16555dff227cade0c48) |
 | `event:tool/ptc-dispatch` | event | `100f6dca1468538239522cde3533e5bd721d0f1a7b50bea8b0eb533ea6c96163` | [`{ type: "tool/ptc-dispatch" }`](#persistence-type-sha256-100f6dca1468538239522cde3533e5bd721d0f1a7b50bea8b0eb533ea6c96163) |
 | `event:tool/ptc-dispatch-start` | event | `ec38b5949af8eacaf00df002f4acbe344f934f8a061e9cdc65a52a48e5f6dd93` | [`{ type: "tool/ptc-dispatch-start" }`](#persistence-type-sha256-ec38b5949af8eacaf00df002f4acbe344f934f8a061e9cdc65a52a48e5f6dd93) |
@@ -1150,7 +1150,7 @@ Source: [`packages/core/session/src/types.ts:375`](../packages/core/session/src/
 'tool-workflow/agent-end': ToolWorkflowAgentEndData
 ```
 
-Source: [`packages/workflow/tool-workflow/src/types.ts:57`](../packages/workflow/tool-workflow/src/types.ts)
+Source: [`packages/workflow/tool-workflow/src/types.ts:59`](../packages/workflow/tool-workflow/src/types.ts)
 
 <a id="tool-workflowagent-start--log-only"></a>
 
@@ -1164,7 +1164,7 @@ Source: [`packages/workflow/tool-workflow/src/types.ts:57`](../packages/workflow
 'tool-workflow/agent-start': ToolWorkflowAgentStartData
 ```
 
-Source: [`packages/workflow/tool-workflow/src/types.ts:52`](../packages/workflow/tool-workflow/src/types.ts)
+Source: [`packages/workflow/tool-workflow/src/types.ts:54`](../packages/workflow/tool-workflow/src/types.ts)
 
 <a id="tool-workflowrun-end--log-only"></a>
 
@@ -1178,7 +1178,7 @@ Source: [`packages/workflow/tool-workflow/src/types.ts:52`](../packages/workflow
 'tool-workflow/run-end': ToolWorkflowRunEndData
 ```
 
-Source: [`packages/workflow/tool-workflow/src/types.ts:62`](../packages/workflow/tool-workflow/src/types.ts)
+Source: [`packages/workflow/tool-workflow/src/types.ts:64`](../packages/workflow/tool-workflow/src/types.ts)
 
 <a id="tool-workflowrun-start--log-only"></a>
 
@@ -1187,12 +1187,12 @@ Source: [`packages/workflow/tool-workflow/src/types.ts:62`](../packages/workflow
 ```ts persistence-catalog
 /**
  * Opens one top-level workflow record.
- * @param data - stable run identity and display name.
+ * @param data - stable run identity, display name, and background marker.
  */
 'tool-workflow/run-start': ToolWorkflowRunStartData
 ```
 
-Source: [`packages/workflow/tool-workflow/src/types.ts:47`](../packages/workflow/tool-workflow/src/types.ts)
+Source: [`packages/workflow/tool-workflow/src/types.ts:49`](../packages/workflow/tool-workflow/src/types.ts)
 
 ### `turn/*`
 
@@ -5014,7 +5014,7 @@ Array of [`ToolSchema`](#persistence-type-sha256-66ba70f6f068da443f969a0b947a013
 
 SHA-256: `c0ea97bc89dfc46fa94eab956f5c3ee6af2f964aa7db6327cb18b451f207bef7`
 
-Sources: [`packages/workflow/tool-workflow/src/types.ts:29`](../packages/workflow/tool-workflow/src/types.ts)
+Sources: [`packages/workflow/tool-workflow/src/types.ts:31`](../packages/workflow/tool-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -5032,7 +5032,7 @@ Sources: [`packages/workflow/tool-workflow/src/types.ts:29`](../packages/workflo
 
 SHA-256: `9a410ddf56792b2b7cd4a224a2e54dc4dee30a8e8e6b1c2b9a1d19992b217adc`
 
-Sources: [`packages/workflow/tool-workflow/src/types.ts:20`](../packages/workflow/tool-workflow/src/types.ts)
+Sources: [`packages/workflow/tool-workflow/src/types.ts:22`](../packages/workflow/tool-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
@@ -5052,14 +5052,14 @@ Sources: [`packages/workflow/tool-workflow/src/types.ts:20`](../packages/workflo
 
 SHA-256: `7f9365bae9fcb73e1e34061a1acfe0422c1a5fd351848cace9bebbe806f28462`
 
-Sources: [`packages/workflow/tool-workflow/src/types.ts:36`](../packages/workflow/tool-workflow/src/types.ts)
+Sources: [`packages/workflow/tool-workflow/src/types.ts:38`](../packages/workflow/tool-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
 | `runId` | required | `string` |
 | `stopReason` | required | [`WorkflowStopReason`](#persistence-type-sha256-8465ece5e9d9007c038b357015d849c15262cb0bc25abc59e47692d87ee01a15) |
 
-<a id="persistence-type-sha256-a6da9ad5d42ae83a6833a8288b076688e8e0801633ea36cbdd8a30a6d9f3160c"></a>
+<a id="persistence-type-sha256-3cc643a957d3f0b1ecb0db5dcb5326939cdb35afe6a98b3261415b7d3c72e376"></a>
 
 <a id="persistence-type-packagesworkflowtool-workflowsrctypeststoolworkflowrunstartdata"></a>
 
@@ -5067,12 +5067,13 @@ Sources: [`packages/workflow/tool-workflow/src/types.ts:36`](../packages/workflo
 
 ### `ToolWorkflowRunStartData`
 
-SHA-256: `a6da9ad5d42ae83a6833a8288b076688e8e0801633ea36cbdd8a30a6d9f3160c`
+SHA-256: `3cc643a957d3f0b1ecb0db5dcb5326939cdb35afe6a98b3261415b7d3c72e376`
 
 Sources: [`packages/workflow/tool-workflow/src/types.ts:14`](../packages/workflow/tool-workflow/src/types.ts)
 
 | Property | Presence | Type |
 |---|---|---|
+| `background` | optional | `true` |
 | `name` | required | `string` |
 | `runId` | required | `string` |
 
@@ -8566,17 +8567,17 @@ SHA-256: `42e0916e0dda5f6d1e7bb05d8514717147c036a79c9f36085683469516c1fd3f`
 | `time` | required | `number` |
 | `type` | required | `"tool-workflow/run-end"` |
 
-<a id="persistence-type-sha256-c1f9e0405de6d18cabb9ee70782a027f9bbdc57e5abec9dcccdd56119e2e9058"></a>
+<a id="persistence-type-sha256-0dea366b90e202fdbb1a8d79aef14ffc6716b31000e5116309af6ae65d67cecc"></a>
 
 <a id="persistence-type-eventtool-workflowrun-start"></a>
 
 ### `{ type: "tool-workflow/run-start" }`
 
-SHA-256: `c1f9e0405de6d18cabb9ee70782a027f9bbdc57e5abec9dcccdd56119e2e9058`
+SHA-256: `0dea366b90e202fdbb1a8d79aef14ffc6716b31000e5116309af6ae65d67cecc`
 
 | Property | Presence | Type |
 |---|---|---|
-| `data` | required | [`ToolWorkflowRunStartData`](#persistence-type-sha256-a6da9ad5d42ae83a6833a8288b076688e8e0801633ea36cbdd8a30a6d9f3160c) |
+| `data` | required | [`ToolWorkflowRunStartData`](#persistence-type-sha256-3cc643a957d3f0b1ecb0db5dcb5326939cdb35afe6a98b3261415b7d3c72e376) |
 | `ignorable` | optional | `true` |
 | `seq` | required | `number` |
 | `time` | required | `number` |

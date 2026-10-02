@@ -9,8 +9,8 @@
   en: e7c80d1de4d328b4
   zh: d9f368c27fd9f998
 /session-persistence-event-catalog/persistence-type-fingerprints:
-  en: 33dd28b1c768cd8b
-  zh: 7256442baf2faed1
+  en: 8501cdd466c329a3
+  zh: 1fecdaa5349ce427
 /session-persistence-event-catalog/event-envelope:
   en: 7ebb1a2e0dd1f916
   zh: 8946f415dda5c1b8
@@ -252,17 +252,17 @@
   en: 1eac7deac6af15f3
   zh: 1eac7deac6af15f3
 /session-persistence-event-catalog/events/tool-workflow/tool-workflow-agent-end-log-only:
-  en: 77bc3650fec776c4
-  zh: 423c11a52cb11e1a
+  en: 24d01a19ee065fdf
+  zh: c433d504c2b5d830
 /session-persistence-event-catalog/events/tool-workflow/tool-workflow-agent-start-log-only:
-  en: 8e131e9c8210d334
-  zh: 65059ec0c2f5dc95
+  en: a96412f6e5621c77
+  zh: 9bd265eb39e18428
 /session-persistence-event-catalog/events/tool-workflow/tool-workflow-run-end-log-only:
-  en: 7d4f9675b83814d3
-  zh: 5bfd2fdd82b2f85d
+  en: 1d6bcf016a6af399
+  zh: 710a56368a33c717
 /session-persistence-event-catalog/events/tool-workflow/tool-workflow-run-start-log-only:
-  en: b96c096b5ff3e03c
-  zh: ec6b06357cbc3398
+  en: b510118291f55b51
+  zh: 26e9b29ed0c0114b
 /session-persistence-event-catalog/events/turn:
   en: d7e8c999a0851a0c
   zh: d7e8c999a0851a0c
@@ -1236,17 +1236,17 @@
   en: 12c14727bb7834e2
   zh: b0f3c877873c36db
 /session-persistence-event-catalog/resolved-persistence-types/toolworkflowagentenddata:
-  en: ac394442db02e075
-  zh: 3782191860f095f1
+  en: 8f327cc1f9f2474c
+  zh: 812e74404c278beb
 /session-persistence-event-catalog/resolved-persistence-types/toolworkflowagentstartdata:
-  en: b30d7b45639c4d48
-  zh: 97cca691e6952c88
+  en: debf65304f3ef434
+  zh: a3e3d46bdbbf5bca
 /session-persistence-event-catalog/resolved-persistence-types/toolworkflowrunenddata:
-  en: 4905fd20255fab76
-  zh: 46ebc17868537607
+  en: 586c57bf172e73d1
+  zh: 5d02fcf3992a7011
 /session-persistence-event-catalog/resolved-persistence-types/toolworkflowrunstartdata:
-  en: 54090e169899c573
-  zh: 530ea8d0d0f8cf68
+  en: 727900992b451c68
+  zh: 3c977315869a0a51
 /session-persistence-event-catalog/resolved-persistence-types/turnendcancelcause:
   en: 544292eddeff5faa
   zh: 4e36e575a5030fb2
@@ -2019,11 +2019,11 @@
   en: 557cbf925d0d118a
   zh: cdea625fa2ad1c33
 /session-persistence-event-catalog/resolved-persistence-types/type-tool-workflow-run-end:
-  en: bb5da0ee7d289b9c
-  zh: 2e6703d11142f065
+  en: 5ed112e5ea7334c4
+  zh: 15d0b1188a96fdda
 /session-persistence-event-catalog/resolved-persistence-types/type-tool-workflow-run-start:
-  en: 939c100f8a590003
-  zh: b372827fffc17b1c
+  en: dbaeaf21e1d3cd05
+  zh: e7c6da48921f3dad
 /session-persistence-event-catalog/resolved-persistence-types/type-tool-call:
   en: 2dc168f9f2bd25d6
   zh: d75bd24319468403

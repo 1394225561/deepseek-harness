@@ -517,6 +517,7 @@ describe('dsh-tool-workflow', () => {
       expect(session.snapshotEvents().map(event => event.type)).toEqual([
         'tool-workflow/run-start', 'tool-workflow/agent-start', 'tool-workflow/agent-end', 'tool-workflow/run-end',
       ])
+      expect(session.snapshotEvents()[0]!.data).toEqual({ runId: 'run-1', name: 'audit', background: true })
       // A straggling event after settlement finds no tracked run and is dropped.
       engine.phase(runId, 'Late')
       expect(retained(ctx, job.id, parent)).not.toContain('Late')

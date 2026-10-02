@@ -1,0 +1,86 @@
+{
+  "formatVersion": 2,
+  "roots": [
+    {
+      "key": "event:tool-workflow/run-start",
+      "kind": "event",
+      "event": "tool-workflow/run-start",
+      "surface": false,
+      "digest": "0dea366b90e202fdbb1a8d79aef14ffc6716b31000e5116309af6ae65d67cecc",
+      "schema": {
+        "root": 0,
+        "nodes": [
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "data",
+                "type": 1,
+                "optional": false
+              },
+              {
+                "name": "ignorable",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "seq",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "time",
+                "type": 4,
+                "optional": false
+              },
+              {
+                "name": "type",
+                "type": 5,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "object",
+            "properties": [
+              {
+                "name": "background",
+                "type": 2,
+                "optional": true
+              },
+              {
+                "name": "name",
+                "type": 3,
+                "optional": false
+              },
+              {
+                "name": "runId",
+                "type": 3,
+                "optional": false
+              }
+            ],
+            "indices": []
+          },
+          {
+            "kind": "literal",
+            "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
+          },
+          {
+            "kind": "primitive",
+            "type": "number"
+          },
+          {
+            "kind": "literal",
+            "value": "tool-workflow/run-start"
+          }
+        ]
+      }
+    }
+  ],
+  "types": []
+}

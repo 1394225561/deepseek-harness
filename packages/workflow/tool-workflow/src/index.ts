@@ -65,7 +65,7 @@ export const Config: z<Config> = z.object({
 type ResolvedConfig = Required<Config>
 
 interface WorkflowRecorder {
-  start(session: Session, run: WorkflowRun): void
+  start(session: Session, run: WorkflowRun, background: boolean): void
   finish(runId: WorkflowRunId, stopReason: WorkflowStopReason): void
   abandon(runId: WorkflowRunId): void
 }
@@ -136,8 +136,13 @@ function createWorkflowRecorder(ctx: Context): WorkflowRecorder {
   })
 
   return {
-    start(session, run) {
-      if (append(session, 'tool-workflow/run-start', { runId: run.id, name: run.meta.name })) {
+    start(session, run, background) {
+      const data: ToolWorkflowRunStartData = {
+        runId: run.id,
+        name: run.meta.name,
+        ...background ? { background: true } : {},
+      }
+      if (append(session, 'tool-workflow/run-start', data)) {
         active.set(run.id, session)
       }
     },
@@ -286,7 +291,7 @@ function startBackgroundRun(
         parent,
       })
       deps.mirror.start(run.id, job)
-      if (recordsRun) deps.recorder.start(parent.session, run)
+      if (recordsRun) deps.recorder.start(parent.session, run, true)
       const done = run.result.then(async (result): Promise<JobOutcome> => {
         try {
           // Keep member listeners alive through disposal: an engine may
@@ -439,7 +444,7 @@ export function apply(ctx: Context, config: Config): void {
       })
       const recordsRun = exec.parent === undefined
       // The engine publishes member events after start() returns and this run record is active.
-      if (recordsRun) recorder.start(parent.session, run)
+      if (recordsRun) recorder.start(parent.session, run, false)
 
       // Bridge the tool's abort signal to the run: if the parent step is aborted while the
       // script is in flight, cancel the whole run. The signal also enters the engine directly, but

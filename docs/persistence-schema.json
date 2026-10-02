@@ -17123,7 +17123,7 @@
       "kind": "event",
       "event": "tool-workflow/run-start",
       "surface": false,
-      "digest": "c1f9e0405de6d18cabb9ee70782a027f9bbdc57e5abec9dcccdd56119e2e9058",
+      "digest": "0dea366b90e202fdbb1a8d79aef14ffc6716b31000e5116309af6ae65d67cecc",
       "schema": {
         "root": 0,
         "nodes": [
@@ -17137,7 +17137,7 @@
               },
               {
                 "name": "ignorable",
-                "type": 3,
+                "type": 2,
                 "optional": true
               },
               {
@@ -17162,25 +17162,30 @@
             "kind": "object",
             "properties": [
               {
-                "name": "name",
+                "name": "background",
                 "type": 2,
+                "optional": true
+              },
+              {
+                "name": "name",
+                "type": 3,
                 "optional": false
               },
               {
                 "name": "runId",
-                "type": 2,
+                "type": 3,
                 "optional": false
               }
             ],
             "indices": []
           },
           {
-            "kind": "primitive",
-            "type": "string"
-          },
-          {
             "kind": "literal",
             "value": true
+          },
+          {
+            "kind": "primitive",
+            "type": "string"
           },
           {
             "kind": "primitive",
@@ -21955,6 +21960,11 @@
       ]
     },
     {
+      "digest": "0dea366b90e202fdbb1a8d79aef14ffc6716b31000e5116309af6ae65d67cecc",
+      "names": [],
+      "sources": []
+    },
+    {
       "digest": "0e10d7c096b47e61defe372a5fc8bd37d835199410eac44367f95c45082498bd",
       "names": [],
       "sources": []
@@ -22701,6 +22711,15 @@
       "digest": "3c2535ca0a2062f172f15344f8040755002b5ac506cf94fc4ebaa822b15feb8c",
       "names": [],
       "sources": []
+    },
+    {
+      "digest": "3cc643a957d3f0b1ecb0db5dcb5326939cdb35afe6a98b3261415b7d3c72e376",
+      "names": [
+        "packages/workflow/tool-workflow/src/types.ts#ToolWorkflowRunStartData"
+      ],
+      "sources": [
+        "packages/workflow/tool-workflow/src/types.ts:14"
+      ]
     },
     {
       "digest": "3cfc3a56502da1f8c6153c2c56657bab4b749056968634dd0991d325ec1c919f",
@@ -23650,7 +23669,7 @@
         "packages/workflow/tool-workflow/src/types.ts#ToolWorkflowRunEndData"
       ],
       "sources": [
-        "packages/workflow/tool-workflow/src/types.ts:36"
+        "packages/workflow/tool-workflow/src/types.ts:38"
       ]
     },
     {
@@ -24051,7 +24070,7 @@
         "packages/workflow/tool-workflow/src/types.ts#ToolWorkflowAgentStartData"
       ],
       "sources": [
-        "packages/workflow/tool-workflow/src/types.ts:20"
+        "packages/workflow/tool-workflow/src/types.ts:22"
       ]
     },
     {
@@ -24211,15 +24230,6 @@
       ],
       "sources": [
         "packages/hooks/hook-protocol/src/types.ts:48"
-      ]
-    },
-    {
-      "digest": "a6da9ad5d42ae83a6833a8288b076688e8e0801633ea36cbdd8a30a6d9f3160c",
-      "names": [
-        "packages/workflow/tool-workflow/src/types.ts#ToolWorkflowRunStartData"
-      ],
-      "sources": [
-        "packages/workflow/tool-workflow/src/types.ts:14"
       ]
     },
     {
@@ -24669,7 +24679,7 @@
         "packages/workflow/tool-workflow/src/types.ts#ToolWorkflowAgentEndData"
       ],
       "sources": [
-        "packages/workflow/tool-workflow/src/types.ts:29"
+        "packages/workflow/tool-workflow/src/types.ts:31"
       ]
     },
     {
@@ -24689,11 +24699,6 @@
       "sources": [
         "packages/llm/llm/src/types.ts:105"
       ]
-    },
-    {
-      "digest": "c1f9e0405de6d18cabb9ee70782a027f9bbdc57e5abec9dcccdd56119e2e9058",
-      "names": [],
-      "sources": []
     },
     {
       "digest": "c219efbdfd53b836786202ab4532913d555798f0a8615a4e9629736e3799fb70",

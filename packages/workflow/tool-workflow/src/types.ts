@@ -14,6 +14,8 @@ import type {
 export interface ToolWorkflowRunStartData {
   readonly runId: WorkflowRunId
   readonly name: string
+  /** Present when the run belongs to a background job and outlives its Tool Step. */
+  readonly background?: true
 }
 
 /** Records one workflow member after its child Session is published. */
@@ -42,7 +44,7 @@ declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**
      * Opens one top-level workflow record.
-     * @param data - stable run identity and display name.
+     * @param data - stable run identity, display name, and background marker.
      */
     'tool-workflow/run-start': ToolWorkflowRunStartData
     /**

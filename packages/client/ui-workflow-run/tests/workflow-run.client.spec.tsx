@@ -192,6 +192,27 @@ describe('workflow-run Conversation Definition', () => {
     })
   })
 
+  it('keeps a background run running after its Tool Step and Turn close', () => {
+    const value = assembler([
+      at(1, 'turn/start', { turn: 1 }),
+      at(2, 'step/start', { turn: 1, step: 1 }),
+      at(3, 'tool-workflow/run-start', { runId: 'run-1', name: 'audit', background: true }),
+      at(4, 'step/end', { turn: 1, step: 1 }),
+      at(5, 'turn/end', { turn: 1, reason: { kind: 'completed' } }),
+      at(6, 'tool-workflow/agent-start', {
+        runId: 'run-1', seq: 1, label: 'worker', childId: 'child-1',
+      }),
+    ])
+    expect(workflowData(value)).toMatchObject({
+      status: 'running',
+      phases: [{ members: [{ status: 'running' }] }],
+    })
+    value.append(at(7, 'tool-workflow/agent-end', { runId: 'run-1', seq: 1, outcome: 'completed' }))
+    value.append(at(8, 'tool-workflow/run-end', { runId: 'run-1', stopReason: 'completed' }))
+    value.flush()
+    expect(workflowData(value)?.status).toBe('completed')
+  })
+
   it('retains a zero-member run as its own completed node', () => {
     const value = assembler([
       at(1, 'turn/start', { turn: 1 }),

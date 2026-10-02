@@ -33,7 +33,7 @@ Run and phase headers keep 6px gaps between their title, count, and status field
 
 ### State and completion
 
-Completion updates the visible status immediately but delays its automatic close while focus remains inside the content. A closed Turn or Step with missing terminal events presents the affected run or members as interrupted without changing the tool result.
+Completion updates the visible status immediately but delays its automatic close while focus remains inside the content. For a foreground run, a closed Turn or Step with missing terminal events presents the affected run or members as interrupted without changing the tool result. A background run outlives its Tool Step, so it stays running until its terminal events arrive.
 
 -----
 
@@ -86,6 +86,7 @@ None; this package neither assembles nor sends a provider request.
 These limits define which runs produce records and what the node exposes; they are current package constraints.
 
 - **Only top-level calls through `dsh-tool-workflow` produce these records** — nested PTC mode calls and direct `WorkflowEngine` consumers do not.
+- **A background run lost without terminal events stays running** — its Step closure carries no liveness fact, and the session log records no job loss after a process crash.
 - **Navigation is intentionally live-only** — terminal members remain visible for review but never expose a cold-session opener from this node.
 - **The node shows run, phase, member identity, and status only** — scripts, outputs, errors, logs, usage, static topology, and controls remain outside this surface.
 
