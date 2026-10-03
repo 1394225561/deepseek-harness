@@ -72,25 +72,25 @@ Pi extensions rebuild their state on `session_start` from what they wrote earlie
 
 ### Core mechanisms narrower than Pi's
 
-Ranked by how much of Pi's API each blocks. The first three follow from DSH rules; the rest are missing extension points.
+Ranked by how much of Pi's API each blocks, with the GitHub issue that tracks each. Rows 1 and 3 follow from DSH rules: a request is derived from the Session log, and the log is linear. The other rows are missing extension points.
 
-| # | Mechanism | Pi API blocked | DSH today |
-|---|---|---|---|
-| 1 | Per-request rewrite of model input | `context`, `context_with_system`, `before_provider_request`, `prepareLoadout` hidden declarations | The loop derives each request from the log and freezes it; `llm/stream` listeners read it. A rewrite needs an awaited hook and a core event that every log reader applies to that request. |
-| 2 | Tool-argument rewrite | `tool_call` editing `event.input` | `PreToolDecision` excludes input rewriting ([proposal](2026-06-30-pre-tool-input-rewrite.md)). |
-| 3 | Session tree and assistant-message replacement | `navigateTree`, `session_before_tree`, `session_tree`, `message_end` replacement | The log is linear, a fork creates a new Session, and an `assistant/message` cannot replace another. |
-| 4 | Awaited step-end and pre-commit hooks | `turn_end` entries and `continue`, `message_end` | `step/end` and `assistant/message` are committed events; a Session-event listener cannot append. |
-| 5 | Tool progress and result replacement | `onUpdate`, `tool_execution_update`, `tool_result` turning an error into a success, tool `usage` | `ToolRunContext` has no progress channel, and `tools/post-execute` cannot replace the value of a failed result. |
-| 6 | Per-tool exposure | `codemode`, `deferred`, and `hidden` exposure | Presentation is chosen per Agent, and a tool the model cannot see refuses execution. |
-| 7 | Input admission | `input` before the prompt is stored | A prompt is durable in the inbox before `agent/pre-step`; a swallowed prompt leaves a turn without a step. |
-| 8 | Logged model call by a plugin | `ctx.modelRegistry.complete`, `stream`, `streamSimple` | No Session event records a plugin's own model request, which also blocks `$.model.complete` for mods. |
-| 9 | Plugin-owned durable records | `appendEntry` | `Session.append()` accepts declared event types only. The restricted `plugin:` records close this for experimental packages. |
-| 10 | Compaction customization | `session_before_compact` | One `CompactionEngine` owns summarization, and `/compact` takes no instructions. |
-| 11 | Lifecycle reasons | `session_start` reasons `new`, `fork`, and `reload`; `session_shutdown` reasons | `agent/created` reports `startup` or `resume`; `agent/disposed` carries no reason. |
-| 12 | Host-plugin display in the GUI | `ctx.ui.notify`, `setStatus`, `setWidget` | No shared mechanism; each bridge ships its own Client package. |
-| 13 | Command capabilities | Argument completion; `newSession`, `fork`, and `switchSession` moving the user to another Session | `ctx.commands` takes unstructured text and has no Client-side effects. |
-| 14 | Provider request hooks | `before_provider_headers`, `after_provider_response`, `provider_stream_event` | Headers, responses, and raw stream events stay inside each adapter. |
-| 15 | Fault isolation | An extension bug stops one Pi process | An uncaught exception in the Host disposes the application for every Session. |
+| # | Mechanism | Pi API blocked | DSH today | Issue |
+|---|---|---|---|---|
+| 1 | Per-request rewrite of model input | `context`, `context_with_system`, `before_provider_request`, `prepareLoadout` hidden declarations | The loop derives each request from the log and freezes it; `llm/stream` listeners read it. A rewrite needs an awaited hook and a core event that every log reader applies to that request. | #5661 |
+| 2 | Tool-argument rewrite | `tool_call` editing `event.input` | `PreToolDecision` excludes input rewriting ([proposal](2026-06-30-pre-tool-input-rewrite.md)). | #5662 |
+| 3 | Session tree and assistant-message replacement | `navigateTree`, `session_before_tree`, `session_tree`, `message_end` replacement | The log is linear, a fork creates a new Session, and an `assistant/message` cannot replace another. | #5663 |
+| 4 | Awaited step-end and pre-commit hooks | `turn_end` entries and `continue`, `message_end` | `step/end` and `assistant/message` are committed events; a Session-event listener cannot append. | #5664 |
+| 5 | Tool progress and result replacement | `onUpdate`, `tool_execution_update`, `tool_result` turning an error into a success, tool `usage` | `ToolRunContext` has no progress channel, and `tools/post-execute` cannot replace the value of a failed result. | #5665 |
+| 6 | Per-tool exposure | `codemode`, `deferred`, and `hidden` exposure | Presentation is chosen per Agent, and a tool the model cannot see refuses execution. | #5666 |
+| 7 | Input admission | `input` before the prompt is stored | A prompt is durable in the inbox before `agent/pre-step`; a swallowed prompt leaves a turn without a step. | #5667 |
+| 8 | Logged model call by a plugin | `ctx.modelRegistry.complete`, `stream`, `streamSimple` | No Session event records a plugin's own model request, which also blocks `$.model.complete` for mods. | #5668 |
+| 9 | Plugin-owned durable records | `appendEntry` | `Session.append()` accepts declared event types only. The restricted `plugin:` records close this for experimental packages. | #5669 |
+| 10 | Compaction customization | `session_before_compact` | One `CompactionEngine` owns summarization, and `/compact` takes no instructions. | #5670 |
+| 11 | Lifecycle reasons | `session_start` reasons `new`, `fork`, and `reload`; `session_shutdown` reasons | `agent/created` reports `startup` or `resume`; `agent/disposed` carries no reason. | #5671 |
+| 12 | Host-plugin display in the GUI | `ctx.ui.notify`, `setStatus`, `setWidget` | No shared mechanism; each bridge ships its own Client package. | #5672 |
+| 13 | Command capabilities | Argument completion; `newSession`, `fork`, and `switchSession` moving the user to another Session | `ctx.commands` takes unstructured text and has no Client-side effects. | #5673 |
+| 14 | Provider request hooks | `before_provider_headers`, `after_provider_response`, `provider_stream_event` | Headers, responses, and raw stream events stay inside each adapter. | #5674 |
+| 15 | Fault isolation | An extension bug stops one Pi process | An uncaught exception in the Host disposes the application for every Session. | #5675 |
 
 Terminal rendering (`ctx.ui.custom`, custom editors, renderers, shortcuts) is outside this list: DSH's GUI is not a terminal, and Pi's own `rpc` mode does not serve these either.
 

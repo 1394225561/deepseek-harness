@@ -72,25 +72,25 @@ Pi 扩展在 `session_start` 时根据自己此前写入的内容重建状态。
 
 ### 比 Pi 窄的核心机制
 
-按各自阻塞的 Pi API 数量排序。前三项源自 DSH 的规则；其余是缺失的扩展点。
+按各自阻塞的 Pi API 数量排序，并列出跟踪每一项的 GitHub issue。第 1、3 行源自 DSH 的规则：请求由 Session 日志派生，而日志是线性的。其余各行是缺失的扩展点。
 
-| # | 机制 | 被阻塞的 Pi API | DSH 现状 |
-|---|---|---|---|
-| 1 | 按请求改写模型输入 | `context`、`context_with_system`、`before_provider_request`、`prepareLoadout` 隐藏声明 | 循环从日志派生每个请求并将其冻结；`llm/stream` 监听器只读取它。改写需要一个可等待的钩子，以及一个每个日志读取方都会应用到该请求上的核心事件。 |
-| 2 | 改写工具参数 | 编辑 `event.input` 的 `tool_call` | `PreToolDecision` 不包含输入改写（[提案](2026-06-30-pre-tool-input-rewrite.zh.md)）。 |
-| 3 | Session 树与 assistant 消息替换 | `navigateTree`、`session_before_tree`、`session_tree`、`message_end` 替换 | 日志是线性的，fork 会创建新的 Session，`assistant/message` 不能替换另一条。 |
-| 4 | 可等待的步骤结束钩子与提交前钩子 | `turn_end` 的条目与 `continue`、`message_end` | `step/end` 与 `assistant/message` 是已提交的事件；会话事件监听器不能追加事件。 |
-| 5 | 工具进度与结果替换 | `onUpdate`、`tool_execution_update`、把错误变为成功的 `tool_result`、工具 `usage` | `ToolRunContext` 没有进度通道，`tools/post-execute` 不能替换失败结果的值。 |
-| 6 | 按工具设置可见性 | `codemode`、`deferred` 与 `hidden` exposure | 呈现方式按 Agent 选择，模型看不到的工具拒绝执行。 |
-| 7 | 输入准入 | 在提示词被保存之前的 `input` | 提示词在 `agent/pre-step` 之前就已持久保存在 inbox 中；被吞掉的提示词会留下一个没有步骤的轮次。 |
-| 8 | 插件发起且被记录的模型调用 | `ctx.modelRegistry.complete`、`stream`、`streamSimple` | 没有会话事件记录插件自己的模型请求，这同样阻塞了 mods 的 `$.model.complete`。 |
-| 9 | 插件拥有的持久记录 | `appendEntry` | `Session.append()` 只接受已声明的事件类型。受限的 `plugin:` 记录为实验性包补上了这一点。 |
-| 10 | 定制压缩 | `session_before_compact` | 摘要由唯一的 `CompactionEngine` 负责，`/compact` 不接受指令。 |
-| 11 | 生命周期原因 | `session_start` 的 `new`、`fork` 与 `reload` 原因；`session_shutdown` 的原因 | `agent/created` 报告 `startup` 或 `resume`；`agent/disposed` 不带原因。 |
-| 12 | Host 插件在 GUI 中的显示 | `ctx.ui.notify`、`setStatus`、`setWidget` | 没有共享机制；每个桥接各自附带 Client 包。 |
-| 13 | 命令能力 | 参数补全；把用户带到另一个 Session 的 `newSession`、`fork` 与 `switchSession` | `ctx.commands` 接受非结构化文本，没有 Client 侧效果。 |
-| 14 | 提供方请求钩子 | `before_provider_headers`、`after_provider_response`、`provider_stream_event` | 请求头、响应与原始流事件都留在各适配器内部。 |
-| 15 | 故障隔离 | 扩展的缺陷只中止一个 Pi 进程 | Host 中未捕获的异常会为所有 Session 释放整个应用。 |
+| # | 机制 | 被阻塞的 Pi API | DSH 现状 | Issue |
+|---|---|---|---|---|
+| 1 | 按请求改写模型输入 | `context`、`context_with_system`、`before_provider_request`、`prepareLoadout` 隐藏声明 | 循环从日志派生每个请求并将其冻结；`llm/stream` 监听器只读取它。改写需要一个可等待的钩子，以及一个每个日志读取方都会应用到该请求上的核心事件。 | #5661 |
+| 2 | 改写工具参数 | 编辑 `event.input` 的 `tool_call` | `PreToolDecision` 不包含输入改写（[提案](2026-06-30-pre-tool-input-rewrite.zh.md)）。 | #5662 |
+| 3 | Session 树与 assistant 消息替换 | `navigateTree`、`session_before_tree`、`session_tree`、`message_end` 替换 | 日志是线性的，fork 会创建新的 Session，`assistant/message` 不能替换另一条。 | #5663 |
+| 4 | 可等待的步骤结束钩子与提交前钩子 | `turn_end` 的条目与 `continue`、`message_end` | `step/end` 与 `assistant/message` 是已提交的事件；会话事件监听器不能追加事件。 | #5664 |
+| 5 | 工具进度与结果替换 | `onUpdate`、`tool_execution_update`、把错误变为成功的 `tool_result`、工具 `usage` | `ToolRunContext` 没有进度通道，`tools/post-execute` 不能替换失败结果的值。 | #5665 |
+| 6 | 按工具设置可见性 | `codemode`、`deferred` 与 `hidden` exposure | 呈现方式按 Agent 选择，模型看不到的工具拒绝执行。 | #5666 |
+| 7 | 输入准入 | 在提示词被保存之前的 `input` | 提示词在 `agent/pre-step` 之前就已持久保存在 inbox 中；被吞掉的提示词会留下一个没有步骤的轮次。 | #5667 |
+| 8 | 插件发起且被记录的模型调用 | `ctx.modelRegistry.complete`、`stream`、`streamSimple` | 没有会话事件记录插件自己的模型请求，这同样阻塞了 mods 的 `$.model.complete`。 | #5668 |
+| 9 | 插件拥有的持久记录 | `appendEntry` | `Session.append()` 只接受已声明的事件类型。受限的 `plugin:` 记录为实验性包补上了这一点。 | #5669 |
+| 10 | 定制压缩 | `session_before_compact` | 摘要由唯一的 `CompactionEngine` 负责，`/compact` 不接受指令。 | #5670 |
+| 11 | 生命周期原因 | `session_start` 的 `new`、`fork` 与 `reload` 原因；`session_shutdown` 的原因 | `agent/created` 报告 `startup` 或 `resume`；`agent/disposed` 不带原因。 | #5671 |
+| 12 | Host 插件在 GUI 中的显示 | `ctx.ui.notify`、`setStatus`、`setWidget` | 没有共享机制；每个桥接各自附带 Client 包。 | #5672 |
+| 13 | 命令能力 | 参数补全；把用户带到另一个 Session 的 `newSession`、`fork` 与 `switchSession` | `ctx.commands` 接受非结构化文本，没有 Client 侧效果。 | #5673 |
+| 14 | 提供方请求钩子 | `before_provider_headers`、`after_provider_response`、`provider_stream_event` | 请求头、响应与原始流事件都留在各适配器内部。 | #5674 |
+| 15 | 故障隔离 | 扩展的缺陷只中止一个 Pi 进程 | Host 中未捕获的异常会为所有 Session 释放整个应用。 | #5675 |
 
 终端渲染（`ctx.ui.custom`、自定义编辑器、渲染器、快捷键）不在此列：DSH 的 GUI 不是终端，Pi 自己的 `rpc` 模式也不提供这些。
 
