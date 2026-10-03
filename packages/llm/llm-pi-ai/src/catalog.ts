@@ -12,7 +12,7 @@
  * @module dsh-llm-pi-ai/catalog
  */
 
-import { builtinProviders, getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all'
+import { builtinProviders, getAllBuiltinModels, getBuiltinModels, getBuiltinProviders } from '@earendil-works/pi-ai/providers/all'
 import type { BuiltinProvider } from '@earendil-works/pi-ai/providers/all'
 import type {
   AnthropicMessagesCompat,
@@ -186,14 +186,15 @@ export function catalogProvider(provider: string): Provider | undefined {
 }
 
 /**
- * Every provider route the installed pi-ai catalog ships with at least one
- * chat model. This adapter dispatches chat requests only, so a catalog
- * provider whose models are all of another type (image generation or
- * classification) is not a configurable route.
- * @returns the catalog provider ids that ship chat models, in catalog order.
+ * Every provider route the installed pi-ai catalog ships, except a provider
+ * whose catalog lists models but no chat model. This adapter dispatches chat
+ * requests only, so a provider of image-generation or classifier models alone
+ * is not a configurable route; a provider whose catalog lists no models stays.
+ * @returns the catalog provider ids, in catalog order.
  */
 export function catalogProviderIds(): readonly string[] {
-  return getBuiltinProviders().filter(provider => getBuiltinModels(provider).length > 0)
+  return getBuiltinProviders().filter(provider =>
+    getBuiltinModels(provider).length > 0 || getAllBuiltinModels(provider).length === 0)
 }
 
 /**

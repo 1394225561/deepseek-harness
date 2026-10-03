@@ -5,7 +5,7 @@
  * statically at module scope, so the row cannot mount without it.
  *
  * Every symbol `llm-pi-ai` imports by name is present: a missing CommonJS symbol
- * would surface as `undefined` at call time instead of a link error. The three catalog readers
+ * would surface as `undefined` at call time instead of a link error. The four catalog readers
  * return empty collections rather than throwing — the row reads them while it
  * activates, and "this deployment ships no pi-ai provider" is the truth here.
  * Everything on a request path is loud.
@@ -72,6 +72,14 @@ export function getBuiltinModels(): unknown[] {
   return []
 }
 
+/**
+ * Models of every type of one installed catalog provider.
+ * @returns no models.
+ */
+export function getAllBuiltinModels(): unknown[] {
+  return []
+}
+
 /** Anthropic messages API binding (unavailable). */
 export const anthropicMessagesApi = notImplementedFail(MODULE, 'anthropicMessagesApi')
 
@@ -87,6 +95,6 @@ export const __esModule = true
 /** CommonJS default export: the members `require()` hands a caller of this module. */
 export default {
   createProvider, createModels, getSupportedThinkingLevels, isContextOverflow, builtinProviders,
-  getBuiltinModels, getBuiltinProviders, anthropicMessagesApi, openAICompletionsApi,
+  getBuiltinModels, getAllBuiltinModels, getBuiltinProviders, anthropicMessagesApi, openAICompletionsApi,
   openAIResponsesApi,
 }
