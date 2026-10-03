@@ -559,7 +559,6 @@ exports[`WorkspaceAnalyzer > builds independent face models with an explicit cro
             "text": "export class Agent<State extends object = {
     ready: boolean;
 }> implements Entity {
-    static { }
     static readonly kind: string;
     readonly id: string;
     state: State;
