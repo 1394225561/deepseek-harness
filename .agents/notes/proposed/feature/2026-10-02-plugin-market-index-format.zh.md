@@ -14,7 +14,7 @@ DSH 只能从用户已知的 spec 安装第三方组合包（bundle）：npm 包
 
 ## 提案
 
-将**索引**与**索引生成器**分开。DSH 定义并读取一种 JSON 索引格式。索引如何生成、基于哪份源列表生成，由生成器负责。DSH 的读取器、Discover 页面和参考生成器是使用此格式的独立变更。
+将**索引**与**索引生成器**分开。DSH 定义并读取一种 JSON 索引格式。索引如何生成、基于哪份源列表生成，由生成器负责。DSH 的读取器、Discover 页面和参考生成器是使用此格式的独立变更。索引列出[profile 插件组合包](../../implemented/architecture/2026-08-05-profile-plugin-bundles.zh.md)，并通过[引导式插件安装](../../implemented/architecture/2026-09-15-guided-plugin-installation.zh.md)安装它们。
 
 ### 示例
 
@@ -37,11 +37,11 @@ DSH 只能从用户已知的 spec 安装第三方组合包（bundle）：npm 包
   },
   "plugins": [
     {
-      "name": "@deepseek-ai/dsh-experimental-auto-review",
+      "name": "@example/dsh-auto-review",
       "title": { "en": "Auto Review", "zh": "自动审查" },
       "description": { "en": "Per-tool LLM authorization review", "zh": "逐工具 LLM 授权审查" },
       "icon": "icons/auto-review.svg",
-      "author": "DeepSeek",
+      "author": "Example Labs",
       "metadata": {
         "category": "productivity",
         "labels": ["official"],
@@ -83,7 +83,7 @@ DSH 只能从用户已知的 spec 安装第三方组合包（bundle）：npm 包
 }
 ```
 
-下文中的 `LocalizedText` 即 [`dsh-package-manifest`](../../../../packages/util/package-manifest/src/types.ts) 中的 `LocalizedText` 类型：字符串，或者是满足以下条件的对象：键为匹配 `^[a-z]{2,8}(-[a-z0-9]{1,8})*$` 的小写语言 id，成员均为字符串，并且包含 `en`。每个字符串至少包含一个非空白字符。
+下文中的 `LocalizedText` 即 [`dsh-package-manifest`](../../../../packages/util/package-manifest/src/types.ts) 中的 `LocalizedText` 类型，即字符串或包含 `en` 的字符串对象，并附加两条规则：对象的键是匹配 `^[a-z]{2,8}(-[a-z0-9]{1,8})*$` 的小写语言 id，每个字符串至少包含一个非空白字符。
 
 ### 根字段
 
@@ -129,14 +129,14 @@ DSH 只能从用户已知的 spec 安装第三方组合包（bundle）：npm 包
 
 `source` 采用以下两种形式之一，读取器拒绝其他任何 `type`：
 
-- `{ "type": "npm", "registry"?: string }`。`registry` 是不含凭据、查询或片段的 `http:` 或 `https:` URL。
-- `{ "type": "git", "url": string, "commit": string, "path"?: string }`。`url` 是规范的 `https:` URL（等于其 WHATWG URL 序列化结果），至少包含两个非空路径段，不含凭据、查询或片段，且不以 `.tgz` 或 `.tar.gz` 结尾。`commit` 是 40 位小写十六进制 SHA。`path` 是以 `/` 分隔的相对目录，各段只包含 ASCII 字母、数字和 `._@+-`，且不是 `.` 或 `..`；缺省表示仓库根目录。
+- `{ "type": "npm", "registry"?: string }`。`registry` 是不含凭据、查询或片段的 `http:` 或 `https:` URL；允许 `http:` 是为了支持内网镜像，与 DSH 的[安装 registry](../../implemented/architecture/2026-09-18-plugin-install-registries.zh.md) 一致。
+- `{ "type": "git", "url": string, "commit": string, "path"?: string }`。`url` 是规范的 `https:` URL（等于其 WHATWG URL 序列化结果），至少包含两个非空路径段且不以斜杠结尾，不含凭据、查询或片段，且不以 `.tgz` 或 `.tar.gz` 结尾。`commit` 是 40 位小写十六进制 SHA。`path` 是以 `/` 分隔的相对目录，各段只包含 ASCII 字母、数字和 `._@+-`，且不是 `.` 或 `..`；缺省表示仓库根目录。
 
 ### 安装参数
 
 客户端安装某个版本时恰好使用以下 pnpm 参数：
 
-- npm：spec 为 `<name>@<version>`；存在 `registry` 时先询问该 registry，否则先询问客户端所配置的 registry。客户端可以回退到它配置的其他 registry；其中任何一个安装的都是同一个精确版本。
+- npm：spec 为 `<name>@<version>`。没有 `registry` 时，客户端像任何安装一样询问它配置的 registry。存在 `registry` 时，客户端遵循 DSH 的 [registry 计划](../../implemented/architecture/2026-09-18-plugin-install-registries.zh.md)：先询问 `registry`，仅当它属于客户端配置的 registry 之一时才回退到其他已配置 registry；其他 `registry` 单独询问，因此私有 registry 不会回退到可能以相同名称和版本发布不同包的公共 registry。
 - git：spec 为 `git+<url>.git#<commit>`，`url` 已以 `.git` 结尾时不重复添加；存在 `path` 时在其后追加 `&path:/<path>`。`git+` 前缀使 pnpm 将路径段多于两个的 URL（例如 GitLab 子组）视为 Git 仓库。
 
 ### DSH 兼容性
@@ -151,7 +151,7 @@ DSH 安装检查读取包 manifest 中的 `engines.dsh`。存在该字段时，�
 
 - `name` 和每个 `version` 与所安装来源中的包 manifest 一致。
 - 对于 npm 来源，`publishTimestamp` 是 `version` 在 registry 中的发布时间；对于 Git 来源，它是 `commit` 的提交者时间。
-- `engines.dsh` 复制 manifest 中的 `engines.dsh`。manifest 没有该字段时，它是 manifest 中经发布改写后的 DSH peer 范围按 DSH 兼容性一节定义的合取，并省略 `workspace:` 范围，因为安装时会将此类范围视为当前运行的 DSH 版本；没有剩余范围时省略 `engines.dsh`。
+- `engines.dsh` 复制 manifest 中的 `engines.dsh`。manifest 没有该字段时，它是 manifest 中经发布改写后的 DSH peer 范围按 DSH 兼容性一节定义的合取，并省略 `workspace:*`、`workspace:^` 和 `workspace:~`，因为安装时会将它们视为当前运行的 DSH 版本；没有剩余范围时省略 `engines.dsh`。安装检查认为其他任何 `workspace:` 范围与所有 DSH 版本都不兼容，因此生成器不列出此类版本。
 - 列出的每个版本都声明了 `dsh.bundle`。安装时也会独立拒绝没有组合包 patch 的包。
 - `title`、`description`、`icon` 和 `author` 来自所列最高版本的语言文件 `meta` 字段、manifest 字段和图标，并采用已安装插件显示元数据的规则。
 
@@ -159,7 +159,7 @@ DSH 安装检查读取包 manifest 中的 `engines.dsh`。存在该字段时，�
 
 文档违反根字段、插件字段、版本字段或 `source` 形式中的任何规则时，读取器拒绝整个索引，包括引用了未声明的分类、标签或排序键，`name` 或 `version` 重复，以及 `format` 不是 `1`。每个此类缺陷都是生成器 bug，静默丢弃条目会掩盖它。读取器可以限制文档大小。
 
-读取器在除 `source.type` 之外的每一层都忽略本 Agent Note 未定义的成员。这样格式 1 可以增加可选成员而不破坏现有读取器；现有读取器会误解的变更使用新的 `format` 值。
+读取器在每一层都忽略本 Agent Note 未定义的成员；未知的 `source.type` 值会被拒绝。这样格式 1 可以增加可选成员而不破坏现有读取器；现有读取器会误解的变更使用新的 `format` 值。
 
 分类、标签和排序键对读取器不透明：读取器按它们筛选和排序，显示其 `title`，从不解释 id 的含义。读取器按本地化 `title` 对声明排序后显示。对插件排序时，无论排序方向如何，没有所选排序键值的插件都排在所有有值的插件之后，值相同的插件保持索引顺序。按发布时间排序时使用插件最大的 `publishTimestamp`。
 
@@ -187,11 +187,11 @@ DSH 安装检查读取包 manifest 中的 `engines.dsh`。存在该字段时，�
 
 **用不透明排序值表示时间，包括 ISO 日期字符串。** 发布时间具有固定语义，客户端会对其格式化和排序，因此它是一个有类型的字段。排除时间后，排序值可以只用数值，无需为每个键规定值类型。
 
-**根级 `labels` 和 `sortKeys`，以及名为 `sort` 的插件字段。** 在两个层级都把市场定义的声明和值归入 `metadata`，并使用对应的成员名，可以将它们与客户端解释的字段区分开。
+**根级 `labels` 和 `sortKeys`，以及名为 `sort` 的插件字段。** 在两个层级都把市场定义的声明和值归入 `metadata`，并使用对应的成员名（单值的 `category` 除外），可以将它们与客户端解释的字段区分开。
 
 **以声明顺序作为显示顺序。** JavaScript 会重排类整数的对象键，因此要保留声明顺序，就需要限定 id 格式或改用数组声明。客户端改为按本地化标题对声明排序。
 
-**允许 `workspace:` 范围。** 安装时会将此类范围映射为当前运行的 DSH 版本，因此所有运行时都会显示为兼容；省略这些范围会明确表达同一结果。
+**允许 `workspace:` 范围。** 安装时会将 `workspace:*`、`workspace:^` 和 `workspace:~` 映射为当前运行的 DSH 版本，因此所有运行时都会显示为兼容；省略这些范围会明确表达同一结果。
 
 **默认版本使用先行版本。** 安装检查接受先行版本，但对已有稳定版本的插件默认提供候选版本，会在用户没有选择的情况下安装未经充分测试的构建。
 
@@ -208,6 +208,7 @@ DSH 安装检查读取包 manifest 中的 `engines.dsh`。存在该字段时，�
 
 - 索引没有签名。市场可能使用误导性的 `title`，例如声称自己是官方市场；客户端必须显示索引 URL 以及每个版本的 `source`。
 - Git 版本的 `name`、`version` 和 `engines.dsh` 是关于仓库的声明。仓库可以声明任意名称，包括 `@deepseek-ai/dsh-` 名称，实际安装的内容由已安装的 manifest 决定。
+- npm 版本的 `source.registry` 同样是一种声明：它把任意 `name`（包括 `@deepseek-ai/dsh-` 名称）的安装引向市场选择的 registry，由该 registry 决定实际安装的内容。
 - URL 图标会向图片主机暴露用户的 IP 地址。
 - 固定版本在索引重新生成之前一直保持陈旧。
 - 市场文本未经 DSH 审核即到达用户，并通过任何列出插件的客户端工具到达模型。

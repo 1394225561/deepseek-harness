@@ -14,7 +14,7 @@ An index must therefore carry everything a list page displays: localized title a
 
 ## Proposal
 
-Separate the **index** from the **index generator**. DSH defines and reads one JSON index format. How an index is produced, and from which source list, belongs to the generator. DSH's reader, its Discover page, and a reference generator are separate changes that consume this format.
+Separate the **index** from the **index generator**. DSH defines and reads one JSON index format. How an index is produced, and from which source list, belongs to the generator. DSH's reader, its Discover page, and a reference generator are separate changes that consume this format. Indexes list [profile plugin bundles](../../implemented/architecture/2026-08-05-profile-plugin-bundles.md) and install them through [guided plugin installation](../../implemented/architecture/2026-09-15-guided-plugin-installation.md).
 
 ### Example
 
@@ -37,11 +37,11 @@ Separate the **index** from the **index generator**. DSH defines and reads one J
   },
   "plugins": [
     {
-      "name": "@deepseek-ai/dsh-experimental-auto-review",
+      "name": "@example/dsh-auto-review",
       "title": { "en": "Auto Review", "zh": "自动审查" },
       "description": { "en": "Per-tool LLM authorization review", "zh": "逐工具 LLM 授权审查" },
       "icon": "icons/auto-review.svg",
-      "author": "DeepSeek",
+      "author": "Example Labs",
       "metadata": {
         "category": "productivity",
         "labels": ["official"],
@@ -83,7 +83,7 @@ Separate the **index** from the **index generator**. DSH defines and reads one J
 }
 ```
 
-`LocalizedText` below is the `LocalizedText` type of [`dsh-package-manifest`](../../../../packages/util/package-manifest/src/types.ts): either a string, or an object whose keys are lowercase language ids matching `^[a-z]{2,8}(-[a-z0-9]{1,8})*$`, whose members are strings, and which contains `en`. Every string contains at least one non-whitespace character.
+`LocalizedText` below is the `LocalizedText` type of [`dsh-package-manifest`](../../../../packages/util/package-manifest/src/types.ts), a string or an object of strings that contains `en`, with two additional rules: object keys are lowercase language ids matching `^[a-z]{2,8}(-[a-z0-9]{1,8})*$`, and every string contains at least one non-whitespace character.
 
 ### Root fields
 
@@ -129,14 +129,14 @@ A relative `icon` reference resolves against the index URL, as an HTML image ref
 
 `source` takes one of two forms, and readers reject any other `type`:
 
-- `{ "type": "npm", "registry"?: string }`. `registry` is an `http:` or `https:` URL without credentials, query, or fragment.
-- `{ "type": "git", "url": string, "commit": string, "path"?: string }`. `url` is a canonical `https:` URL (equal to its WHATWG URL serialization) with at least two non-empty path segments, without credentials, query, or fragment, and not ending in `.tgz` or `.tar.gz`. `commit` is a lowercase 40-hex-digit SHA. `path` is a `/`-separated relative directory whose segments contain only ASCII letters, digits, and `._@+-`, and are neither `.` nor `..`; absent means the repository root.
+- `{ "type": "npm", "registry"?: string }`. `registry` is an `http:` or `https:` URL without credentials, query, or fragment; `http:` is admitted for intranet mirrors, as in DSH's [install registries](../../implemented/architecture/2026-09-18-plugin-install-registries.md).
+- `{ "type": "git", "url": string, "commit": string, "path"?: string }`. `url` is a canonical `https:` URL (equal to its WHATWG URL serialization) with at least two non-empty path segments and no trailing slash, without credentials, query, or fragment, and not ending in `.tgz` or `.tar.gz`. `commit` is a lowercase 40-hex-digit SHA. `path` is a `/`-separated relative directory whose segments contain only ASCII letters, digits, and `._@+-`, and are neither `.` nor `..`; absent means the repository root.
 
 ### Install arguments
 
 A client installs one version with exactly these pnpm arguments:
 
-- npm: the spec `<name>@<version>`, asking `registry` first when present and the client's configured registry otherwise. A client may fall back to its other configured registries; any of them installs the same exact version.
+- npm: the spec `<name>@<version>`. Without `registry`, the client asks its configured registries as it does for any install. With `registry`, the client follows DSH's [registry plan](../../implemented/architecture/2026-09-18-plugin-install-registries.md): it asks `registry` first and falls back to its other configured registries only when `registry` is one of them; any other `registry` is asked alone, so a private registry never falls through to a public one that may publish a different package under the same name and version.
 - git: the spec `git+<url>.git#<commit>`, without doubling a trailing `.git`, followed by `&path:/<path>` when `path` is present. The `git+` prefix makes pnpm treat URLs with more than two path segments, such as GitLab subgroups, as Git repositories.
 
 ### DSH compatibility
@@ -151,7 +151,7 @@ A reader cannot verify these rules; a generator that violates them publishes a m
 
 - `name` and each `version` equal the package manifest of the installed source.
 - `publishTimestamp` is the registry publish time of `version` for npm sources and the committer time of `commit` for Git sources.
-- `engines.dsh` copies the manifest's `engines.dsh`. Without one, it is the conjunction, as defined in DSH compatibility, of the manifest's DSH peer ranges after publication rewriting, omitting `workspace:` ranges, because installation treats them as the running DSH version; with no remaining range, `engines.dsh` is absent.
+- `engines.dsh` copies the manifest's `engines.dsh`. Without one, it is the conjunction, as defined in DSH compatibility, of the manifest's DSH peer ranges after publication rewriting, omitting `workspace:*`, `workspace:^`, and `workspace:~`, because installation treats them as the running DSH version; with no remaining range, `engines.dsh` is absent. Installation finds any other `workspace:` range incompatible with every DSH version, so generators do not list such a version.
 - Each listed version declares `dsh.bundle`. Installation independently refuses a package without a bundle patch.
 - `title`, `description`, `icon`, and `author` come from the highest listed version's locale `meta` fields, manifest fields, and icon, using the rules for installed plugin display metadata.
 
@@ -159,7 +159,7 @@ A reader cannot verify these rules; a generator that violates them publishes a m
 
 A reader rejects the whole index when the document violates any rule in Root fields, Plugin fields, Version fields, or the `source` forms, including an undeclared category, label, or sort-key reference, a duplicate `name` or `version`, or a `format` other than `1`. Each such defect is a generator bug, and dropping entries silently would hide it. Readers may bound the document size.
 
-A reader ignores members that this note does not define, at every level except `source.type`. Format 1 can then gain optional members without breaking existing readers; a change that existing readers would misinterpret uses a new `format` value.
+A reader ignores members that this note does not define, at every level; an unknown `source.type` value is rejected. Format 1 can then gain optional members without breaking existing readers; a change that existing readers would misinterpret uses a new `format` value.
 
 Categories, labels, and sort keys are opaque: a reader filters and sorts by them, displays their `title`, and never interprets an id. Readers display declarations in the order of their localized `title`. When sorting plugins, a plugin without a value for the selected sort key follows all plugins with a value in either direction, and equal values keep the index order. Sorting by publish time uses a plugin's greatest `publishTimestamp`.
 
@@ -187,11 +187,11 @@ A reader evaluates each version's compatibility from `engines.dsh` with the rule
 
 **Opaque sort values for time, including ISO date strings.** Publish time has fixed semantics that clients format and sort, so it is a typed field. Without time, sort values can be numbers only, which needs no per-key value-type rule.
 
-**Root-level `labels` and `sortKeys`, and a plugin field named `sort`.** Grouping market-defined declarations and values under `metadata` at both levels, with matching member names, separates them from fields that clients interpret.
+**Root-level `labels` and `sortKeys`, and a plugin field named `sort`.** Grouping market-defined declarations and values under `metadata` at both levels, with matching member names except the single-valued `category`, separates them from fields that clients interpret.
 
 **Declaration order as display order.** JavaScript reorders integer-like object keys, so declaration order would need either an id pattern or array declarations. Clients sort declarations by their localized title instead.
 
-**Allowing `workspace:` ranges.** Installation maps them to the running DSH version, so every runtime would appear compatible; omitting them states the same result explicitly.
+**Allowing `workspace:` ranges.** Installation maps `workspace:*`, `workspace:^`, and `workspace:~` to the running DSH version, so every runtime would appear compatible; omitting them states the same result explicitly.
 
 **Prereleases as default versions.** Installation accepts prereleases, but offering a release candidate by default to users of a plugin with stable releases would install untested builds without a choice.
 
@@ -208,6 +208,7 @@ A reader evaluates each version's compatibility from `engines.dsh` with the rule
 
 - An index is unsigned. A market can use a misleading `title`, such as one claiming to be official; clients must show the index URL and each version's `source`.
 - A Git version's `name`, `version`, and `engines.dsh` are claims about the repository. A repository can claim any name, including an `@deepseek-ai/dsh-` name, and the installed manifest decides what is actually installed.
+- An npm version's `source.registry` is equally a claim: it directs the install of any `name`, including an `@deepseek-ai/dsh-` name, to a registry the market chooses, and that registry decides what is installed.
 - URL icons disclose the user's IP address to image hosts.
 - Pinned versions stay stale until the index is regenerated.
 - Market text reaches users, and models through any client tool that lists plugins, without review by DSH.
