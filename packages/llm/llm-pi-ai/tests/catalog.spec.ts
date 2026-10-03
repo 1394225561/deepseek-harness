@@ -1238,6 +1238,16 @@ describe('configurable-provider directory', () => {
     expect(offered).toContain('openai')
   })
 
+  it('leaves out an installed catalog route that ships no chat model', async () => {
+    const ctx = await harness({})
+    const offered = ctx.llm.listConfigurableProviders().map(entry => entry.provider)
+
+    // The installed catalog ships `typesafe` with classifier models only; with
+    // nothing to dispatch a chat request to, the route is not offered.
+    expect(getBuiltinModels('typesafe')).toEqual([])
+    expect(offered).not.toContain('typesafe')
+  })
+
   it('lists a route a stored profile names as a catalog route, not a declared one', async () => {
     // `declared` answers catalog membership, so a profile stored against a
     // route pi-ai ships is not mislabelled as one this deployment invented.

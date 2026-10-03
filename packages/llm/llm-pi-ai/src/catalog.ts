@@ -186,11 +186,14 @@ export function catalogProvider(provider: string): Provider | undefined {
 }
 
 /**
- * Every provider route the installed pi-ai catalog ships.
- * @returns the catalog provider ids.
+ * Every provider route the installed pi-ai catalog ships with at least one
+ * chat model. This adapter dispatches chat requests only, so a catalog
+ * provider whose models are all of another type (image generation or
+ * classification) is not a configurable route.
+ * @returns the catalog provider ids that ship chat models, in catalog order.
  */
 export function catalogProviderIds(): readonly string[] {
-  return getBuiltinProviders()
+  return getBuiltinProviders().filter(provider => getBuiltinModels(provider).length > 0)
 }
 
 /**
