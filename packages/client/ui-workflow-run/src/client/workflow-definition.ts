@@ -47,8 +47,6 @@ interface WorkflowMemberState extends Omit<ToolWorkflowAgentStartData, 'runId'> 
 
 interface WorkflowState {
   readonly name: string
-  /** A background run outlives its Tool Step, so a closed Location does not imply interruption. */
-  readonly background: boolean
   readonly stopReason?: WorkflowStopReason
   readonly members: readonly WorkflowMemberState[]
 }
@@ -82,11 +80,16 @@ function statusFromOutcome(outcome: WorkflowAgentOutcome): WorkflowRunStatus {
   }
 }
 
-function locationClosed(location: ConversationLocation): boolean {
-  if (location.kind === 'step') {
-    return location.step.status === 'closed' || location.turn.status === 'closed'
-  }
-  return location.kind === 'turn' && location.turn.status === 'closed'
+/**
+ * A foreground run writes its run-end before its Tool Step ends, and a
+ * background run outlives that Step, so an ordinary Step or Turn closure says
+ * nothing about liveness. Only a Turn closed after a crash or at a fork
+ * boundary proves that a run without run-end stopped.
+ */
+function turnAbandoned(location: ConversationLocation): boolean {
+  if (location.kind !== 'step' && location.kind !== 'turn') return false
+  const reason = location.turn.end?.data.reason.kind
+  return reason === 'interrupted' || reason === 'forked'
 }
 
 function projectWorkflow(
@@ -95,8 +98,7 @@ function projectWorkflow(
 ): WorkflowRunChatData {
   const state = context.state as WorkflowState
   const interrupted = state.stopReason === undefined
-    && !state.background
-    && locationClosed(location)
+    && turnAbandoned(location)
   const phases = new Map<string, { phase: string | null; members: WorkflowRunMemberData[] }>()
   for (const member of state.members) {
     const phase = member.phase === undefined ? null : member.phase
@@ -165,7 +167,7 @@ export const workflowRunDefinition: ConversationNodeDefinition<WorkflowState> = 
     if (match.event.type !== 'tool-workflow/run-start') {
       throw new Error('workflow-run start requires tool-workflow/run-start')
     }
-    return { name: match.event.data.name, background: match.event.data.background === true, members: [] }
+    return { name: match.event.data.name, members: [] }
   },
   update: (context, match) => {
     if (match.event.type === 'tool-workflow/agent-start') {
