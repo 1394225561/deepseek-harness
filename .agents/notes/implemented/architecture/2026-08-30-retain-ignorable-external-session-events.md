@@ -16,6 +16,8 @@ The canonical `SessionEvent` envelope retains `ignorable?: true`, and every repr
 
 The field is removable only after a replacement supports the current third-party plugin across event production, persistence, reload, and transport, with an explicit cutover for sessions already containing the marker. The [session log versioning decision](2026-08-10-session-log-version-mechanism.md) continues to own the default-required safety rule and format-version policy.
 
+`appendPluginRecord()` in `@deepseek-ai/dsh-session` is the one first-party writer of the marker. It appends ignorable records whose type is in the `plugin:` namespace, which the V3-to-V4 edge already assigns to unknown ignorable V3 events, and only production source under `packages/experimental/` may call it; the `verify-plugin-record-callers` gate enforces that, and the persistence catalog generator rejects a `SessionEventMap` member in the namespace. Experimental packages keep state there that their owners can lose: a format migration retains records on a best-effort basis, so a release package declares its events instead.
+
 Historical format migration is deliberately stricter in the alpha implementation. The v0-to-v1 edge refuses every unknown v0 type, including an ignorable one, because an opaque payload may contain references that a format edge cannot validate. The [alpha historical-event decision](2026-08-31-alpha-historical-unknown-event-refusal.md) owns that bounded exception; equal-version append and reload continue to follow this note.
 
 ## Alternatives considered
@@ -26,8 +28,14 @@ Historical format migration is deliberately stricter in the alpha implementation
 
 **Treat every repository-external event as ignorable.** Rejected because a reader cannot infer that an unknown durable event is informational. An external event may change later reconstruction or plugin-owned state.
 
+**Declare a `SessionEventMap` member for each experimental package's state.** Rejected because each member is required-on-read and enters the persistence catalog and its type history: a build without the experimental package refuses the Session, and removing the package leaves a released type behind.
+
+**Let any package call the record writer.** Rejected because records survive a format migration only on a best-effort basis, and a release package must not keep state that an upgrade can drop.
+
+**Restrict the writer with a runtime capability.** Not adopted because the writer runs in its caller's process, where a runtime check cannot tell experimental code from release code; the repository gate checks every reference instead.
+
 **Register mounted plugin event names as known.** Not adopted as the removal mechanism because event-name registration alone does not classify whether absence is safe, and acceptance would depend on the reader's current composition rather than the stored record.
 
 ## Consequences
 
-Third-party informational events can remain reloadable when their stored records carry the explicit marker, while unknown required events still fail loudly. The field remains part of the public event envelope, JSONL representation, transport types, generated references, and their tests until a replacement satisfies the cutover condition.
+Third-party informational events can remain reloadable when their stored records carry the explicit marker, while unknown required events still fail loudly. The field remains part of the public event envelope, JSONL representation, transport types, generated references, and their tests until a replacement satisfies the cutover condition, which now also covers plugin records written by experimental packages.

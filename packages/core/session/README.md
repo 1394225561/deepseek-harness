@@ -63,6 +63,12 @@ Append, seed/restore, and event adoption/snapshot reject any `header.system` and
 
 Session log positions use two numeric types. `SessionSeq` identifies an existing event or inclusive event watermark; `SessionLogOffset` identifies a gap, prefix length, or read boundary and may equal the event count. `SessionSeqCursor` adds the `-1` “no event yet” value, while `OptionalSessionSeq` uses `null` when absence is data. The constructors validate non-negative safe integers, and the brands disappear at runtime, so durable JSON and wire values remain ordinary numbers.
 
+### Write experimental plugin records
+
+`appendPluginRecord(session, type, data)` appends one plugin record for a package under `packages/experimental/`; the `verify-plugin-record-callers` gate rejects any other production caller in this repository. A record is an event marked `ignorable: true` whose type is `plugin:` followed by lowercase slash-separated segments, such as `plugin:pi-extensions/entry`. No `SessionEventMap` member uses that namespace, so the persistence catalog does not list records, and a build that does not recognize one retains and skips it on read. A record never enters the model-visible surface. Resume and fork carry it with the rest of the log, and a Session format migration keeps it on a best-effort basis.
+
+`pluginRecordOf(event)` returns an event as a record, or `undefined` for any other event; a `ctx.sessionProjections` unit that passes each event to it rebuilds plugin state on resume. The owning package validates `data` before use, because a restored record carries whatever JSON an earlier build wrote. The [ignorable events decision](../../../.agents/notes/implemented/architecture/2026-08-30-retain-ignorable-external-session-events.md) records why records are restricted to experimental packages.
+
 ### Fork a session
 
 `ctx.sessions.fork(source, boundary?, childSessionId?)` copies an exact inclusive event prefix (default: the last event) from a live source. `buildForkSeed` in `dsh-session/fork` places an inherited marker after the copied events, adds missing error tool results only for the open step, and closes that step and turn with a `forked` reason. Closed steps and turns remain unchanged, including historical missing results. The marker and closers belong to the child; `inheritedEventCount` counts only the copied prefix.

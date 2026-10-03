@@ -63,6 +63,12 @@ session.deriveMessages()         // the derived model history
 
 会话日志位置使用两种数字类型。`SessionSeq` 标识已有事件或包含端点的事件水位；`SessionLogOffset` 标识间隙、前缀长度或读取边界，并且可以等于事件数量。`SessionSeqCursor` 添加 `-1` 这个“尚无事件”值，`OptionalSessionSeq` 则在缺失本身属于数据时使用 `null`。构造函数会校验非负安全整数，brand 在运行时会被擦除，因此持久 JSON 与 wire 值仍是普通数字。
 
+### 写入实验性插件记录
+
+`appendPluginRecord(session, type, data)` 为 `packages/experimental/` 下的包追加一条插件记录；`verify-plugin-record-callers` 门禁拒绝本仓库中任何其他生产调用方。记录是带有 `ignorable: true` 标记的事件，其类型为 `plugin:` 后接以斜杠分隔的小写段，例如 `plugin:pi-extensions/entry`。没有任何 `SessionEventMap` 成员使用该命名空间，因此持久化目录不列出记录；不认识某条记录的构建在读取时保留并跳过它。记录从不进入模型可见的 surface。resume 与 fork 随日志其余部分一起携带它，Session 格式迁移以尽力而为的方式保留它。
+
+`pluginRecordOf(event)` 把事件作为记录返回，对其他任何事件返回 `undefined`；把每个事件都交给它的 `ctx.sessionProjections` 单元在 resume 时重建插件状态。所属包在使用 `data` 之前先校验，因为恢复出的记录携带的是早先构建写入的任意 JSON。[ignorable 事件决策](../../../.agents/notes/implemented/architecture/2026-08-30-retain-ignorable-external-session-events.zh.md)记录了为何只有实验性包可以写入记录。
+
 ### 派生会话的 fork
 
 `ctx.sessions.fork(source, boundary?, childSessionId?)` 从实时源会话复制包含切点的精确事件前缀（默认：最后一个事件）。`dsh-session/fork` 的 `buildForkSeed` 在复制事件之后放置继承标记，仅为开放步骤补缺失的错误工具结果，并以 `forked` 原因关闭步骤和轮次。已关闭的步骤与轮次保持原样，包括历史缺失结果。标记和结束事件属于子会话；`inheritedEventCount` 只统计复制的前缀。
