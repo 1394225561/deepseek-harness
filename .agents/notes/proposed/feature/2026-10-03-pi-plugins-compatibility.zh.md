@@ -6,7 +6,7 @@ Status: proposed
 
 ## 问题
 
-Pi 1.0.0 有两套相互独立的定制机制。扩展是进程内的 TypeScript 工厂函数，API 已发布，由 [Pi 扩展桥接 Agent Note](2026-10-03-pi-extensions-bridge.zh.md) 负责。插件是较新的机制，构建在 Pi 的 Chord 组合运行时之上：一个插件包贡献若干 facet，每个 facet 运行在其名称选定的进程里。本 Agent Note 只讨论插件。
+Pi 1.0.0 有两套相互独立、用于运行定制代码的机制。扩展是进程内的 TypeScript 工厂函数，API 已发布，由 [Pi 扩展桥接 Agent Note](2026-10-03-pi-extensions-bridge.zh.md) 负责。插件是较新的机制，构建在 Pi 的 Chord 组合运行时之上：一个插件包贡献若干 facet，每个 facet 运行在其名称选定的进程里。本 Agent Note 只讨论插件。
 
 现在还不值得为 Pi 插件构建兼容层，上游资料自己给出了两条理由。
 
