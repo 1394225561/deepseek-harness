@@ -42,6 +42,7 @@ Separate the **index** from the **index generator**. DSH defines and reads one J
       "description": { "en": "Per-tool LLM authorization review", "zh": "逐工具 LLM 授权审查" },
       "icon": "icons/auto-review.svg",
       "author": "Example Labs",
+      "homepage": "https://example.com/dsh-auto-review",
       "metadata": {
         "category": "productivity",
         "labels": ["official"],
@@ -109,6 +110,7 @@ Category, label, and sort-key ids are non-empty strings. Readers look ids up as 
 | `description` | no | `LocalizedText`. |
 | `icon` | no | Either `data:<type>;base64,<payload>`, where `<type>` is `image/svg+xml`, `image/png`, `image/jpeg`, or `image/webp`, `<payload>` is canonically padded base64, and the decoded payload is at most 256 KiB; or a URL reference whose resolution against the index URL is an `https:` URL or has the index URL's origin. |
 | `author` | no | String with at least one non-whitespace character. |
+| `homepage` | no | Absolute `https:` or `http:` URL of a page about the plugin. |
 | `metadata` | no | Object holding the three values below. |
 | `metadata.category` | no | One declared category id. |
 | `metadata.labels` | no | Array of distinct declared label ids. |
@@ -153,7 +155,7 @@ A reader cannot verify these rules; a generator that violates them publishes a m
 - `publishTimestamp` is the registry publish time of `version` for npm sources and the committer time of `commit` for Git sources.
 - `engines.dsh` copies the manifest's `engines.dsh`. Without one, it is the conjunction, as defined in DSH compatibility, of the manifest's DSH peer ranges after publication rewriting, omitting `workspace:*`, `workspace:^`, and `workspace:~`, because installation treats them as the running DSH version; with no remaining range, `engines.dsh` is absent. Installation finds any other `workspace:` range incompatible with every DSH version, so generators do not list such a version.
 - Each listed version declares `dsh.bundle`. Installation independently refuses a package without a bundle patch.
-- `title`, `description`, `icon`, and `author` come from the highest listed version's locale `meta` fields, manifest fields, and icon, using the rules for installed plugin display metadata.
+- `title`, `description`, `icon`, and `author` come from the highest listed version's locale `meta` fields, manifest fields, and icon, using the rules for installed plugin display metadata. `homepage` copies that version's manifest `homepage` and is absent without one.
 
 ### Reader rules
 
@@ -177,7 +179,7 @@ A reader evaluates each version's compatibility from `engines.dsh` with the rule
 
 **One `source` per plugin, with only the pin per version.** A plugin that moves to another repository, directory, or registry between releases could not list its older versions.
 
-**Display fields per version.** A list shows one row per plugin, so older display text would cost index size without a reader that shows it.
+**Display fields per version.** A list shows one row per plugin, so older display text, icons, authors, and homepages would cost index size without a reader that shows them.
 
 **Inline icons only.** A list without extra requests needs inline icons, but 256 KiB of raw bytes is about 341 KiB as base64, so a 100-plugin index could reach about 35 MB. URL icons trade extra requests, and disclosure of the user's IP address to the image host, for a small index.
 

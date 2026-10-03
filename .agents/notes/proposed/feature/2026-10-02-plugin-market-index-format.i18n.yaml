@@ -18,8 +18,8 @@
   en: 4fac5a9b8261342d
   zh: f9168a8a4209feab
 /agent-note-plugin-market-index-format/proposal/plugin-fields:
-  en: aa544c156b4592b4
-  zh: 69970e21ccb9eebd
+  en: f728927a89754892
+  zh: 3bc3b18cac60cdc1
 /agent-note-plugin-market-index-format/proposal/version-fields:
   en: d82d84e9f15f0a8c
   zh: fa65770cd7607c15
@@ -30,14 +30,14 @@
   en: 323c997bccd7cf4a
   zh: fd588d37925d3732
 /agent-note-plugin-market-index-format/proposal/generator-obligations:
-  en: bd44312d55afce0c
-  zh: 8d341a2ae095dbca
+  en: 2355bd40a77e615c
+  zh: a83fa20f47b49e44
 /agent-note-plugin-market-index-format/proposal/reader-rules:
   en: 40613286c82370b2
   zh: f6b2452c75e9fc71
 /agent-note-plugin-market-index-format/alternatives-considered:
-  en: ef519b0d5da71645
-  zh: 428dbcd6502bbfb5
+  en: d102d17d4203c592
+  zh: b98f970545e3e07f
 /agent-note-plugin-market-index-format/acceptance-criteria:
   en: f364af5c0343a23e
   zh: 8b8c2a3ec3f6a57f

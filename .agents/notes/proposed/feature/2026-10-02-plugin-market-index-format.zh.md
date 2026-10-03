@@ -42,6 +42,7 @@ DSH 只能从用户已知的 spec 安装第三方组合包（bundle）：npm 包
       "description": { "en": "Per-tool LLM authorization review", "zh": "逐工具 LLM 授权审查" },
       "icon": "icons/auto-review.svg",
       "author": "Example Labs",
+      "homepage": "https://example.com/dsh-auto-review",
       "metadata": {
         "category": "productivity",
         "labels": ["official"],
@@ -109,6 +110,7 @@ DSH 只能从用户已知的 spec 安装第三方组合包（bundle）：npm 包
 | `description` | 否 | `LocalizedText`。 |
 | `icon` | 否 | 以下两种形式之一：`data:<type>;base64,<payload>`，其中 `<type>` 为 `image/svg+xml`、`image/png`、`image/jpeg` 或 `image/webp`，`<payload>` 是按规范填充的 base64，解码后的载荷不超过 256 KiB；或者 URL 引用，它相对于索引 URL 解析的结果是 `https:` URL，或与索引 URL 同源。 |
 | `author` | 否 | 至少包含一个非空白字符的字符串。 |
+| `homepage` | 否 | 介绍该插件的页面的绝对 `https:` 或 `http:` URL。 |
 | `metadata` | 否 | 包含下列三个值的对象。 |
 | `metadata.category` | 否 | 一个已声明的分类 id。 |
 | `metadata.labels` | 否 | 由互不相同的已声明标签 id 组成的数组。 |
@@ -153,7 +155,7 @@ DSH 安装检查读取包 manifest 中的 `engines.dsh`。存在该字段时，�
 - 对于 npm 来源，`publishTimestamp` 是 `version` 在 registry 中的发布时间；对于 Git 来源，它是 `commit` 的提交者时间。
 - `engines.dsh` 复制 manifest 中的 `engines.dsh`。manifest 没有该字段时，它是 manifest 中经发布改写后的 DSH peer 范围按 DSH 兼容性一节定义的合取，并省略 `workspace:*`、`workspace:^` 和 `workspace:~`，因为安装时会将它们视为当前运行的 DSH 版本；没有剩余范围时省略 `engines.dsh`。安装检查认为其他任何 `workspace:` 范围与所有 DSH 版本都不兼容，因此生成器不列出此类版本。
 - 列出的每个版本都声明了 `dsh.bundle`。安装时也会独立拒绝没有组合包 patch 的包。
-- `title`、`description`、`icon` 和 `author` 来自所列最高版本的语言文件 `meta` 字段、manifest 字段和图标，并采用已安装插件显示元数据的规则。
+- `title`、`description`、`icon` 和 `author` 来自所列最高版本的语言文件 `meta` 字段、manifest 字段和图标，并采用已安装插件显示元数据的规则。`homepage` 复制该版本 manifest 的 `homepage`，manifest 没有该字段时省略。
 
 ### 读取器规则
 
@@ -177,7 +179,7 @@ DSH 安装检查读取包 manifest 中的 `engines.dsh`。存在该字段时，�
 
 **每个插件一个 `source`，每个版本只记录固定点。** 在两次发布之间换了仓库、目录或 registry 的插件将无法列出旧版本。
 
-**每个版本各有显示字段。** 列表每个插件只显示一行，旧的显示文本会增加索引大小，却没有读取器显示它。
+**每个版本各有显示字段。** 列表每个插件只显示一行，旧的显示文本、图标、作者和主页会增加索引大小，却没有读取器显示它们。
 
 **只允许内联图标。** 不发额外请求的列表需要内联图标，但 256 KiB 原始字节编码为 base64 后约为 341 KiB，因此 100 个插件的索引可能达到约 35 MB。URL 图标以额外请求和向图片主机暴露用户 IP 地址为代价，换取较小的索引。
 
