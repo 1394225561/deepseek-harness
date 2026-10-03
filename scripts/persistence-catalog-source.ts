@@ -186,7 +186,7 @@ export function collectLogEvents(scanRoot: string = root): LogEventEntry[] {
         const name = member.name.text
         const where = `log event '${name}' (${src})`
         if (name.startsWith('plugin:')) {
-          violations.push(`${where} uses the plugin: namespace, which holds ignorable plugin records outside the event vocabulary; choose a scope/name event type.`)
+          violations.push(`${where} uses the plugin: namespace, which holds ignorable plugin records outside SessionEventMap; choose a scope/name event type.`)
           continue
         }
         const prior = seen.get(name)

@@ -526,7 +526,8 @@ export type PluginRecordType = `plugin:${string}`
 /**
  * One committed experimental plugin record, read from the log by
  * `pluginRecordOf`. The record's owner validates `data` before use, because a
- * restored record carries whatever JSON an earlier build of its owner wrote.
+ * restored record carries whatever JSON an earlier build of its owner wrote,
+ * or a V3 event that a format migration renamed into the `plugin:` namespace held.
  */
 export interface PluginRecord {
   /** The record type, chosen by the owning plugin. */

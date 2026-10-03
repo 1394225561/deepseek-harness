@@ -6,10 +6,13 @@
  * basis. Experimental packages may rely on that; a release package must declare its events instead.
  * The owning module and test files, which exercise the operation, are exempt.
  *
- * Discovery is syntax-aware, as `scripts/AGENTS.md` requires: every identifier spelled
- * `appendPluginRecord` counts — an import, re-export, call, namespace member, destructured binding,
- * or alias source — and so does a string literal of exactly that name, which reaches the function by
- * element access. Comments, including JSDoc links, and longer strings do not count.
+ * Discovery is syntax-aware: every identifier spelled `appendPluginRecord` counts — an import, a
+ * named re-export, a call, a namespace member, a destructured binding, or an alias source — and so
+ * does a string literal of exactly that name, which reaches the function by element access.
+ * Comments, including JSDoc links, and longer strings do not count. A wildcard re-export
+ * (`export * from`) names no identifier and is not reported; code that calls the function through
+ * it still names the function, and that reference is. Only files whose text contains the name or a
+ * `\u` escape are parsed, so an escaped spelling of the name is still found.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -79,6 +82,7 @@ function scriptKind(file: string): ts.ScriptKind {
  * @returns one entry per referencing identifier or exact-name string literal, in source order.
  */
 export function findPluginRecordReferences(file: string, source: string): PluginRecordCaller[] {
+  if (!source.includes(RESTRICTED_NAME) && !source.includes('\\u')) return []
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file))
   const lines = source.split(/\r?\n/u)
   const references: PluginRecordCaller[] = []
@@ -128,11 +132,12 @@ export function checkPluginRecordCallers(files: ReadonlyMap<string, string>): Pl
 
 /**
  * Read every tracked or unignored source file outside `vendor/`.
+ * @param repoRoot - the repository root; defaults to this checkout.
  * @returns repository-relative path, in POSIX separators, to contents.
  */
-export function readRepositorySources(): Map<string, string> {
+export function readRepositorySources(repoRoot: string = root): Map<string, string> {
   const listing = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
-    cwd: root,
+    cwd: repoRoot,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   })
@@ -141,7 +146,7 @@ export function readRepositorySources(): Map<string, string> {
     const file = entry.replaceAll('\\', '/')
     if (file === '' || file.startsWith('vendor/') || !SOURCE_EXTENSION.test(file)) continue
     try {
-      files.set(file, readFileSync(resolve(root, file), 'utf8'))
+      files.set(file, readFileSync(resolve(repoRoot, file), 'utf8'))
     } catch (error: unknown) {
       // A file deleted in the working tree is still listed until the deletion is staged.
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error

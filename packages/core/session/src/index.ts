@@ -494,7 +494,9 @@ export function appendPluginRecord(session: Session, type: PluginRecordType, dat
 }
 
 /**
- * Read one committed event as a plugin record.
+ * Read one committed event as a plugin record. The V3-to-V4 format edge also
+ * renames each unknown ignorable V3 event into the `plugin:` namespace, so an
+ * owner names its records under its own package name and validates `data`.
  * @param event - any committed Session event, live or restored.
  * @returns the record, or undefined when the event is not an ignorable event
  *   whose type follows the plugin record grammar.
@@ -821,7 +823,7 @@ export class Session {
   }
 
   static {
-    commitPluginRecord = (session, type, data) => session.appendRecord(type, data)
+    commitPluginRecord = (session, type, data) => session.#appendRecord(type, data)
   }
 
   /**
@@ -830,7 +832,7 @@ export class Session {
    * @param data - JSON payload, snapshotted before it enters the log.
    * @returns the record's sequence number.
    */
-  private appendRecord(type: PluginRecordType, data: JsonValue): SessionSeq {
+  #appendRecord(type: PluginRecordType, data: JsonValue): SessionSeq {
     const dataSnapshot = snapshotJsonValue(data)
     if (dataSnapshot === undefined) {
       throw new Error(`plugin record "${type}" carries non-JSON-serializable data`)

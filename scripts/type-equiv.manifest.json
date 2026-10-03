@@ -626,6 +626,16 @@
     },
     {
       "doc": "docs/subsystems/session.md",
+      "symbol": "PluginRecordType",
+      "source": "packages/core/session/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/session.md",
+      "symbol": "PluginRecord",
+      "source": "packages/core/session/src/types.ts"
+    },
+    {
+      "doc": "docs/subsystems/session.md",
       "symbol": "TurnEndCancelCause",
       "source": "packages/core/session/src/types.ts"
     },

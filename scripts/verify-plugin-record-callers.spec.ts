@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   checkPluginRecordCallers,
   findPluginRecordReferences,
@@ -6,6 +10,24 @@ import {
   OWNER_FILE,
   readRepositorySources,
 } from './verify-plugin-record-callers.ts'
+
+const roots: string[] = []
+
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
+
+/** A temporary git repository with the given files written and none of them staged. */
+function repository(files: Record<string, string>): string {
+  const root = mkdtempSync(join(tmpdir(), 'dsh-plugin-record-callers-'))
+  roots.push(root)
+  execFileSync('git', ['init', '--quiet'], { cwd: root, stdio: 'pipe' })
+  for (const [file, contents] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, file)), { recursive: true })
+    writeFileSync(join(root, file), contents)
+  }
+  return root
+}
 
 const OWNER_SOURCE = 'export function appendPluginRecord(session, type, data) { return commit(session, type, data) }\n'
 const EXPERIMENTAL = 'packages/experimental/bridge/src/index.ts'
@@ -30,6 +52,7 @@ describe('verify-plugin-record-callers', () => {
     ['a destructured binding', 'const { appendPluginRecord: write } = S'],
     ['an element access', "S['appendPluginRecord'](session, 'plugin:a', {})"],
     ['a template element access', 'S[`appendPluginRecord`](session, `plugin:a`, {})'],
+    ['an escaped identifier', 'S.\\u0061ppendPluginRecord(session, "plugin:a", {})'],
   ])('rejects %s in release package source', (_form, source) => {
     expect(checkPluginRecordCallers(corpus(`${source}\n`))).toEqual([{ file: RELEASE, line: 1, text: source }])
   })
@@ -43,12 +66,13 @@ describe('verify-plugin-record-callers', () => {
       .toEqual(['packages/client/ui/src/view.tsx', 'scripts/tool.mjs'])
   })
 
-  it('ignores comments, JSDoc links, longer strings, and other identifiers', () => {
+  it('ignores comments, JSDoc links, longer strings, other identifiers, and wildcard re-exports', () => {
     const source = [
       '// appendPluginRecord is restricted',
       '/** Plugin state uses {@link appendPluginRecord} in experimental packages. */',
       "const message = 'call appendPluginRecord only from experimental packages'",
       'const appendPluginRecords = 1',
+      "export * from '@deepseek-ai/dsh-session'",
     ].join('\n')
     expect(checkPluginRecordCallers(corpus(source))).toEqual([])
   })
@@ -92,7 +116,25 @@ describe('verify-plugin-record-callers', () => {
     }
   })
 
-  it('passes on the repository', () => {
-    expect(checkPluginRecordCallers(readRepositorySources())).toEqual([])
+  it('reads tracked and unignored sources outside vendor, skipping other files and deleted ones', () => {
+    const root = repository({
+      '.gitignore': 'ignored/\n',
+      [OWNER_FILE]: OWNER_SOURCE,
+      'scripts/tool.mjs': 'export {}\n',
+      'ignored/scratch.ts': 'export {}\n',
+      'vendor/cordis/src/index.ts': 'export {}\n',
+      'docs/page.md': '# Page\n',
+      'packages/core/gone/src/index.ts': 'export {}\n',
+    })
+    execFileSync('git', ['add', '.'], { cwd: root, stdio: 'pipe' })
+    rmSync(join(root, 'packages/core/gone/src/index.ts'))
+    mkdirSync(join(root, 'packages/core/agent/src'), { recursive: true })
+    writeFileSync(join(root, 'packages/core/agent/src/new.ts'), 'export {}\n')
+
+    expect([...readRepositorySources(root).keys()].sort()).toEqual([
+      'packages/core/agent/src/new.ts',
+      OWNER_FILE,
+      'scripts/tool.mjs',
+    ])
   })
 })

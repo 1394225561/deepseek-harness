@@ -7,6 +7,7 @@ import SessionStore, {
   pluginRecordOf,
   Session,
   SessionId,
+  SessionLogOffset,
   SessionSeq,
 } from '@deepseek-ai/dsh-session'
 import type { PluginRecordType, SessionEvent } from '@deepseek-ai/dsh-session'
@@ -107,16 +108,17 @@ describe('plugin records', () => {
     await ctx.fiber.dispose()
   })
 
-  it('carries records through a restore and into a fork', () => {
+  it('carries records through a snapshot restore, a storage reopen, and a fork', () => {
     const session = Session.create(SessionId('source'))
     openTurn(session)
     appendPluginRecord(session, 'plugin:test/state', { count: 1 })
     const events = session.snapshotEvents()
 
     const restored = Session.create(SessionId('restored'), events)
+    const reopened = Session.fromRestore(SessionId('source'), events, session.header, SessionLogOffset(0), 'shared-frozen')
     const child = Session.create(SessionId('child'), buildForkSeed(events, SessionSeq(2)))
 
-    for (const copy of [restored, child]) {
+    for (const copy of [restored, reopened, child]) {
       expect(pluginRecordOf(copy.snapshotEvents()[2] as SessionEvent))
         .toEqual({ type: 'plugin:test/state', seq: 2, time: events[2]?.time, data: { count: 1 } })
       expect(copy.deriveMessages()).toEqual(session.deriveMessages())
