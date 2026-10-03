@@ -125,6 +125,8 @@ DSH 只能从用户已知的 spec 安装第三方组合包（bundle）：npm 包
 | `engines` | 否 | 对象。 |
 | `engines.dsh` | 否 | 不以 `workspace:` 开头的非空 SemVer 范围字符串，表示该版本可运行的 DSH 版本。缺省表示任意 DSH 版本。 |
 
+相对的 `icon` 引用相对于索引 URL 解析，与 HTML 图片引用相对于所在页面解析的方式相同。对于位于 `https://market.example/dsh/index.json` 的索引，`"icon": "icons/foo.svg"` 指向 `https://market.example/dsh/icons/foo.svg`。因此，生成器可以把索引和图标文件作为一个目录发布到任意静态主机，无需知道最终 URL。指向其他源的绝对图标 URL 必须使用 `https:`；同源规则允许位于 loopback 或内网主机上的 `http:` 索引提供自己的图标。读取器在读取索引时解析该引用，因此客户端收到的是绝对 URL。
+
 `source` 采用以下两种形式之一，读取器拒绝其他任何 `type`：
 
 - `{ "type": "npm", "registry"?: string }`。`registry` 是不含凭据、查询或片段的 `http:` 或 `https:` URL。

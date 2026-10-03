@@ -125,6 +125,8 @@ Category, label, and sort-key ids are non-empty strings. Readers look ids up as 
 | `engines` | no | Object. |
 | `engines.dsh` | no | Non-empty SemVer range string that does not start with `workspace:`; the DSH versions this version runs on. Absent means any DSH version. |
 
+A relative `icon` reference resolves against the index URL, as an HTML image reference resolves against its page. For an index at `https://market.example/dsh/index.json`, `"icon": "icons/foo.svg"` names `https://market.example/dsh/icons/foo.svg`. A generator can therefore publish the index and its icon files as one directory on any static host without knowing the final URL. Absolute icon URLs on other origins must use `https:`; the same-origin allowance lets an `http:` index on a loopback or intranet host serve its own icons. Readers resolve the reference when they read the index, so clients receive absolute URLs.
+
 `source` takes one of two forms, and readers reject any other `type`:
 
 - `{ "type": "npm", "registry"?: string }`. `registry` is an `http:` or `https:` URL without credentials, query, or fragment.
