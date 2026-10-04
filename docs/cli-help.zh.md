@@ -186,6 +186,10 @@ Options:
                                  grants no trust
   --trusted-host <authority...>  extra authority the /api browser-trust fence
                                  accepts (host or host:port; repeatable)
+  --tls-cert <file>              PEM server certificate chain; requires
+                                 --tls-key
+  --tls-key <file>               unencrypted PEM private key; requires
+                                 --tls-cert
   -h, --help                     show this help
 
 Examples:
@@ -195,5 +199,7 @@ Examples:
   dsh --profile web --host 10.0.0.7          bind one local interface address
   dsh --profile web --public-url https://app.example/ui/ --trusted-host app.example
                                              advertise a prefix-stripping HTTPS proxy entry and admit its authority
+  dsh --profile web --tls-cert ./server-chain.pem --tls-key ./server-key.pem
+                                             serve HTTPS with an existing certificate and key
 
 ```
