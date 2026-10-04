@@ -140,10 +140,16 @@ class FactoryOwnership {
     this.accepting = false
     this.teardown.abort(new Error('agent loop is not active'))
     this.inactive.resolve()
-    await Promise.all([
+    const settlements = await Promise.allSettled([
       ...[...this.liveAgents].map(dispose => dispose()),
       ...this.startupTasks,
     ])
+    const failures: unknown[] = []
+    for (const result of settlements) {
+      if (result.status === 'rejected') failures.push(result.reason)
+    }
+    if (failures.length === 1) throw failures[0]
+    if (failures.length > 1) throw new AggregateError(failures, 'agent loop disposal failed')
   }
 }
 
@@ -361,11 +367,20 @@ export class AgentLoop extends Service implements AgentFactory {
     validateConfiguredAgents(this.config.agents)
     // Register only after every config validation above has passed, so a
     // rejected constructor leaves no projection unit behind.
-    ctx.sessionProjections.register(turnBoundaryProjectionDefinition)
-    ctx.sessionProjections.register(inboxProjectionDefinition)
-    this.ownership = new FactoryOwnership(ctx.fiber)
+    const ownership = this.ownership = new FactoryOwnership(ctx.fiber)
     this.runtime = { ctx }
-    ctx.effect(() => () => this.ownership.dispose(), 'agentLoop.transactions()')
+    // Independent effects unload concurrently; projections must outlive Agents.
+    ctx.effect(function* () {
+      const unregisterTurnBoundary = ctx.sessionProjections.register(turnBoundaryProjectionDefinition)
+      yield unregisterTurnBoundary
+      const unregisterInbox = ctx.sessionProjections.register(inboxProjectionDefinition)
+      yield unregisterInbox
+      // Cordis skips later disposers after a rejection; finally still releases projections.
+      yield () => ownership.dispose().finally(() => {
+        unregisterInbox()
+        unregisterTurnBoundary()
+      })
+    }, 'agentLoop.transactions()')
     ctx.effect(() => ctx.agents.setFactory(this), 'agentLoop.setFactory()')
     ctx.systemPrompt.variable('provider', context => context.agent?.options.provider)
     ctx.systemPrompt.variable('model', context => context.agent?.options.model)
@@ -521,9 +536,9 @@ export class AgentLoop extends Service implements AgentFactory {
     let publication: ReturnType<typeof Promise.withResolvers<void>> | undefined
     const machineReady = Promise.withResolvers<void>()
     // Reverse teardown, memoized so every racing owner awaits one quiescence:
-    // stop the machine, drain and close the session's write path, leave the
-    // registries, unwind the scope, release bookkeeping.
-    const dispose = (ownerTriggered = false): Promise<void> => (disposing ??= (async () => {
+    // stop the machine, unwind the scope, drain and close the session's write
+    // path, leave the registries, release bookkeeping.
+    const teardown = (): Promise<void> => (disposing ??= (async () => {
       abort.abort(new Error(`agent "${id}" lifecycle disposed`))
       callerSignal?.removeEventListener('abort', onCallerAbort)
       this.ownership.signal.removeEventListener('abort', onFactoryTeardown)
@@ -543,8 +558,12 @@ export class AgentLoop extends Service implements AgentFactory {
         if (machine !== undefined) {
           machine.cancel({ kind: 'disposed' })
           await machine.whenIdle()
-          await machine.scope.dispose()
         }
+      } catch (error: unknown) {
+        failures.push(error)
+      }
+      try {
+        await machine?.scope.dispose()
       } catch (error: unknown) {
         failures.push(error)
       }
@@ -562,13 +581,19 @@ export class AgentLoop extends Service implements AgentFactory {
         detachSession?.()
       } finally {
         untrack()
-        if (!ownerTriggered) await unfollowOwner()
       }
       if (failures.length === 1) throw failures[0]
       if (failures.length > 1) {
         throw new AggregateError(failures, `agent "${id}" disposal failed`)
       }
     })())
+    const dispose = async (): Promise<void> => {
+      try {
+        await teardown()
+      } finally {
+        await unfollowOwner()
+      }
+    }
     const untrack = this.ownership.track(dispose)
     let unfollowOwner: () => Promise<void> | void
     try {
@@ -577,11 +602,8 @@ export class AgentLoop extends Service implements AgentFactory {
         machineReady.resolve()
         yield machine.scope.rawDispose
         yield () => {
-          // Owner disposal owns the same quiescence boundary. Its teardown skips
-          // unregistering this already-running owner effect from inside itself.
-          if (disposing !== undefined) return
           abort.abort(new Error(`agent "${id}" setup aborted: owner disposed during setup`))
-          return dispose(true)
+          return teardown()
         }
       }, `agentLoop.lifecycle(${id})`)
       /* v8 ignore start -- ctx.effect throws only on an inactive fiber, which assertActive() above already rejected */
