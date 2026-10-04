@@ -1,5 +1,5 @@
 diff --git a/dist/api/anthropic-messages.js b/dist/api/anthropic-messages.js
-index 106f2b9617fa3b810261e067a3c965f209907af3..d841d316172c82d5b1aebcfb2bde3e84b807ae0a 100644
+index 38571b31e143e913c2bf59dad73382982e93664a..950e546197d8e84cb3edfca0012939f1db2488d8 100644
 --- a/dist/api/anthropic-messages.js
 +++ b/dist/api/anthropic-messages.js
 @@ -553,7 +553,6 @@ export const stream = (model, context, options) => {
@@ -11,10 +11,10 @@ index 106f2b9617fa3b810261e067a3c965f209907af3..d841d316172c82d5b1aebcfb2bde3e84
                                  type: "toolcall_delta",
                                  contentIndex: index,
 diff --git a/dist/api/bedrock-converse-stream.js b/dist/api/bedrock-converse-stream.js
-index a7f6d9cbe66546d5d418450809e92cf7289ce4a3..6fc5438c9ace36d8cb0f6bf3d077ebfa8281dcf5 100644
+index 428af807620993a4c90ceb1a1a120d553844be32..d81d290d8b8b97f8e2cdd97cff1ebaf019c5733e 100644
 --- a/dist/api/bedrock-converse-stream.js
 +++ b/dist/api/bedrock-converse-stream.js
-@@ -460,7 +460,6 @@ function handleContentBlockDelta(event, blocks, output, stream) {
+@@ -461,7 +461,6 @@ function handleContentBlockDelta(event, blocks, output, stream) {
      }
      else if (delta?.toolUse && block?.type === "toolCall") {
          block.partialJson = (block.partialJson || "") + (delta.toolUse.input || "");
@@ -35,7 +35,7 @@ index fbcc5e25ee6752a9c5461b41fa8544a090a17b3f..f540825c4f934f342200db72190599fe
                  type: "toolcall_delta",
                  contentIndex: toolBlocksByKey.get(key),
 diff --git a/dist/api/openai-completions.js b/dist/api/openai-completions.js
-index eecd83c753e3b758b8e44628f560b862f8252839..201ad4da96e33bcac9446093c804794d6e64fc82 100644
+index a60f39352b776d71497e55b33b3334bacfbeb2f5..6c9b98e35606c52e4f0fb29d8fd0b5ba02d92e09 100644
 --- a/dist/api/openai-completions.js
 +++ b/dist/api/openai-completions.js
 @@ -438,7 +438,6 @@ export const stream = (model, context, options) => {
