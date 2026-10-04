@@ -11,8 +11,9 @@
  * does a string literal of exactly that name, which reaches the function by element access.
  * Comments, including JSDoc links, and longer strings do not count. A wildcard re-export
  * (`export * from`) names no identifier and is not reported; code that calls the function through
- * it still names the function, and that reference is. Only files whose text contains the name or a
- * `\u` escape are parsed, so an escaped spelling of the name is still found.
+ * it still names the function, and that reference is. A file is parsed when its text, or its text
+ * with its escapes unescaped, contains the name, so a spelling that escapes part of it (`\u0061`,
+ * `\x61`, `\u{61}`, `\a`, a line continuation) is still found.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -38,6 +39,29 @@ const GATE_FILES: ReadonlySet<string> = new Set([
 ])
 
 const SOURCE_EXTENSION = /\.(?:[cm]?[jt]s|[jt]sx)$/u
+
+/** A line continuation, which a string or template literal drops from its value. */
+const LINE_CONTINUATION = /\\(?:\r\n|[\n\r\u2028\u2029])/gu
+
+/** A `\u{…}`, `\uXXXX`, or `\xXX` escape, capturing its hex digits. */
+const HEX_ESCAPE = /\\(?:u\{([0-9a-fA-F]+)\}|u([0-9a-fA-F]{4})|x([0-9a-fA-F]{2}))/gu
+
+/**
+ * The source as its escapes could spell it: line continuations dropped, hex escapes decoded, and
+ * every other backslash removed. Text that the parser reads as the restricted name, in an
+ * identifier or a string, contains the name here too.
+ * @param source - file contents.
+ * @returns the unescaped text.
+ */
+function unescaped(source: string): string {
+  return source
+    .replace(LINE_CONTINUATION, '')
+    .replace(HEX_ESCAPE, (match: string, braced?: string, unit?: string, byte?: string) => {
+      const code = Number.parseInt(`${braced ?? ''}${unit ?? ''}${byte ?? ''}`, 16)
+      return code <= 0x10ffff ? String.fromCodePoint(code) : match
+    })
+    .replaceAll('\\', '')
+}
 
 /** One production-source reference to the restricted function outside its admitted callers. */
 export interface PluginRecordCaller {
@@ -82,7 +106,7 @@ function scriptKind(file: string): ts.ScriptKind {
  * @returns one entry per referencing identifier or exact-name string literal, in source order.
  */
 export function findPluginRecordReferences(file: string, source: string): PluginRecordCaller[] {
-  if (!source.includes(RESTRICTED_NAME) && !source.includes('\\u')) return []
+  if (!source.includes(RESTRICTED_NAME) && !unescaped(source).includes(RESTRICTED_NAME)) return []
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file))
   const lines = source.split(/\r?\n/u)
   const references: PluginRecordCaller[] = []

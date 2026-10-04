@@ -53,6 +53,10 @@ describe('verify-plugin-record-callers', () => {
     ['an element access', "S['appendPluginRecord'](session, 'plugin:a', {})"],
     ['a template element access', 'S[`appendPluginRecord`](session, `plugin:a`, {})'],
     ['an escaped identifier', 'S.\\u0061ppendPluginRecord(session, "plugin:a", {})'],
+    ['a hexadecimal escape in an element access', "S['\\x61ppendPluginRecord'](session, 'plugin:a', {})"],
+    ['a code point escape in an element access', "S['\\u{61}ppendPluginRecord'](session, 'plugin:a', {})"],
+    ['needless character escapes in an element access', "S['\\a\\ppendPluginRecord'](session, 'plugin:a', {})"],
+    ['an escaped template element access', 'S[`\\x61ppendPluginRecord`](session, `plugin:a`, {})'],
   ])('rejects %s in release package source', (_form, source) => {
     expect(checkPluginRecordCallers(corpus(`${source}\n`))).toEqual([{ file: RELEASE, line: 1, text: source }])
   })
@@ -64,6 +68,17 @@ describe('verify-plugin-record-callers', () => {
     })
     expect(checkPluginRecordCallers(files).map(caller => caller.file))
       .toEqual(['packages/client/ui/src/view.tsx', 'scripts/tool.mjs'])
+  })
+
+  it('rejects a string that spells the name across a line continuation', () => {
+    expect(checkPluginRecordCallers(corpus("S['append\\\nPluginRecord'](session, 'plugin:a', {})\n"))).toEqual([
+      { file: RELEASE, line: 1, text: "S['append\\" },
+    ])
+  })
+
+  it('reports nothing for escapes that spell no reference, including one that names no code point', () => {
+    const source = "const path = 'C:\\\\temp\\\\appendPlugin'\nconst big = '\\u{110000}'\nconst newline = 'a\\nb'\n"
+    expect(findPluginRecordReferences(RELEASE, source)).toEqual([])
   })
 
   it('ignores comments, JSDoc links, longer strings, other identifiers, and wildcard re-exports', () => {
