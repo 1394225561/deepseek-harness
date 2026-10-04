@@ -9,6 +9,7 @@ import {
   isAdmittedCaller,
   OWNER_FILE,
   readRepositorySources,
+  unescaped,
 } from './verify-plugin-record-callers.ts'
 
 const roots: string[] = []
@@ -56,6 +57,8 @@ describe('verify-plugin-record-callers', () => {
     ['a hexadecimal escape in an element access', "S['\\x61ppendPluginRecord'](session, 'plugin:a', {})"],
     ['a code point escape in an element access', "S['\\u{61}ppendPluginRecord'](session, 'plugin:a', {})"],
     ['needless character escapes in an element access', "S['\\a\\ppendPluginRecord'](session, 'plugin:a', {})"],
+    ['a legacy octal escape in an element access', "S['\\141ppendPluginRecord'](session, 'plugin:a', {})"],
+    ['a three-digit legacy octal escape for the last character, beside a two-digit one that spells no reference', "S['appendPluginRecor\\144'](session, 'plugin:a\\61', {})"],
     ['an escaped template element access', 'S[`\\x61ppendPluginRecord`](session, `plugin:a`, {})'],
   ])('rejects %s in release package source', (_form, source) => {
     expect(checkPluginRecordCallers(corpus(`${source}\n`))).toEqual([{ file: RELEASE, line: 1, text: source }])
@@ -79,6 +82,15 @@ describe('verify-plugin-record-callers', () => {
   it('reports nothing for escapes that spell no reference, including one that names no code point', () => {
     const source = "const path = 'C:\\\\temp\\\\appendPlugin'\nconst big = '\\u{110000}'\nconst newline = 'a\\nb'\n"
     expect(findPluginRecordReferences(RELEASE, source)).toEqual([])
+    // A file the prefilter unescapes can still hold no reference: this escape spells no letter of the name.
+    expect(findPluginRecordReferences('packages/core/x/src/legacy.cjs', "S['\\4141ppendPluginRecord']\n")).toEqual([])
+    // The AST compares exact string values: " 0appendPluginRecord", as TypeScript decodes this, names nothing.
+    expect(findPluginRecordReferences('packages/core/x/src/legacy.cjs', "S['\\400appendPluginRecord']\n")).toEqual([])
+  })
+
+  it('unescapes legacy octal escapes as TypeScript decodes them, taking three digits only after 0 to 3', () => {
+    // \400 exceeds 0o377, so it is \40 then a literal 0; \141 and \61 stay whole.
+    expect([unescaped("'\\400'"), unescaped("'\\141\\61'"), unescaped("'\\0'"), unescaped("'\\777'")]).toEqual(["' 0'", "'a1'", "'\0'", "'?7'"])
   })
 
   it('ignores comments, JSDoc links, longer strings, other identifiers, and wildcard re-exports', () => {

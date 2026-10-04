@@ -13,7 +13,7 @@
  * (`export * from`) names no identifier and is not reported; code that calls the function through
  * it still names the function, and that reference is. A file is parsed when its text, or its text
  * with its escapes unescaped, contains the name, so a spelling that escapes part of it (`\u0061`,
- * `\x61`, `\u{61}`, `\a`, a line continuation) is still found.
+ * `\x61`, `\u{61}`, `\141`, `\a`, a line continuation) is still found.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -47,19 +47,26 @@ const LINE_CONTINUATION = /\\(?:\r\n|[\n\r\u2028\u2029])/gu
 const HEX_ESCAPE = /\\(?:u\{([0-9a-fA-F]+)\}|u([0-9a-fA-F]{4})|x([0-9a-fA-F]{2}))/gu
 
 /**
- * The source as its escapes could spell it: line continuations dropped, hex escapes decoded, and
- * every other backslash removed. Text that the parser reads as the restricted name, in an
- * identifier or a string, contains the name here too.
+ * A legacy octal escape, which a sloppy-mode script such as a `.cjs` file may use: up to three
+ * octal digits, three only when the first is 0–3, so the value stays within 0o377.
+ */
+const OCTAL_ESCAPE = /\\([0-3][0-7]{0,2}|[4-7][0-7]?)/gu
+
+/**
+ * The source as its escapes could spell it: line continuations dropped, hex and legacy octal
+ * escapes decoded, and every other backslash removed. Text that the parser reads as the
+ * restricted name, in an identifier or a string, contains the name here too.
  * @param source - file contents.
  * @returns the unescaped text.
  */
-function unescaped(source: string): string {
+export function unescaped(source: string): string {
   return source
     .replace(LINE_CONTINUATION, '')
     .replace(HEX_ESCAPE, (match: string, braced?: string, unit?: string, byte?: string) => {
       const code = Number.parseInt(`${braced ?? ''}${unit ?? ''}${byte ?? ''}`, 16)
       return code <= 0x10ffff ? String.fromCodePoint(code) : match
     })
+    .replace(OCTAL_ESCAPE, (_match: string, digits: string) => String.fromCharCode(Number.parseInt(digits, 8)))
     .replaceAll('\\', '')
 }
 
