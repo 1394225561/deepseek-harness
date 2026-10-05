@@ -260,7 +260,7 @@ jobs:
         if: inputs.ci && github.event_name == 'pull_request'
         env:
           DSH_BUILD_CLIENT_PROFILE: official
-        run: pnpm run build:artifacts
+        run: pnpm run build --artifacts-only
 
       - name: Build single-exe
         env:

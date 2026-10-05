@@ -2,15 +2,17 @@ import { spawnSync } from 'node:child_process'
 import { globSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { describe, expect, it, onTestFinished } from 'vitest'
-import { compileReferencedProjects } from './compile-referenced-projects.ts'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { buildLibraryArtifacts, compileReferencedProjects } from './compile-referenced-projects.ts'
+import { runCiBench } from './run-ci-bench.ts'
+import { removeFixtureSafely } from './test-fixture-cleanup.ts'
 
 const compiler = fileURLToPath(import.meta.resolve('typescript/bin/tsc'))
 
 function fixture(): { root: string; leaf: string } {
   const root = mkdtempSync(join(tmpdir(), 'dsh-referenced-projects-'))
-  onTestFinished(() => { rmSync(root, { recursive: true, force: true }) })
+  onTestFinished(() => { removeFixtureSafely(root) })
   const leaf = join(root, 'leaf package')
   mkdirSync(join(leaf, 'src'), { recursive: true })
   writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }))
@@ -51,10 +53,97 @@ function artifacts(leaf: string): Record<string, string> {
   return Object.fromEntries(globSync('**/*', { cwd: output })
     .filter(path => statSync(join(output, path)).isFile())
     .sort()
-    .map(path => [path, readFileSync(join(output, path)).toString('base64')]))
+    .map(path => [path.replaceAll('\\', '/'), readFileSync(join(output, path)).toString('base64')]))
 }
 
+function recordedCommands(root: string, failHostBundle = false): () => { args: string[]; title: string }[] {
+  const log = join(root, 'commands.jsonl')
+  const entrypoint = join(root, 'pnpm', 'bin', 'pnpm.cjs')
+  mkdirSync(join(root, 'pnpm', 'bin'), { recursive: true })
+  writeFileSync(entrypoint, [
+    'const { appendFileSync } = require("node:fs")',
+    'const args = process.argv.slice(2)',
+    `appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, title: process.env.DSH_CLIENT_TITLE }) + "\\n")`,
+    ...failHostBundle ? ['if (args.includes("host")) process.exit(7)'] : [],
+  ].join('\n') + '\n')
+  vi.stubEnv('npm_execpath', entrypoint)
+  vi.stubEnv('DSH_CLIENT_TITLE', 'Inherited Build Title')
+  onTestFinished(() => { vi.unstubAllEnvs() })
+  return () => readFileSync(log, 'utf8').trim().split('\n')
+    .map(line => JSON.parse(line) as { args: string[]; title: string })
+}
+
+describe('internal artifact build order', () => {
+  it('resolves pnpm for a direct CLI without npm_execpath and preserves its environment', () => {
+    const { root } = fixture()
+    const marker = join(root, 'direct-cli-title.txt')
+    const environment: NodeJS.ProcessEnv = { ...process.env, DSH_CLIENT_TITLE: 'Direct CLI Title' }
+    delete environment.npm_execpath
+    const helper = pathToFileURL(resolve(import.meta.dirname, 'compile-referenced-projects.ts')).href
+    const code = `import { runPnpmCommand } from ${JSON.stringify(helper)}; runPnpmCommand(${JSON.stringify(root)}, ${JSON.stringify([
+      'exec', process.execPath, '-e',
+      `require('node:fs').writeFileSync(${JSON.stringify(marker)}, process.env.DSH_CLIENT_TITLE)`,
+    ])})`
+    const result = spawnSync(process.execPath, [
+      '--import', fileURLToPath(import.meta.resolve('tsx/esm')),
+      '--input-type=module', '-e', code,
+    ], { cwd: root, env: environment, encoding: 'utf8' })
+
+    expect(result.status, result.stdout + result.stderr).toBe(0)
+    expect(readFileSync(marker, 'utf8')).toBe('Direct CLI Title')
+  })
+
+  it.each([true, false])('preserves bundler order and the public environment with hostOnly=%s', (hostOnly) => {
+    const { root } = fixture()
+    const commands = recordedCommands(root)
+
+    buildLibraryArtifacts(root, hostOnly)
+
+    const expected = [
+      ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'host'],
+      ['--filter', '@deepseek-ai/dsh-desktop', 'run', 'bundle'],
+      ...hostOnly ? [] : [['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'client']],
+    ]
+    expect(commands()).toEqual(expected.map(args => ({ args, title: 'Inherited Build Title' })))
+  })
+
+  it('stops after a failed Host bundler before Desktop and Client builds', () => {
+    const { root } = fixture()
+    const commands = recordedCommands(root, true)
+
+    expect(() => { buildLibraryArtifacts(root, false) }).toThrow('exited with 7')
+    expect(commands()).toHaveLength(1)
+  })
+
+  it('prepares the original benchmark inputs in order before running its existing suite', () => {
+    const { root } = fixture()
+    const commands = recordedCommands(root)
+
+    runCiBench(root)
+
+    expect(commands()).toEqual([
+      ['run', 'build:native-system'],
+      ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'host'],
+      ['--filter', '@deepseek-ai/dsh-desktop', 'run', 'bundle'],
+      ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'client'],
+      ['exec', 'tsdown', '--config-loader', 'native', '--config', 'benchmarks/tsdown.config.ts'],
+      ['run', 'build:web'],
+      ['run', 'test:bench:built'],
+    ].map(args => ({ args, title: 'Inherited Build Title' })))
+  })
+})
+
 describe('package project compilation', () => {
+  it('records Windows-style glob keys without changing artifact bytes', () => {
+    const { leaf } = fixture()
+    const output = join(leaf, 'lib')
+    mkdirSync(join(output, 'types'), { recursive: true })
+    const bytes = Buffer.from([0, 255, 13, 10])
+    writeFileSync(join(output, 'types\\index.js'), bytes)
+
+    expect(artifacts(leaf)).toEqual({ 'types/index.js': bytes.toString('base64') })
+  })
+
   it.each(['host', 'client'] as const)('preserves every %s package artifact byte', (face) => {
     const { root, leaf } = fixture()
     const complete = spawnSync(process.execPath, [compiler, '-b', `tsconfig.${face}.json`], {
@@ -142,7 +231,7 @@ describe('package project compilation', () => {
     expect(() => { compileReferencedProjects(root, 'host') }).toThrow("Argument for '--target' option must be")
   })
 
-  it('rejects an unsupported compiler face before building', () => {
+  it('rejects an unsupported build mode before building', () => {
     const repository = resolve(import.meta.dirname, '..')
     const result = spawnSync(process.execPath, [
       '--import', 'tsx/esm',
@@ -151,6 +240,6 @@ describe('package project compilation', () => {
     ], { cwd: repository, encoding: 'utf8' })
 
     expect(result.status).not.toBe(0)
-    expect(result.stderr).toContain('expected exactly one compiler face: host or client')
+    expect(result.stderr).toContain('expected exactly one mode: host, client, host-libraries, or libraries')
   })
 })

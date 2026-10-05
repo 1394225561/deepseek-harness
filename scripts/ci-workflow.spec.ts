@@ -37,8 +37,8 @@ describe('CI workflow', () => {
   })
 
   it('selects artifact builds only for PR release and API rehearsals', () => {
-    const official = "pnpm run ${{ github.event_name == 'pull_request' && 'build:artifacts --profile official' || 'build:official' }}"
-    const vendor = "pnpm run ${{ github.event_name == 'pull_request' && 'build:lib:host:artifacts' || 'build:lib:host' }}"
+    const official = "${{ github.event_name == 'pull_request' && 'pnpm run build --artifacts-only --profile official' || 'pnpm run build:official' }}"
+    const vendor = "${{ github.event_name == 'pull_request' && 'pnpm exec tsx scripts/compile-referenced-projects.ts host-libraries' || 'pnpm run build:lib:host' }}"
     for (const [file, jobName, expected] of [
       ['release.yml', 'pack', official],
       ['release-vendor.yml', 'pack', vendor],
@@ -47,14 +47,16 @@ describe('CI workflow', () => {
       const job = workflowJob(loadWorkflow('.github/workflows/' + file), jobName)
       if (!Array.isArray(job.steps)) throw new TypeError(`${jobName} must define steps`)
       const step = job.steps.filter(isRecord).find(candidate => typeof candidate.run === 'string'
-        && (candidate.run.includes('build:artifacts') || candidate.run.includes('build:lib:host:artifacts')))
+        && (candidate.run.includes('--artifacts-only') || candidate.run.includes('host-libraries')))
       expect(step?.run).toBe(expected)
       for (const event of ['pull_request', 'push', 'workflow_dispatch']) {
-        const expression = expected.slice('pnpm run ${{ '.length, -' }}'.length)
+        const expression = expected.slice('${{ '.length, -' }}'.length)
         const selected: unknown = runInNewContext(expression, { github: { event_name: event } }, { timeout: 1000 })
         expect(selected).toBe(event === 'pull_request'
-          ? file === 'release-vendor.yml' ? 'build:lib:host:artifacts' : 'build:artifacts --profile official'
-          : file === 'release-vendor.yml' ? 'build:lib:host' : 'build:official')
+          ? file === 'release-vendor.yml'
+            ? 'pnpm exec tsx scripts/compile-referenced-projects.ts host-libraries'
+            : 'pnpm run build --artifacts-only --profile official'
+          : file === 'release-vendor.yml' ? 'pnpm run build:lib:host' : 'pnpm run build:official')
       }
     }
   })
@@ -63,7 +65,7 @@ describe('CI workflow', () => {
     const job = workflowJob(loadWorkflow('.github/workflows/build-exe-for-python-sdk.yml'), 'build')
     if (!Array.isArray(job.steps)) throw new TypeError('Python runtime builder must define steps')
     const steps = job.steps.filter(isRecord)
-    const prepare = steps.findIndex(step => step.run === 'pnpm run build:artifacts')
+    const prepare = steps.findIndex(step => step.run === 'pnpm run build --artifacts-only')
     const execute = steps.findIndex(step => step.name === 'Build single-exe')
     expect(prepare).toBeGreaterThanOrEqual(0)
     expect(execute).toBeGreaterThan(prepare)

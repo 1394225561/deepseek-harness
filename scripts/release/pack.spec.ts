@@ -4,6 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFil
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { officialClientBuildEnvironment, writeClientBuildRecord } from '../client-build-environment.ts'
 import { runGate, type Gate } from '../run-gates.ts'
@@ -13,7 +14,7 @@ import { packedIdentity, PUBLISH_ORDER_FILE, readPublishOrder } from './tarball.
 
 const require = createRequire(import.meta.url)
 const packScript = resolve(import.meta.dirname, 'pack.ts')
-const tsxHook = require.resolve('tsx/esm')
+const tsxHook = pathToFileURL(require.resolve('tsx/esm')).href
 const pnpmEntry = join(dirname(require.resolve('pnpm')), 'bin/pnpm.cjs')
 const roots: string[] = []
 const commit = 'abcdef0'

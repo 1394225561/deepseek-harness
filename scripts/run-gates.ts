@@ -285,7 +285,7 @@ export function gatesForMode(selected: Mode): Gate[] {
     case 'ci-unit':
       return ciUnitGates()
     case 'ci-bench':
-      return [pnpmScript('bench', 'test:bench', { label: 'performance benchmarks' })]
+      return [pnpmExec('bench', ['tsx', 'scripts/run-ci-bench.ts'], { label: 'performance benchmarks' })]
     case 'ci-snapshot':
       return [ciBuildGate(), snapshotGate()]
     case 'ci-artifacts':
@@ -407,7 +407,9 @@ function nodeCompatGates(): Gate[] {
   }
   return [
     ...typecheck,
-    pnpmScript('build', 'build:artifacts', {
+    pnpmScript('build', 'build', {
+      ...pnpmInvocation(['run', 'build', '--artifacts-only']),
+      displayCommand: 'pnpm run build --artifacts-only',
       ...typecheck.length === 0 ? {} : { needs: ['typecheck'] },
     }),
     ...nodeCompatSmokeGates({ cliSmoke: true }),

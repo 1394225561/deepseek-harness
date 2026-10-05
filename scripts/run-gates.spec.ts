@@ -250,7 +250,7 @@ describe('gate graph validation', () => {
     await expect(runGates(subject, subject.length, execute)).resolves.toHaveLength(subject.length)
   })
 
-  it('builds the native addon before benchmarks through the ci-bench script chain', () => {
+  it('uses the internal CI benchmark runner without changing the public benchmark scripts', () => {
     const subject = withPnpmEntrypoint(() => gatesForMode('ci-bench'))
     const { scripts } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {
       scripts: Record<string, string>
@@ -260,12 +260,12 @@ describe('gate graph validation', () => {
     expect(subject).toHaveLength(1)
     expect(subject[0]).toMatchObject({
       id: 'bench',
-      displayCommand: 'pnpm run test:bench',
-      args: ['/private/pnpm.cjs', 'run', 'test:bench'],
+      displayCommand: 'pnpm exec tsx scripts/run-ci-bench.ts',
+      args: ['/private/pnpm.cjs', 'exec', 'tsx', 'scripts/run-ci-bench.ts'],
     })
     expect(scripts['test:bench']).toBe('npm run build:bench && npm run build:web && npm run test:bench:built')
     expect(scripts['build:bench']).toBe(
-      'npm run build:native-system && npm run build:lib:artifacts && tsdown --config-loader native --config benchmarks/tsdown.config.ts',
+      'npm run build:native-system && npm run build:lib && tsdown --config-loader native --config benchmarks/tsdown.config.ts',
     )
     expect(scripts['build:native-system']).toBe('tsx native/system/scripts/build.ts --host-addon-only')
     expect(scripts['test:bench:built']).toBe('vitest run --config vitest.bench.config.ts')
@@ -841,7 +841,10 @@ describe('Node compatibility graph', () => {
       withEnv('DSH_NODE_COMPAT_SKIP_TYPECHECK', skipTypecheck, () =>
         withPnpmEntrypoint(() => gatesForMode('node-compat'))))
 
-    expect(subject.filter(item => item.displayCommand === 'pnpm run build:artifacts')).toHaveLength(1)
+    expect(subject.filter(item => item.displayCommand === 'pnpm run build --artifacts-only')).toHaveLength(1)
+    expect(subject.find(item => item.id === 'build')?.args).toEqual([
+      '/private/pnpm.cjs', 'run', 'build', '--artifacts-only',
+    ])
     expect(subject.map(item => item.id)).not.toContain('build:web')
     expect(subject.find(item => item.id === 'cli-lazy-search-startup-smoke')).toMatchObject({
       needs: ['build'],

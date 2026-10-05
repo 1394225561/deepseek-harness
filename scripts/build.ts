@@ -14,9 +14,9 @@ import {
 } from './client-build-environment.ts'
 import { pnpmInvocation } from './pnpm-invocation.ts'
 
-/** Run one package script through the package manager that invoked this build. */
-function runScript(script: string, environment: NodeJS.ProcessEnv): void {
-  const invocation = pnpmInvocation(['run', script], environment)
+/** Run one package-manager command with the selected public build environment. */
+function runCommand(args: readonly string[], environment: NodeJS.ProcessEnv, label: string): void {
+  const invocation = pnpmInvocation(args, environment)
   const result = spawnSync(invocation.command, invocation.args, {
     cwd: resolve(import.meta.dirname, '..'),
     env: environment,
@@ -24,8 +24,13 @@ function runScript(script: string, environment: NodeJS.ProcessEnv): void {
   })
   if (result.error !== undefined) throw result.error
   if (result.status !== 0) {
-    throw new Error(`build: ${script} exited with ${String(result.status ?? result.signal)}`)
+    throw new Error(`build: ${label} exited with ${String(result.status ?? result.signal)}`)
   }
+}
+
+/** Run one package script through the package manager that invoked this build. */
+function runScript(script: string, environment: NodeJS.ProcessEnv): void {
+  runCommand(['run', script], environment, script)
 }
 
 /** Build client artifacts and optionally omit the repository test and script typechecks. */
@@ -49,7 +54,11 @@ function main(): void {
 
   rmSync(resolve(root, CLIENT_BUILD_RECORD_PATH), { force: true })
   runScript('build:native-system', buildEnvironment)
-  runScript(values['artifacts-only'] ? 'build:lib:artifacts' : 'build:lib', buildEnvironment)
+  if (values['artifacts-only']) {
+    runCommand(['exec', 'tsx', 'scripts/compile-referenced-projects.ts', 'libraries'], buildEnvironment, 'artifact libraries')
+  } else {
+    runScript('build:lib', buildEnvironment)
+  }
   runScript('build:web', buildEnvironment)
   const record = writeClientBuildRecord(root, clientEnvironment)
   console.log(

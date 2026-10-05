@@ -14,6 +14,8 @@ PR job 需要相同的编译包来运行 benchmark、兼容性、打包和运行
 
 PR 产物构建通过一个串行 `tsc -b` 进程编译各 compiler face 的全部现有 project reference，然后运行普通 Typert、bundling、Desktop 和 Web 阶段。helper 读取现有 Host 与 Client aggregate，而不维护另一份包清单。它只省略各 root 附加的测试和脚本 program；包诊断、emit 输出及 Host 先于 Client 的顺序仍然必需。非 PR 的 release 和真实 API 工作流构建保留普通检查。
 
+CI 直接调用内部 build helper，并保持 root package manifest 不变。即使只修改 build alias，root manifest 改动也会激活独立的 native-addon 平台矩阵；避免这一触发条件，可以在不削弱 native 验证的情况下保留现有 workflow 集合与并发 job 上限。
+
 job 清单、runner 选择、gate 预算、worker 数量和 benchmark sample 数量保持固定。覆盖率分区在各自的平台和 runner pool 内复用精简的文件成本元数据。并行 release 打包使用 pnpm 现有的有界调度器；串行发布保持 family 顺序。
 
 ## Alternatives considered
