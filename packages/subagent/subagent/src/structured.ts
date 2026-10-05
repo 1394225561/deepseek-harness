@@ -31,6 +31,12 @@ export const STRUCTURED_OUTPUT_INSTRUCTION
 /** One structured run's live handle: read the captured value once the child settles. */
 export interface StructuredAttachment {
   /**
+   * Input stays closed from capture staging through its final result, including
+   * an enclosing PTC execution. A failed result discards its capture and reopens input.
+   * @returns whether the activation can accept another message.
+   */
+  acceptsInput(): boolean
+  /**
    * The captured value, once the child called the tool with valid arguments
    * and the authoritative final tool result accepted that call.
    * @returns the committed value, or undefined while none was accepted.
@@ -44,7 +50,7 @@ export interface StructuredAttachment {
  * @param childCtx - the child agent's scope context (`setup`'s argument).
  * @param schema - the trusted, already-asserted schema subset to enforce (see
  *   `assertObjectJsonSchema` in dsh-tools).
- * @param canComplete - whether owned child work has finished.
+ * @param canComplete - whether accepted input and owned child work have finished.
  * @returns the attachment handle (read `captured()` after the child settles).
  */
 export function attachStructuredRuntime(
@@ -56,12 +62,12 @@ export function attachStructuredRuntime(
    * Validated values staged by the capture tool body, awaiting THEIR OWN
    * authoritative `tools/result` notification. The execution object's identity
    * uniquely identifies a trip through the pipeline: adapter call ids may
-   * repeat across steps, but another execution can never reach this WeakMap
+   * repeat across steps, but another execution can never reach this Map
    * entry. This is distinct from the opaque `ToolExecutionToken` used to
    * correlate nested transports. The final notification always deletes its own
    * stage, whether the result succeeded or failed.
    */
-  const staged = new WeakMap<ToolExecution, { value: unknown }>()
+  const staged = new Map<ToolExecution, { value: unknown }>()
   /** Successful nested capture waiting for its enclosing transport to commit. */
   let pending: { parent: ToolExecution['token']; value: unknown } | undefined
   let captured: { value: unknown } | undefined
@@ -90,7 +96,7 @@ export function attachStructuredRuntime(
       // ToolArgsError → isError result with INVALID_ARGS: the model retries
       // within the same turn, exactly like a schema-validated defineTool call.
       if (violations.length > 0) throw new ToolArgsError(violations)
-      if (!canComplete()) throw new Error('Wait for all delegated child tasks to finish before submitting structured output.')
+      if (!canComplete()) throw new Error('Wait for all delegated child tasks to finish and process pending messages before submitting structured output.')
       // Two-phase commit, keyed by THIS execution: later transformable
       // waterfalls may still turn the success into an error. ToolRuntime has
       // already frozen model-bound arguments at the actual input boundary.
@@ -142,5 +148,8 @@ export function attachStructuredRuntime(
     if (captured === undefined) captured = { value: entry.value }
   })
 
-  return { captured: () => captured }
+  return {
+    captured: () => captured,
+    acceptsInput: () => staged.size === 0 && pending === undefined && captured === undefined,
+  }
 }

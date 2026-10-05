@@ -576,8 +576,8 @@ export class SubagentManager {
       )
     }
     const local = requireLocalActivation(activation)
-    if (local.structured?.captured() !== undefined) {
-      throw new SubagentError('subagent already submitted its structured result; wait for this activation to close before sending another message', 'INPUT_CLOSED')
+    if (local.structured?.acceptsInput() === false) {
+      throw new SubagentError('subagent is submitting or has submitted its structured result; the message was not accepted', 'INPUT_CLOSED')
     }
     if (delivery === 'steer') local.handle.agent.steer(message)
     else local.handle.agent.followup(message)
@@ -842,7 +842,11 @@ export class SubagentManager {
         }
         applyChildComposition(childCtx, parent, inputs.composition)
         if (inputs.outputSchema !== undefined) {
-          structured = attachStructuredRuntime(childCtx, inputs.outputSchema, () => this.resident.get(childId)?.ownedChildren.size === 0)
+          structured = attachStructuredRuntime(childCtx, inputs.outputSchema, () =>
+            this.resident.get(childId)?.ownedChildren.size === 0
+            && child.inbox.nextStep.length === 0
+            && child.inbox.nextTurn.length === 0,
+          )
         }
       }
       const handle = create === undefined

@@ -15,6 +15,7 @@ import { defineContentToolFixture, RUN_CODE_NAME } from '@deepseek-ai/dsh-tools'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import { TestSessionQuery } from './test-session-query.ts'
 import { mountLocalActivations, startTestActivation } from './local-activation.ts'
+import { queueHostSubagentPrompt } from '../src/internal.ts'
 import {
   STRUCTURED_OUTPUT_INSTRUCTION,
   STRUCTURED_OUTPUT_TOOL,
@@ -93,7 +94,108 @@ function requestSystem(request: GenerateOptions): string {
   return head.content.filter(block => block.type === 'text').map(block => block.text).join('')
 }
 
+function deliverInput(
+  ctx: Context,
+  parent: SubagentStartRequest['parent'],
+  childId: SessionId,
+  delivery: 'steer' | 'queue',
+) {
+  const content: ContentBlock[] = [{ type: 'text', text: 'Correction: submit answer 42 instead.' }]
+  return delivery === 'steer'
+    ? ctx.subagents.sendMessage(parent, childId, content, { signal: testToolSignal })
+    : queueHostSubagentPrompt(ctx.subagents, parent, childId, content, { kind: 'user' }, testToolSignal)
+}
+
 describe('in-process structured output', () => {
+  it.each(['steer', 'queue'] as const)('consumes accepted %s input before committing a structured result', async (delivery) => {
+    const { ctx, parent, adapter } = await setup([
+      toolCallResponse('before-input', STRUCTURED_OUTPUT_TOOL, { answer: 1 }),
+      ...delivery === 'queue' ? [textResponse('Ready for the queued correction.')] : [],
+      toolCallResponse('after-input', STRUCTURED_OUTPUT_TOOL, { answer: 42 }),
+    ])
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    ctx.on('tools/pre-execute', async (exec, next) => {
+      if (exec.callId === 'before-input') {
+        entered.resolve(undefined)
+        await release.promise
+      }
+      return next()
+    })
+    const run = await startTestActivation(ctx, 'spawn', structuredRequest(parent))
+    try {
+      await entered.promise
+      const messageId = await deliverInput(ctx, parent, run.childId, delivery)
+      const pending = delivery === 'steer' ? run.localAgent.inbox.nextStep : run.localAgent.inbox.nextTurn
+      expect(pending.some(message => message.id === messageId)).toBe(true)
+      release.resolve(undefined)
+
+      await expect(run.result).resolves.toMatchObject({ stopReason: 'completed', structured: { answer: 42 } })
+      const events = run.localAgent.session.snapshotEvents()
+      const first = events.find(event => event.type === 'tool/result' && event.data.message.toolCallId === 'before-input')
+      expect(first?.type === 'tool/result' && first.data.message.isError).toBe(true)
+      expect(events.some(event => event.type === 'user/message' && event.data.id === messageId)).toBe(true)
+      expect(JSON.stringify(adapter.requests.at(-1)?.messages)).toContain('Correction: submit answer 42 instead.')
+    } finally {
+      release.resolve(undefined)
+      await run.dispose()
+    }
+  })
+
+  it.each([
+    { toolMode: 'native', blocked: false },
+    { toolMode: 'native', blocked: true },
+    { toolMode: 'ptc', blocked: false },
+    { toolMode: 'ptc', blocked: true },
+  ] as const)('closes input through $toolMode result policy and reopens only after rejection ($blocked)', async ({ toolMode, blocked }) => {
+    const { ctx, parent } = await setup(['hang'], {
+      toolMode,
+      codeRun: async (request) => {
+        const capture = request.bindings.at(0)?.functions[STRUCTURED_OUTPUT_TOOL]
+        if (capture === undefined) throw new Error('structured_output binding missing')
+        await capture({ answer: 42 })
+        return { logs: [], value: 'captured' }
+      },
+    })
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    const toolName = toolMode === 'native' ? STRUCTURED_OUTPUT_TOOL : RUN_CODE_NAME
+    ctx.on('tools/post-execute', async (exec, _result, next) => {
+      if (exec.name !== toolName) return next()
+      entered.resolve(undefined)
+      await release.promise
+      return blocked ? { kind: 'block', feedback: [{ type: 'text', text: 'Result policy rejected capture.' }] } : next()
+    })
+    const run = await startTestActivation(ctx, 'spawn', structuredRequest(parent))
+    const execution = ctx.tools.execute({
+      signal: testToolSignal,
+      callId: ToolCallId('capture'),
+      name: toolName,
+      arguments: toolMode === 'native'
+        ? { answer: 42 }
+        : { code: 'return await tools.structured_output({ answer: 42 })', description: 'Capture answer' },
+      agent: run.localAgent,
+    })
+    try {
+      await entered.promise
+      for (const delivery of ['steer', 'queue'] as const) {
+        await expect(deliverInput(ctx, parent, run.childId, delivery)).rejects.toMatchObject({ code: 'INPUT_CLOSED' })
+      }
+      release.resolve(undefined)
+      expect((await execution).isError).toBe(blocked)
+      for (const delivery of ['steer', 'queue'] as const) {
+        const input = deliverInput(ctx, parent, run.childId, delivery)
+        if (blocked) await expect(input).resolves.toEqual(expect.any(String))
+        else await expect(input).rejects.toMatchObject({ code: 'INPUT_CLOSED' })
+      }
+    } finally {
+      release.resolve(undefined)
+      await execution
+      await run.dispose()
+    }
+    expect((await run.result).structured).toEqual(blocked ? undefined : { answer: 42 })
+  })
+
   it('captures a valid structured_output call and surfaces result.structured', async () => {
     const { ctx, parent } = await setup([
       toolCallResponse('c1', STRUCTURED_OUTPUT_TOOL, { answer: 42, note: 'done' }),
