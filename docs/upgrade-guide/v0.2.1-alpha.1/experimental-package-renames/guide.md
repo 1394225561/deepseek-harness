@@ -1,6 +1,6 @@
 ---
 kind: upgrade-guide
-description: "Nine optional packages use experimental names, and hook, webhook, Ralph, and badge configurations require explicit installation or insertion."
+description: "Nine optional packages use experimental names, and hook, webhook, terminal, Ralph, and badge configurations require explicit installation or insertion."
 ---
 
 # Experimental package names and explicit composition
@@ -28,7 +28,7 @@ The CLI and Python runtime do not install the relocated hook bridges or Ralph. T
 ## Migration
 
 1. Replace old npm names in dependencies, imports, profile patches, and overlays using the table. Do not rewrite recorded Session events.
-2. Install the packages and missing peers into each affected profile. Profiles disable automatic peer installation. For example, run `dsh plugin --profile web add @deepseek-ai/dsh-experimental-hooks-claude-code @deepseek-ai/dsh-experimental-hook-protocol`. The Codex bridge needs the same protocol peer. The GitHub adapter needs `@deepseek-ai/dsh-experimental-webhook` alongside `@deepseek-ai/dsh-experimental-webhook-github`.
+2. Install the packages and missing peers into each affected profile. Profiles disable automatic peer installation. For example, run `dsh plugin --profile web add @deepseek-ai/dsh-experimental-hooks-claude-code @deepseek-ai/dsh-experimental-hook-protocol`. The Codex bridge needs the same protocol peer. The GitHub adapter needs `@deepseek-ai/dsh-experimental-webhook` alongside `@deepseek-ai/dsh-experimental-webhook-github`. Terminal-tool profiles also need `@deepseek-ai/dsh-experimental-tool-terminal` explicitly installed; the CLI ships the terminal service and backend, but the tool is outside its production dependencies.
 3. Replace an override of a removed row with a complete insertion. Add preset-local tools inside that preset's `config.plugins`, including the services they require. A host badge insertion is:
 
    ```yaml

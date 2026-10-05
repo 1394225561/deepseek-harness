@@ -29,7 +29,7 @@ Enable the plugin to make the `dsh-badge` skill available in the session skill c
 
 ### When to choose it
 
-Choose this provider when content produced with DeepSeek Harness should carry official attribution badges, and the deployment wants the badge skill available to agents without storing it in a local skill directory. Skip it when the badge is irrelevant to the deployment — the plugin is disabled by default and adds nothing until enabled.
+Choose this provider when content produced with DeepSeek Harness should carry official attribution badges, and the deployment wants the badge skill available to agents without storing it in a local skill directory. Skip it when the badge is irrelevant to the deployment. The default composition omits the plugin; installation and an explicit active row are required.
 
 ### Enable the plugin
 
@@ -50,7 +50,7 @@ After enabling, `dsh-badge` appears in the available skills of the session catal
 
 ### Observable success and failures
 
-Enabling the plugin makes `dsh-badge` appear in the catalog and loadable by name; disabling or omitting the row keeps it out of every catalog. Because the provider is immutable, discovery always succeeds with exactly one skill and never reports partial results.
+An explicitly inserted active row makes `dsh-badge` appear in the catalog and loadable by name. Without an active row, this provider contributes no catalog entry. Because the provider is immutable, discovery always succeeds with exactly one skill and never reports partial results.
 
 -----
 
@@ -95,7 +95,7 @@ Indirectly, through `dsh-tool-skill`, which renders the provider's catalog entry
 
 #### KV Cache effect
 
-Disabled by default, the plugin changes no request. When enabled, its catalog entry and any loaded body change the provider KV prefix at their insertion points.
+An omitted plugin adds no request content. When its inserted row is active, its catalog entry and any loaded body change the provider KV prefix at their insertion points.
 
 ## Known Limitations and Deferred Work
 

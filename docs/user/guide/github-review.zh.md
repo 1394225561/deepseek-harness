@@ -62,7 +62,7 @@ Active:       yes
 
 ## 规则行为
 
-规则只接受来源 `primary-github`、仓库 `deepseek-harness/deepseek-harness`、事件 `pull_request` 与动作 `ready_for_review`。它会把精确 head SHA 和选定 PR 字段传给评审提示词，把 JSON 标为不受信任的元数据，并禁止修改文件、分支、PR 或 GitHub 状态。
+规则只接受来源 `primary-github`、仓库 `deepseek-ai/deepseek-harness`、事件 `pull_request` 与动作 `ready_for_review`。它会把精确 head SHA 和选定 PR 字段传给评审提示词，把 JSON 标为不受信任的元数据，并禁止修改文件、分支、PR 或 GitHub 状态。
 
 Session 请求选择 `standard` agent preset 与 `read-only` permission preset。`workspacePath` 通过 `WorkspaceRegistry.create()` 规范化，因此第一次匹配交付会在 Workspace 不存在时创建它，后续交付会复用它。
 
@@ -86,7 +86,7 @@ if (!response.ok || (await response.json()).automaticReview !== true) return nul
 
 ```js
 const workspacePath = {
-  'deepseek-harness/deepseek-harness': '/path/to/deepseek-harness',
+  'deepseek-ai/deepseek-harness': '/path/to/deepseek-harness',
   'deepseek-harness/dsh-sdk': '/path/to/dsh-sdk',
 }[payload.repository.full_name]
 if (workspacePath === undefined) return null

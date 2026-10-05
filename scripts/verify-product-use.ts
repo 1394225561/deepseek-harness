@@ -101,7 +101,7 @@ export function verifyProductUse(
   const resolveModule = (specifier: string, from: string): string | undefined => {
     const resolved = ts.resolveModuleName(specifier, from, converted.options, host, resolutionCache).resolvedModule
     if (resolved === undefined || resolved.resolvedFileName.replaceAll('\\', '/').includes('/node_modules/')) return undefined
-    const path = resolved.resolvedFileName
+    const path = resolve(resolved.resolvedFileName)
     if (/(?:^|\/)lib\//.test(display(path)) || path.endsWith('.d.ts')) return undefined
     return path
   }

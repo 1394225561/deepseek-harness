@@ -99,6 +99,16 @@ describe('product package use', () => {
     expect(failures(root, declarations())).toContain('stale optional policy')
   })
 
+  it('assigns relative cross-package imports to one source owner on every platform', () => {
+    const root = fixture()
+    const baseline = verifyProductUse(root, {}).sourceCount
+    pkg(root, candidateDir, candidate)
+    write(root, 'apps/cli/src/bin.ts', "import '../../../packages/core/candidate/src/index.ts'")
+    expect(verifyProductUse(root, {})).toMatchObject({ failures: [], sourceCount: baseline + 1 })
+    write(root, 'apps/cli/src/bin.ts', `import '../../../packages/core/candidate/src/index.ts'\nimport '${candidate}'`)
+    expect(verifyProductUse(root, {})).toMatchObject({ failures: [], sourceCount: baseline + 1 })
+  })
+
   it('follows only reached local modules, including cycles and worker URLs', () => {
     const root = fixture()
     pkg(root, candidateDir, candidate)

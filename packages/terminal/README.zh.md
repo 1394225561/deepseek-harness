@@ -1,5 +1,5 @@
 ---
-description: "持久终端能力家族的包映射：限定所有者范围的 ctx.terminals 服务、启动交互式 bash 或 pwsh 的 shell 后端，以及 6 个面向模型的工具。"
+description: "持久终端服务与启动交互式 bash 或 pwsh 的 shell 后端的包映射。"
 kind: "package-group"
 ---
 
@@ -22,7 +22,7 @@ kind: "package-group"
 <a id="packages"></a>
 ## 包
 
-该家族包含一个会话服务、一个 shell 后端与一组面向模型的工具。完整约定由各子级 README 负责；共享词汇与生成的服务接口面由子系统参考负责。
+本组包含一个会话服务与一个 shell 后端。完整约定由各子级 README 负责；共享词汇与生成的服务接口面由子系统参考负责。
 
 | 包 | 角色 | ctx 键 |
 |---|---|---|

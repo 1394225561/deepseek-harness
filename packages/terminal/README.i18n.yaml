@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/terminal/README.md
 /:
-  en: fdd04a148c1d980e
-  zh: 49025df3a0380a37
+  en: c7b99e9725406516
+  zh: 49bcc1910c4dfc87
 /terminal-persistent-pty-capability-family:
   en: 23811d44b564b29d
   zh: a74d2f7625f5f6dd
@@ -15,8 +15,8 @@
   en: 1eb35b015a6c423f
   zh: a8a3dceee2c9e943
 /terminal-persistent-pty-capability-family/packages:
-  en: f024e6265bf65cd9
-  zh: 6ff2b362466513f5
+  en: 97c1c1589ece792d
+  zh: 5e1a4751b5e0082e
 /terminal-persistent-pty-capability-family/related-documentation:
   en: a6b75a7138b492dc
   zh: c0417c9fb9ed69f0

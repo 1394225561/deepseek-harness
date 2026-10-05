@@ -1,6 +1,6 @@
 ---
 kind: upgrade-guide
-description: "九个可选包使用实验性名称，钩子、webhook、Ralph 和徽章配置需要显式安装或插入。"
+description: "九个可选包使用实验性名称，钩子、webhook、终端、Ralph 和徽章配置需要显式安装或插入。"
 ---
 
 # 实验性包名称与显式组合
@@ -28,7 +28,7 @@ CLI 与 Python 运行时不再安装迁移后的钩子桥接或 Ralph。CLI 不�
 ## 迁移
 
 1. 按表替换依赖、导入、profile patch 和 overlay 中的旧 npm 名称。不要改写已记录的 Session 事件。
-2. 将包与缺失的 peer 安装到每个受影响的 profile。Profile 禁用自动 peer 安装。例如，运行 `dsh plugin --profile web add @deepseek-ai/dsh-experimental-hooks-claude-code @deepseek-ai/dsh-experimental-hook-protocol`。Codex 桥接需要相同的协议 peer。GitHub 适配器需要同时安装 `@deepseek-ai/dsh-experimental-webhook` 与 `@deepseek-ai/dsh-experimental-webhook-github`。
+2. 将包与缺失的 peer 安装到每个受影响的 profile。Profile 禁用自动 peer 安装。例如，运行 `dsh plugin --profile web add @deepseek-ai/dsh-experimental-hooks-claude-code @deepseek-ai/dsh-experimental-hook-protocol`。Codex 桥接需要相同的协议 peer。GitHub 适配器需要同时安装 `@deepseek-ai/dsh-experimental-webhook` 与 `@deepseek-ai/dsh-experimental-webhook-github`。使用终端工具的 profile 还需显式安装 `@deepseek-ai/dsh-experimental-tool-terminal`；CLI 随附终端服务与后端，但其生产依赖不包含该工具。
 3. 将覆盖已删除行的 patch 替换为完整插入。在预设的 `config.plugins` 中添加预设内工具及其需要的服务。宿主徽章插入示例：
 
    ```yaml

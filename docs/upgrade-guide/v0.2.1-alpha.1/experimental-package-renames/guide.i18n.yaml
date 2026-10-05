@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-alpha.1/experimental-package-renames/guide.md
 /:
-  en: 222547ce1ccbf1cb
-  zh: 7890c66934821e45
+  en: dd6fc9abae171d7b
+  zh: 7aed30461003cbef
 /experimental-package-names-and-explicit-composition:
   en: 1ddb73ece556f6e5
   zh: 1f169e6d590f45e2
@@ -12,5 +12,5 @@
   en: ae31baa97d4514be
   zh: 936e1120fc433f1a
 /experimental-package-names-and-explicit-composition/migration:
-  en: 80b390d9ed786f0b
-  zh: 4606a6e46a67ce2b
+  en: e3c79a2189f7edfd
+  zh: d47869013fdd481b

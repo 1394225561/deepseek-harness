@@ -1,5 +1,5 @@
 ---
-description: "Package map for the persistent terminal capability family: the owner-scoped ctx.terminals service, the shell backend that starts interactive bash or pwsh, and the six model-facing tools."
+description: "Package map for the persistent terminal service and the shell backend that starts interactive bash or pwsh."
 kind: "package-group"
 ---
 
@@ -22,7 +22,7 @@ The `terminal/` family lets agents keep interactive shell and REPL sessions aliv
 <a id="packages"></a>
 ## Packages
 
-The family is one session service, one shell backend, and one set of model-facing tools. Each child README owns the full contract; the subsystem reference owns the shared vocabulary and the generated service surface.
+This group contains one session service and one shell backend. Each child README owns the full contract; the subsystem reference owns the shared vocabulary and the generated service surface.
 
 | Package | Role | ctx key |
 |---|---|---|
