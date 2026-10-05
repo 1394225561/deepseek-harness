@@ -18,6 +18,7 @@ import {
   probeScopeInstruction,
   readScopeInstruction,
   relativeDisplay,
+  scopeInstructionFile,
   type LoadedInstructionFile,
 } from './files.ts'
 import {
@@ -349,24 +350,28 @@ export async function reconcileInstructionContext(
     }
     const itemStart = items.length
     const versionUpdateStart = versionUpdates.length
-    const addedAbsolutePaths: string[] = []
     const priorVersions = new Map(probedScopes.map(scope => [scope, versions.get(scope)]))
+    // Metadata and content availability apply to the whole deduplicated group,
+    // including hidden candidates that may become visible after a sibling edit.
+    const rollbackGroup = (): void => {
+      items.splice(itemStart)
+      versionUpdates.splice(versionUpdateStart)
+      for (const [candidateScope, prior] of priorVersions) {
+        if (prior === undefined) versions.delete(candidateScope)
+        else versions.set(candidateScope, prior)
+      }
+      // Project aliases must not publish content withheld by a failed group,
+      // including candidates whose paths were never reached before the failure.
+      for (const scope of probedScopes) {
+        seenAbsolutePaths.add(scopeInstructionFile(scope, projectRoot, resolved).absolutePath)
+      }
+      keptTrimmedByGroup.delete(group)
+    }
     for (const scope of probedScopes) {
       const previous = effective.get(scope)
       const probe = await probeScopeInstruction(scope, projectRoot, resolved, fileSystem, options.signal)
       if (probe.kind === 'unavailable') {
-        if (previous === undefined || previous.action === 'remove') continue
-        // One candidate group's candidates share a deduplicated result. If an
-        // active member cannot be observed, preserve the entire last-good group;
-        // cache warmth must never decide whether a sibling transition is emitted.
-        items.splice(itemStart)
-        versionUpdates.splice(versionUpdateStart)
-        for (const [candidateScope, prior] of priorVersions) {
-          if (prior === undefined) versions.delete(candidateScope)
-          else versions.set(candidateScope, prior)
-        }
-        for (const absolutePath of addedAbsolutePaths) seenAbsolutePaths.delete(absolutePath)
-        keptTrimmedByGroup.delete(group)
+        rollbackGroup()
         break
       }
       if (probe.kind === 'absent') {
@@ -377,7 +382,6 @@ export async function reconcileInstructionContext(
       const { file: probedFile } = probe
       if (seenAbsolutePaths.has(probedFile.absolutePath)) continue
       seenAbsolutePaths.add(probedFile.absolutePath)
-      addedAbsolutePaths.push(probedFile.absolutePath)
       const cached = versions.get(scope)
       const metadataUnchanged = cached !== undefined
         && cached.path === probedFile.displayPath
@@ -399,7 +403,10 @@ export async function reconcileInstructionContext(
       }
 
       const file = await readScopeInstruction(probedFile, resolved.maxSourceBytes, fileSystem, options.signal)
-      if (file === undefined) continue
+      if (file === undefined) {
+        rollbackGroup()
+        break
+      }
       const currentDigest = instructionContentSha1(file.content)
       const trimmedDigest = trimmedInstructionDigest(file.content)
       const nextVersion: InstructionVersionState = {

@@ -516,6 +516,29 @@ export async function loadBaselineInstructionSet(
 }
 
 /**
+ * Resolve the file and display paths for one logical instruction candidate.
+ * @param scope - candidate scope key containing its directory and file name.
+ * @param projectRoot - root used for project-relative candidates.
+ * @param resolved - normalized homes used for user-global candidates.
+ * @returns the absolute and model-facing paths for the candidate.
+ * @internal
+ */
+export function scopeInstructionFile(
+  scope: string,
+  projectRoot: string,
+  resolved: ResolvedDiscoveryConfig,
+): InstructionFile {
+  const { directory, candidateName } = decodeScopeKey(scope)
+  const globalRoot = userGlobalRoots(resolved).find(root => root.directory === directory)
+  const dir = globalRoot?.home ?? (directory === '.' ? projectRoot : join(projectRoot, directory))
+  const absolutePath = join(dir, candidateName)
+  return {
+    absolutePath,
+    displayPath: globalRoot === undefined ? relativeDisplay(projectRoot, absolutePath) : `${globalRoot.display}/${candidateName}`,
+  }
+}
+
+/**
  * Probe the current provider metadata for one per-candidate instruction scope.
  * @param scope - a {@link candidateScopeKey} identifying a directory and candidate file.
  * @param projectRoot - project root used to resolve and display project scopes.
@@ -531,17 +554,14 @@ export async function probeScopeInstruction(
   fileSystem: FileSystem,
   signal?: AbortSignal,
 ): Promise<ScopeInstructionProbe> {
-  const { directory, candidateName } = decodeScopeKey(scope)
-  const globalRoot = userGlobalRoots(resolved).find(root => root.directory === directory)
-  const dir = globalRoot?.home ?? (directory === '.' ? projectRoot : join(projectRoot, directory))
-  const absolutePath = join(dir, candidateName)
+  const candidate = scopeInstructionFile(scope, projectRoot, resolved)
   // resolve() follows a final-component symlink; stat then classifies the target.
   // A non-file target (missing, or a link to a directory) is a confirmed absence;
   // only a provider exception is reported as unavailable.
   let target: FsTarget
   let info: FsInfo | undefined
   try {
-    target = await fileSystem.resolve(absolutePath, signalOptions(signal))
+    target = await fileSystem.resolve(candidate.absolutePath, signalOptions(signal))
     info = await fileSystem.stat(target, signal)
   } catch {
     signal?.throwIfAborted()
@@ -549,8 +569,7 @@ export async function probeScopeInstruction(
   }
   if (info?.type !== 'file') return { kind: 'absent' }
   const file: ProbedInstructionFile = {
-    absolutePath,
-    displayPath: globalRoot === undefined ? relativeDisplay(projectRoot, absolutePath) : `${globalRoot.display}/${candidateName}`,
+    ...candidate,
     target,
     version: info.version,
     ...info.size === undefined ? {} : { size: info.size },
