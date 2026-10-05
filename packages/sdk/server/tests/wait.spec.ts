@@ -37,6 +37,62 @@ async function setup(beforeServer?: (ctx: Context) => void) {
   }
 }
 
+describe('SDK session/wait with parked child input', () => {
+  it.each([1, 2])('finishes after interrupting a child at depth %s with unclaimed steering', async (depth) => {
+    const { ctx, server, dispose } = await setup()
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    let closeChildren: (() => Promise<void>) | undefined
+    let completion: Promise<void> | undefined
+    try {
+      await server.prompt({ sessionId: 'main', contentBlocks: [{ type: 'text', text: 'first' }] })
+      const parent = ctx.agents.get(SessionId('main'))!
+      await parent.whenIdle()
+      ctx.subagents.registerProvider({
+        name: 'local-test', capabilities: NO_START_CAPABILITIES, inheritsParentContext: false,
+        prepareContinuable: () => Promise.resolve({}),
+      })
+      ctx.on('agent/pre-step', async ({ agent }, next) => {
+        if (agent.session.header.parentSession !== undefined) {
+          entered.resolve(undefined)
+          await release.promise
+        }
+        return next()
+      })
+      let owner = parent
+      let child = parent
+      for (let level = 0; level < depth; level++) {
+        const started = await ctx.subagents.startActivation({
+          provider: 'local-test', label: 'interruptible child', delivery: 'caller', signal: new AbortController().signal,
+          request: { parent: owner, prompt: [{ type: 'text', text: 'work' }] },
+        })
+        closeChildren ??= () => started.dispose()
+        child = ctx.agents.get(started.childId)!
+        if (level + 1 < depth) owner = child
+      }
+      await entered.promise
+      await ctx.subagents.sendMessage(owner, child.id, [{ type: 'text', text: 'parked correction' }], { signal: new AbortController().signal })
+      const finished = vi.fn()
+      const waiting = server.wait({ sessionId: 'main' }).then(finished)
+      completion = waiting
+      void waiting.catch(() => undefined)
+      ctx.subagents.interrupt(child.id, { kind: 'ancestor', agent: parent })
+      release.resolve(undefined)
+      await child.whenIdle()
+      await vi.waitFor(() => { expect(finished).toHaveBeenCalledOnce() })
+      await waiting
+      expect(child.inbox.nextStep.length + child.inbox.nextTurn.length).toBeGreaterThan(0)
+      expect(ctx.agents.get(child.id)).toBe(child)
+      await expect(ctx.subagents.waitForChildren(parent)).resolves.toBe(false)
+    } finally {
+      release.resolve(undefined)
+      await closeChildren?.()
+      await completion?.catch(() => undefined)
+      await dispose()
+    }
+  })
+})
+
 describe('SDK session/wait failures', () => {
   it('keeps an unowned descendant failure separate from the SDK root outcome', async () => {
     const { ctx, server, dispose } = await setup()

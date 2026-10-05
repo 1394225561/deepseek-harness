@@ -2436,18 +2436,44 @@ describe('continuable review regressions', () => {
     ctx.on('subagent/end', info => void ends.push(info))
 
     const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'parent' })
-    const capture = vi.spyOn(activationResults, 'captureLocalResult').mockImplementationOnce(() => {
-      throw new Error('capture failed')
+    const child = ctx.agents.get(started.childId)!
+    const flushing = Promise.withResolvers<undefined>()
+    const releaseFlush = Promise.withResolvers<undefined>()
+    const flush = ctx.sessions.flush.bind(ctx.sessions)
+    const flushSpy = vi.spyOn(ctx.sessions, 'flush').mockImplementation(async (session) => {
+      if (session === child.session) {
+        flushing.resolve(undefined)
+        await releaseFlush.promise
+      }
+      await flush(session)
     })
+    const failure = new Error('capture failed')
+    const result = started.result.catch((error: unknown) => error)
+    const resultObserved = vi.spyOn(started.result, 'catch')
+    const capture = vi.spyOn(activationResults, 'captureLocalResult').mockImplementationOnce(() => {
+      throw failure
+    })
+    let waiting: Promise<boolean> | undefined
 
     try {
       hold.resolve(undefined)
+      await flushing.promise
+      waiting = ctx.subagents.waitForChildren(parent)
+      await vi.waitFor(() => { expect(resultObserved).toHaveBeenCalled() })
+      releaseFlush.resolve(undefined)
+      await expect(waiting).resolves.toBe(true)
+      await expect(result).resolves.toBe(failure)
       await waitNoActivation(ctx, started.childId)
       await vi.waitFor(() => { expect(ends).toHaveLength(1) })
       expect(ends[0]!.stopReason).toBe('error')
     } finally {
       capture.mockRestore()
       hold.resolve(undefined)
+      releaseFlush.resolve(undefined)
+      await waiting
+      await started.result.catch(() => undefined)
+      resultObserved.mockRestore()
+      flushSpy.mockRestore()
     }
   })
 

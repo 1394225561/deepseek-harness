@@ -279,9 +279,10 @@ export class SubagentRuntime extends TypertRemoteService {
   }
 
   /**
-   * Wait for this live parent's currently owned child work without cancelling it.
-   * @param parent - the exact parent whose descendants should settle.
-   * @returns whether any work was observed; hosts recheck parent idle after true.
+   * Join progressing descendants without cancelling them. Idle descendants whose
+   * inboxes require a later wake stay resident and do not delay host completion.
+   * @param parent - the exact parent whose descendant work is observed.
+   * @returns whether work was joined; hosts recheck parent idle after true.
    */
   async waitForChildren(parent: Agent): Promise<boolean> {
     return this.manager?.waitForChildren(parent) ?? false

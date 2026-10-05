@@ -241,19 +241,48 @@ export class SubagentManager {
   }
 
   /**
-   * Wait for the parent's currently owned child work to release its resources.
-   * @param parent - exact live parent whose child work is observed.
-   * @returns whether any child work was observed.
+   * Join progressing child work, leaving idle parked inboxes resident.
+   * @param parent - exact live parent whose descendants are observed.
+   * @returns whether work was joined and the host must recheck parent completion.
    */
   async waitForChildren(parent: Agent): Promise<boolean> {
-    const pending = [...this.materializations].filter(item => item.lineage.includes(parent))
-    const children = [...this.resident.values()].filter(item => activationAgent(item) !== parent && item.ancestry.has(parent))
-    if (pending.length === 0 && children.length === 0) return false
-    await Promise.all([
-      ...pending.map(item => item.settled),
-      ...children.map(item => item.result.promise.catch(() => undefined)),
-    ])
-    return true
+    let observed = false
+    while (true) {
+      const pending = [...this.materializations].filter(item => item.lineage.includes(parent))
+      const children = [...this.resident.values()].filter(item => activationAgent(item) !== parent && item.ancestry.has(parent))
+      observed ||= children.some(item => item.kind === 'local' && item.handle.agent.status !== 'idle')
+      await Promise.all(children.flatMap(item => item.kind === 'local' ? [item.handle.agent.whenIdle()] : []))
+      const waits: Promise<unknown>[] = pending.map(item => item.settled)
+      for (const item of children) {
+        if (item.kind === 'external' || item.closing !== undefined) {
+          waits.push(item.result.promise.catch(() => undefined))
+          continue
+        }
+        if (item.handle.agent.status !== 'idle') {
+          waits.push(item.handle.agent.whenIdle())
+          continue
+        }
+        if (item.ownedChildren.size > 0) {
+          // Published descendants are observed separately; preparation holds
+          // keep the owner pending until publication or rollback wakes it.
+          if ([...item.ownedChildren].some(id => !this.resident.has(id))) waits.push(item.poke.promise)
+          continue
+        }
+        const inbox = item.handle.agent.inbox
+        if (item.failureAt === undefined && (inbox.nextTurn.length > 0 || inbox.nextStep.length > 0)) continue
+        waits.push(Promise.race([item.result.promise.catch(() => undefined), item.poke.promise]))
+      }
+      if (waits.length > 0) {
+        observed = true
+        await Promise.all(waits)
+        continue
+      }
+      // A descendant can be published while whenIdle follows another child.
+      if ([...this.materializations].some(item => item.lineage.includes(parent) && !pending.includes(item))
+        || [...this.resident.values()].some(item => activationAgent(item) !== parent
+          && item.ancestry.has(parent) && !children.includes(item))) continue
+      return observed
+    }
   }
 
   /**
@@ -896,6 +925,7 @@ export class SubagentManager {
       const wakeSettlement = (): void => { this.wake(activation) }
       if (activation.kind === 'local') {
         observeLocalFailure(activation, wakeSettlement)
+        activation.handle.agent.ctx.on('agent/inbox/inserted', wakeSettlement)
         activation.handle.agent.ctx.on('agent/inbox/claimed', wakeSettlement)
         activation.handle.agent.ctx.on('agent/inbox/discarded', wakeSettlement)
       }
@@ -949,6 +979,7 @@ export class SubagentManager {
       )
     }
     parentActivation.ownedChildren.add(childId)
+    this.wake(parentActivation)
   }
 
   /** Remove one child from its live owner's set and let that owner re-check settlement. */
@@ -1003,10 +1034,8 @@ export class SubagentManager {
           return Promise.resolve({ done })
         })
 
-        if (attempt === 'closed') return
-        if (attempt === 'retry') continue
-        if (attempt === 'wait') {
-          await idleObservation.promise
+        if (typeof attempt === 'string') {
+          if (attempt === 'closed') return
           continue
         }
         try {

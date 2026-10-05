@@ -2905,9 +2905,9 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'async waitForChildren(parent: Agent): Promise<boolean>',
-        description: 'Wait for this live parent\'s currently owned child work without cancelling it.',
-        parameters: [{ name: 'parent', description: 'the exact parent whose descendants should settle.' }],
-        returns: 'whether any work was observed; hosts recheck parent idle after true.',
+        description: 'Join progressing descendants without cancelling them. Idle descendants whose inboxes require a later wake stay resident and do not delay host completion.',
+        parameters: [{ name: 'parent', description: 'the exact parent whose descendant work is observed.' }],
+        returns: 'whether work was joined; hosts recheck parent idle after true.',
       },
       {
         signature: 'async sendMessage( sender: Agent, targetId: SessionId, content: ContentBlock[], options: SubagentSendMessageOptions, ): Promise<MessageId>',
