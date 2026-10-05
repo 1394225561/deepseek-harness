@@ -288,8 +288,9 @@ export async function reconcileProfilePatches(
   const { patches: _previous, ...includeConfig } = entry.options.config as Include.Config
   // The recomposition judges the rows the launch judged, resolved from the file this Include read.
   const parentURL = new URL('.', new URL(includeConfig.path, entry.parent.tree.ctx.baseUrl)).href
-  const prepared = prepareRootPatches(ctx, patches, includeConfig.path, parentURL, binName)
-  await drainRetiringEntries(ctx, entry, includeConfig.path, parentURL, prepared)
+  const initial = readRootEntries(includeConfig.path, parentURL, binName)
+  const prepared = prepareRootPatches(ctx, patches, includeConfig.path, parentURL, binName, initial)
+  await drainRetiringEntries(ctx, entry, initial, prepared)
   await entry.update({ config: { ...includeConfig, patches: prepared } })
   const results = await Promise.allSettled(previousFibers.map(({ fiber }) => fiber.await()))
   await ctx.loader.await()
@@ -307,10 +308,9 @@ export async function reconcileProfilePatches(
 
 /** Disappearing and literal-disabled rows release singleton services before their replacements activate. */
 async function drainRetiringEntries(
-  ctx: Context, root: Entry, configPath: string, parentURL: string, patches: readonly ProfilePatch[],
+  ctx: Context, root: Entry, initial: EntryOptions[], patches: readonly ProfilePatch[],
 ): Promise<void> {
-  const parsed = yaml.load(readFileSync(new URL(configPath, parentURL), 'utf8'), { schema: entryListSchema }) as EntryOptions[]
-  const rows = applyProfilePatches(parsed, patches)
+  const rows = applyProfilePatches(initial, patches)
   const next = new Map<string, boolean>()
   const visit = (rows: EntryOptions[], outerDisabled = false): void => {
     for (const row of rows) {
@@ -561,14 +561,19 @@ function groupedDump(
 }
 
 /** Compile profile operations before passing an ordinary patch list to the root Include. */
+function readRootEntries(configPath: string, parentURL: string, binName: string): EntryOptions[] {
+  const parsed: unknown = yaml.load(readFileSync(new URL(configPath, parentURL), 'utf8'), { schema: entryListSchema })
+  if (!Array.isArray(parsed)) throw new Error(`${binName}: config ${configPath} must be a top-level array of entries`)
+  return parsed as EntryOptions[]
+}
+
 function prepareRootPatches(
-  ctx: Context, patches: ProfilePatch[], configPath: string, parentURL: string, binName: string,
+  ctx: Context, patches: ProfilePatch[], configPath: string, parentURL: string, binName: string, initial?: EntryOptions[],
 ): ProfilePatch[] {
   if (ctx.get('profileContext') !== undefined) return prepareProfilePatches(ctx, patches, parentURL, binName)
   if (!patches.some(patch => profilePatchPreset(patch) !== undefined)) return patches
-  const parsed: unknown = yaml.load(readFileSync(new URL(configPath, parentURL), 'utf8'), { schema: entryListSchema })
-  if (!Array.isArray(parsed)) throw new Error(`${binName}: config ${configPath} must be a top-level array of entries`)
-  return compileProfilePatches(parsed as EntryOptions[], patches, (message, ...args) => { ctx.logger.warn(message, ...args) })
+  return compileProfilePatches(initial ?? readRootEntries(configPath, parentURL, binName), patches,
+    (message, ...args) => { ctx.logger.warn(message, ...args) })
 }
 
 /**

@@ -9,7 +9,7 @@ description: "插件管理器的组合包清单包含预设作用域行，其行
 
 ## 变更
 
-下一个版本在 `PluginManager.listBundles().rows` 中加入预设作用域声明。一个组合包可以在多个预设中声明相同的 `rowId`。这些行包含 `preset`、可选的 `composition` 状态和 `readOnlyReason: 'preset-managed'`，不包含可编辑的根级 `entryId`。
+下一个版本在 `PluginManager.listBundles().rows` 中加入预设作用域声明。一个组合包可以在多个预设中声明相同的 `rowId`。详情插槽中的 `PluginRowRef` 也携带可选的 `preset` 标识。这些行包含 `preset`、可选的 `composition` 状态和 `readOnlyReason: 'preset-managed'`，不包含可编辑的根级 `entryId`。
 
 仅用组合包名和 `rowId` 作为行标识，或将所有行都视为根插件开关的客户端，必须区分预设声明。已有根行保留当前标识和控制方式。
 

@@ -29,8 +29,10 @@ export interface PluginConfigViewProps {
 
 /** One row of a bundle as a detail contribution sees it. */
 export interface PluginRowRef {
-  /** The row id as the bundle's patch declares it. */
+  /** Declared row id, or an internal identity for an anonymous scoped insertion. */
   readonly rowId: string
+  /** Outer preset row id; absent for a Host row. */
+  readonly preset?: string
   /** The module the row names. */
   readonly moduleName: string
   /** Whether the row's entry runs. */

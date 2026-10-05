@@ -9,7 +9,7 @@ English | [中文](guide.zh.md)
 
 ## Change
 
-The next release adds preset-scoped declarations to `PluginManager.listBundles().rows`. A bundle can declare the same `rowId` in several presets. These rows carry `preset`, optional `composition` state, and `readOnlyReason: 'preset-managed'`; they do not carry an editable root `entryId`.
+The next release adds preset-scoped declarations to `PluginManager.listBundles().rows`. A bundle can declare the same `rowId` in several presets. `PluginRowRef` values passed to detail slots carry the same optional `preset` identity. These rows carry `preset`, optional `composition` state, and `readOnlyReason: 'preset-managed'`; they do not carry an editable root `entryId`.
 
 Clients that key rows only by bundle name and `rowId`, or treat every row as a root plugin switch, must distinguish preset declarations. Existing root rows retain their current identity and controls.
 

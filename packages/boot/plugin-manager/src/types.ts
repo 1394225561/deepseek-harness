@@ -33,7 +33,7 @@ export type PluginInfo = PluginInventoryEntry & (
 
 /** One row a bundle's patch declares, with its live entry while the bundle contributes it. */
 export interface BundleRowInfo {
-  /** The row id as the patch declares it. */
+  /** Declared row id, or an internal identity for an anonymous scoped insertion. */
   rowId: string
   /** Outer preset row id; together with rowId identifies a scoped declaration. */
   preset?: string

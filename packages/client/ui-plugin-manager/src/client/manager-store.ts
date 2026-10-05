@@ -62,7 +62,7 @@ export type ManagerNotice =
 export interface PackageRow {
   /** The Loader entry carrying the row while the bundle is on; absent for a row of a bundle that is off. */
   readonly entryId?: PluginEntryId
-  /** The row id as the bundle declares it. */
+  /** Declared row id, or an internal identity for an anonymous scoped insertion. */
   readonly rowId: string
   /** Outer preset row id for a scoped, read-only contribution. */
   readonly preset?: string

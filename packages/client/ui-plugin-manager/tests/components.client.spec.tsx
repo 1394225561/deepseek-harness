@@ -734,10 +734,20 @@ describe('PluginManagerPage', () => {
       rowId: 'shared', preset, moduleName: 'shared-tool', enabled: true, phase: 'active',
       readOnlyReason: 'preset-managed', meta: { title: 'shared' },
     }))
-    const { actions, setLanguage } = renderTab({ packages: [pkg({ rows })] }, { rows: new Set(['dsh-better-sidebar#shared']) })
+    const subjects: PluginsSubject[] = []
+    const { actions, setLanguage } = renderTab({ packages: [pkg({ rows })] }, { rows: new Set(['dsh-better-sidebar#shared']) }, {
+      'plugins.detail.actions:': (_view, owner) => {
+        const subject = subjectOf(owner)
+        if (subject !== undefined) subjects.push(subject)
+        return null
+      },
+    })
     fireEvent.click(screen.getByRole('button', { name: en.openDetail.replace('{name}', 'dsh-better-sidebar') }))
     const listed = [...document.querySelectorAll('[data-plugin-row]')]
     expect(new Set(listed.map(item => item.getAttribute('data-plugin-row'))).size).toBe(2)
+    expect(subjects.at(-1)).toMatchObject({ kind: 'bundle', pkg: { rows: [
+      { rowId: 'shared', preset: 'preset-standard' }, { rowId: 'shared', preset: 'preset-cordis' },
+    ] } })
     expect(screen.getByText('preset-standard/shared')).toBeTruthy()
     expect(screen.getByText('preset-cordis/shared')).toBeTruthy()
     for (const item of listed) {

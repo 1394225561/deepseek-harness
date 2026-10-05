@@ -505,7 +505,8 @@ function ItemCard({ item, t, onOpen, renderSlot }: {
 
 /** One row as the detail slots see it. */
 function rowRef(row: PackageRow): PluginRowRef {
-  return { rowId: row.rowId, moduleName: row.moduleName, enabled: row.enabled }
+  return { rowId: row.rowId, ...row.preset === undefined ? {} : { preset: row.preset },
+    moduleName: row.moduleName, enabled: row.enabled }
 }
 
 /** One bundle as the detail slots see it. */
