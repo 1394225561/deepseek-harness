@@ -849,7 +849,9 @@ export class PluginManager extends TypertRemoteService {
     const presets = this.ctx.get('agentPresets')
     const before = new Map((await presets?.list() ?? []).map(row =>
       [row.id, { broken: row.broken, config: this.presetConfiguration(row) }]))
-    const warnings = await reconcileProfilePatches(this.ownerContext.root, readProfilePatches('dsh', this.profile), 'dsh', requiredIds)
+    const warnings = await reconcileProfilePatches(
+      this.ownerContext.root, readProfilePatches('dsh', this.profile), 'dsh', [...requiredIds, ...requiredPresets],
+    )
     const after = await this.ctx.get('agentPresets')?.list() ?? []
     const required = new Set(after.filter(row => row.definitionEntryId !== undefined && requiredPresets.includes(row.definitionEntryId))
       .map(row => row.id))

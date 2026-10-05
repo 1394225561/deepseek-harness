@@ -185,6 +185,18 @@ it('retains a failed selection, reports affected preset failures again, and keep
   expect((await ctx.agentPresets.list()).every(row => row.broken === undefined)).toBe(true)
 })
 
+it('refuses a no-op scoped enable when its Host preset row already failed before registering', async () => {
+  const { manager, ctx, bundle, dir } = await fixture()
+  bundle('invalid-definition', [{ id: 'preset-standard', config: { id: '', plugins: [] } }])
+  expect(await manager.setBundleEnabled('invalid-definition', true)).toMatchObject({ application: 'failed' })
+  expect((await ctx.agentPresets.list()).map(row => row.id)).not.toContain('standard')
+  bundle('scoped-noop', [{ preset: 'preset-standard', insert: [] }])
+  expect(await manager.setBundleEnabled('scoped-noop', true)).toMatchObject({
+    application: 'failed', changed: true, error: { diagnostic: expect.stringContaining('Preset id must not be empty') as string },
+  })
+  expect(readProfileManifest('test', dir).dsh?.profile?.bundles).toContain('scoped-noop')
+})
+
 it.each([{ id: 'standard' }, { id: 'standard', plugins: [] }])(
   'keeps existing preset failures as warnings when an unrelated Host config is %j', async (config) => {
     const { manager, bundle, ctx } = await fixture()
