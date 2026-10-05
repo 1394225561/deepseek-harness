@@ -82,7 +82,7 @@ interface PromptContext {
   readonly name: string
   /** Contexts are joined in ascending order. */
   readonly order: number
-  /** Static text or a provider evaluated for each assembly. Empty text contributes nothing. */
+  /** Static text or a provider evaluated at assembly and admission refresh. Empty text contributes nothing. */
   readonly text: string | ((context: AssembleContext) => string)
   /** Whether to interpolate prompt variables. Defaults to true; false preserves literal text. */
   readonly interpolate?: boolean
