@@ -190,7 +190,7 @@ export function checkDeclaredPluginRecordWrites(
     const roots = new Set<string>()
     for (const config of configs.byPath.values()) {
       for (const file of config.fileNames) {
-        if (!isTestFile(relative(repoRoot, file).replaceAll('\\', '/'))) roots.add(file)
+        if (!isTestFile(relative(repoRoot, file).replaceAll('\\', '/'))) roots.add(resolve(file))
       }
     }
     const admitted = candidates.filter(file => roots.has(resolve(repoRoot, file)))
