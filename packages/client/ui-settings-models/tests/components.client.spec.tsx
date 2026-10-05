@@ -1646,7 +1646,7 @@ describe('ModelsSection', () => {
 
   it('renders the load failure with a retry control', async () => {
     const face = scriptedFace()
-    face.face.llm.listProviders = vi.fn(() => Promise.resolve(remoteFail('directory down', 'gateway/internal'))) as never
+    face.face.llm.listProviders.mockResolvedValue(remoteFail('directory down', 'gateway/internal'))
     const controller = new ModelsSettingsStore(
       ctxWith(face.face), settingsSchema, new SettingsDescribeMirror(ctxWith(face.face)))
     await controller.load()
