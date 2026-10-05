@@ -485,6 +485,9 @@ async function seedWorkspace(scenario: HeadlessScenario, cwd: string): Promise<v
   await prepare(cwd)
 }
 
+const WORKTREE_CHECKOUT_FILTER = "printf 'FILTERED CHECKOUT CONTENT\\n'"
+const WORKTREE_CHECKOUT_ATTRIBUTES = 'tracked.txt filter=dsh-snapshot-checkout\n'
+
 const workspaceSetups: Record<string, (cwd: string) => Promise<void>> = {
   async 'windows-acl-skill'(cwd) {
     const target = join(cwd, '.dsh', 'skills', 'diagnose-windows-sandbox-acl', 'SKILL.md')
@@ -501,6 +504,9 @@ const workspaceSetups: Record<string, (cwd: string) => Promise<void>> = {
     snapshotGit(cwd, ['config', 'core.autocrlf', 'false'])
     snapshotGit(cwd, ['add', 'tracked.txt'])
     snapshotGit(cwd, ['commit', '-m', 'Snapshot seed'])
+    await writeFile(join(cwd, '.git', 'info', 'attributes'), WORKTREE_CHECKOUT_ATTRIBUTES)
+    snapshotGit(cwd, ['config', 'filter.dsh-snapshot-checkout.smudge', WORKTREE_CHECKOUT_FILTER])
+    await copyFile(join(cwd, '.git', 'config'), join(cwd, '.git', 'config.before-worktree'))
     await writeFile(join(cwd, '.git', 'info', 'exclude'), '/.dsh/\n/.snapshot-patches/\n')
     await writeFile(join(cwd, 'tracked.txt'), 'DIRTY SOURCE\n')
     await writeFile(join(cwd, 'local.txt'), 'UNTRACKED SOURCE\n')
@@ -754,6 +760,9 @@ function snapshotGit(cwd: string, args: string[]): string {
 /** Verify Git-owned state independently of the Session and exclude only its volatile administration files from the file oracle. */
 async function verifyWorktree(log: string, cwd: string): Promise<void> {
   const checkout = join(cwd, '.agents', 'worktrees', 'isolated')
+  expect(await readFile(join(cwd, '.git', 'config'))).toEqual(await readFile(join(cwd, '.git', 'config.before-worktree')))
+  expect(await readFile(join(cwd, '.git', 'info', 'attributes'), 'utf8')).toBe(WORKTREE_CHECKOUT_ATTRIBUTES)
+  expect(snapshotGit(cwd, ['config', 'filter.dsh-snapshot-checkout.smudge'])).toBe(WORKTREE_CHECKOUT_FILTER)
   expect(await readFile(join(checkout, 'tracked.txt'), 'utf8')).toBe('COMMITTED CONTENT\n')
   expect(await readFile(join(checkout, 'result.txt'), 'utf8')).toBe('WORKTREE RESULT\n')
   expect(existsSync(join(checkout, 'local.txt'))).toBe(false)
