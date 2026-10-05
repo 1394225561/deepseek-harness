@@ -42,9 +42,12 @@
 .deviceAnchor { display: block; min-width: 0; }
 .deviceTrigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-width: 0; border: 0.5px solid var(--dsw-alias-border-l1); border-radius: 6px; padding: 6px 10px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
 .deviceMenu { width: 320px; }
+.deviceMenu button:disabled { opacity: 1; color: var(--dsw-alias-label-secondary); cursor: default; }
 .deviceCheck { display: inline-flex; width: 16px; }
 .deviceOption { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
 .deviceName { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.deviceName[data-unavailable='true'], .deviceStatus { color: var(--dsw-alias-label-secondary); }
+.deviceStatus { flex: none; font-size: 12px; }
 .inputLevel { display: inline-flex; align-items: center; gap: 3px; flex: none; }
 .inputLevel > span { width: 3px; height: 12px; border-radius: 1px; background: var(--dsw-alias-border-l1); }
 .inputLevel > span[data-active='true'] { background: var(--dsw-alias-state-success-primary); }
