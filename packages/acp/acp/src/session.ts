@@ -504,6 +504,7 @@ export class AcpSession {
             if (inflight.cancelRequested) break
             const idleSeq = this.agent.session.seq
             const children = await Promise.race([subagents?.waitForChildren(this.agent), cancelled.promise])
+            if (inflight.cancelRequested) break
             if (!children && this.agent.status === 'idle' && this.agent.session.seq === idleSeq) break
           }
         } finally {

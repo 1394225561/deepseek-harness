@@ -3,6 +3,10 @@ import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import { setImmediate } from 'node:timers/promises'
+import SubagentRuntime, { NO_START_CAPABILITIES } from '@deepseek-ai/dsh-subagent'
+import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import { toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import {
   errorResponse,
   makeBridgeHarness,
@@ -573,6 +577,82 @@ describe('ACP prompt lifecycle', () => {
     await expect(harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'again' }] }))
       .resolves.toEqual({ stopReason: 'end_turn' })
     expect(messageText(harness)).toBe('waitingnext')
+  })
+
+  it('releases a cancelled prompt before a late child message finishes and permits another delegation', async () => {
+    harness = await makeBridgeHarness({ script: [
+      textResponse('waiting'), textResponse('late autonomous answer'),
+      toolCallResponse('delegate-again', 'delegate_again', {}),
+      textResponse('later child answer'), textResponse('later parent answer'),
+    ] })
+    const ctx = harness.ctx
+    await ctx.plugin(SubagentRuntime)
+    ctx.subagents.registerProvider({
+      name: 'local-test', capabilities: NO_START_CAPABILITIES, inheritsParentContext: false,
+      prepareContinuable: () => Promise.resolve({}),
+    })
+    let delegated = false
+    ctx.tools.register(defineContentToolFixture({
+      name: 'delegate_again', description: 'Run a later child.', parameters: {},
+      execute: async (_args, exec) => {
+        const child = await ctx.subagents.startActivation({
+          provider: 'local-test', label: 'later child', delivery: 'caller', signal: exec.signal,
+          request: { parent: exec.agent, prompt: [{ type: 'text', text: 'later child task' }] },
+        })
+        const result = await child.result
+        delegated = result.stopReason === 'completed'
+        return [...result.output]
+      },
+    }))
+    const sessionId = await newSession(harness)
+    const parent = ctx.agents.get(SessionId(sessionId))!
+    const waiting = Promise.withResolvers<undefined>()
+    const children = Promise.withResolvers<boolean>()
+    vi.spyOn(ctx.subagents, 'waitForChildren').mockImplementationOnce(() => {
+      waiting.resolve(undefined)
+      return children.promise
+    })
+    const lateStarted = Promise.withResolvers<undefined>()
+    const releaseLate = Promise.withResolvers<undefined>()
+    const stream = harness.adapter.stream.bind(harness.adapter)
+    vi.spyOn(harness.adapter, 'stream').mockImplementation(async function* (options) {
+      if (options.messages.at(-1)?.content.some(block => block.type === 'text' && block.text === 'late child result')) {
+        lateStarted.resolve(undefined)
+        await releaseLate.promise
+      }
+      yield* stream(options)
+    })
+    const cancel = parent.cancel.bind(parent)
+    let delivered = false
+    vi.spyOn(parent, 'cancel').mockImplementation((...args) => {
+      cancel(...args)
+      if (delivered) return
+      delivered = true
+      queueMicrotask(() => {
+        parent.followup(createUserMessage({ content: [{ type: 'text', text: 'late child result' }], source: { kind: 'test' } }))
+        children.resolve(true)
+      })
+    })
+    let result: { stopReason: string } | undefined
+    const first = harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'delegate' }] })
+      .then((value) => { result = value; return value })
+    try {
+      await waiting.promise
+      await harness.client.cancel({ sessionId })
+      await lateStarted.promise
+      await setImmediate()
+      expect(result).toEqual({ stopReason: 'cancelled' })
+      expect(parent.status).toBe('running')
+      releaseLate.resolve(undefined)
+      await parent.whenIdle()
+      await expect(harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'delegate again' }] }))
+        .resolves.toEqual({ stopReason: 'end_turn' })
+      expect(delegated).toBe(true)
+      expect(messageText(harness)).toContain('later parent answer')
+    } finally {
+      releaseLate.resolve(undefined)
+      await first
+    }
   })
 
   it.each([false, true])('waits for the later summary output and reports its delivery failure (%s)', async (fail) => {
