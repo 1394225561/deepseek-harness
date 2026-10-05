@@ -7,7 +7,7 @@ kind: "package-bundle"
 
 [English](README.md) | 中文
 
-## 概要
+## 概述
 
 向预设支持技能加载的智能体提供实验性 DSH 徽章技能。共享提供者不添加模型工具。 Web 和 Desktop 随附此功能，默认关闭。在插件页选择它即可启用。
 

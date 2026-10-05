@@ -7,7 +7,7 @@ kind: "package-bundle"
 
 [English](README.md) | 中文
 
-## 概要
+## 概述
 
 为 standard、cordis 和 ptc 添加实验性 Ralph 工具，使用新的子智能体执行用户要求的循环工作。 Web 和 Desktop 随附此功能，默认关闭。在插件页选择它即可启用。
 

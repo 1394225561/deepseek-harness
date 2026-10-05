@@ -7,7 +7,7 @@ kind: "package-bundle"
 
 [English](README.md) | 中文
 
-## 概要
+## 概述
 
 为 standard、cordis 和 ptc 中的智能体提供五个只读工具，用于搜索历史会话。内容索引在首次搜索时打开，由使用同一预设版本的智能体共享。Web 和 Desktop 随附此配置包，默认关闭。在插件页选择它即可启用。
 
