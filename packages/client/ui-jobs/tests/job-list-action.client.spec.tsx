@@ -361,6 +361,34 @@ describe('JobListAction observation', () => {
     expect(screen.getByText('实时输出流中断：connection lost')).toBeDefined()
   })
 
+  it('bridges Tab between the trigger and the portaled list and closes on Escape', () => {
+    render(<JobListAction {...props([job()])} />)
+    const trigger = screen.getAllByRole('button')[0]!
+    fireEvent.keyDown(trigger, { key: 'Tab' })
+    openList()
+    const [first, last] = within(screen.getByRole('list', { name: zh['list.aria'] })).getAllByRole('button')
+    trigger.focus()
+    // Shift+Tab from the trigger leaves toward the controls before it.
+    expect(fireEvent.keyDown(trigger, { key: 'Tab', shiftKey: true })).toBe(true)
+    expect(document.activeElement).toBe(trigger)
+    // Tab from the trigger enters the list.
+    expect(fireEvent.keyDown(trigger, { key: 'Tab' })).toBe(false)
+    expect(document.activeElement).toBe(first)
+    // Inside the list Tab stays the browser's until an end is reached.
+    expect(fireEvent.keyDown(first!, { key: 'Tab' })).toBe(true)
+    // Tab off the last control resumes from the trigger's place in the page.
+    expect(fireEvent.keyDown(last!, { key: 'Tab' })).toBe(true)
+    expect(document.activeElement).toBe(trigger)
+    // Shift+Tab off the first control returns to the trigger itself.
+    first!.focus()
+    expect(fireEvent.keyDown(first!, { key: 'Tab', shiftKey: true })).toBe(false)
+    expect(document.activeElement).toBe(trigger)
+    first!.focus()
+    fireEvent.keyDown(first!, { key: 'Escape' })
+    expect(screen.queryByRole('list', { name: zh['list.aria'] })).toBeNull()
+    expect(document.activeElement).toBe(trigger)
+  })
+
   it('stops observation when the popover closes via Escape', () => {
     const stop = vi.fn()
     render(<JobListAction {...props([outputJob()], () => stop)} />)

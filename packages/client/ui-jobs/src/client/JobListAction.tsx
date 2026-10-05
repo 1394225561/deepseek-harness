@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import type { JobsSnapshot, JobView, ObservedJob } from '@deepseek-ai/dsh-api-job-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
@@ -52,6 +52,12 @@ const VIEWPORT_MARGIN = 12
 
 /** Distance between the trigger's bottom edge and the popover. */
 const MENU_GAP = 5
+
+/** Unplaced list: hidden but laid out so the first placement measures real dimensions. */
+const MEASURE_STYLE: CSSProperties = { visibility: 'hidden', left: 0, top: 0 }
+
+/** Keyboard-reachable controls inside the list, in document order. */
+const FOCUSABLE = 'button:not(:disabled), a[href], [tabindex]:not([tabindex="-1"])'
 
 /** How long an armed kill waits for its confirming press before disarming. */
 const KILL_ARM_MS = 3_000
@@ -456,11 +462,33 @@ export function JobListAction({ sessionId, useJobs, watchRows, observe, killJob,
     }
   }
 
+  // The portaled list sits at the end of the document, so Tab is bridged to
+  // keep the in-place order: the trigger leads into the list, and leaving
+  // either end of the list returns to the trigger's position in the page.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
-    if (event.key !== 'Escape' || !open) return
-    event.preventDefault()
-    setOpen(false)
-    triggerRef.current?.focus()
+    if (!open) return
+    const trigger = triggerRef.current
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      setOpen(false)
+      trigger?.focus()
+      return
+    }
+    const menu = menuRef.current
+    /* v8 ignore next -- both refs are attached while the open list renders. */
+    if (event.key !== 'Tab' || trigger === null || menu === null) return
+    const focusable = [...menu.querySelectorAll<HTMLElement>(FOCUSABLE)]
+    if (event.target === trigger) {
+      // Every list carries a control: a live row's toggle or the settled section's buttons.
+      if (event.shiftKey) return
+      event.preventDefault()
+      focusable[0]?.focus()
+    } else if (event.shiftKey ? event.target === focusable[0] : event.target === focusable.at(-1)) {
+      // Shift+Tab lands on the trigger itself; Tab continues from it to the
+      // control that follows the trigger.
+      if (event.shiftKey) event.preventDefault()
+      trigger.focus()
+    }
   }
 
   const item = (job: JobView) => (
@@ -486,7 +514,7 @@ export function JobListAction({ sessionId, useJobs, watchRows, observe, killJob,
   )
 
   return (
-    <div ref={rootRef} className={css.root} onKeyDown={onKeyDown}>
+    <div ref={rootRef} onKeyDown={onKeyDown}>
       <button
         ref={triggerRef}
         type="button"
@@ -511,7 +539,7 @@ export function JobListAction({ sessionId, useJobs, watchRows, observe, killJob,
           <ul
             ref={menuRef}
             className={css.menu}
-            style={menuPosition ?? { visibility: 'hidden', left: 0, top: 0 }}
+            style={menuPosition ?? MEASURE_STYLE}
             aria-label={t('list.aria')}
           >
             {liveRows.length > 0
