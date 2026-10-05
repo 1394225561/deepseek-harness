@@ -79,13 +79,20 @@ export function workspaceBaselineIdentity(
 }
 
 /**
- * Resolve defaults, the harness home, and valid same-directory candidates.
+ * Resolve row defaults, the process harness home, and valid same-directory candidates.
+ * Undeclared row fields cannot override the process home.
  * @param config - user-facing plugin configuration.
  * @returns normalized runtime configuration.
  */
 export function resolveConfig(config: Config): ResolvedConfig {
   return {
-    ...resolveDiscoveryConfig(config),
+    ...resolveDiscoveryConfig({
+      ...config.projectRootMarkers === undefined ? {} : { projectRootMarkers: config.projectRootMarkers },
+      ...config.instructionFileCandidates === undefined ? {} : { instructionFileCandidates: config.instructionFileCandidates },
+      ...config.localInstructionFileCandidates === undefined
+        ? {}
+        : { localInstructionFileCandidates: config.localInstructionFileCandidates },
+    }),
     maxBytes: config.maxBytes,
     maxSourceBytes: config.maxSourceBytes ?? DEFAULT_MAX_SOURCE_BYTES,
   }

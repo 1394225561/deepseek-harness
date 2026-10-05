@@ -704,8 +704,11 @@ describe('workspace context instruction discovery', () => {
       pinHarnessHome(envHome)
 
       const files = await discoverBaselineInstructionFiles({ cwd: root, dshHome: ownerHome })
+      const loaded = await loadBaselineInstructions({ cwd: root, dshHome: ownerHome, maxBytes: 65536 })
 
       expect(files).toEqual([{ absolutePath: join(ownerHome, 'AGENTS.md'), displayPath: '$DSH_HOME/AGENTS.md' }])
+      expect(loaded?.text).toContain('owner-resolved rule')
+      expect(loaded?.text).not.toContain('environment rule')
     } finally {
       vi.unstubAllEnvs()
       await rm(root, { recursive: true, force: true })
@@ -1100,6 +1103,44 @@ describe('workspace context rendering', () => {
 })
 
 describe('workspace context request injection', () => {
+  it('ignores a stale row home in both baseline loading and refresh', async () => {
+    const root = await tempRepo()
+    const ctx = new Context()
+    try {
+      const processHome = join(root, 'process-home')
+      const rowHome = join(root, 'row-home')
+      await mkdir(join(root, '.git'))
+      await write(join(processHome, 'AGENTS.md'), 'process home instruction')
+      await write(join(rowHome, 'AGENTS.md'), 'stale row instruction')
+      pinHarnessHome(processHome)
+      // Schemastery retains unknown row keys, so the actual plugin must ignore them.
+      const rowConfig = { maxBytes: 65536, dshHome: rowHome, agentsHome: rowHome }
+      await mountAgentInstructions(ctx, rowConfig)
+      const agent = await stubAgent(root)
+
+      await composeBaselinePrefix(ctx, agent)
+
+      expect(derivedText(agent)).toContain('process home instruction')
+      expect(derivedText(agent)).not.toContain('stale row instruction')
+
+      await write(join(processHome, 'AGENTS.md'), 'updated process home instruction')
+      await write(join(rowHome, 'AGENTS.md'), 'updated stale row instruction')
+      await syncAgentInstructions(ctx, agent)
+
+      const pending = await agentInstructionsOf(agent)
+      expect(pending.source).toMatchObject({
+        kind: 'agent-instructions',
+        changes: [{ action: 'replace', scope: sk(USER_GLOBAL_DIRECTORY, USER_GLOBAL_FILE) }],
+      })
+      expect(blocksText(pending.content)).toContain('updated process home instruction')
+      expect(blocksText(pending.content)).not.toContain('stale row instruction')
+    } finally {
+      await ctx.fiber.dispose()
+      vi.unstubAllEnvs()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('requires an explicit maxBytes configuration', async () => {
     const ctx = new Context()
 
