@@ -1691,21 +1691,28 @@ describe('logged-fact failures', () => {
       expectReviewFailure(result)
     }
 
-    const missingCwd = ctx.sessions.create(SessionId('missing-cwd'))
-    ctx.permissionPresets.set(missingCwd, AUTO_PRESET)
-    appendHeader(missingCwd, [{ name: 'probe', description: 'probe', parameters: { type: 'object' } }])
-    const missingCwdId = ToolCallId('missing-cwd-call')
-    appendAssistant(missingCwd, [{ type: 'tool-call', id: missingCwdId, name: 'probe', arguments: '{}' }])
-    appendNativeCall(missingCwd, missingCwdId, 'probe', '{}')
-    expectReviewFailure(await ctx.tools.execute({
+    expect(probe.runs()).toBe(0)
+    expect(adapter.requests).toHaveLength(0)
+  })
+
+  it('reviews a Session without a header directory using the deployment fallback', async () => {
+    const { ctx, adapter } = await harness([decisionChunks('{"risk":"low","decision":"allow"}')])
+    const probe = registerProbe(ctx)
+    const session = ctx.sessions.create(SessionId('missing-cwd'))
+    ctx.permissionPresets.set(session, AUTO_PRESET)
+    appendHeader(session, [{ name: 'probe', description: 'probe', parameters: { type: 'object' } }])
+    const callId = ToolCallId('missing-cwd-call')
+    appendAssistant(session, [{ type: 'tool-call', id: callId, name: 'probe', arguments: '{}' }])
+    appendNativeCall(session, callId, 'probe', '{}')
+    const result = await ctx.tools.execute({
       signal: new AbortController().signal,
-      callId: missingCwdId,
+      callId,
       name: 'probe',
       arguments: {},
-      agent: agentFor(missingCwd),
-    }), 'auto-review: the session has no working directory')
-
-    expect(probe.runs()).toBe(0)
+      agent: agentFor(session),
+    })
+    expect(result.isError).toBe(false)
+    expect(probe.runs()).toBe(1)
     expect(adapter.requests).toHaveLength(1)
     expect(requestSections(adapter.requests[0]!).ENVIRONMENT).toEqual({ cwd: process.cwd() })
   })
