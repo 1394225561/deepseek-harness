@@ -20,6 +20,7 @@ it('reports unavailable recording and denied permission', async () => {
   vi.stubGlobal('navigator', {})
   const recording = new Recording(() => {})
   await expect(recording.start()).rejects.toMatchObject({ kind: 'unavailable' })
+  await expect(recording.preview()).rejects.toMatchObject({ kind: 'unavailable' })
   vi.stubGlobal('MediaRecorder', function RecorderStub() {})
   vi.stubGlobal('navigator', { mediaDevices: { getUserMedia: async () => { throw new DOMException('denied', 'NotAllowedError') } } })
   await expect(recording.start()).rejects.toMatchObject({ kind: 'permission' })
