@@ -1,0 +1,4 @@
+- id: translator
+  name: cordis:translator
+  config:
+    googleEndpoint: TRANSLATION_ENDPOINT
