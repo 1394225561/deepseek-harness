@@ -1288,7 +1288,10 @@ describe('headless recorded-session snapshots', () => {
         expect(writerFiles, 'native writer oracle inventory').toEqual(scenario.manifest.sessionFormat === undefined
           ? [] : fixtures.map((_, index) => writerSnapshotName(index)).sort())
       }
-      let expected = fixtures
+      let expected = retainedToolInput === undefined ? fixtures : await fixtureSessions(scenario)
+      if (retainedToolInput !== undefined) {
+        expect(await readFile(join(scenario.dir, retainedToolInput), 'utf8'), 'retained replay input bytes').toBe(primaryFixture)
+      }
       if (scenario.manifest.sessionFormat !== undefined) {
         if (mode === 'refresh') await writeSessionFixtures(scenario, actualLogs, fixtures, actualContext)
         expected = await Promise.all(fixtures.map((_, index) => readFile(join(scenario.dir, writerSnapshotName(index)), 'utf8')))
