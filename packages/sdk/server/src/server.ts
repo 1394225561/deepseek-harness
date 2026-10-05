@@ -23,6 +23,7 @@ import type {
   SessionEventNotification,
   SessionPromptParams,
   SessionPromptResult,
+  SessionWaitParams,
   SdkEncodedImageBlock,
   SubagentFinishedNotification,
   SubagentStartedNotification,
@@ -194,6 +195,28 @@ export class HarnessSdkJsonRpcServer {
     return { messageId: message.id }
   }
 
+  /**
+   * Wait for an existing owned Agent and its managed descendants to finish.
+   * The response follows all Session notifications emitted during the wait.
+   * @param params - the SDK-owned session to observe without creating one.
+   * @returns an empty result after the root stays idle across the descendant check.
+   */
+  async wait(params: SessionWaitParams): Promise<Record<string, never>> {
+    if (!this.initialized) throw new Error('SDK server is not initialized')
+    const rec = this.sessions.get(params.sessionId)
+    if (rec === undefined) throw new Error(`unknown SDK session: ${params.sessionId}`)
+    const agent = rec.handle.agent
+    const subagents = this.ctx.get('subagents')
+    while (true) {
+      this.assertLiveAgent(rec, params.sessionId)
+      await agent.whenIdle()
+      const idleSeq = agent.session.seq
+      const children = await subagents?.waitForChildren(agent)
+      this.assertLiveAgent(rec, params.sessionId)
+      if (!children && agent.status === 'idle' && agent.session.seq === idleSeq) return {}
+    }
+  }
+
   private assertLiveAgent(rec: SessionRecord, sessionId: string): void {
     if (this.ctx.agents.get(rec.handle.agent.id) !== rec.handle.agent) {
       throw new Error(`session agent was disposed outside the server: ${sessionId}`)
@@ -251,6 +274,11 @@ export class HarnessSdkJsonRpcServer {
         return this.initialize(params as unknown as InitializeParams)
       case 'session/prompt':
         return this.prompt(params as unknown as SessionPromptParams)
+      case 'session/wait': {
+        const sessionId = params?.sessionId
+        if (typeof sessionId !== 'string') throw new TypeError('session/wait requires a sessionId string')
+        return this.wait({ sessionId })
+      }
       case 'shutdown':
         return this.shutdown()
       default:

@@ -19,10 +19,12 @@ import { mountAcpMcpServers } from './mcp.ts'
 import { AcpModelControl } from './model-control.ts'
 import { assistantUpdates, toolCallUpdate, toolResultUpdate } from './updates.ts'
 
-/** The subagent teardown used without depending on the subagent package. */
-interface SubagentDrain {
+/** Subagent completion and teardown without depending on the subagent package. */
+interface SubagentLifecycle {
   /** Dispose subagent descendants below exact host-owned parents child-first. */
   drainDescendants(parents: readonly Agent[]): Promise<void>
+  /** Observe currently managed descendants without closing future admission. */
+  waitForChildren(parent: Agent): Promise<boolean>
 }
 
 /** Inputs shared by fresh and resumed ACP session construction. */
@@ -234,7 +236,7 @@ export class AcpSession {
   }
 
   /**
-   * Admit, enqueue, and settle one prompt at whole-Agent quiescence.
+   * Admit one prompt and settle after the root, descendants, and updates finish.
    * @param params - standard ACP prompt request for this session.
    * @param imageEnabled - connection capability advertised at initialization.
    * @param requestSignal - JSON-RPC request cancellation signal.
@@ -343,6 +345,10 @@ export class AcpSession {
    * @param event - committed durable event.
    */
   onSessionEvent(session: Session, event: SessionEvent): void {
+    if (event.type === 'turn/start' && this.inflight?.turn !== undefined) {
+      this.inflight.turn = event.data.turn
+      this.inflight.endReason = undefined
+    }
     try {
       if (event.type === 'assistant/message') {
         const inflight = this.inflight?.turn === event.data.turn ? this.inflight : undefined
@@ -439,7 +445,7 @@ export class AcpSession {
       } catch (error: unknown) {
         failures.push(new Error('ACP session activity drain failed', { cause: error }))
       }
-      const subagents = this.ctx.get('subagents') as SubagentDrain | undefined
+      const subagents = this.ctx.get('subagents') as SubagentLifecycle | undefined
       try {
         await subagents?.drainDescendants([this.agent])
       } catch (error: unknown) {
@@ -486,7 +492,23 @@ export class AcpSession {
     void (async () => {
       await inflight.admissionDone
       if (inflight.messageQueued) {
-        await this.agent.whenIdle()
+        const subagents = this.ctx.get('subagents') as SubagentLifecycle | undefined
+        const signal = inflight.admissionController.signal
+        const cancelled = Promise.withResolvers<false>()
+        const onAbort = (): void => { cancelled.resolve(false) }
+        signal.addEventListener('abort', onAbort, { once: true })
+        if (signal.aborted) onAbort()
+        try {
+          while (true) {
+            await this.agent.whenIdle()
+            if (inflight.cancelRequested) break
+            const idleSeq = this.agent.session.seq
+            const children = await Promise.race([subagents?.waitForChildren(this.agent), cancelled.promise])
+            if (!children && this.agent.status === 'idle' && this.agent.session.seq === idleSeq) break
+          }
+        } finally {
+          signal.removeEventListener('abort', onAbort)
+        }
         await this.outputTail
       }
       /* v8 ignore next -- this prompt owns the slot until this exact settlement clears it. */

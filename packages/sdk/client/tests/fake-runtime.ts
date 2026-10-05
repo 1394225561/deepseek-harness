@@ -221,6 +221,7 @@ function sessionIdOf(params: Record<string, unknown> | undefined): string {
 }
 
 const reader = createInterface({ input: process.stdin })
+const settledSessions = new Set<string>()
 reader.on('line', (line) => {
   if (line.trim().length === 0) return
   const frame = JSON.parse(line) as { id?: string | number; method?: string; params?: Record<string, unknown> }
@@ -308,9 +309,13 @@ reader.on('line', (line) => {
       }
       runTurn(sessionId)
       notify('session.status', { sessionId, status: 'idle' })
+      settledSessions.add(sessionId)
       respond({ messageId })
       return
     }
+    case 'session/wait':
+      if (settledSessions.has(sessionIdOf(frame.params))) respond({})
+      return
     case 'shutdown':
       respond({})
       // An EOF-ignoring fake also refuses the protocol exit, so the client's

@@ -19,7 +19,6 @@ import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent'
 import {
   DeepSeekHarness,
   HarnessClient,
-  HarnessSession,
   SdkProtocolError,
 } from '@deepseek-ai/dsh-sdk-client'
 import { createProcessDeepSeekHarness } from '../../../sdk/client/src/api.ts'
@@ -609,7 +608,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
 
   it('uses a fixed unknown category for an untyped SDK exception', async () => {
     const rawMessage = 'unknown SDK failure at /private/path SECRET_TOKEN'
-    const spy = vi.spyOn(HarnessSession.prototype, 'run')
+    const spy = vi.spyOn(HarnessClient.prototype, 'prompt')
       .mockRejectedValue(new Error(rawMessage))
     try {
       const ctx = await setup()
