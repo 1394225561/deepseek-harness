@@ -1589,3 +1589,17 @@ it('reports and removes a saved Official selection whose dependency is absent', 
   expect(pnpm).not.toHaveBeenCalled()
   expect((await manager.listBundles()).find(bundle => bundle.name === name)).toMatchObject({ availability: 'missing', enabled: false })
 })
+
+
+it('keeps a broken installation-carried catalog entry visible with offline metadata', async () => {
+  const { manager, profile } = await fixture()
+  const entry = OFFICIAL_ON_DEMAND_CATALOG[0]!
+  writeFileSync(profile.installAnchor, JSON.stringify({ name: 'installation', dependencies: { [entry.packageName]: '1.0.0' } }))
+  const broken = join(profile.home, 'node_modules', entry.packageName)
+  mkdirSync(broken, { recursive: true })
+  writeFileSync(join(broken, 'package.json'), '{')
+  expect((await manager.listBundles()).find(bundle => bundle.name === entry.packageName)).toMatchObject({
+    official: true, availability: 'missing', enabled: false, installed: false, optional: false, removable: false,
+    meta: entry.meta, installTarget: { version: getDshRuntimeVersion() }, error: { code: 'operation-error' },
+  })
+})
