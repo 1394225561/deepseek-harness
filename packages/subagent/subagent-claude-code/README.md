@@ -25,19 +25,15 @@ Install this Profile Bundle when a delegated task should run as a fresh, unatten
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this provider when a delegation should run as a real Claude Code session in the parent's workspace. The common path is explicit: install the Bundle into a Profile, optionally configure the provider row, and expose it to the model through a delegation tool row.
+Enable **Claude Code subagent** in the Web or Desktop Plugins page when a task needs a fresh native Claude Code session in the parent workspace.
 
 ### Installing the Bundle
 
-Install the package into the target Profile, then restart that Profile. The installation brings the pinned Agent SDK and one compatible platform CLI payload into the Profile; the declared patch layer registers only the dormant provider and starts no Claude process.
+The Official entry is visible offline. Enabling it installs this package at the running DSH version through the ordinary bundle installer and selects its profile layer. The layer registers the provider and adds `subagent_claude_code` to `standard`, `cordis`, and `ptc`; it starts no native process until delegation. Restart when the installer reports that one is required.
 
-```sh
-dsh plugin --profile <name> add @deepseek-ai/dsh-subagent-claude-code
-dsh plugin --profile <name> remove @deepseek-ai/dsh-subagent-claude-code
-dsh --profile <name>
-```
+Switching Off deselects the layer and leaves the package installed. Remove is a separate package operation. New Agents and subsequently reopened Sessions use the selected tool composition; live Agents retain their existing composition.
 
-Removing the package withdraws the provider and its private runtime closure on the next Profile start. Installation controls Host availability, not model permission: the model can only reach the provider through a delegation tool row you compose.
+Profiles without the full Web presets, including the shipped headless, SDK, and ACP profiles, must install this package as a profile dependency without selecting its bundle layer, then mount the provider and delegation tool explicitly. Existing provider-only consumers follow the [upgrade guide](../../../docs/upgrade-guide/v0.2.1-alpha.1/native-subagent-bundle-tools/guide.md).
 
 ### Configuration
 
@@ -59,11 +55,14 @@ Removing the package withdraws the provider and its private runtime closure on t
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-subagent-claude-code) is the exhaustive source for every accepted field and its JSDoc. A configured `model` passes unchanged to every query from that provider instance; omission leaves native model selection in force. Credential-shaped ambient variables are removed before the explicit `env` overlay, so an API key intended for the child must be supplied there. The provider omits the SDK `settingSources` option, so Claude Code reads the host's normal user, project, and local settings relative to the selected child working directory. It does not copy or filter those files, create or modify login state, inspect `PATH`, or fall back to a host `claude` executable.
 
+<a id="exposing-the-tool"></a>
 ### Exposing the tool
 
-Each delegation tool row names one provider and needs its own `toolName`, so the model sees static tools rather than a dynamic provider selector. Full Agent Presets carry a matching default tool row with `disabled: true`; copy a preset and remove that field to expose `subagent_claude_code` only to agents composed from the copy.
+The bundle adds `optional-tool-subagent-claude-code` to each full preset through scoped profile patches. The minimal preset and host tool catalog remain unchanged. For a custom profile without these preset targets, keep the package dependency and compose the provider and tool directly:
 
 ```yaml
+- id: subagent-claude-code
+  name: '@deepseek-ai/dsh-subagent-claude-code'
 - id: tool-subagent-claude
   name: '@deepseek-ai/dsh-tool-subagent'
   config:
@@ -105,7 +104,7 @@ This section explains how the provider drives a real Claude Code CLI and where t
 | [`src/index.ts`](src/index.ts) | Plugin entry: config schema, provider registration |
 | [`src/run.ts`](src/run.ts) | The SDK query lifecycle, result acceptance, and permission handling |
 | [`src/process.ts`](src/process.ts) | Managed-range termination escalation on disposal |
-| [`cordis.patch.yml`](cordis.patch.yml) | The Profile patch layer that registers the dormant provider |
+| [`cordis.patch.yml`](cordis.patch.yml) | The Profile layer that registers the provider and contributes preset delegation tools |
 
 ### Run flow
 

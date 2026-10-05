@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概述
 
-当委派工作需要在父会话工作区中的真实无人值守 Codex 会话内运行时，把 `@deepseek-ai/dsh-subagent-codex` 安装进 Profile。每次委派都会为一个自包含文本任务使用全新且隔离的 Codex 线程，并且只返回其最终答案或安全失败诊断。原生 Codex 配置和身份验证继续作为权威来源，而 `permissionMode` 选择非交互式审批和沙箱行为。Bundle 会提供兼容的原生 Codex 载荷，但只有配置委派工具后才会向模型公开相应能力。
+当委派工作需要在父会话工作区中的真实无人值守 Codex 会话内运行时，把 `@deepseek-ai/dsh-subagent-codex` 安装进 Profile。每次委派都会为一个自包含文本任务使用全新且隔离的 Codex 线程，并且只返回其最终答案或安全失败诊断。原生 Codex 配置和身份验证继续作为权威来源，而 `permissionMode` 选择非交互式审批和沙箱行为。Bundle 提供兼容的原生 Codex 载荷，并为完整 Web 预设添加委派工具。
 
 ## 目录
 
@@ -25,19 +25,15 @@ kind: "package-bundle"
 <a id="use-this-package"></a>
 ## 使用本包
 
-当委派应以父级工作区中的真实 Codex 会话运行时，挂载本提供方。常用路径是显式的：把 Bundle 安装进 Profile，可选地配置提供方行，并通过委派工具行把它暴露给模型。
+当任务需要在父工作区中运行全新的原生 Codex 会话时，在 Web 或 Desktop 插件页启用 **Codex 子智能体**。
 
 ### 安装 Bundle
 
-把包安装进目标 Profile，然后重启该 Profile。安装会把官方 wrapper 与一个兼容的原生平台载荷带入 Profile；声明的 patch 层只注册休眠的提供方，不启动任何 Codex 进程。
+官方条目可离线显示。启用时，普通 bundle 安装器会按当前 DSH 版本安装此包并选择其配置层。此层注册提供方，并为 `standard`、`cordis` 和 `ptc` 添加 `subagent_codex`；实际委派前不会启动原生进程。安装器提示需要重启时，请重启应用。
 
-```sh
-dsh plugin --profile <name> add @deepseek-ai/dsh-subagent-codex
-dsh plugin --profile <name> remove @deepseek-ai/dsh-subagent-codex
-dsh --profile <name>
-```
+关闭只会取消选择配置层，保留已安装的包。移除是独立的包操作。新智能体和随后重新打开的会话使用所选工具组合；正在运行的智能体保留已有组合。
 
-移除包后，下一次 Profile 启动会撤回提供方及其私有运行时闭包。安装决定 Host 可用性，而不是模型权限：模型只能通过你组合的委派工具行触达提供方。
+不包含完整 Web 预设的配置（包括随附的 headless、SDK 和 ACP）必须将此包安装为配置依赖，而不选择其 bundle 层，然后显式挂载提供方和委派工具。原有仅提供方用法请遵循[升级指南](../../../docs/upgrade-guide/v0.2.1-alpha.1/native-subagent-bundle-tools/guide.zh.md)。
 
 ### 配置
 
@@ -57,11 +53,14 @@ dsh --profile <name>
 
 生成的[配置目录](../../../docs/config-catalog.zh.md#deepseek-aidsh-subagent-codex)是每个受支持字段及其 JSDoc 的穷尽式真源。已配置的 `model` 会原样传给每个临时 `thread/start`；省略时保留原生模型选择。提供方不会发现模型、改写别名、选择 `modelProvider` 或 `serviceTier`，也不会设置 fallback。具有凭证特征的环境变量会在显式 `env` 覆盖生效前被移除，因此供子进程使用的 API 密钥必须在该配置中显式提供。
 
+<a id="exposing-the-tool"></a>
 ### 暴露工具
 
-每个委派工具行指名一个提供方，并需要独立的 `toolName`，因此模型看到的是静态工具，而不是动态提供方选择器。完整 Agent Preset 携带对应的默认工具行并设置 `disabled: true`；复制一个 preset 后删除该字段，即可只向由该副本组装的 agent 暴露 `subagent_codex`。
+Bundle 通过作用于预设的配置补丁为每个完整预设添加 `optional-tool-subagent-codex`。minimal 预设和 Host 工具目录保持不变。对于不包含这些预设目标的自定义配置，保留包依赖并直接组合提供方和工具：
 
 ```yaml
+- id: subagent-codex
+  name: '@deepseek-ai/dsh-subagent-codex'
 - id: tool-subagent-codex
   name: '@deepseek-ai/dsh-tool-subagent'
   config:
@@ -103,7 +102,7 @@ dsh --profile <name>
 | [`src/index.ts`](src/index.ts) | 插件入口：config schema、提供方注册 |
 | [`src/run.ts`](src/run.ts) | 运行生命周期、轮次执行、结果选择与诊断 |
 | [`src/wire.ts`](src/wire.ts) | 最小的 app-server JSON-RPC 协议实现 |
-| [`cordis.patch.yml`](cordis.patch.yml) | 注册休眠提供方的 Profile patch 层 |
+| [`cordis.patch.yml`](cordis.patch.yml) | 注册提供方并添加预设委派工具的 Profile 配置层 |
 
 ### 运行流程
 
