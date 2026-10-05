@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { realpath } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -278,10 +279,13 @@ describe('ui.log sinks', () => {
 
 describe('the committed directory owner', () => {
   it('moves session cwd, relative files and new processes while retaining the project root', async () => {
-    const origin = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-mods-directory-')))
-    dirs.push(origin)
-    const current = join(origin, 'current')
-    mkdirSync(current)
+    const allocated = mkdtempSync(join(tmpdir(), 'dsh-mods-directory-'))
+    dirs.push(allocated)
+    // Native realpath expands Windows short-name temp paths before exact cwd comparisons.
+    const origin = await realpath(allocated)
+    const selected = join(origin, 'current')
+    mkdirSync(selected)
+    const current = await realpath(selected)
     writeFileSync(join(origin, 'witness.txt'), 'origin')
     writeFileSync(join(current, 'witness.txt'), 'current')
     writeFileSync(join(current, 'only-current.txt'), 'selected')
