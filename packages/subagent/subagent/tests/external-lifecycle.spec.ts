@@ -90,6 +90,32 @@ describe('external activation ownership', () => {
     expect(fixture.ctx.sessionProjections.snapshot(fixture.parent.session, ['subagentCatalog']).values.subagentCatalog).toEqual([])
   })
 
+  it('rejects a repeated external id across parents without disturbing its first execution', async () => {
+    const firstResult = Promise.withResolvers<SubagentResult>()
+    const firstDispose = vi.fn(() => Promise.resolve())
+    const duplicateDispose = vi.fn(() => Promise.resolve())
+    let starts = 0
+    const fixture = await setup(() => Promise.resolve(starts++ === 0
+      ? run('shared-external-id', firstResult.promise, firstDispose)
+      : run('shared-external-id', Promise.resolve(complete), duplicateDispose)), 'parent')
+    const otherParent = await externalTestParent(fixture.ctx)
+    const first = await fixture.start()
+    try {
+      await expect(fixture.start(otherParent)).rejects.toMatchObject({ code: 'DUPLICATE_CHILD' })
+      expect(duplicateDispose).toHaveBeenCalledOnce()
+      expect(firstDispose).not.toHaveBeenCalled()
+      expect(fixture.ctx.sessionProjections.snapshot(otherParent.session, ['subagentCatalog']).values.subagentCatalog).toEqual([])
+      expect(fixture.ctx.sessionProjections.snapshot(fixture.parent.session, ['subagentCatalog']).values.subagentCatalog)
+        .toMatchObject([{ id: first.childId, mode: 'external' }])
+      await expect(fixture.ctx.subagents.waitForChildren(otherParent)).resolves.toBe(false)
+    } finally {
+      firstResult.resolve(complete)
+      await first.dispose()
+    }
+    await expect(first.result).resolves.toEqual(complete)
+    expect(firstDispose).toHaveBeenCalledOnce()
+  })
+
   it('rejects messages to a resident external activation without affecting its result', async () => {
     const result = Promise.withResolvers<SubagentResult>()
     const fixture = await setup(() => Promise.resolve(run('no-continuation', result.promise)))

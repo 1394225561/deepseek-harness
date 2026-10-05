@@ -291,7 +291,7 @@ interface SubagentStopReasonMap {
  * through result.
  */
 interface SubagentRun {
-  /** Provider-minted run id, unique in the parent namespace. */
+  /** Provider-minted id, unique across all parents, providers, and local Sessions in this runtime. */
   readonly id: SessionId
   /**
    * Resolves with the child's terminal {@link SubagentResult} when the run

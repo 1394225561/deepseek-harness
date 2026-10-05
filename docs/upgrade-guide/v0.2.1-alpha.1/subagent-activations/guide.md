@@ -52,4 +52,6 @@ The published `@deepseek-ai/dsh-subagent-in-process-driver` package is removed. 
 
 4. Remove the driver dependency and imports, including `startInProcessRun`. Mount the existing Spawn or Fork provider and call the service as above. Custom local providers implement `prepareContinuable()` using the [provider API](../../../../docs/subsystems/subagent.md); there is no replacement standalone driver.
 
+   External providers keep `start()`, but each returned `SubagentRun.id` must be unique across parents, providers, and local Sessions in the runtime. Generate a fresh id for each execution instead of using a parent-local counter.
+
 5. Confirm a delegation returns the activation result variant, its completion notice contains the final answer, and caller delivery returns the result without adding that notice. Confirm local children remain listed after completion and external children cannot be continued.
