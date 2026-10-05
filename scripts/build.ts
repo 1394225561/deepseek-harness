@@ -1,4 +1,4 @@
-/** Run the complete repository build and bind its client artifacts to their public environment. */
+/** Build repository artifacts and bind client outputs to their public environment. */
 
 import { spawnSync } from 'node:child_process'
 import { rmSync } from 'node:fs'
@@ -28,14 +28,17 @@ function runScript(script: string, environment: NodeJS.ProcessEnv): void {
   }
 }
 
-/** Run the full build selected by `--profile` or `DSH_BUILD_CLIENT_PROFILE`. */
+/** Build client artifacts and optionally omit the repository test and script typechecks. */
 function main(): void {
   // tsdown.config.ts loads only through Node type stripping (`--config-loader native`); this names the cause before tsdown fails.
   if (!process.features.typescript) {
     throw new Error('build: Node.js TypeScript type stripping is unavailable in this Node.js process; remove --no-experimental-strip-types from NODE_OPTIONS or use a Node.js build with TypeScript support')
   }
   const { values } = parseArgs({
-    options: { profile: { type: 'string' } },
+    options: {
+      profile: { type: 'string' },
+      'artifacts-only': { type: 'boolean' },
+    },
     allowPositionals: false,
   })
   const root = resolve(import.meta.dirname, '..')
@@ -46,7 +49,7 @@ function main(): void {
 
   rmSync(resolve(root, CLIENT_BUILD_RECORD_PATH), { force: true })
   runScript('build:native-system', buildEnvironment)
-  runScript('build:lib', buildEnvironment)
+  runScript(values['artifacts-only'] ? 'build:lib:artifacts' : 'build:lib', buildEnvironment)
   runScript('build:web', buildEnvironment)
   const record = writeClientBuildRecord(root, clientEnvironment)
   console.log(

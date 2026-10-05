@@ -156,6 +156,13 @@ function withPlatform<T>(platform: NodeJS.Platform, action: () => T): T {
   try { return action() } finally { Object.defineProperty(process, 'platform', original) }
 }
 
+// Mutates worker-global state: only use for synchronous, non-concurrent graph inspection.
+function withNodeVersion<T>(version: string, action: () => T): T {
+  const original = Object.getOwnPropertyDescriptor(process.versions, 'node')!
+  Object.defineProperty(process.versions, 'node', { ...original, value: version })
+  try { return action() } finally { Object.defineProperty(process.versions, 'node', original) }
+}
+
 describe('CI worker allocation', () => {
   it.each([1, 2, 4, 8, 16, 64])('shares a %i CPU coverage budget without multiplying pools', (cpus) => {
     const env = ciWorkerEnvironment('ci-coverage', {}, cpus)
@@ -258,7 +265,7 @@ describe('gate graph validation', () => {
     })
     expect(scripts['test:bench']).toBe('npm run build:bench && npm run build:web && npm run test:bench:built')
     expect(scripts['build:bench']).toBe(
-      'npm run build:native-system && npm run build:lib && tsdown --config-loader native --config benchmarks/tsdown.config.ts',
+      'npm run build:native-system && npm run build:lib:artifacts && tsdown --config-loader native --config benchmarks/tsdown.config.ts',
     )
     expect(scripts['build:native-system']).toBe('tsx native/system/scripts/build.ts --host-addon-only')
     expect(scripts['test:bench:built']).toBe('vitest run --config vitest.bench.config.ts')
@@ -827,6 +834,42 @@ describe('Node compatibility graph', () => {
         'scripts/vitest-environment.compat.spec.ts',
       ],
     })
+  })
+
+  it.each([undefined, '1'])('builds the complete Node 22 artifacts once with skip-typecheck=%s', (skipTypecheck) => {
+    const subject = withNodeVersion('22.19.0', () =>
+      withEnv('DSH_NODE_COMPAT_SKIP_TYPECHECK', skipTypecheck, () =>
+        withPnpmEntrypoint(() => gatesForMode('node-compat'))))
+
+    expect(subject.filter(item => item.displayCommand === 'pnpm run build:artifacts')).toHaveLength(1)
+    expect(subject.map(item => item.id)).not.toContain('build:web')
+    expect(subject.find(item => item.id === 'cli-lazy-search-startup-smoke')).toMatchObject({
+      needs: ['build'],
+      env: { DSH_REQUIRE_BUILT_CLI_SMOKE: '1' },
+    })
+  })
+
+  it.each(['passed', 'failed'] as const)('runs the Node 22 lazy-search smoke only after a passed build (%s)', async (buildStatus) => {
+    const subject = withNodeVersion('22.19.0', () =>
+      withEnv('DSH_NODE_COMPAT_SKIP_TYPECHECK', '1', () =>
+        withPnpmEntrypoint(() => gatesForMode('node-compat'))))
+    let buildCompleted = false
+    let smokeStarted = false
+    const results = await runGates(subject, 2, async (item) => {
+      if (item.id === 'build') {
+        buildCompleted = true
+        return resultFor(item, buildStatus)
+      }
+      if (item.id === 'cli-lazy-search-startup-smoke') {
+        expect(buildCompleted).toBe(true)
+        smokeStarted = true
+      }
+      return resultFor(item)
+    })
+
+    expect(smokeStarted).toBe(buildStatus === 'passed')
+    expect(results.find(item => item.gate.id === 'cli-lazy-search-startup-smoke')?.status)
+      .toBe(buildStatus === 'passed' ? 'passed' : 'skipped')
   })
 })
 

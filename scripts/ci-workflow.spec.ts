@@ -14,6 +14,73 @@ const runnerPrivatePnpmDestination = /^\$\{\{ runner\.temp \}\}\/setup-pnpm-\$\{
 const nativeWindowsPnpmDestination = '${{ runner.temp }}/setup-pnpm-js-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}'
 
 describe('CI workflow', () => {
+  it('retains aggregate diagnostics in required builds and protected publication', () => {
+    const ci = loadWorkflow('.github/workflows/ci.yml')
+    for (const [name, command] of [
+      ['node-24-consumers', 'pnpm run check:ci:consumers'],
+      ['windows-build', 'pnpm run check:ci:windows-blocking'],
+    ] as const) {
+      const job = workflowJob(ci, name)
+      expect(job.steps).toContainEqual(expect.objectContaining({ run: command }))
+    }
+    for (const [file, command] of [
+      ['release-publish.yml', 'pnpm run build:official'],
+      ['release-vendor-publish.yml', 'pnpm run build:lib:host'],
+    ] as const) {
+      expect(workflowJob(loadWorkflow('.github/workflows/' + file), 'pack').steps)
+        .toContainEqual(expect.objectContaining({ name: 'Build', run: command }))
+    }
+    const scripts = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as { scripts: Record<string, string> }
+    expect(scripts.scripts['build:lib:host']).toContain('tsc -b tsconfig.host.json')
+    expect(scripts.scripts['build:lib:client']).toContain('tsc -b tsconfig.client.json')
+    expect(scripts.scripts.typecheck).toBe('npm run build:lib:host && npm run typecheck:contracts-ready')
+  })
+
+  it('selects artifact builds only for PR release and API rehearsals', () => {
+    const official = "pnpm run ${{ github.event_name == 'pull_request' && 'build:artifacts --profile official' || 'build:official' }}"
+    const vendor = "pnpm run ${{ github.event_name == 'pull_request' && 'build:lib:host:artifacts' || 'build:lib:host' }}"
+    for (const [file, jobName, expected] of [
+      ['release.yml', 'pack', official],
+      ['release-vendor.yml', 'pack', vendor],
+      ['e2e.yml', 'e2e', official],
+    ] as const) {
+      const job = workflowJob(loadWorkflow('.github/workflows/' + file), jobName)
+      if (!Array.isArray(job.steps)) throw new TypeError(`${jobName} must define steps`)
+      const step = job.steps.filter(isRecord).find(candidate => typeof candidate.run === 'string'
+        && (candidate.run.includes('build:artifacts') || candidate.run.includes('build:lib:host:artifacts')))
+      expect(step?.run).toBe(expected)
+      for (const event of ['pull_request', 'push', 'workflow_dispatch']) {
+        const expression = expected.slice('pnpm run ${{ '.length, -' }}'.length)
+        const selected: unknown = runInNewContext(expression, { github: { event_name: event } }, { timeout: 1000 })
+        expect(selected).toBe(event === 'pull_request'
+          ? file === 'release-vendor.yml' ? 'build:lib:host:artifacts' : 'build:artifacts --profile official'
+          : file === 'release-vendor.yml' ? 'build:lib:host' : 'build:official')
+      }
+    }
+  })
+
+  it('builds PR Python artifacts before reusing them in the executable builder', () => {
+    const job = workflowJob(loadWorkflow('.github/workflows/build-exe-for-python-sdk.yml'), 'build')
+    if (!Array.isArray(job.steps)) throw new TypeError('Python runtime builder must define steps')
+    const steps = job.steps.filter(isRecord)
+    const prepare = steps.findIndex(step => step.run === 'pnpm run build:artifacts')
+    const execute = steps.findIndex(step => step.name === 'Build single-exe')
+    expect(prepare).toBeGreaterThanOrEqual(0)
+    expect(execute).toBeGreaterThan(prepare)
+    expect(steps[prepare]).toMatchObject({
+      if: "inputs.ci && github.event_name == 'pull_request'",
+      env: { DSH_BUILD_CLIENT_PROFILE: 'official' },
+    })
+    expect(steps[execute]?.run).toContain("${{ inputs.ci && github.event_name == 'pull_request' && '--skip-build' || '' }}")
+    for (const ci of [false, true]) {
+      for (const event of ['pull_request', 'push', 'workflow_dispatch']) {
+        const context = { inputs: { ci }, github: { event_name: event } }
+        const selected: unknown = runInNewContext("inputs.ci && github.event_name == 'pull_request'", context, { timeout: 1000 })
+        expect(selected).toBe(ci && event === 'pull_request')
+      }
+    }
+  })
+
   it('prepares confinement before Node compatibility smokes', () => {
     const job = workflowJob(loadWorkflow('.github/workflows/ci.yml'), 'node-compat')
     if (!Array.isArray(job.steps)) throw new TypeError('Node compatibility job must define steps')
@@ -60,6 +127,34 @@ describe('CI workflow', () => {
       name: 'Save coverage duration history', if: '${{ !cancelled() }}',
     }))
     expect(wine.steps).toContainEqual(expect.objectContaining({ name: 'Shut down wineserver', if: 'always()' }))
+  })
+
+  it.each([
+    ['node-24-coverage', 'Linux', 'LINUX', 'pnpm run check:ci:coverage'],
+    ['windows-coverage', 'Windows', 'WINDOWS', 'pnpm run check:ci:coverage'],
+  ])('reuses %s coverage timings only within its platform and runner pool', (jobName, platform, variable, command) => {
+    const job = workflowJob(loadWorkflow('.github/workflows/ci.yml'), jobName)
+    if (!Array.isArray(job.steps)) throw new TypeError(`${jobName} must define steps`)
+    const steps = job.steps.filter(isRecord)
+    const checkout = steps.findIndex(step => step.uses === 'actions/checkout@v6')
+    const restore = steps.findIndex(step => step.name === 'Restore coverage duration history')
+    const coverage = steps.findIndex(step => step.run === command)
+    const save = steps.findIndex(step => step.name === 'Save coverage duration history')
+    const prefix = `coverage-times-${platform}-\${{ runner.environment }}-\${{ vars.DSH_CI_FAILOVER_${variable} || 'enterprise' }}-`
+    const key = prefix + '${{ github.run_id }}-${{ github.run_attempt }}'
+    expect(checkout).toBeGreaterThanOrEqual(0)
+    expect(restore).toBeGreaterThan(checkout)
+    expect(coverage).toBeGreaterThan(restore)
+    expect(save).toBeGreaterThan(coverage)
+    expect(steps[restore]).toMatchObject({
+      uses: 'actions/cache/restore@v4',
+      with: { path: '.coverage-times.json', key, 'restore-keys': `${prefix}\n` },
+    })
+    expect(steps[save]).toMatchObject({
+      uses: 'actions/cache/save@v4',
+      if: '${{ !cancelled() }}',
+      with: { path: '.coverage-times.json', key },
+    })
   })
 
   it('isolates every pnpm action setup destination per runner', () => {

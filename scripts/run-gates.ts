@@ -407,12 +407,8 @@ function nodeCompatGates(): Gate[] {
   }
   return [
     ...typecheck,
-    pnpmScript('build', 'build', {
+    pnpmScript('build', 'build:artifacts', {
       ...typecheck.length === 0 ? {} : { needs: ['typecheck'] },
-    }),
-    pnpmScript('build:web', 'build:web', {
-      label: 'Web frontend build',
-      needs: ['build'],
     }),
     ...nodeCompatSmokeGates({ cliSmoke: true }),
   ]
@@ -457,7 +453,7 @@ function nodeCompatSmokeGates(options: { cliSmoke?: boolean } = {}): Gate[] {
       ], {
         label: 'CLI lazy-search startup smoke',
         env: { DSH_REQUIRE_BUILT_CLI_SMOKE: '1' },
-        needs: ['build:web'],
+        needs: ['build'],
       }),
     )
   }
