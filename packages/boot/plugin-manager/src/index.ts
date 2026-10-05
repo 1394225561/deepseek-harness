@@ -336,7 +336,7 @@ export class PluginManager extends TypertRemoteService {
           ...(readOnlyReason === undefined ? {} : { readOnlyReason }),
           ...this.declaredRows(name, info, inventory, definitions) })
       } catch (error) {
-        if (enabled || installed || optional) {
+        if (enabled || installed || optional || offered !== undefined) {
           bundles.push({ name, official, availability, ...catalogMeta, ...target, ...(version === undefined ? {} : { version }),
             ...sourceOf(), enabled, installed, optional, removable: removable && readOnlyReason === undefined,
             ...(readOnlyReason === undefined ? {} : { readOnlyReason }), error: managementError(error), rows: [], overrides: [] })
