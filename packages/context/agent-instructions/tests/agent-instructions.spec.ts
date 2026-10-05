@@ -2336,6 +2336,103 @@ describe('workspace context request injection', () => {
     }
   })
 
+  it.each([
+    { formation: 'shared-edited', winner: 'edit' },
+    { formation: 'shared-edited', winner: 'delete' },
+    { formation: 'home-edited', winner: 'edit' },
+    { formation: 'home-edited', winner: 'delete' },
+  ] as const)(
+    'caches a removed duplicate after $formation and promotes it after winner $winner',
+    async ({ formation, winner }) => {
+      const root = await tempRepo()
+      const home = await tempRepo()
+      const agents = await tempRepo()
+      const ctx = new Context()
+      try {
+        await ctx.plugin(RecordingFileSystem)
+        const fs = ctx.fs as RecordingFileSystem
+        const harnessPath = join(home, USER_GLOBAL_FILE)
+        const sharedPath = join(agents, USER_GLOBAL_FILE)
+        const duplicateText = 'global rule B'
+        fs.entries.set(join(root, '.git'), { type: 'directory' })
+        fs.entries.set(harnessPath, {
+          type: 'file',
+          content: formation === 'shared-edited' ? duplicateText : 'harness rule A',
+          version: FsVersion('harness-v1'),
+        })
+        fs.entries.set(sharedPath, {
+          type: 'file',
+          content: formation === 'shared-edited' ? 'shared rule A' : duplicateText,
+          version: FsVersion('shared-v1'),
+        })
+        pinHarnessHome(home)
+        pinAgentsHome(agents)
+        await mountAgentInstructionsPlugin(ctx, { maxBytes: 65536 })
+        const agent = await stubAgent(root)
+        await composeBaselinePrefix(ctx, agent)
+        expect(derivedText(agent)).toContain('Instructions from: $DSH_HOME/AGENTS.md')
+        expect(derivedText(agent)).toContain('Instructions from: $DSH_AGENTS_HOME/AGENTS.md')
+
+        if (formation === 'shared-edited') {
+          fs.entries.set(sharedPath, { type: 'file', content: duplicateText, version: FsVersion('shared-v2') })
+        } else {
+          fs.entries.set(harnessPath, { type: 'file', content: duplicateText, version: FsVersion('harness-v2') })
+        }
+        const removal = await syncedAgentInstructions(ctx, agent)
+        if (removal.source.kind !== 'agent-instructions') throw new Error('missing instruction removal source')
+        expect(removal.source.changes).toContainEqual({
+          action: 'remove',
+          scope: sk(AGENTS_GLOBAL_DIRECTORY, USER_GLOBAL_FILE),
+          path: '$DSH_AGENTS_HOME/AGENTS.md',
+        })
+        expect(blocksText(removal.content)).toContain('Instructions removed: $DSH_AGENTS_HOME/AGENTS.md')
+        await appendAdditionalContexts(ctx, agent)
+
+        fs.readTargets.length = 0
+        await syncAgentInstructions(ctx, agent)
+        await syncAgentInstructions(ctx, agent)
+        expect(agent.inbox.nextStep.filter(message => message.source.kind === 'agent-instructions')).toEqual([])
+        expect(fs.readTargets).not.toContain(sharedPath)
+
+        if (winner === 'edit') {
+          fs.entries.set(harnessPath, { type: 'file', content: 'harness rule C', version: FsVersion('harness-v3') })
+        } else {
+          fs.entries.delete(harnessPath)
+        }
+        const promotion = await syncedAgentInstructions(ctx, agent)
+        expect(promotion.source).toMatchObject({
+          kind: 'agent-instructions',
+          changes: [
+            {
+              action: winner === 'edit' ? 'replace' : 'remove',
+              scope: sk(USER_GLOBAL_DIRECTORY, USER_GLOBAL_FILE),
+              path: '$DSH_HOME/AGENTS.md',
+            },
+            { action: 'set', scope: sk(AGENTS_GLOBAL_DIRECTORY, USER_GLOBAL_FILE), path: '$DSH_AGENTS_HOME/AGENTS.md' },
+          ],
+        })
+        const promotedText = blocksText(promotion.content)
+        expect(promotedText).toContain('Additional instructions from: $DSH_AGENTS_HOME/AGENTS.md')
+        expect(promotedText).toContain('These user-global instructions apply to all work.')
+        expect(promotedText.match(/global rule B/g)).toHaveLength(1)
+        expect(fs.readTargets.filter(path => path === sharedPath)).toHaveLength(1)
+        await appendAdditionalContexts(ctx, agent)
+
+        await syncAgentInstructions(ctx, agent)
+        await syncAgentInstructions(ctx, agent)
+        expect(agent.inbox.nextStep.filter(message => message.source.kind === 'agent-instructions')).toEqual([])
+        expect(fs.readTargets.filter(path => path === sharedPath)).toHaveLength(1)
+        expect(baselineEvents(agent)).toHaveLength(1)
+      } finally {
+        vi.unstubAllEnvs()
+        await ctx.fiber.dispose()
+        await rm(root, { recursive: true, force: true })
+        await rm(home, { recursive: true, force: true })
+        await rm(agents, { recursive: true, force: true })
+      }
+    },
+  )
+
   it('keeps a shared file created later with identical content suppressed without re-reading it', async () => {
     const root = await tempRepo()
     const home = await tempRepo()

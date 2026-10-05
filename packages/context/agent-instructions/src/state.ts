@@ -61,7 +61,7 @@ export interface InstructionVersionState {
   digest: string
   /**
    * Trimmed-content identity ({@link trimmedInstructionDigest}) used to suppress
-   * per-directory duplicates on the metadata fast path without re-reading a sibling.
+   * candidate-group duplicates on the metadata fast path without re-reading a sibling.
    */
   trimmedDigest: string
 }
@@ -72,6 +72,7 @@ export type InstructionVersionCache = WeakMap<Session, Map<string, InstructionVe
 /** A metadata-cache transition associated with one rendered instruction change. */
 export interface InstructionVersionUpdate {
   change: AgentInstructionChange
+  /** A duplicate-removal notice can retain metadata for its still-present file. */
   state?: InstructionVersionState
 }
 
@@ -322,10 +323,10 @@ export async function reconcileInstructionContext(
   }
   const items: ChangeRenderItem[] = []
   const versionUpdates: InstructionVersionUpdate[] = []
-  const pushRemoval = (scope: string, path: string): void => {
+  const pushRemoval = (scope: string, path: string, state?: InstructionVersionState): void => {
     const change: AgentInstructionChange = { action: 'remove', scope, path }
     items.push({ change, file: { absolutePath: `removed:${scope}`, displayPath: path, content: '' } })
-    versionUpdates.push({ change })
+    versionUpdates.push({ change, ...state === undefined ? {} : { state } })
   }
   const scopesByGroup = new Map<string, string[]>()
   for (const scope of scopes) {
@@ -394,12 +395,13 @@ export async function reconcileInstructionContext(
         if (rendered) {
           // Unchanged and previously rendered: keep it, but an earlier group member
           // that now matches its trimmed content makes this the duplicate to remove.
-          if (registerKeptTrimmed(group, cached.trimmedDigest)) pushRemoval(scope, previous.path)
+          if (registerKeptTrimmed(group, cached.trimmedDigest)) pushRemoval(scope, previous.path, cached)
           continue
         }
-        // A known duplicate that was never rendered stays dropped while an earlier
-        // group member still matches it; once none does, the read below promotes it.
-        if (previous === undefined && hasKeptTrimmed(group, cached.trimmedDigest)) continue
+        // Hidden duplicates include files removed from visible state after
+        // becoming duplicates. Only promotion requires another content read.
+        if ((previous === undefined || previous.action === 'remove')
+          && hasKeptTrimmed(group, cached.trimmedDigest)) continue
       }
 
       const file = await readScopeInstruction(probedFile, resolved.maxSourceBytes, fileSystem, options.signal)
@@ -420,8 +422,7 @@ export async function reconcileInstructionContext(
         // group: drop it, removing any copy that was previously rendered, and keep
         // its metadata so the next pass decides without reading it again.
         if (previous !== undefined && previous.action !== 'remove') {
-          pushRemoval(scope, previous.path)
-          versions.delete(scope)
+          pushRemoval(scope, previous.path, nextVersion)
         } else {
           versions.set(scope, nextVersion)
         }
