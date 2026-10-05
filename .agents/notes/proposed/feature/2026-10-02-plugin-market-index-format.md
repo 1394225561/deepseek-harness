@@ -16,6 +16,8 @@ An index must therefore carry everything a list page displays: localized title a
 
 Separate the **index** from the **index generator**. DSH defines and reads one JSON index format. How an index is produced, and from which source list, belongs to the generator. DSH's reader, its Discover page, and a reference generator are separate changes that consume this format. Indexes list [profile plugin bundles](../../implemented/architecture/2026-08-05-profile-plugin-bundles.md) and install them through [guided plugin installation](../../implemented/architecture/2026-09-15-guided-plugin-installation.md).
 
+The market reuses npm's package names, versions, ranges, distribution tags, and person declarations. Readers and generators use maintained npm parsers and validators. Additional fields or changed meanings require a plugin-market requirement that npm does not meet.
+
 ### Example
 
 ```json
@@ -54,13 +56,13 @@ Separate the **index** from the **index generator**. DSH defines and reads one J
           "version": "0.2.0-rc.2",
           "publishTimestamp": 1790476800,
           "source": { "type": "npm" },
-          "engines": { "dsh": "0.2.0-rc.2" }
+          "engines": { "dsh": ">=0.2.0 <0.3.0" }
         },
         {
           "version": "0.2.0-rc.1",
           "publishTimestamp": 1789872000,
           "source": { "type": "npm" },
-          "engines": { "dsh": "0.2.0-rc.1" }
+          "engines": { "dsh": "0.2.0 - 0.2.4 || >=0.3.0 <0.4.0" }
         }
       ]
     },

@@ -16,6 +16,8 @@ DSH 只能从用户已知的 spec 安装第三方组合包（bundle）：npm 包
 
 将**索引**与**索引生成器**分开。DSH 定义并读取一种 JSON 索引格式。索引如何生成、基于哪份源列表生成，由生成器负责。DSH 的读取器、Discover 页面和参考生成器是使用此格式的独立变更。索引列出[profile 插件组合包](../../implemented/architecture/2026-08-05-profile-plugin-bundles.zh.md)，并通过[引导式插件安装](../../implemented/architecture/2026-09-15-guided-plugin-installation.zh.md)安装它们。
 
+市场复用 npm 的包名、版本、范围、发布标签和 person 声明。读取器与生成器使用维护中的 npm 解析器和校验器。新增字段或改变含义需要 npm 无法满足的插件市场需求。
+
 ### 示例
 
 ```json
@@ -54,13 +56,13 @@ DSH 只能从用户已知的 spec 安装第三方组合包（bundle）：npm 包
           "version": "0.2.0-rc.2",
           "publishTimestamp": 1790476800,
           "source": { "type": "npm" },
-          "engines": { "dsh": "0.2.0-rc.2" }
+          "engines": { "dsh": ">=0.2.0 <0.3.0" }
         },
         {
           "version": "0.2.0-rc.1",
           "publishTimestamp": 1789872000,
           "source": { "type": "npm" },
-          "engines": { "dsh": "0.2.0-rc.1" }
+          "engines": { "dsh": "0.2.0 - 0.2.4 || >=0.3.0 <0.4.0" }
         }
       ]
     },
