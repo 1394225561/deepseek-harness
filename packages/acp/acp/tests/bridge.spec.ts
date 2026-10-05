@@ -944,7 +944,7 @@ describe('automation-only ACP bridge', () => {
     await harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'go' }] })
     const head = harness.adapter.requests[0]?.messages[0]
     expect(head?.role).toBe('system')
-    expect(head?.content).toContainEqual({ type: 'text', text: expect.stringContaining('Automation persona for mock.') })
+    expect(head?.content.some(part => part.type === 'text' && part.text.includes('Automation persona for mock.'))).toBe(true)
   })
 
   it('requires one absolute primary workspace', async () => {
