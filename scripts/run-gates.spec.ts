@@ -821,19 +821,36 @@ describe('Typert contract preparation', () => {
 })
 
 describe('Node compatibility graph', () => {
-  it('runs the jsdom environment smoke on every advertised Node line', () => {
-    const subject = withPnpmEntrypoint(() => gatesForMode('node-compat'))
+  it.each(['22.19.0', '24.9.0', '26.0.0'])('runs all source compatibility smokes serially on Node %s', (version) => {
+    const subject = withNodeVersion(version, () =>
+      withPnpmEntrypoint(() => gatesForMode('node-compat')))
 
-    expect(subject.find(item => item.id === 'vitest-jsdom-smoke')).toMatchObject({
-      label: 'Vitest jsdom smoke',
+    expect(subject.filter(item => item.id === 'source-compat-smokes')).toMatchObject([{
+      label: 'source compatibility smokes',
       args: [
         '/private/pnpm.cjs',
         'exec',
         'vitest',
         'run',
+        'packages/workflow/workflow-ptc/tests/source-runtime.compat.spec.ts',
+        'packages/session/session-persistence-jsonl/tests/zstd.compat.spec.ts',
+        'apps/cli/tests/source-launch.compat.spec.ts',
         'scripts/vitest-environment.compat.spec.ts',
+        'packages/boot/app-boot/tests/profile-resolution.spec.ts',
+        'packages/boot/app-boot/tests/profile-resolution-service.spec.ts',
+        'packages/boot/app-boot/tests/profile-resolution-worker-bootstrap.spec.ts',
+        '--no-file-parallelism',
+        '--maxWorkers=1',
       ],
-    })
+      env: { VITEST_MAX_WORKERS: '1' },
+    }])
+  })
+
+  it.each(['1', '8'])('keeps source compatibility smokes serial with inherited VITEST_MAX_WORKERS=%s', (workers) => {
+    const subject = withEnv('VITEST_MAX_WORKERS', workers, () =>
+      withPnpmEntrypoint(() => gatesForMode('node-compat')))
+
+    expect(subject.find(item => item.id === 'source-compat-smokes')?.env).toEqual({ VITEST_MAX_WORKERS: '1' })
   })
 
   it.each([undefined, '1'])('builds the complete Node 22 artifacts once with skip-typecheck=%s', (skipTypecheck) => {

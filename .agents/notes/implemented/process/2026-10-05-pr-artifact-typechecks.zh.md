@@ -16,7 +16,9 @@ PR 产物构建通过一个串行 `tsc -b` 进程编译各 compiler face 的全�
 
 CI 直接调用内部 build helper，并保持 root package manifest 不变。即使只修改 build alias，root manifest 改动也会激活独立的 native-addon 平台矩阵；避免这一触发条件，可以在不削弱 native 验证的情况下保留现有 workflow 集合与并发 job 上限。
 
-job 清单、runner 选择、gate 预算、worker 数量和 benchmark sample 数量保持固定。三个 compatibility case 最多并发两个 job；双目标 Python runtime 矩阵等待它们完成。该矩阵之前，四个 Linux lane、两个 compatibility job、Python SDK 和三个 Windows lane 最多占用十个 worker job。随后剩余八个 lane 加上两个 runtime target 保持相同上限。覆盖率分区在各自的平台和 runner pool 内复用精简的文件成本元数据。并行 release 打包使用 pnpm 现有的有界调度器；串行发布保持 family 顺序。
+job 清单、runner 选择和 benchmark sample 数量保持固定；gate 与 worker 上限不提高。三个 compatibility case 最多并发两个 job；双目标 Python runtime 矩阵等待它们完成。该矩阵之前，四个 Linux lane、两个 compatibility job、Python SDK 和三个 Windows lane 最多占用十个 worker job。随后剩余八个 lane 加上两个 runtime target 保持相同上限。覆盖率分区在各自的平台和 runner pool 内复用精简的文件成本元数据。并行 release 打包使用 pnpm 现有的有界调度器；串行发布保持 family 顺序。
+
+每个 Node 版本在一次串行 Vitest 调用中运行相同的七个 source compatibility spec。文件并行和 CLI worker 上限均固定为一，gate 还设置 `VITEST_MAX_WORKERS=1`，因为该环境变量会覆盖 Vitest 的 CLI 上限。文件保持 fork 隔离；依赖构建的 Node 22 lazy-search smoke 保留独立的 build 依赖。三对本地样本保持全部 253 个 assertion outcome，将启动开销比较的 median 从 11.52 秒降至 8.69 秒，且不增加所拥有 descendant process 的峰值。
 
 ## Alternatives considered
 
