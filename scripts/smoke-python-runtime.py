@@ -85,7 +85,6 @@ LEGACY_CUSTOM_DISABLED_ROWS = (
     "tool-fs",
     "tool-fs-search",
     "tool-goal",
-    "tool-ralph",
     "tool-skill",
     "tool-str-replace-editor",
     "tool-subagent-control",

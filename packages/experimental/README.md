@@ -9,13 +9,25 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Experimental prototypes may change their contracts and carry no support promise. New packages publish by default; private packages must also appear in the [private-exception list](../../scripts/experimental-package-policy.ts). All current packages publish under their `@deepseek-ai/dsh-experimental-*` names, including the opt-in Agent Teams composition, Auto review, Cua Driver providers, browser-use backends, cross-realm Inspector, CPython PTC backend, and browser-worker preview libraries. Released products outside this group must not depend on experimental packages. The dsh installation ships its optional bundles switched off; the GUI plugin manager offers them in the Official group ([decision](../../.agents/notes/implemented/architecture/2026-09-21-experimental-capabilities-as-optional-bundles.md)); the other packages are libraries or explicit compositions.
+Install and compose experimental capabilities explicitly, without a product-support commitment. Packages publish under `@deepseek-ai/dsh-experimental-*`; private packages require an entry in the [publication policy](../../scripts/experimental-package-policy.ts). The [optional-bundle rule](../../.agents/notes/implemented/architecture/2026-09-21-experimental-capabilities-as-optional-bundles.md) determines which capabilities ship switched off with the installation for explicit selection in the GUI plugin manager’s Official group.
 
 ## Table of Contents
 
+- [Experimental, optional, and Official](#status)
 - [Packages](#packages)
 - [Related documentation](#related-documentation)
 - [Dev Note](#dev-note)
+
+-----
+
+<a id="status"></a>
+## Experimental, optional, and Official
+
+**Experimental** means the complete public capability remains under evaluation and is not a product-support commitment. Its behavior or API may change, and the capability may be withdrawn; engineering, security, documentation, testing, and released-data obligations still apply. A package belongs here only when its entire public contract is experimental or internal-only; an experimental option inside a product package stays with that product role.
+
+**Optional** means a user explicitly selects the capability. **Official** means the project maintains and lists the package in the Plugins page. Neither describes maturity; publication, default installation, and GUI visibility do not determine maturity either. Product packages outside this group have maintained product roles, while their public APIs still follow the repository's pre-stable policy.
+
+Promotion requires a named product role, documented public behavior and limitations, current consumers, release contents, and test evidence. Move the package to its product group, remove `experimental-` from its npm name, and update every consumer together. The [subtree rules](AGENTS.md) govern dependency isolation and publication.
 
 -----
 
@@ -24,6 +36,15 @@ Experimental prototypes may change their contracts and carry no support promise.
 
 | Package | Role | ctx key |
 |---|---|---|
+| [`hook-protocol`](hook-protocol/README.md) | Hook bridge wire types and durable events | — |
+| [`hooks-claude-code`](hooks-claude-code/README.md) | Claude Code hook bridge | — |
+| [`hooks-codex`](hooks-codex/README.md) | Codex hook bridge | — |
+| [`webhook`](webhook/README.md) | Authenticated delivery dispatch and Workspace Session creation | `ctx.webhookRuntime` |
+| [`webhook-github`](webhook-github/README.md) | Signed GitHub webhook ingress | — |
+| [`session-title-all-prompts-llm`](session-title-all-prompts-llm/README.md) | Session titles from all human prompts | — |
+| [`tool-terminal`](tool-terminal/README.md) | Persistent terminal tools | — |
+| [`tool-ralph`](tool-ralph/README.md) | Bounded repeated delegated tasks | — |
+| [`skill-badge`](skill-badge/README.md) | The powered-by-dsh badge skill | — |
 | [`translator`](translator/README.md) | Anonymous Google and Bing text translation | `ctx.translator` |
 | [`client-ui-cot-translation`](client-ui-cot-translation/README.md) | Expanded reasoning translation and original-text controls | `ctx.cotTranslation` |
 | [`cot-translation-bundle`](cot-translation-bundle/README.md) | Default-disabled reasoning translation composition | — |

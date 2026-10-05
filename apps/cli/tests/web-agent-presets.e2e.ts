@@ -93,7 +93,7 @@ async function bootWeb(
     // A deployment-level skill on the host registry's GLOBAL layer — the same
     // registration shape a repository plugin's skill root uses. The layered
     // skills test below proves it reaches preset-composed agents.
-    { id: 'skill-badge', disabled: false },
+    { insert: [{ id: 'skill-badge', name: '@deepseek-ai/dsh-experimental-skill-badge' }] },
     { id: 'modules', disabled: true },
     // The physical Connection row owns the disabled HTTP server. bootWeb
     // supplies only its in-process registries so Host services still prove

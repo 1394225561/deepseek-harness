@@ -3,7 +3,7 @@
 
 - insert:
     - id: webhook-runtime
-      name: '@deepseek-ai/dsh-webhook'
+      name: '@deepseek-ai/dsh-experimental-webhook'
 
     - id: github-webhook-real-e2e-rule
       name: './github-webhook-rule.mjs'
@@ -28,7 +28,7 @@
             port: !!js Number(process.env.DSH_GITHUB_WEBHOOK_PORT)
 
         - id: github-webhook-real-e2e-adapter
-          name: '@deepseek-ai/dsh-webhook-github'
+          name: '@deepseek-ai/dsh-experimental-webhook-github'
           config:
             source: github-real-e2e
             path: /github
