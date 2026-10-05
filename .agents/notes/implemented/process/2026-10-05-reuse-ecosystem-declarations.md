@@ -10,9 +10,9 @@ Custom declarations can duplicate information that package ecosystems already de
 
 ## Decision
 
-DSH reuses established ecosystem declarations, formats, and meanings when they satisfy its requirements. Readers use maintained parsers and validators. Catalogs and user interfaces derive their data from the original declarations. A generated projection may omit unused fields or normalize display data, but it preserves the source meaning and documents the projection.
+DSH reuses established ecosystem declarations, formats, and meanings when they satisfy its requirements. Readers use maintained parsers and validators. Catalogs and user interfaces derive their data from the original declarations. A generated projection may omit unused fields or normalize display data, but it preserves the source meaning. The owning package README or generator JSDoc documents the projection rules.
 
-A new field or changed meaning requires a specific unmet requirement and a documented difference from the ecosystem rule. For npm package metadata, reuse package identity, version and range syntax, and person fields. DSH-specific composition, localized display data, and host enforcement still require explicit DSH rules.
+A new field or changed meaning requires a specific unmet requirement and a documented difference from the ecosystem rule. When authors define npm package metadata, they reuse npm's package identity, version and range syntax, and person fields. DSH-specific composition, localized display data, and host enforcement still require explicit DSH rules.
 
 The [dependency policy](2026-07-26-dependencies-over-hand-rolling.md) governs dependency selection. The [public manifest decision](../architecture/2026-09-10-public-package-manifest.md) governs the selected npm fields and DSH declarations. These decisions retain their ownership; this policy governs reuse of declarations and their interpretation.
 
