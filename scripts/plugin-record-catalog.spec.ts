@@ -1,12 +1,13 @@
 /** Plugin record inventory rejects incomplete declarations without creating compatibility roots. */
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { collectPluginRecords } from './plugin-record-catalog.ts'
 import { annotateSurface, collectLogEvents, render, renderKnownEventTypes } from './gen-persistence-catalog.ts'
 import { extractPersistenceSchema } from './persistence-schema.ts'
+import { removeFixtureSafely } from './test-fixture-cleanup.ts'
 
 const roots: string[] = []
 const OWNER = 'packages/core/session/src/types.ts'
@@ -14,7 +15,7 @@ const RECORDS = 'packages/experimental/bridge/src/records.ts'
 const OWNER_SOURCE = '/** Experimental records declared by their owning packages. */\nexport interface PluginRecordMap {}\n'
 
 afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true, maxRetries: 3 })
+  for (const root of roots.splice(0)) removeFixtureSafely(root)
 })
 
 function put(root: string, file: string, source: string): void {
