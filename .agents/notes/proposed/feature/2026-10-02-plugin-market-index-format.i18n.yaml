@@ -9,8 +9,8 @@
   en: ce5e4a362f558af6
   zh: 29d93e0655b99217
 /agent-note-plugin-market-index-format/proposal:
-  en: 91b1df0d57ed60bb
-  zh: 3fbe3e01c0ad03dc
+  en: 7b728d6cbf6f16d6
+  zh: 73e79d35b0dbfbad
 /agent-note-plugin-market-index-format/proposal/example:
   en: 1b1c960c966cf912
   zh: 97be87cb14893c26
@@ -18,29 +18,29 @@
   en: 4fac5a9b8261342d
   zh: f9168a8a4209feab
 /agent-note-plugin-market-index-format/proposal/plugin-fields:
-  en: cf572978bea19f5a
-  zh: 80a6d9507c468958
+  en: dbb59e8f9807b1d5
+  zh: 030754d30a3c1861
 /agent-note-plugin-market-index-format/proposal/version-fields:
-  en: 83480978017dbcf7
-  zh: 9a5bb55554f90caa
+  en: d6c0fa99e1cbb068
+  zh: 3d2a7b85299c679a
 /agent-note-plugin-market-index-format/proposal/install-arguments:
   en: c748cdc4d8ce349a
   zh: 5740fa0d6106e637
 /agent-note-plugin-market-index-format/proposal/dsh-compatibility:
-  en: a6ae732431422eb7
-  zh: 3750ecdc33f75b79
+  en: 00fe507b9b5dfea7
+  zh: 55de6aaeb3865e84
 /agent-note-plugin-market-index-format/proposal/generator-obligations:
-  en: b7185a5fc36af7d3
-  zh: a6fd69988607c324
+  en: 8e848a102fe9d86e
+  zh: feff226ef8321e00
 /agent-note-plugin-market-index-format/proposal/reader-rules:
-  en: 7eb0df505ef26cde
-  zh: dfe1f56554489c0f
+  en: 92903cbe87d9c0ca
+  zh: 54af6cb33e9da252
 /agent-note-plugin-market-index-format/alternatives-considered:
-  en: 001d2d67f4f725cb
-  zh: 5a0adbc3d1397eed
+  en: 3d7cf519bc8e0593
+  zh: 328dc0747836eaa8
 /agent-note-plugin-market-index-format/acceptance-criteria:
-  en: 4ffec806e7a8445e
-  zh: a68fee8a99f185db
+  en: 753abee6adf39812
+  zh: 1102bcfdd48f7e90
 /agent-note-plugin-market-index-format/risks:
-  en: 19f22cc4a00b97e8
-  zh: 585eea737ad6af40
+  en: 41170d483b17df80
+  zh: 1bfd8f44e0f09036
