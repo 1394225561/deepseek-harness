@@ -1,5 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import { TimeoutReason } from '@deepseek-ai/dsh-timeout'
 import { boot } from '@deepseek-ai/dsh-app-boot'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { once } from 'node:events'
@@ -41,7 +42,8 @@ async function fixture(reply: Reply, overrides: Partial<Config> = {}) {
   const base = `http://127.0.0.1:${address.port}`
   const ctx = new Context()
   cleanups.push(async () => { await ctx.fiber.dispose() })
-  const config = Translator.Config({ googleEndpoint: `${base}/google`, bingEndpoint: `${base}/bing?from=fr`, ...overrides })
+  const config = Translator.Config({ googleEndpoint: `${base}/google?client=legacy&q=stale&sl=fr&tl=ja&dt=x&fixture=retained`,
+    bingEndpoint: `${base}/bing?from=fr`, ...overrides })
   const fiber = ctx.plugin(Translator, config)
   await fiber
   return { ctx, fiber, config, requests, translator: ctx.translator }
@@ -63,8 +65,10 @@ describe('anonymous translator', () => {
     expect(translator.maxTextChars).toBe(4000)
     expect(await translator.translate(spec)).toBe('你好，世界。')
     const request = requests[0]!
-    expect(request.method).toBe('GET')
-    expect(Object.fromEntries(request.url.searchParams)).toEqual({ client: 'gtx', sl: 'auto', tl: 'zh-CN', dt: 't', q: 'Hello world.' })
+    expect(request.method).toBe('POST')
+    expect(request.headers['content-type']).toBe('application/x-www-form-urlencoded')
+    expect(Object.fromEntries(request.url.searchParams)).toEqual({ fixture: 'retained' })
+    expect(Object.fromEntries(new URLSearchParams(request.body))).toEqual({ client: 'gtx', sl: 'auto', tl: 'zh-CN', dt: 't', q: 'Hello world.' })
     expect(request.headers.cookie).toBeUndefined()
     expect(request.headers.authorization).toBeUndefined()
   })
@@ -83,8 +87,8 @@ describe('anonymous translator', () => {
     expect(JSON.parse(explicit.body)).toEqual(['hello'])
     expect(Object.fromEntries(explicit.url.searchParams)).toEqual({ from: 'zh-Hant', to: 'en', isEnterpriseClient: 'false' })
     expect(await translator.translate(translator.resolve({ text: 'hello', targetLanguage: 'zh-TW', sourceLanguage: 'en', provider: 'google' }))).toBe('你好，世界。')
-    expect(requests[2]!.url.searchParams.get('tl')).toBe('zh-TW')
-    expect(requests[2]!.url.searchParams.get('sl')).toBe('en')
+    expect(new URLSearchParams(requests[2]!.body).get('tl')).toBe('zh-TW')
+    expect(new URLSearchParams(requests[2]!.body).get('sl')).toBe('en')
   })
 
   it('maps Simplified and Traditional tags to Bing language codes', async () => {
@@ -101,7 +105,7 @@ describe('anonymous translator', () => {
     expect(requests).toHaveLength(1)
     expect(() => translator.resolve({ text: '😀a', targetLanguage: 'zh' })).toThrow(TranslationError)
     const oversized: TranslationSpec = { text: '😀a', targetLanguage: 'zh', sourceLanguage: 'auto', provider: 'google' }
-    expect(() => translator.translate(oversized)).toThrow(expect.objectContaining({ code: 'TRANSLATION_TEXT_LIMIT' }))
+    await expect(translator.translate(oversized)).rejects.toThrow(expect.objectContaining({ code: 'TRANSLATION_TEXT_LIMIT' }))
     expect(requests).toHaveLength(1)
   })
 
@@ -159,27 +163,28 @@ describe('anonymous translator', () => {
       .rejects.toThrow(expect.objectContaining({ code: 'TRANSLATION_RESPONSE_LIMIT' }))
   })
 
-  it('honors caller cancellation before admission and during response intake', async () => {
-    const entered = Promise.withResolvers<undefined>()
-    const { translator, requests } = await fixture((_req, res) => { res.writeHead(200); res.write('['); entered.resolve(undefined) })
-    const spec = translator.resolve({ text: 'hello', targetLanguage: 'zh' })
-    const already = new AbortController()
-    const reason = new Error('consumer stopped translation')
-    already.abort(reason)
-    expect(() => translator.translate(spec, already.signal)).toThrow(reason)
-    expect(requests).toHaveLength(0)
-    const controller = new AbortController()
-    const pending = translator.translate(spec, controller.signal)
-    const rejection = expect(pending).rejects.toBe(reason)
-    await entered.promise
-    controller.abort(reason)
-    await rejection
-  })
+  it.each([new Error('consumer stopped translation'), new TimeoutReason('TRANSLATION_TIMEOUT', 1)])(
+    'preserves caller cancellation before admission and during response intake: %s', async (reason) => {
+      const entered = Promise.withResolvers<undefined>()
+      const { translator, requests } = await fixture((_req, res) => { res.writeHead(200); res.write('['); entered.resolve(undefined) })
+      const spec = translator.resolve({ text: 'hello', targetLanguage: 'zh' })
+      const already = new AbortController()
+      already.abort(reason)
+      await expect(translator.translate(spec, already.signal)).rejects.toBe(reason)
+      expect(requests).toHaveLength(0)
+      const controller = new AbortController()
+      const pending = translator.translate(spec, controller.signal)
+      const rejection = expect(pending).rejects.toBe(reason)
+      await entered.promise
+      controller.abort(reason)
+      await rejection
+    })
 
   it('applies its deadline while a provider leaves the response unfinished', async () => {
     const { translator } = await fixture((_req, res) => { res.writeHead(200); res.write('[') }, { timeoutMs: 40 })
     await expect(translator.translate(translator.resolve({ text: 'hello', targetLanguage: 'zh' })))
-      .rejects.toThrow(expect.objectContaining({ code: 'TRANSLATION_TIMEOUT', timeoutMs: 40 }))
+      .rejects.toThrow(expect.objectContaining({ name: 'TranslationError', code: 'TRANSLATION_TIMEOUT',
+        message: 'bing translation timed out after 40ms' }))
   })
 
   it('unloads the service after aborting and joining accepted translations', async () => {
@@ -193,11 +198,13 @@ describe('anonymous translator', () => {
     await rejection
     expect(ctx.get('translator')).toBeUndefined()
     expect(() => translator.resolve({ text: 'hello', targetLanguage: 'zh' })).toThrow('Translator service disposed')
-    expect(() => translator.translate(spec)).toThrow('Translator service disposed')
+    await expect(translator.translate(spec)).rejects.toThrow('Translator service disposed')
   })
 
   it('validates endpoint URLs and numerical limits before activation', () => {
-    expect(Translator.Config({})).toMatchObject({ provider: 'bing', maxTextChars: 4000, timeoutMs: 10000 })
+    expect(Translator.Config({})).toMatchObject({ provider: 'bing', maxTextChars: 4000, timeoutMs: 10000,
+      googleEndpoint: 'https://translate.googleapis.com/translate_a/single',
+      bingEndpoint: 'https://edge.microsoft.com/translate/translatetext' })
     for (const googleEndpoint of ['not a URL', 'ftp://provider.invalid/', 'https://user:password@provider.invalid/', 'https://provider.invalid/#fragment']) {
       expect(() => Translator.Config({ googleEndpoint })).toThrow()
     }

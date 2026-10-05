@@ -12,9 +12,9 @@
 
 ## 失败与数据处理
 
-`TranslationError` 的 `TranslationErrorCode` 区分文本超限、HTTP 失败、无效响应、响应超限与请求失败。Provider 错误信息省略提交的文本与响应体。失败时不选择其他 Provider。响应作为外部 JSON 校验，重定向被拒绝。
+`TranslationError` 的 `TranslationErrorCode` 区分文本超限、HTTP 失败、无效响应、响应超限、服务自身超时与请求失败。Provider 错误信息省略提交的文本与响应体。失败时不选择其他 Provider。响应作为外部 JSON 校验，重定向被拒绝。
 
-Google 在查询 URL 中接收原文，Bing 在 JSON 请求体中接收原文。两者都是远端服务。免登录端点不保证开发者 API 的可用性或免费额度。区域连通性须在用户网络上验证。
+Google 在 form POST 请求体中接收原文，Bing 在 JSON POST 请求体中接收原文。两者都是远端服务。免登录端点不保证开发者 API 的可用性或免费额度。区域连通性须在用户网络上验证。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -44,7 +44,7 @@ resolve(request: TranslationRequest): TranslationSpec
  * @param signal - optional caller cancellation, combined with service disposal.
  * @returns translated plain text; rejects provider/limit failures and preserves cancellation reasons.
  */
-translate(spec: TranslationSpec, signal?: AbortSignal): Promise<string>
+async translate(spec: TranslationSpec, signal?: AbortSignal): Promise<string>
 ```
 
 Source: [`packages/experimental/translator/src/index.ts`](../../packages/experimental/translator/src/index.ts)

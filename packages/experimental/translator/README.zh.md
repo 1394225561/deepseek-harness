@@ -48,9 +48,9 @@ kind: "package-reference"
 <details>
 <summary>维护者细节 — 点击展开</summary>
 
-Google 接收使用 `gtx` 客户端的 GET 请求；Bing 通过 Microsoft Edge 端点接收 JSON 文本数组。所选服务会收到提交的文本。Cookie、HTTP 重定向和自动切换提供者均已禁用。文本和译文保持临时状态；本服务不会修改 Session 事件或模型请求。
+Google 接收使用 `gtx` 客户端的表单 POST 请求；Bing 通过 Microsoft Edge 端点接收 JSON 文本数组。两者都通过请求正文接收提交的文本。Cookie、HTTP 重定向和自动切换提供者均已禁用。文本和译文保持临时状态；本服务不会修改 Session 事件或模型请求。
 
-`TranslationError.code` 区分输入限制、HTTP 失败、响应限制、无效的提供者响应及传输失败。诊断不包含提交的文本或提供者错误正文。调用者取消和超时保留原始中止原因。卸载时中止已接受的请求并等待它们结束。`resolve()` 和 `translate()` 都执行输入限制。
+`TranslationError.code` 区分输入限制、HTTP 失败、响应限制、无效的提供者响应、传输失败及服务自身的 `TRANSLATION_TIMEOUT` 截止时间。诊断不包含提交的文本或提供者错误正文。`translate()` 始终返回 Promise，准入或提供者失败都会使其拒绝。调用者取消和服务卸载保留原始中止原因，包括调用者自身的超时原因。卸载时中止已接受的请求并等待它们结束。`resolve()` 和 `translate()` 都执行输入限制。
 
 </details>
 
@@ -87,6 +87,6 @@ Google 接收使用 `gtx` 客户端的 GET 请求；Bing 通过 Microsoft Edge �
 <details>
 <summary>维护者细节 — 点击展开</summary>
 
-无。
+真实提供者测试无需凭据，使用实际默认端点。测试默认跳过，需显式运行 `DSH_TRANSLATION_LIVE=1 pnpm run test:e2e packages/experimental/translator/tests/upstream.e2e.ts` 才启用。它们覆盖 Bing 自动及显式源语言选择、两种提供者的中文区域标签，以及达到默认 4000 字符上限的 Google 请求。
 
 </details>

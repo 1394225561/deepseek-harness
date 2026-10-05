@@ -1,5 +1,5 @@
 /** Anonymous provider protocols, bounded JSON intake and normalized Chinese language tags. */
-import { deadline } from '@deepseek-ai/dsh-timeout'
+import { deadline, timeoutOf } from '@deepseek-ai/dsh-timeout'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { Config } from './index.ts'
 import type { TranslationProvider, TranslationSpec } from './types.ts'
@@ -18,10 +18,10 @@ function requestFor(spec: TranslationSpec, config: Config): { url: URL; init: Re
   switch (spec.provider) {
     case 'google': {
       const url = new URL(config.googleEndpoint)
-      for (const [key, value] of Object.entries({ client: 'gtx', sl: source, tl: target, dt: 't', q: spec.text })) {
-        url.searchParams.set(key, value)
-      }
-      return { url, init: { method: 'GET' } }
+      const form = new URLSearchParams({ client: 'gtx', sl: source, tl: target, dt: 't', q: spec.text })
+      for (const key of form.keys()) url.searchParams.delete(key)
+      return { url, init: { method: 'POST', body: form.toString(),
+        headers: { 'content-type': 'application/x-www-form-urlencoded' } } }
     }
     case 'bing': {
       const url = new URL(config.bingEndpoint)
@@ -30,7 +30,7 @@ function requestFor(spec: TranslationSpec, config: Config): { url: URL; init: Re
       url.searchParams.set('to', target)
       url.searchParams.set('isEnterpriseClient', 'false')
       return { url, init: { method: 'POST', body: JSON.stringify([spec.text]),
-        headers: { 'content-type': 'application/json', 'user-agent': 'Mozilla/5.0 (compatible; DeepSeekHarnessTranslator)' } } }
+        headers: { 'content-type': 'application/json' } } }
     }
     /* v8 ignore next -- TranslationProvider is a closed typed union; JSON/config validation owns admission. */
     default: return assertNever(spec.provider)
@@ -119,6 +119,10 @@ export async function translateText(spec: TranslationSpec, config: Config, signa
     timeout.signal.throwIfAborted()
     return translationOf(payload, spec.provider)
   } catch (error) {
+    const expired = timeoutOf(timeout.signal, 'TRANSLATION_TIMEOUT')
+    if (expired !== undefined && expired !== signal.reason) {
+      throw new TranslationError('TRANSLATION_TIMEOUT', `${spec.provider} translation timed out after ${expired.timeoutMs}ms`)
+    }
     timeout.signal.throwIfAborted()
     if (error instanceof TranslationError) throw error
     throw new TranslationError('TRANSLATION_REQUEST_FAILED', `${spec.provider} translation request failed`)

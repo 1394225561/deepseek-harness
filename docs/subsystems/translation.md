@@ -12,9 +12,9 @@ The service exposes its configured `maxTextChars`, measured in UTF-16 code units
 
 ## Failures and data handling
 
-`TranslationError` carries a `TranslationErrorCode` distinguishing text limits, HTTP failures, invalid responses, response limits, and request failures. Provider diagnostics omit submitted text and response bodies. Failed calls do not select another provider. Responses are validated as external JSON and redirects are rejected.
+`TranslationError` carries a `TranslationErrorCode` distinguishing text limits, HTTP failures, invalid responses, response limits, owned deadlines, and request failures. Provider diagnostics omit submitted text and response bodies. Failed calls do not select another provider. Responses are validated as external JSON and redirects are rejected.
 
-Google receives source text in the query URL; Bing receives it in a JSON request body. Both are remote services. Their anonymous endpoints provide no supported developer availability or quota guarantee. Regional connectivity must be verified on the user's network.
+Google receives source text in a form POST body; Bing receives it in a JSON POST body. Both are remote services. Their anonymous endpoints provide no supported developer availability or quota guarantee. Regional connectivity must be verified on the user's network.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -44,7 +44,7 @@ resolve(request: TranslationRequest): TranslationSpec
  * @param signal - optional caller cancellation, combined with service disposal.
  * @returns translated plain text; rejects provider/limit failures and preserves cancellation reasons.
  */
-translate(spec: TranslationSpec, signal?: AbortSignal): Promise<string>
+async translate(spec: TranslationSpec, signal?: AbortSignal): Promise<string>
 ```
 
 Source: [`packages/experimental/translator/src/index.ts`](../../packages/experimental/translator/src/index.ts)

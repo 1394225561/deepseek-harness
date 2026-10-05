@@ -25,7 +25,7 @@ export interface Config {
   bingEndpoint: string
   /** Deadline covering the request and complete response body, in milliseconds. */
   timeoutMs: number
-  /** Maximum UTF-16 code units of submitted text per request. */
+  /** Maximum UTF-16 code units per request; at least two to admit one supplementary-plane character. */
   maxTextChars: number
   /** Maximum response body bytes before JSON parsing. */
   maxResponseBytes: number
@@ -43,8 +43,8 @@ function endpoint(value: string): string {
 export default class Translator extends Service {
   static Config = z.object({
     provider: z.union(['google', 'bing'] as const).default('bing'),
-    googleEndpoint: z.transform(z.string().default('https://translate.googleapis.com/translate_a/single'), endpoint),
-    bingEndpoint: z.transform(z.string().default('https://edge.microsoft.com/translate/translatetext'), endpoint),
+    googleEndpoint: z.transform(z.string(), endpoint).default('https://translate.googleapis.com/translate_a/single'),
+    bingEndpoint: z.transform(z.string(), endpoint).default('https://edge.microsoft.com/translate/translatetext'),
     timeoutMs: z.natural().min(1).max(2_147_483_647).default(10_000),
     maxTextChars: z.natural().min(2).default(4_000),
     maxResponseBytes: z.natural().min(1).default(1024 * 1024),
@@ -82,7 +82,7 @@ export default class Translator extends Service {
    * @param signal - optional caller cancellation, combined with service disposal.
    * @returns translated plain text; rejects provider/limit failures and preserves cancellation reasons.
    */
-  translate(spec: TranslationSpec, signal?: AbortSignal): Promise<string> {
+  async translate(spec: TranslationSpec, signal?: AbortSignal): Promise<string> {
     this.lifetime.signal.throwIfAborted()
     this.assertTextLimit(spec.text)
     const combined = signal === undefined ? this.lifetime.signal : AbortSignal.any([signal, this.lifetime.signal])

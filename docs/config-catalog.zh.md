@@ -1245,7 +1245,7 @@ export interface Config {
   bingEndpoint: string
   /** Deadline covering the request and complete response body, in milliseconds. */
   timeoutMs: number
-  /** Maximum UTF-16 code units of submitted text per request. */
+  /** Maximum UTF-16 code units per request; at least two to admit one supplementary-plane character. */
   maxTextChars: number
   /** Maximum response body bytes before JSON parsing. */
   maxResponseBytes: number

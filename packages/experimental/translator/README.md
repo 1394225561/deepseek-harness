@@ -48,9 +48,9 @@ The service maps `zh`, `zh-CN`, `zh-SG` and `zh-Hans` to Simplified Chinese, and
 <details>
 <summary>Maintainer details — click to expand</summary>
 
-Google receives a GET request using the `gtx` client; Bing receives a JSON text array through Microsoft's Edge endpoint. The selected service receives the submitted text. Cookies, HTTP redirects and automatic provider fallback are disabled. Text and translations remain transient; this service changes neither Session events nor model requests.
+Google receives a form POST using the `gtx` client; Bing receives a JSON text array through Microsoft's Edge endpoint. Both receive submitted text in the request body. Cookies, HTTP redirects and automatic provider fallback are disabled. Text and translations remain transient; this service changes neither Session events nor model requests.
 
-`TranslationError.code` distinguishes input limits, HTTP failures, response limits, invalid provider responses and transport failures. Diagnostics include no submitted text or provider error body. Caller cancellation and timeouts retain their original abort reasons. Unloading aborts accepted requests and waits for settlement. Input limits apply in both `resolve()` and `translate()`.
+`TranslationError.code` distinguishes input limits, HTTP failures, response limits, invalid provider responses, transport failures and the service's `TRANSLATION_TIMEOUT` deadline. Diagnostics include no submitted text or provider error body. `translate()` always returns a Promise and rejects admission or provider failures. Caller cancellation and service disposal preserve their original abort reasons, including caller-owned timeout reasons. Unloading aborts accepted requests and waits for settlement. Input limits apply in both `resolve()` and `translate()`.
 
 </details>
 
@@ -87,6 +87,6 @@ No direct effect; translation does not change model history.
 <details>
 <summary>Maintainer details — click to expand</summary>
 
-None.
+Live provider tests use the actual default endpoints without credentials. They are skipped unless explicitly enabled with `DSH_TRANSLATION_LIVE=1 pnpm run test:e2e packages/experimental/translator/tests/upstream.e2e.ts`. They cover Bing automatic and explicit source selection, both providers' Chinese locale tags, and a Google request at the default 4000-character limit.
 
 </details>

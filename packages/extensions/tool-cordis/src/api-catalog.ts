@@ -3347,7 +3347,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         returns: 'a complete specification; exceeding `maxTextChars` throws `TRANSLATION_TEXT_LIMIT`.',
       },
       {
-        signature: 'translate(spec: TranslationSpec, signal?: AbortSignal): Promise<string>',
+        signature: 'async translate(spec: TranslationSpec, signal?: AbortSignal): Promise<string>',
         description: 'Translate one resolved specification; the selected provider receives its text.',
         parameters: [{ name: 'spec', description: 'complete routing and language choices from `resolve()`.' }, { name: 'signal', description: 'optional caller cancellation, combined with service disposal.' }],
         returns: 'translated plain text; rejects provider/limit failures and preserves cancellation reasons.',
