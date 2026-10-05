@@ -187,6 +187,8 @@ export function parseDshArgs(argv: readonly string[], version: string, manageDes
   if (first === 'plugin') {
     const plugin = program.command('plugin').description('manage a profile\'s plugins by forwarding the remaining arguments to pnpm in the profile directory')
     plugin
+      .helpOption('-h, --help', 'show this help')
+      .passThroughOptions()
       .requiredOption('--profile <name>', 'the profile whose plugins to manage (initialized on first use)', selectProfile)
       .allowUnknownOption()
       .argument('[args...]', 'pnpm arguments, forwarded verbatim (add <pkg>, remove <pkg>, why <pkg>, ...)')
