@@ -2,7 +2,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { lowerModuleSource } from '../../src/compile/transform.ts'
 import { WorkerModuleLoader } from '../../src/module-system/module-loader.ts'
 import { createNodeBuiltins } from '../../src/node/builtins.ts'
@@ -180,21 +180,35 @@ describe.each(CHOKIDAR_FIXTURES)('$label running unchanged', (fixture) => {
   })
 
   it('waits for a write burst to stabilize before publishing one add', async () => {
-    const path = `${ROOT}/settling.md`
-    const watcher = watchPath(ROOT, {
-      awaitWriteFinish: { stabilityThreshold: 30, pollInterval: 5 },
-    })
-    await onceEvent(watcher, 'ready')
-    const events: string[] = []
-    watcher.on('all', (event) => { events.push(event) })
-    const added = onceEvent<string>(watcher, 'add')
-    vfs.writeFileSync(path, 'a')
-    await delay(10)
-    vfs.appendFileSync(path, 'b')
-    await delay(10)
-    vfs.appendFileSync(path, 'c')
-    await expect(added).resolves.toBe(path)
-    expect(events).toEqual(['add'])
+    vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
+    try {
+      const path = `${ROOT}/settling.md`
+      const watcher = watchPath(ROOT, {
+        awaitWriteFinish: { stabilityThreshold: 30, pollInterval: 5 },
+      })
+      try {
+        await onceEvent(watcher, 'ready')
+        const events: { event: string; path: string; contents: string | Uint8Array }[] = []
+        watcher.on('all', (event, path) => { events.push({ event, path, contents: vfs.readFileSync(path, 'utf8') }) })
+        vfs.writeFileSync(path, 'a')
+        await vi.advanceTimersByTimeAsync(0)
+        await vi.advanceTimersByTimeAsync(10)
+        vfs.appendFileSync(path, 'b')
+        await vi.advanceTimersByTimeAsync(10)
+        vfs.appendFileSync(path, 'c')
+        // The next poll observes the final size and starts its stability window.
+        await vi.advanceTimersByTimeAsync(5)
+        await vi.advanceTimersByTimeAsync(29)
+        expect(events).toEqual([])
+        await vi.advanceTimersByTimeAsync(1)
+        expect(events).toEqual([{ event: 'add', path, contents: 'abc' }])
+        await vi.advanceTimersByTimeAsync(30)
+        expect(events).toEqual([{ event: 'add', path, contents: 'abc' }])
+      } finally { await watcher.close() }
+    } finally {
+      vi.clearAllTimers()
+      vi.useRealTimers()
+    }
   })
 
   it('emits nothing after close has reached quiescence', async () => {
