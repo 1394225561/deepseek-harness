@@ -241,6 +241,7 @@ export class HarnessSdkJsonRpcServer {
 
   /**
    * Dispose server-owned agents, adapter, and subscriptions to quiescence.
+   * Managed descendants drain before the root Agent handles and adapter are released.
    * The surrounding context remains running.
    * @returns empty JSON-RPC result.
    */
@@ -263,6 +264,11 @@ export class HarnessSdkJsonRpcServer {
       } catch (error) {
         failures.push(error)
       }
+    }
+    try {
+      await this.ctx.get('subagents')?.drainDescendants(records.map(rec => rec.handle.agent))
+    } catch (error: unknown) {
+      failures.push(error)
     }
     const teardownResults = await Promise.allSettled([
       ...records.map(rec => Promise.resolve().then(() => rec.handle.dispose())),

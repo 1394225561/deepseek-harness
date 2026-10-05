@@ -80,7 +80,7 @@ Each protocol method validates its inputs and resolves the owning state before a
 
 ### Teardown
 
-`server.shutdown()` disposes only what the server owns — the surrounding context stays running when just this plugin is unloaded. Protocol `shutdown` instead disposes the root fiber so persistence and the whole runtime reach quiescence before the process exits.
+`server.shutdown()` closes descendant admission below its exact root Agents and drains their managed descendants child-first before releasing the root handles and adapter. It removes its subscriptions while unrelated parent trees and the surrounding context stay running when just this plugin is unloaded. A descendant drain failure is reported after the remaining root and adapter teardown completes. Protocol `shutdown` instead disposes the root fiber so persistence and the whole runtime reach quiescence before the process exits.
 
 </details>
 
