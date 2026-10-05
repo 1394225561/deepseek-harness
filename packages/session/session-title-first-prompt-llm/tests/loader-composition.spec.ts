@@ -40,13 +40,15 @@ afterEach(async () => {
 
 /**
  * Boot the title service and the first-prompt provider through the Loader.
- * @param rows - the provider's remaining config lines, then any further rows.
- * @param rowModules - the modules those further rows import.
+ * @param providerConfig - the provider's config lines after its target fields.
+ * @param entries - complete further `cordis.yml` entries, as lines.
+ * @param entryModules - the modules those entries import.
  * @returns the composed context.
  */
 async function loadComposition(
-  rows: readonly string[],
-  rowModules: ReadonlyMap<string, unknown> = new Map(),
+  providerConfig: readonly string[],
+  entries: readonly string[] = [],
+  entryModules: ReadonlyMap<string, unknown> = new Map(),
 ): Promise<Context> {
   root = await mkdtemp(join(tmpdir(), 'dsh-title-loader-'))
   const configPath = join(root, 'cordis.yml')
@@ -63,7 +65,8 @@ async function loadComposition(
     '  config:',
     '    targetWords: 5',
     '    targetCjkCharacters: 10',
-    ...rows,
+    ...providerConfig.map(line => `    ${line}`),
+    ...entries,
     '',
   ].join('\n'))
 
@@ -77,7 +80,7 @@ async function loadComposition(
     ['@deepseek-ai/dsh-session-projection', SessionProjectionRegistry],
     ['@deepseek-ai/dsh-session-title', SessionTitleService],
     ['@deepseek-ai/dsh-session-title-first-prompt-llm', providerPlugin],
-    ...rowModules,
+    ...entryModules,
   ])
   context.loader.internal = {
     version: 'v2',
@@ -126,11 +129,11 @@ async function promptThenRequest(
 describe('session-title Loader composition', () => {
   it('loads the service and one model provider with required deployment policy', async () => {
     const ctx = await loadComposition([
-      '    maxInputBytes: 1000',
-      '    maxOutputTokens: 32',
-      '    timeoutMs: 1000',
-      "    provider: 'title-route'",
-      "    model: 'title-model'",
+      'maxInputBytes: 1000',
+      'maxOutputTokens: 32',
+      'timeoutMs: 1000',
+      "provider: 'title-route'",
+      "model: 'title-model'",
     ])
     const unloaded = [...ctx.loader.entries()]
       .filter(entry => entry.fiber === undefined && !entry.disabled)
@@ -160,9 +163,10 @@ describe('session-title Loader composition', () => {
     vi.stubEnv('PI_TITLE_KEY', 'test-key')
     const server = await mockServer([{ events: anthropicTextEvents }])
     const ctx = await loadComposition([
-      '    maxInputBytes: 4096',
-      '    maxOutputTokens: 64',
-      '    timeoutMs: 60000',
+      'maxInputBytes: 4096',
+      'maxOutputTokens: 64',
+      'timeoutMs: 60000',
+    ], [
       "- name: '@deepseek-ai/dsh-llm-pi-ai'",
       '  config:',
       '    providers:',

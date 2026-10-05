@@ -154,25 +154,6 @@ function describableReasoningLevel(
     : undefined
 }
 
-/**
- * The level one request dispatches with. A `session-title` request takes the
- * model's lowest supported level, which is `off` whenever the model can stop
- * reasoning, because its small output cap must hold visible title text;
- * every other request validates the requested or profile effort.
- * @param model - the resolved model descriptor.
- * @param options - the request's purpose and requested effort.
- * @param profile - the route profile carrying the default effort.
- * @returns the level to dispatch, or undefined to send none.
- */
-function requestReasoningLevel(
-  model: Model<Api>,
-  options: GenerateOptions,
-  profile: ResolvedPiAiProviderProfile,
-): ModelThinkingLevel | undefined {
-  if (options.purpose === 'session-title') return getSupportedThinkingLevels(model)[0]
-  return resolveReasoningLevel(model, options.reasoningEffort ?? profile.reasoning)
-}
-
 /** Validate an explicit Harness/profile effort without invoking pi-ai's clamp. */
 function resolveReasoningLevel(
   model: Model<Api>,
@@ -185,6 +166,27 @@ function resolveReasoningLevel(
     `pi-ai provider "${model.provider}" model "${model.id}" does not support reasoning effort "${effort}"`,
     'UNSUPPORTED_REASONING_EFFORT',
   )
+}
+
+/**
+ * The level one request dispatches with. A `session-title` request takes the
+ * model's lowest supported level, which is `off` whenever the model can stop
+ * reasoning, because its small output cap must hold visible title text;
+ * every other request validates the requested or profile effort.
+ * @param model - the resolved model descriptor.
+ * @param options - the request's purpose and requested effort.
+ * @param profile - the route profile carrying the default effort.
+ * @returns the level to dispatch, or undefined to send none, which a
+ *   `session-title` request gets only for a model whose metadata leaves it no
+ *   supported level.
+ */
+function requestReasoningLevel(
+  model: Model<Api>,
+  options: GenerateOptions,
+  profile: ResolvedPiAiProviderProfile,
+): ModelThinkingLevel | undefined {
+  if (options.purpose === 'session-title') return getSupportedThinkingLevels(model)[0]
+  return resolveReasoningLevel(model, options.reasoningEffort ?? profile.reasoning)
 }
 
 /**
