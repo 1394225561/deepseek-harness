@@ -15,8 +15,11 @@ export interface FetchCaptureOptions {
 }
 
 /**
- * Keeps each wrapper-created Request reachable while either of its response body streams is reachable.
- * Node's fetch forwards the caller's abort signal only while that Request is reachable.
+ * Keeps each wrapper-created Request reachable while the caller's response body stream is reachable.
+ * Node's fetch forwards the caller's abort signal only while that Request is reachable. The capture
+ * clone shares one source with the caller's body stream and keeps that stream reachable while capture
+ * reads. Entries are set after `response.clone()`, which replaces `response.body`. The map is
+ * module-level so that responses obtained before `stop()` keep their Request reachable afterwards.
  */
 const requestsByBody = new WeakMap<ReadableStream<Uint8Array>, Request>()
 
@@ -119,7 +122,6 @@ export function installFetchObserver(
 
     try {
       const responseClone = response.clone()
-      if (responseClone.body !== null) requestsByBody.set(responseClone.body, request)
       track(captureBody(
         responseClone.body,
         options.maxResponseBodyBytes,

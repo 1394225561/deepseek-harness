@@ -119,7 +119,13 @@ describe('full fetch observer', () => {
     expect(records.some(record => record.topic === 'fetch/error')).toBe(false)
   })
 
-  it('forwards a caller abort to native fetch after the wrapper Request is no longer referenced', async () => {
+  it.each([
+    { label: 'while capture is still reading the clone', maxResponseBodyBytes: 1_024, captureTruncated: false },
+    { label: 'after capture has stopped at its byte limit', maxResponseBodyBytes: 4, captureTruncated: true },
+  ])('forwards a caller abort to native fetch after the wrapper Request is unreferenced $label', async ({
+    maxResponseBodyBytes,
+    captureTruncated,
+  }) => {
     const server = createServer((_request, response) => {
       response.writeHead(200, { 'content-type': 'text/event-stream' })
       response.write('data: first\n\n')
@@ -131,24 +137,25 @@ describe('full fetch observer', () => {
         publish(topic: string, payload: InspectorJsonValue, monotonicMs = performance.now()) {
           records.push({ topic, payload, monotonicMs })
         },
-      }, { maxRequestBodyBytes: 1_024, maxResponseBodyBytes: 1_024, maxChunkBytes: 1_024 })
+      }, { maxRequestBodyBytes: 1_024, maxResponseBodyBytes, maxChunkBytes: 1_024 })
       const abort = new AbortController()
       const { port } = server.address() as AddressInfo
       const response = await fetch(`http://127.0.0.1:${String(port)}/open-stream`, { signal: abort.signal })
       const reader = response.body!.getReader()
       await reader.read()
-      // Node's fetch follows the caller signal only while the wrapper-created Request is reachable.
-      setFlagsFromString('--expose-gc')
-      const gc = runInNewContext('gc') as () => void
-      for (let pass = 0; pass < 5; pass += 1) {
-        gc()
-        await new Promise((resolve) => { setImmediate(resolve) })
+      if (captureTruncated) {
+        await vi.waitFor(() => { expect(records.some(record => record.topic === 'fetch/end')).toBe(true) })
       }
+      // Node's fetch follows the caller signal only while the wrapper-created Request is reachable.
+      await collectGarbage()
 
       abort.abort()
       await expect(reader.read()).rejects.toMatchObject({ name: 'AbortError' })
       await vi.waitFor(() => { expect(records.some(record => record.topic === 'fetch/end')).toBe(true) })
-      expect(String(payload(records, 'fetch/end').responseCaptureError)).toContain('AbortError')
+      const end = payload(records, 'fetch/end')
+      expect(end.responseBodyTruncated).toBe(true)
+      if (captureTruncated) expect(end.responseCaptureError).toBeUndefined()
+      else expect(String(end.responseCaptureError)).toContain('AbortError')
     } finally {
       server.closeAllConnections()
       await new Promise<void>((resolve) => { server.close(() => { resolve() }) })
@@ -433,6 +440,19 @@ describe('full fetch observer', () => {
       .toMatchObject({ canceled: false })
   })
 })
+
+/**
+ * Run several full collections. `--expose-gc` stays enabled for the rest of this forked Vitest worker
+ * process; only new vm contexts can obtain `gc`, so other specs in the worker may observe it there.
+ */
+async function collectGarbage(): Promise<void> {
+  setFlagsFromString('--expose-gc')
+  const gc = runInNewContext('gc') as () => void
+  for (let pass = 0; pass < 5; pass += 1) {
+    gc()
+    await new Promise((resolve) => { setImmediate(resolve) })
+  }
+}
 
 function payload(records: readonly InspectorRecordInput[], topic: string): Record<string, unknown> {
   const record = records.find(candidate => candidate.topic === topic)
