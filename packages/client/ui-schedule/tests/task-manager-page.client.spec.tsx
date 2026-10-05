@@ -760,9 +760,7 @@ describe('Task manager catalog', () => {
 
   it('states the time remaining until the next run in each locale', () => {
     // The row and the detail state a duration, not a date: zh reads `2小时后`
-    // and en reads `in 2 hours`, and neither renders a clock time for it. The
-    // fixture is two hours out, where a few milliseconds of clock drift cannot
-    // change the rendered unit.
+    // and en reads `in 2 hours`, and neither renders a clock time for it.
     const soon: ScheduleCatalogEntry = {
       ...at, title: 'Two hours out', prompt: 'Two hours out',
       scheduledAt: new Date(Date.now() + 2 * 3_600_000).toISOString(),
