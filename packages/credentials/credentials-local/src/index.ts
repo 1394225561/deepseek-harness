@@ -610,9 +610,9 @@ export class LocalCredentialProvider extends CredentialProvider {
       // which Windows reports as EPERM, and an 'error' emission with no
       // listener is rethrown as an uncaught exception. Re-attach across the
       // close so that straggler stays inside this provider.
-      const closed = watcher.close()
+      const closing = watcher.close()
       watcher.on('error', reportWatcherError)
-      await closed
+      await closing
       await this.operations
     }
   }

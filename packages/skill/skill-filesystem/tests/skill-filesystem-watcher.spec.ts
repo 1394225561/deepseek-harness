@@ -472,9 +472,7 @@ describe('skill-filesystem watcher failures', () => {
     await vi.waitFor(() => { expect(watcherHarness.watchers).toHaveLength(1) })
     const control = watcherHarness.watchers[0]
     if (control === undefined) throw new Error('expected an open root watcher')
-    // The real close() drops every listener while a scheduled write-settle poll
-    // survives it: that straggler stats a file teardown is deleting, which
-    // Windows reports as EPERM, and the emitter rethrows it with no listener.
+    // Mirror the real close(): it drops every listener before a pending write-settle poll fires.
     control.emitter.close = async () => {
       control.closeCalls += 1
       control.emitter.removeAllListeners()

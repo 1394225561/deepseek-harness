@@ -335,9 +335,7 @@ describe('HMR exact config paths', () => {
     await dispose()
     expect(watcher.listenerCount('error')).toBe(1)
 
-    // The real close() drops every listener while a scheduled write-settle poll
-    // survives it: that straggler stats a file teardown is deleting, which
-    // Windows reports as EPERM, and the emitter rethrows it with no listener.
+    // Mirror the real close(): it drops every listener before a pending write-settle poll fires.
     expect(() => watcher.emit('error', Object.assign(
       new Error("EPERM: operation not permitted, stat 'C:\\Temp\\dsh\\.credentials.yaml'"),
       { code: 'EPERM', syscall: 'stat' },

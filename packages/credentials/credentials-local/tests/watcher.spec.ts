@@ -148,10 +148,7 @@ describe('watcher pipeline', () => {
     const fiber = ctx.plugin(LocalCredentialProvider, { path, debounceMs: 5 })
     await fiber
     const [instance] = await fakeInstances()
-    // The real close() drops every listener while a scheduled write-settle poll
-    // survives it; that straggler stats the document teardown is deleting,
-    // which Windows reports as EPERM. Without a listener the emitter rethrows
-    // the error as an uncaught exception and takes an unrelated test file down.
+    // Mirror the real close(): it drops every listener before a pending write-settle poll fires.
     instance!.watcher.close = vi.fn(() => {
       instance!.watcher.removeAllListeners()
       return Promise.resolve()
