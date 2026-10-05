@@ -67,11 +67,11 @@ Each call runs in a fresh Python process. Relative paths use the supplied workin
 
 单向信任：宿主把每条入站帧都视为敌意（模型代码可以在 fd 3 上伪造任何内容）并逐字段重建后才读取；Python 侧信任宿主回复。bootstrap（`py/bootstrap.py`）把程序作为 async 函数体执行，因此顶层 `await` 与 `return` 都可用；binding 调用经 fd 3 以 JSON-lines 往返，回复在 pump 中限速，以免大量大回复钉住宿主的 fd-3 可写缓冲。
 
-已发布的 bootstrap 与 protocol 源码通过可信 stdin 传入解释器，不依赖沙箱中的临时目录挂载。模型程序与 binding 通信使用 fd 3。宿主在启动前解析沙箱 runner，子进程环境中只保留 `TMPDIR`。经过时间截止包含沙箱准备。所配置解释器的加载期版本探测在约束之外运行，不执行模型代码。
+已发布的 bootstrap 与 protocol 源码以 UTF-8 JSON 通过可信二进制 stdin 传入解释器，不依赖沙箱中的临时目录挂载或 locale 文本编码。模型程序与 binding 通信使用 fd 3。宿主在启动前解析沙箱 runner，子进程环境中只保留 `TMPDIR`。经过时间截止包含沙箱准备。所配置解释器的加载期版本探测在约束之外运行，不执行模型代码。
 
 ### wire 契约
 
-帧为 `boot`／`run`（宿主 → 子进程）与 `boot-ack`／`call`／`log`／`done` （子进程 → 宿主），以及每个 `call` 对应一个 `reply`（宿主 → 子进程）。`log` 帧的 `truncated` 标志标记的就是子进程账本自己的截断标记帧，因此宿主在与子进程相同的点停止捕获，而不是从自己的预算推断。`log` 帧的 `open` 标志标记由显式 flush 提交的未结束行：宿主把下一个 log 帧合并进同一条目，因此 `print('a', end='', flush=True); print('b')` 读回为一条 `'ab'` 条目而不是假换行（拆分计费算术在 fd-3 协议 Agent Note 的 wire-contract 段）。合并的唯一例外是截断：当后续超预算帧触发账本时，已计费的前缀作为独立条目先提交，截断 marker 跟在后面（marker 保持末位，无重复计费）。`done.error.kind` 为 `exception`、`invalid-output`、`output-limit` 或 CPU `timeout` 之一；墙钟截止、中止与基底死亡在宿主侧观察。
+帧为 `boot`／`run`（宿主 → 子进程）与 `boot-ack`／`call`／`log`／`done` （子进程 → 宿主），以及每个 `call` 对应一个 `reply`（宿主 → 子进程）。`log` 帧的 `truncated` 标志标记的就是子进程账本自己的截断标记帧，因此宿主在与子进程相同的点停止捕获，而不是从自己的预算推断。`log` 帧的 `open` 标志标记由显式 flush 提交的未结束行：宿主把下一个 log 帧合并进同一条目，因此 `print('a', end='', flush=True); print('b')` 读回为一条 `'ab'` 条目而不是假换行（拆分计费算术在 fd-3 协议 Agent Note 的 wire-contract 段）。合并的唯一例外是截断：当后续超预算帧触发账本时，已计费的前缀作为独立条目先提交，截断 marker 跟在后面（marker 保持末位，无重复计费）。`done.error.kind` 为 `exception`、`invalid-output`、`output-limit` 或模型代码返回后 CPU 检查产生的 `timeout` 之一；墙钟截止、中止与基底死亡在宿主侧观察。
 
 ### 无损 JSON 跨越
 
@@ -142,7 +142,7 @@ Each call runs in a fresh Python process. Relative paths use the supplied workin
 - **停止读取回复的子进程会在回复积压超过 1024 帧时以 worker-exit 结算运行**——宿主每次写一条回复，管道满时等待 `drain`；只持续发送调用而不消费回复的子进程会让保留的积压（及其钉住的 binding 结果）一直增长到墙钟，因此积压上限让运行提前失败。binding 结果在 seam 层没有字节上限，所以这是计数上限而非字节上限。
 - **向永不结算的 binding 洪泛调用的子进程会在 1024 个调用在途时以 worker-exit 结算运行**——binding 调用在分发前计数、异步体结算时释放，否则 promise 永不 resolve 的 binding 会让每个调用帧累积一个异步闭包直到墙钟。与回复积压一样，这是计数上限而非字节上限。
 - **组合日志与值的峰值不被加载门建模**——持续写入的模型 daemon 线程与完成值计量、分帧相加的峰值没有任何门会放行或拒绝；运行以 `worker-exit` 告终，隔离成立，只有失败分类降级。
-- **CPU 超时报告可能不可用**——子进程报告 CPU 耗尽时不等待繁忙或反压中的控制通道，随后通过信号终止。如果 launcher 将该信号转换为退出码，且没有完整的 timeout 帧到达，宿主报告 `worker-exit`；仅凭退出码不能判定 CPU 耗尽。内核限制与墙钟截止仍然生效。
+- **CPU 信号的分类取决于 launcher**——软限制保留默认的 `SIGXCPU` 终止行为，包括执行原生调用期间。bwrap 等 launcher 可能将该信号转换为有歧义的退出码，此时报告 `worker-exit`；直接观察到的 `SIGXCPU` 则为 `timeout`。仅模型代码返回后的 CPU 检查会在终止前尝试发送 `timeout` 帧，繁忙或反压中的控制通道可能阻止该报告。内核限制与墙钟截止仍然生效。
 - **1 秒双限 `ulimit -t 1` CPU 超限被报告为 `worker-exit` 而非 timeout**——当宿主在一个与软限相等的硬 CPU 限下启动且该限为 1 时，`_clamped` 无法下调软限，内核在同一 tick SIGKILL 忙循环，SIGXCPU 永远不会送达；隔离成立，只有分类降级。
 - **中间 binding 值没有字节上限**——实现仍受无损 JSON 序列化成本与进程内存约束，提供方或执行器可能应用自己的获取上限。
 

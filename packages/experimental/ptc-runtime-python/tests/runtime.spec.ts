@@ -580,11 +580,46 @@ describe('PythonPtcRuntime — seam descriptors and misuse', () => {
   it('delivers packaged Python modules without exposing a writable bootstrap file', async () => {
     const { runtime } = await setup()
     const result = await runtime.run(runtime.resolve({
-      program: 'import sys, os, protocol\nreturn [sys.modules["__main__"].__file__, protocol.__file__, sys.stdin.read(), os.path.exists(sys.modules["__main__"].__file__)]',
+      program: 'import sys, protocol\nreturn [hasattr(sys.modules["__main__"], "__file__"), protocol.__file__, sys.stdin.read()]',
       bindings: [],
     }))
     expect(result.error).toBeUndefined()
-    expect(result.value).toEqual(['<dsh-ptc-bootstrap>', '<dsh-ptc-protocol>', '', false])
+    expect(result.value).toEqual([false, '<dsh-ptc-protocol>', ''])
+  })
+
+  it('starts a spawn-context ProcessPoolExecutor with an importable function', async () => {
+    const { runtime } = await setup({ maxWallMs: 30_000 })
+    const result = await runtime.run(runtime.resolve({
+      program: [
+        'from concurrent.futures import ProcessPoolExecutor',
+        'from multiprocessing import get_context',
+        'with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as pool:',
+        '    return pool.submit(abs, -42).result()',
+      ].join('\n'),
+      bindings: [],
+    }))
+    expect(result.error).toBeUndefined()
+    expect(result.value).toBe(42)
+  })
+
+  it('decodes packaged source as UTF-8 when the interpreter stdin uses ASCII', async () => {
+    const wrapper = join(await makeTempDir('dsh-python-ascii-'), 'python-ascii')
+    await writeFile(wrapper, `#!/bin/sh\nLC_ALL=C exec "${PYABS}" -X utf8=0 "$@"\n`, { mode: 0o755 })
+    const { runtime } = await setup({ pythonBin: wrapper })
+    const result = await runtime.run(runtime.resolve({ program: 'import sys\nreturn [sys.stdin.encoding, "你好"]', bindings: [] }))
+    expect(result.error).toBeUndefined()
+    expect(result.value).toEqual(['ascii', '你好'])
+  })
+
+  it('preserves the kernel CPU soft limit while Python is executing native C code', async () => {
+    const { runtime } = await setup({ cpuSeconds: 1, maxWallMs: 30_000 })
+    const result = await runtime.run(runtime.resolve({
+      program: 'import hashlib\nhashlib.pbkdf2_hmac("sha256", b"password", b"salt", 2147483647)\nreturn "escaped"',
+      bindings: [],
+    }))
+    expect(result.error?.kind).toBe('timeout')
+    expect(result.error?.message).toContain('CPU time exhausted')
+    expect(result.value).toBeUndefined()
   })
 
   it('disposes the first run before any program can outlive its provider', async () => {

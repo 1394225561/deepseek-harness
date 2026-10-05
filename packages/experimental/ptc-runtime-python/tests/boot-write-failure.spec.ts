@@ -26,10 +26,8 @@ function fakeChildWithThrowingFd3(): EventEmitter {
     stderr: PassThrough
     stdio: unknown[]
   }
-  // Leave `pid` absent: `finish()` still runs its `clearTimeout(wallTimer)` /
-  // `removeEventListener(onAbort)` prologue (the TDZ site) before short-
-  // circuiting on `child.pid === undefined` to `settle` instead of waiting on a
-  // `close` this fake never emits, so the run resolves promptly.
+  // An absent pid settles without waiting for a process-close event that this
+  // pipe fixture does not emit.
   child.stdout = new PassThrough()
   child.stderr = new PassThrough()
   // A duplex whose `write` throws synchronously, standing in for an fd-3 pipe

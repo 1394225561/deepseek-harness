@@ -1015,17 +1015,6 @@ async def _run(channel: ProtocolChannel) -> None:
         raise RuntimeError("bootstrap: expected boot frame on fd 3")
 
     report_cpu_timeout = _make_cpu_timeout_reporter(channel, boot["cpuSeconds"])
-    set_signal, sigxcpu, sig_dfl = signal.signal, signal.SIGXCPU, signal.SIG_DFL
-    kill, getpid = os.kill, os.getpid
-
-    def on_cpu_limit(_signum: int, _frame: Any) -> None:
-        try:
-            report_cpu_timeout()
-        finally:
-            set_signal(sigxcpu, sig_dfl)
-            kill(getpid(), sigxcpu)
-
-    signal.signal(signal.SIGXCPU, on_cpu_limit)
 
     # A limit that cannot be applied must fail the run as a diagnosable done
     # frame, not a bare traceback + exit(1): running the program UNCAPPED would
@@ -1037,7 +1026,7 @@ async def _run(channel: ProtocolChannel) -> None:
         # timeout would otherwise write a large memory-bearing core file into
         # the workspace. Forbid core dumps first so the timeout path leaves none.
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-        # The soft limit reports CPU expiry before SIGXCPU terminates the child.
+        # SIG_DFL terminates at the soft limit even inside a long native C call.
         # Hard limit at +1s is a SIGKILL backstop for a program that traps
         # SIGXCPU and keeps burning CPU.
         cpu_soft, cpu_hard = _clamped(
@@ -2137,10 +2126,10 @@ def _lossless_json_violation(value: Any) -> str | None:
 
 
 def _make_cpu_timeout_reporter(channel: ProtocolChannel, cpu_seconds: int) -> Any:
-    """Report CPU expiry before a launcher converts the signal into an exit code.
+    """Report the post-return CPU check before mandatory SIGXCPU termination.
 
-    A busy writer keeps its frame intact: the reporter never waits on a lock
-    held by the interrupted thread. Signal termination remains the fallback.
+    Reporting never waits for a busy writer or a backpressured channel. The
+    caller immediately terminates the process; fd 3 remains nonblocking.
     """
 
     acquire, release = channel._write_lock.acquire, channel._write_lock.release
@@ -2163,7 +2152,7 @@ def _make_cpu_timeout_reporter(channel: ProtocolChannel, cpu_seconds: int) -> An
             remaining = view_of(payload)
             while remaining:
                 remaining = remaining[write(fd, remaining):]
-        except caught as error:
+        except caught as _error:
             # Closed or backpressured transport cannot carry the report; termination still runs.
             pass
         finally:

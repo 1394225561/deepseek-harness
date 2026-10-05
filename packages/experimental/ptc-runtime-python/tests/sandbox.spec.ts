@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { createServer, type Socket } from 'node:net'
-import { delimiter, join } from 'node:path'
+import { basename, delimiter, join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import Sandbox from '@deepseek-ai/dsh-sandbox-local'
 import SandboxPolicy from '@deepseek-ai/dsh-sandbox-policy'
@@ -221,16 +221,27 @@ describe('Python file sandbox', () => {
     expect(await readFile(target, 'utf8')).toBe('original')
   })
 
-  it.skipIf(!sandboxUsable)('preserves CPU exhaustion through the confining launcher', async () => {
-    const { run } = await setup('read-only', { cpuSeconds: 1, maxWallMs: 30_000 })
+  it.skipIf(!sandboxUsable)('reports CPU termination according to the selected launcher signal transport', async () => {
+    const { ctx, run } = await setup('read-only', { cpuSeconds: 1, maxWallMs: 30_000 })
+    const confine = ctx.sandbox.confine.bind(ctx.sandbox)
+    let mapsSignalsToExitCodes = false
+    vi.spyOn(ctx.sandbox, 'confine').mockImplementation(async (argv, policy, signal) => {
+      const result = await confine(argv, policy, signal)
+      mapsSignalsToExitCodes = basename(result.argv[0]!) === 'bwrap'
+      return result
+    })
     const result = await run('while True: pass')
-    expect(result.error?.kind).toBe('timeout')
-    expect(result.error?.message).toContain('CPU time exhausted')
+    expect(result.error?.kind).toBe(mapsSignalsToExitCodes ? 'worker-exit' : 'timeout')
+    expect(result.error?.message).toContain(mapsSignalsToExitCodes ? 'code=152, signal=null' : 'CPU time exhausted')
     expect(result.sandbox).toMatchObject({ mode: 'read-only', denied: false })
   })
 
   it.each([
-    { program: 'while True: pass', kind: 'timeout' },
+    { program: 'while True: pass', kind: 'worker-exit' },
+    {
+      program: 'import signal,time\nsignal.signal(signal.SIGXCPU, signal.SIG_IGN)\nend = time.process_time() + 1.05\nwhile time.process_time() < end: pass\nreturn "escaped"',
+      kind: 'timeout',
+    },
     { program: 'import os\nos._exit(152)', kind: 'worker-exit' },
   ])('distinguishes CPU exhaustion from a numeric exit behind a signal-mapping launcher: $kind', async ({ program, kind }) => {
     const { ctx, run } = await setup('read-only', { cpuSeconds: 1, maxWallMs: 30_000 })
