@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { liveConfig } from '../../../settings/settings/tests/live-config.ts'
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { agentEvents } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { SessionId } from '@deepseek-ai/dsh-session'
@@ -2136,6 +2137,106 @@ describe('continuable review regressions', () => {
     await vi.waitFor(() => { expect(ends).toHaveLength(1) })
     // Deriving this from disposal success would report the failure as completed.
     expect(ends[0]!.stopReason).toBe('max-tokens')
+  })
+
+  it.each(['turn/start', 'turn/end'] as const)('settles a local child whose first %s append fails', async (failedEvent) => {
+    const { ctx, parent, adapter } = await setup([textResponse('child answer')])
+    const ends: SubagentRunEndInfo[] = []
+    ctx.on('subagent/end', (info) => { ends.push(info) })
+    ctx.on('subagent/start', ({ id }) => {
+      const child = ctx.agents.get(id)!
+      const append = child.session.append.bind(child.session)
+      const spy = vi.spyOn(child.session, 'append')
+      spy.mockImplementation(((type: string, ...rest: never[]) => {
+        if (type === failedEvent) {
+          spy.mockRestore()
+          throw new Error(`first ${failedEvent} unavailable`)
+        }
+        return (append as (...args: never[]) => unknown)(type as never, ...rest)
+      }) as never)
+    })
+    const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'caller' })
+    try {
+      let settled = false
+      const result = started.result.then((value) => { settled = true; return value })
+      await vi.waitFor(() => { expect(settled).toBe(true) })
+      await expect(result).resolves.toMatchObject({ stopReason: 'error' })
+      expect(ends).toHaveLength(1)
+      expect(ends[0]!.stopReason).toBe('error')
+      expect(adapter.requests).toHaveLength(failedEvent === 'turn/start' ? 0 : 1)
+      expect(ctx.agents.get(started.childId)).toBeUndefined()
+    } finally {
+      await started.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it.each(['turn/start', 'turn/end'] as const)('accepts recovery after a local %s append failure', async (failedEvent) => {
+    const { ctx, parent } = await setup(failedEvent === 'turn/start'
+      ? [textResponse('recovered')]
+      : [textResponse('first answer'), textResponse('recovered')])
+    let failed = false
+    ctx.on('subagent/start', ({ id }) => {
+      const child = ctx.agents.get(id)!
+      const append = child.session.append.bind(child.session)
+      const spy = vi.spyOn(child.session, 'append')
+      spy.mockImplementation(((type: string, ...rest: never[]) => {
+        if (type === failedEvent) {
+          spy.mockRestore()
+          failed = true
+          throw new Error('transient local append failure')
+        }
+        return (append as (...args: never[]) => unknown)(type as never, ...rest)
+      }) as never)
+    })
+    ctx.on('agent/status', ({ agent, status }) => {
+      if (agent === parent || status !== 'idle' || !failed) return
+      failed = false
+      agent.cancel({ kind: 'hook', reason: 'replace failed task with its retry' })
+      agent.followup(createUserMessage({ content: message('retry'), source: { kind: 'user' } }))
+    })
+    const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'caller' })
+    try {
+      await expect(started.result).resolves.toMatchObject({
+        stopReason: 'completed', output: [{ type: 'text', text: 'recovered' }],
+      })
+    } finally {
+      await started.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('retains a local failure emitted during an earlier terminal notification', async () => {
+    const { ctx, parent } = await setup([textResponse('child answer')])
+    ctx.on('session/event', (session, event) => {
+      if (session === parent.session || event.type !== 'turn/end') return
+      const child = ctx.agents.get(session.id)!
+      agentEvents(ctx, child).emit('agent/error', {
+        turn: event.data.turn, step: 0, error: new Error('terminal observer failure'),
+      })
+    }, { prepend: true })
+    const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'caller' })
+    try {
+      await expect(started.result).resolves.toMatchObject({ stopReason: 'error' })
+    } finally {
+      await started.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('ignores another Agent failure delivered to a local activation observer', async () => {
+    const { ctx, parent } = await setup([textResponse('child answer')])
+    ctx.on('subagent/start', ({ id }) => {
+      const child = ctx.agents.get(id)!
+      child.ctx.emit('agent/error', { agent: parent, turn: 0, step: 0, error: new Error('unrelated failure') })
+    })
+    const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'caller' })
+    try {
+      await expect(started.result).resolves.toMatchObject({ stopReason: 'completed' })
+    } finally {
+      await started.dispose()
+      await ctx.fiber.dispose()
+    }
   })
 
   it('rejects a live delivery whose caller signal aborted before admission', async () => {

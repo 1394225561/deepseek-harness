@@ -38,7 +38,7 @@ import type {
 import { attachStructuredRuntime } from './structured.ts'
 import type { StructuredAttachment } from './structured.ts'
 import type { SubagentDelivery } from './control-types.ts'
-import { ActivationPool, ChildLock, activationAgent, captureLocalResult, requireLocalActivation } from './activation.ts'
+import { ActivationPool, ChildLock, activationAgent, captureLocalResult, observeLocalFailure, requireLocalActivation } from './activation.ts'
 import type { Activation, ActivationResource, LocalActivation } from './activation.ts'
 
 /** Inputs shared by model steering and human prompt delivery. */
@@ -868,7 +868,7 @@ export class SubagentManager {
           setup,
         })
 
-      resource = { kind: 'local', handle, outputStart: handle.agent.session.seq, structured, poke: Promise.withResolvers<void>() }
+      resource = { kind: 'local', handle, outputStart: handle.agent.session.seq, structured, failureAt: undefined, poke: Promise.withResolvers<void>() }
     }
     const observer = this.host.observeActivation(provider, childId, parent)
 
@@ -893,10 +893,11 @@ export class SubagentManager {
       inputs.signal.throwIfAborted()
       if (this.ctx.agents.get(parent.id) !== parent) throw new SubagentError('subagent parent is no longer live', 'UNAUTHORIZED')
       this.acquireOwnership(parent, childId)
-      const wakeOnInboxRemoval = (): void => { this.wake(activation) }
+      const wakeSettlement = (): void => { this.wake(activation) }
       if (activation.kind === 'local') {
-        activation.handle.agent.ctx.on('agent/inbox/claimed', wakeOnInboxRemoval)
-        activation.handle.agent.ctx.on('agent/inbox/discarded', wakeOnInboxRemoval)
+        observeLocalFailure(activation, wakeSettlement)
+        activation.handle.agent.ctx.on('agent/inbox/claimed', wakeSettlement)
+        activation.handle.agent.ctx.on('agent/inbox/discarded', wakeSettlement)
       }
       observer.start(activationAgent(activation))
     } catch (error: unknown) {
@@ -1031,7 +1032,8 @@ export class SubagentManager {
     if (activation.closing !== undefined) return 'closed'
     if (activation.poke !== observation) return 'retry'
     const inbox = activation.handle.agent.inbox
-    if (inbox.nextTurn.length > 0 || inbox.nextStep.length > 0 || activation.ownedChildren.size > 0) return 'wait'
+    if (activation.ownedChildren.size > 0) return 'wait'
+    if (activation.failureAt === undefined && (inbox.nextTurn.length > 0 || inbox.nextStep.length > 0)) return 'wait'
     return 'ready'
   }
 

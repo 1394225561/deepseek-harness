@@ -80,6 +80,8 @@ export type ActivationResource =
     readonly handle: AgentHandle
     readonly outputStart: SessionLogOffset
     readonly structured: StructuredAttachment | undefined
+    /** Latest live failure not superseded by a later committed turn ending. */
+    failureAt: SessionLogOffset | undefined
     /** Renewed when local settlement must recheck input or owned children. */
     poke: PromiseWithResolvers<void>
   }
@@ -121,7 +123,27 @@ export function requireLocalActivation(activation: Activation): LocalActivation 
 }
 
 /**
- * Capture output produced during the local residency period.
+ * Retain local failures whose turn ending could not be committed.
+ * @param activation - exact local Agent and epoch receiving the scoped observers.
+ * @param wake - notify its settlement watcher when failure changes readiness.
+ */
+export function observeLocalFailure(activation: LocalActivation, wake: () => void): void {
+  const child = activation.handle.agent
+  child.ctx.on('agent/error', ({ agent }) => {
+    if (agent !== child) return
+    activation.failureAt = child.session.seq
+    wake()
+  })
+  child.ctx.on('session/event', (session, event) => {
+    if (session === child.session && event.type === 'turn/end'
+      && activation.failureAt !== undefined && event.seq >= activation.failureAt) {
+      activation.failureAt = undefined
+    }
+  })
+}
+
+/**
+ * Capture local output and retain failures without a later committed turn ending.
  * @param activation - the settled local execution and any structured result.
  * @returns final output, stop reason, and committed structured value.
  */
@@ -129,7 +151,7 @@ export function captureLocalResult(activation: LocalActivation): SubagentResult 
   // oxlint-disable-next-line typescript/no-deprecated -- Existing Session history read; migration deferred.
   const events = activation.handle.agent.session.snapshotEvents(activation.outputStart)
   const output = finalAssistantOutput(events) ?? []
-  const stopReason = epochStopReason(events)
+  const stopReason = activation.failureAt === undefined ? epochStopReason(events) : 'error'
   const structured = activation.structured
   if (structured !== undefined) {
     const captured = structured.captured()
