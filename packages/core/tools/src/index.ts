@@ -307,9 +307,9 @@ export interface ToolResult {
   isError: boolean
   /**
    * The tool-private presentation payload projected by its output declaration.
-   * It is persisted verbatim on `tool/result` for Host presenters and Client
-   * renderers to narrow independently. Absent when the tool declared no
-   * projector or the call was nested under a composite transport.
+   * It is persisted on `tool/result` or `tool/ptc-dispatch` for Host presenters
+   * and Client renderers to narrow independently. Absent when the tool
+   * declared no projector.
    */
   meta?: JsonValue
 }
