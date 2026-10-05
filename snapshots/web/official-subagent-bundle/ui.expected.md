@@ -1,0 +1,13 @@
+- text: Delegate a self-contained task to the official Claude Code subagent through its generated tools SDK in one run_code program. Ask it to reply with OFFICIAL_SUBAGENT_OK exactly, print only its returned output, then reply DONE. {{clock}}
+- button "Copy"
+- status: Completed
+- button "Completed in {{duration}}" [expanded]
+- button "Ran code and coordinated subagents" [expanded]
+- button "Code Delegate through the official Claude bundle"
+- button "Tool call subagent_claude_code · Read the fixture response"
+- paragraph: DONE
+- button "Copy"
+- button "Good response"
+- button "Bad response"
+- button "Branch into a new conversation"
+- text: {{clock}}
