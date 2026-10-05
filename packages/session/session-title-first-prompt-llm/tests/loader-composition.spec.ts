@@ -188,13 +188,14 @@ describe('session-title Loader composition', () => {
     }, { timeout: 10_000 })
 
     // The title request inherits the route but not its effort, so the
-    // 64-token cap holds the visible title instead of max-effort thinking.
-    expect(server.requests).toEqual([expect.objectContaining({
+    // output cap holds the visible title instead of max-effort thinking.
+    expect(server.requests).toHaveLength(1)
+    expect(server.requests[0]).toMatchObject({
       model: 'adaptive-model',
       max_tokens: 64,
-      thinking: expect.objectContaining({ type: 'adaptive' }),
+      thinking: { type: 'adaptive' },
       output_config: { effort: 'low' },
-    })])
+    })
     expect(ctx.sessionTitle.get(session)).toMatchObject({
       title: 'hello',
       messageSeqs: [messageSeq],
