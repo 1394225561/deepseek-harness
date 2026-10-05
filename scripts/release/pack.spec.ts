@@ -1,6 +1,7 @@
 /** Real-pnpm regression coverage for release packing, selection, hooks, and payload checks. */
 
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { createServer, type ServerResponse } from 'node:http'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -138,6 +139,125 @@ describe('release pack CLI', () => {
     const expectedHooks = members.flatMap(member => ['prepack', 'prepare', 'postpack'].map(phase => `${member.name}:${phase}`))
     expect([...hooks].sort()).toEqual([...expectedHooks].sort())
     if (concurrency !== '2') expect(hooks).toEqual(expectedHooks)
+  }, 120_000)
+
+  it('overlaps two independent packs and keeps later packages within the concurrency limit', async () => {
+    const root = fixture()
+    const names = ['alpha', 'bravo', 'charlie'].map(name => `@deepseek-ai/${name}`)
+    for (const name of names) {
+      const directory = `vendor/${name.slice('@deepseek-ai/'.length)}`
+      packageFixture(root, directory, name, {
+        scripts: { prepack: 'node hook.cjs start', postpack: 'node hook.cjs finish' },
+      })
+      write(join(root, directory, 'hook.cjs'), [
+        "const { get } = require('node:http');",
+        "const { name } = require('./package.json');",
+        'const url = `${process.env.DSH_PACK_COORDINATOR}/${process.argv[2]}?name=${encodeURIComponent(name)}&pid=${process.pid}`;',
+        'const request = get(url, { agent: false }, response => {',
+        '  response.resume();',
+        "  response.on('end', () => { if (response.statusCode !== 200) process.exitCode = 1; });",
+        '});',
+        "request.on('error', error => { console.error(error); process.exitCode = 1; });",
+        '',
+      ].join('\n'))
+    }
+
+    const active = new Set<string>()
+    const waiting = new Map<string, ServerResponse>()
+    const started: string[] = []
+    const completed: string[] = []
+    const pids = new Set<number>()
+    const errors: string[] = []
+    let maximumActive = 0
+    const server = createServer((request, response) => {
+      const url = new URL(request.url ?? '/', 'http://localhost')
+      const name = url.searchParams.get('name') ?? ''
+      const pid = Number(url.searchParams.get('pid'))
+      if (!names.includes(name) || !Number.isSafeInteger(pid) || pid < 1
+        || (url.pathname !== '/start' && url.pathname !== '/finish')) {
+        errors.push(`unexpected hook request ${request.url ?? ''}`)
+        response.writeHead(400).end()
+        return
+      }
+      pids.add(pid)
+      if (url.pathname === '/start') {
+        if (active.has(name)) errors.push(`${name} started twice`)
+        started.push(name)
+        active.add(name)
+        maximumActive = Math.max(maximumActive, active.size)
+        waiting.set(name, response)
+      } else {
+        if (!active.delete(name)) errors.push(`${name} finished without starting`)
+        completed.push(name)
+        response.end()
+      }
+    })
+    const release = (name: string | undefined): void => {
+      const response = name === undefined ? undefined : waiting.get(name)
+      if (name === undefined || response === undefined) throw new Error('pack hook has not reached its barrier')
+      waiting.delete(name)
+      response.end()
+    }
+    const controller = new AbortController()
+    const timer = setTimeout(() => { controller.abort() }, 90_000)
+    let pending: ReturnType<typeof runGate> | undefined
+    try {
+      await new Promise<void>((resolveListen, rejectListen) => {
+        server.once('error', rejectListen)
+        server.listen(0, '127.0.0.1', () => {
+          server.off('error', rejectListen)
+          resolveListen()
+        })
+      })
+      const address = server.address()
+      if (address === null || typeof address === 'string') throw new Error('pack coordinator has no TCP address')
+      const gate = packGate(root, ['--concurrency', '2'])
+      gate.env = { ...gate.env, DSH_PACK_COORDINATOR: `http://127.0.0.1:${address.port}` }
+      pending = runGate(gate, controller.signal)
+
+      await vi.waitFor(() => { expect(started).toHaveLength(2) }, { timeout: 30_000, interval: 25 })
+      expect(active.size).toBe(2)
+      expect([...pids].every(pid => !stopped(pid))).toBe(true)
+      expect(completed).toEqual([])
+      release(started[0])
+
+      await vi.waitFor(() => { expect(started).toHaveLength(3) }, { timeout: 30_000, interval: 25 })
+      expect(completed).toEqual([started[0]])
+      expect(active.size).toBe(2)
+      expect(maximumActive).toBe(2)
+      release(started[1])
+      release(started[2])
+
+      const result = await pending
+      expect(result.error).toBeUndefined()
+      expect(result.aborted).toBe(false)
+      expect(result.signalCode).toBeNull()
+      expect(result.exitCode, result.output.map(chunk => chunk.text).join('')).toBe(0)
+      expect(errors).toEqual([])
+      expect([...started].sort()).toEqual(names)
+      expect([...completed].sort()).toEqual(names)
+      expect(active.size).toBe(0)
+      expect(maximumActive).toBe(2)
+      await vi.waitFor(() => { expect([...pids].every(stopped)).toBe(true) }, { timeout: 10_000, interval: 25 })
+      expect(readPublishOrder(join(root, 'packed'))).toHaveLength(3)
+    } finally {
+      clearTimeout(timer)
+      controller.abort()
+      try {
+        await pending
+      } finally {
+        if (server.listening) {
+          const closed = new Promise<void>((resolveClose, rejectClose) => {
+            server.close((error) => {
+              if (error === undefined) resolveClose()
+              else rejectClose(error)
+            })
+          })
+          server.closeAllConnections()
+          await closed
+        }
+      }
+    }
   }, 120_000)
 
   it('does not broaden an empty parallel family to the whole workspace', async () => {

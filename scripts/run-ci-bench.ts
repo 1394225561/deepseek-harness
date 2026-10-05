@@ -1,4 +1,4 @@
-/** Build the existing benchmark artifacts without repeating aggregate test and script typechecks. */
+/** Build benchmark artifacts with TypeScript diagnostics owned by required full builds. */
 
 import { resolve } from 'node:path'
 import { buildLibraryArtifacts, runPnpmCommand } from './compile-referenced-projects.ts'
@@ -10,7 +10,7 @@ import { buildLibraryArtifacts, runPnpmCommand } from './compile-referenced-proj
  */
 export function runCiBench(root: string): void {
   runPnpmCommand(root, ['run', 'build:native-system'])
-  buildLibraryArtifacts(root, false)
+  buildLibraryArtifacts(root, false, 'benchmark-emit')
   runPnpmCommand(root, ['exec', 'tsdown', '--config-loader', 'native', '--config', 'benchmarks/tsdown.config.ts'])
   runPnpmCommand(root, ['run', 'build:web'])
   runPnpmCommand(root, ['run', 'test:bench:built'])

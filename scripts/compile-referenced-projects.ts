@@ -7,6 +7,8 @@ import { parseArgs } from 'node:util'
 import ts from 'typescript'
 import { pnpmCommand } from './release/process.ts'
 
+type CompilationMode = 'checked' | 'benchmark-emit'
+
 /**
  * Run one package-manager command serially with the inherited build environment.
  * @param root - Repository root supplying the command's working directory.
@@ -23,12 +25,17 @@ export function runPnpmCommand(root: string, args: readonly string[]): void {
 }
 
 /**
- * Compile one aggregate's project references with the ordinary serial TypeScript builder.
+ * Compile one aggregate's project references with the serial TypeScript builder.
  * @param root - Repository root containing the aggregate tsconfig.
  * @param face - Independent compiler face whose package projects are emitted.
+ * @param mode - Check package types by default; benchmark emission defers diagnostics to required full builds.
  * @throws If the aggregate emits files, its configuration is invalid, or package compilation fails.
  */
-export function compileReferencedProjects(root: string, face: 'host' | 'client'): void {
+export function compileReferencedProjects(
+  root: string,
+  face: 'host' | 'client',
+  mode: CompilationMode = 'checked',
+): void {
   const configPath = resolve(root, `tsconfig.${face}.json`)
   const config = ts.getParsedCommandLineOfConfigFile(configPath, {}, {
     ...ts.sys,
@@ -54,6 +61,7 @@ export function compileReferencedProjects(root: string, face: 'host' | 'client')
     ...face === 'host' ? ['--max-old-space-size=4096'] : [],
     compiler,
     '-b',
+    ...mode === 'benchmark-emit' ? ['--noCheck'] : [],
     // Relative arguments keep the complete workspace graph below Windows' command-line limit.
     ...references.map(reference => relative(root, reference.path)),
   ], { cwd: root, stdio: 'inherit' })
@@ -67,14 +75,15 @@ export function compileReferencedProjects(root: string, face: 'host' | 'client')
  * Emit package libraries in Host, Desktop, then Client dependency order.
  * @param root - Repository root containing the compiler and bundle configurations.
  * @param hostOnly - Omit the Client compiler and bundler after the Host artifacts are ready.
+ * @param mode - Check package types by default; benchmark emission defers diagnostics to required full builds.
  * @throws If any compiler or bundler fails.
  */
-export function buildLibraryArtifacts(root: string, hostOnly: boolean): void {
-  compileReferencedProjects(root, 'host')
+export function buildLibraryArtifacts(root: string, hostOnly: boolean, mode: CompilationMode = 'checked'): void {
+  compileReferencedProjects(root, 'host', mode)
   runPnpmCommand(root, ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'host'])
   runPnpmCommand(root, ['--filter', '@deepseek-ai/dsh-desktop', 'run', 'bundle'])
   if (hostOnly) return
-  compileReferencedProjects(root, 'client')
+  compileReferencedProjects(root, 'client', mode)
   runPnpmCommand(root, ['exec', 'tsdown', '--config-loader', 'native', '--env.DSH_BUILD_FACE', 'client'])
 }
 

@@ -12,7 +12,9 @@ PR job 需要相同的编译包来运行 benchmark、兼容性、打包和运行
 
 必需的 Linux consumer 与原生 Windows build job 保留普通构建，包括两个完整 aggregate program。公开的 `build` 和 `typecheck` 保留相同检查。[Node 版本职责](2026-07-06-node-engine-floor.zh.md)与[原生 Windows 职责](2026-08-08-native-windows-pull-request-ci.zh.md)仍然有效。
 
-PR 产物构建通过一个串行 `tsc -b` 进程编译各 compiler face 的全部现有 project reference，然后运行普通 Typert、bundling、Desktop 和 Web 阶段。helper 读取现有 Host 与 Client aggregate，而不维护另一份包清单。它只省略各 root 附加的测试和脚本 program；包诊断、emit 输出及 Host 先于 Client 的顺序仍然必需。非 PR 的 release 和真实 API 工作流构建保留普通检查。
+带检查的 PR 产物构建通过一个串行 `tsc -b` 进程编译各 compiler face 的全部现有 project reference，然后运行普通 Typert、bundling、Desktop 和 Web 阶段。helper 读取现有 Host 与 Client aggregate，而不维护另一份包清单。它只省略各 root 附加的测试和脚本 program；包诊断、emit 输出及 Host 先于 Client 的顺序仍然必需。非 PR 的 release 和真实 API 工作流构建保留普通检查。
+
+只有 CI benchmark helper 选择 `tsc -b --noCheck` 来 emit 包。benchmark 消费 JavaScript 和 Typert 运行时元数据；其声明与 build-information 文件是临时产物，不会发布。Typert 独立分析源码类型，语义诊断由必需的完整构建负责。语法与配置错误仍会拒绝 benchmark 准备。TypeScript 记录待检查状态，使后续普通增量构建无需删除缓存或强制重建，就能诊断相同源码。公开 benchmark script，以及所有 release、Python、preview、compatibility 和普通产物 builder，均保留带检查的默认行为。
 
 Python executable builder 在验证 runtime closure 后，通过 `--artifacts-only` 选择产物编译。无效 closure 在编译、部署或打包前失败；默认完整构建和复用预构建产物的 `--skip-build` 模式保留原有阶段。
 
@@ -34,8 +36,10 @@ job 清单、runner 选择和 benchmark sample 数量保持固定；gate 与 wor
 
 冷启动 Host reference 构建耗时 23.49 秒、峰值 RSS 为 1.91 GiB；完整编译器阶段为 84.01 秒和 3.87 GiB。全部 5,932 个 emit 文件的路径与 SHA-256 相同。这些是单次本地编译器样本，不含 bundling 和测试；PR 延迟结果以当前 head 的 CI 为准。benchmark 场景与预算保持不变。
 
+在 Apple M4 Pro / Node 24.19.0 上，三对交替冷启动准备构建比较带检查的 reference 编译与仅用于 benchmark 的 emit：前者为 61.16、82.53、57.80 秒，后者为 55.53、50.82、50.75 秒。准备阶段中位数从 61.16 降至 50.82 秒（16.9%）；范围包括 native support、library、benchmark worker 和 Web 产物，不含依赖安装与测量。每对都包含相同的 11,894 个输出路径，其中 3,181 个 JavaScript 文件逐字节相同，source map 不变。356 个 build-information 文件不同，九个声明仅调整 union 成员顺序；benchmark lane 不会发布这些文件。library 构建的 user CPU 中位数从 76.45 降至 64.23 秒，maximum RSS 中位数保持在约 2.75 GiB。完整 PR 耗时以必需 CI 为准。
+
 并行打包依赖锁定的 pnpm CLI 正确处理精确 recursive filter、pack destination、workspace 并发上限及各包的 lifecycle hook。升级 pnpm 时，必须先通过 `scripts/release/pack.spec.ts` 中的真实 CLI 检查，再让 release 打包采用该版本。
 
 覆盖率权重累加 Vitest 互不重叠的 environment、preparation、setup、collection 和 execution 成本。CI 的平台/environment/pool cache prefix 不匹配原来的 `coverage-times-<run>` archive。持久化本地 checkout 在切换期间可能为未测量的文件保留墙钟权重；删除 `.coverage-times.json` 可重置该历史。这些参考权重影响分区分配，完整清单与合并后的覆盖率阈值仍然必需。
 
-产物构建有意不诊断仅属于 aggregate 的测试或脚本错误。必需的普通构建拒绝这些错误；fixture 检查还验证两个路径都会拒绝包错误，并比较 emit 的 JavaScript、声明、map 和 build 信息。删除或改变必需的完整构建前，必须先把两个 aggregate 检查转交另一处阻塞型 owner。master 串行 reference 按[现有政策](2026-07-21-serial-cross-platform-ci-reference.zh.md)保持完整。
+带检查的产物构建有意不诊断仅属于 aggregate 的测试或脚本错误。必需的普通构建拒绝这些错误；fixture 检查还验证两个路径都会拒绝包错误，并比较 emit 的 JavaScript、声明、map 和 build 信息。删除或改变必需的完整构建前，必须先把两个 aggregate 检查转交另一处阻塞型 owner。master 串行 reference 按[现有政策](2026-07-21-serial-cross-platform-ci-reference.zh.md)保持完整。
