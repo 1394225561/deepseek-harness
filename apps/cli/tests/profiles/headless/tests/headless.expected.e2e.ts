@@ -1011,7 +1011,7 @@ describe('headless stream-json snapshots', () => {
           source: { kind: 'subagent-settled', form: 'notice', senderSessionId: child.header.id },
         })
         expect(JSON.stringify(notices[0])).toContain('finished and will do no further work unless you send it more.')
-        expect(JSON.stringify(notices[0])).not.toContain('CHILD_RESULT')
+        expect(JSON.stringify(notices[0])).toContain('CHILD_RESULT')
 
         const context = contextFromLogs([parent.content, child.content])
         const normalizedChild = normalizeSessionSnapshot(child.content, context)
