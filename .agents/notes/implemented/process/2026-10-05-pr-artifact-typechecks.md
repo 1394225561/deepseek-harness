@@ -16,7 +16,7 @@ PR artifact builds compile every existing project reference from each compiler f
 
 CI invokes the internal build helpers directly and keeps the root package manifest unchanged. Root manifest edits activate the separate native-addon platform matrix even when only build aliases change; avoiding that trigger preserves the existing workflow set and concurrent-job ceiling without weakening native validation.
 
-Job inventory, runner selectors, gate budgets, worker counts, and benchmark sample counts stay fixed. Coverage partitions reuse compact file-cost metadata within their platform and runner pool. Parallel release packing uses pnpm's existing bounded scheduler; serial publication keeps family order.
+Job inventory, runner selectors, gate budgets, worker counts, and benchmark sample counts stay fixed. The three compatibility cases use at most two concurrent jobs; the two-target Python runtime matrix follows their completion. Before that matrix, four Linux lanes, two compatibility jobs, the Python SDK, and three Windows lanes permit at most ten worker jobs. Afterwards, the remaining eight lanes and two runtime targets keep the same ceiling. Coverage partitions reuse compact file-cost metadata within their platform and runner pool. Parallel release packing uses pnpm's existing bounded scheduler; serial publication keeps family order.
 
 ## Alternatives considered
 

@@ -14,6 +14,15 @@ const runnerPrivatePnpmDestination = /^\$\{\{ runner\.temp \}\}\/setup-pnpm-\$\{
 const nativeWindowsPnpmDestination = '${{ runner.temp }}/setup-pnpm-js-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}'
 
 describe('CI workflow', () => {
+  it('bounds compatibility jobs before the two runtime targets start', () => {
+    const ci = loadWorkflow('.github/workflows/ci.yml')
+    const compatibility = workflowJob(ci, 'node-compat')
+    const runtime = workflowJob(ci, 'python-runtime')
+    expect(compatibility.strategy).toMatchObject({ 'max-parallel': 2 })
+    expect(runtime.needs).toBe('node-compat')
+    expect(runtime.with).toMatchObject({ targets: 'node24-linux-x64,node24-win-x64' })
+  })
+
   it('retains aggregate diagnostics in required builds and protected publication', () => {
     const ci = loadWorkflow('.github/workflows/ci.yml')
     for (const [name, command] of [
