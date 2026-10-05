@@ -688,6 +688,167 @@ describe('ACP prompt lifecycle', () => {
     }
   })
 
+  it('settles an initially cancelled prompt after its output without waiting for a later summary', async () => {
+    const script: StreamChunk[][] = []
+    harness = await makeBridgeHarness({ script })
+    const ctx = harness.ctx
+    const delegated = await installDelegationTool(ctx)
+    const ref = await harness.attachments!.saveImage({ data: Uint8Array.of(6), mediaType: 'image/png' })
+    ctx.tools.register(defineContentToolFixture({
+      name: 'continue_stream', description: 'Continue the interrupted response.', parameters: {},
+      execute: () => [{ type: 'text', text: 'continue until cancelled' }],
+    }))
+    // Interrupted streams retain only text/reasoning, so a completed step supplies the queued image.
+    script.push([
+      { type: 'block-start', index: 1, blockType: 'image' },
+      { type: 'block-end', index: 1, block: { type: 'image', attachment: ref } },
+      ...toolCallResponse('continue-stream', 'continue_stream', {}),
+    ], textResponse('late autonomous answer'), toolCallResponse('delegate-again', 'delegate_again', {}),
+    textResponse('later child answer'), textResponse('later parent answer'))
+    const streaming = Promise.withResolvers<undefined>()
+    const cleanupStarted = Promise.withResolvers<undefined>()
+    const releaseCleanup = Promise.withResolvers<undefined>()
+    const reading = Promise.withResolvers<undefined>()
+    const releaseImage = Promise.withResolvers<undefined>()
+    const lateStarted = Promise.withResolvers<undefined>()
+    const releaseLate = Promise.withResolvers<undefined>()
+    harness.attachments!.beforeRead = () => {
+      reading.resolve(undefined)
+      return releaseImage.promise
+    }
+    const stream = harness.adapter.stream.bind(harness.adapter)
+    vi.spyOn(harness.adapter, 'stream').mockImplementation(async function* (options) {
+      const prompt = options.messages.at(-1)?.content
+      if (prompt?.some(block => block.type === 'text' && block.text === 'continue until cancelled')) {
+        const signal = options.signal
+        if (signal === undefined) throw new Error('interrupted stream requires a signal')
+        try {
+          yield { type: 'block-start', index: 0, blockType: 'text' }
+          yield { type: 'text-delta', index: 0, text: 'partial' }
+          streaming.resolve(undefined)
+          await new Promise<void>((_resolve, reject) => {
+            if (signal.aborted) {
+              reject(new Error('aborted'))
+              return
+            }
+            signal.addEventListener('abort', () => { reject(new Error('aborted')) }, { once: true })
+          })
+        } finally {
+          cleanupStarted.resolve(undefined)
+          await releaseCleanup.promise
+        }
+        return
+      }
+      if (prompt?.some(block => block.type === 'text' && block.text === 'late child result')) {
+        lateStarted.resolve(undefined)
+        await releaseLate.promise
+      }
+      yield* stream(options)
+    })
+    const sessionId = await newSession(harness)
+    const parent = ctx.agents.get(SessionId(sessionId))!
+    let result: { stopReason: string } | undefined
+    const first = harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'interrupted image' }] })
+      .then((value) => { result = value; return value })
+    try {
+      await streaming.promise
+      await harness.client.cancel({ sessionId })
+      await cleanupStarted.promise
+      parent.followup(createUserMessage({ content: [{ type: 'text', text: 'late child result' }], source: { kind: 'test' } }))
+      expect(result).toBeUndefined()
+      releaseCleanup.resolve(undefined)
+      await Promise.all([reading.promise, lateStarted.promise])
+      await setImmediate()
+      expect(result).toBeUndefined()
+      expect(messageText(harness)).toBe('')
+      releaseImage.resolve(undefined)
+      await vi.waitFor(() => { expect(result).toEqual({ stopReason: 'cancelled' }) })
+      expect(parent.status).toBe('running')
+      expect(harness.updates.filter(update => update.sessionUpdate === 'agent_message_chunk')).toEqual([
+        expect.objectContaining({ content: { type: 'image', data: 'Bg==', mimeType: 'image/png' } }),
+        expect.objectContaining({ content: { type: 'text', text: 'partial' } }),
+      ])
+      releaseLate.resolve(undefined)
+      await parent.whenIdle()
+      await expect(harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'delegate again' }] }))
+        .resolves.toEqual({ stopReason: 'end_turn' })
+      expect(delegated()).toBe(true)
+      expect(messageText(harness)).toContain('later parent answer')
+    } finally {
+      releaseCleanup.resolve(undefined)
+      releaseImage.resolve(undefined)
+      releaseLate.resolve(undefined)
+      await first
+      await parent.whenIdle()
+    }
+  })
+
+  it('waits for cancelled maintenance cleanup without following its later summary', async () => {
+    harness = await makeBridgeHarness({ script: [
+      textResponse('late autonomous answer'),
+      toolCallResponse('delegate-again', 'delegate_again', {}),
+      textResponse('later child answer'), textResponse('later parent answer'),
+    ] })
+    const ctx = harness.ctx
+    const delegated = await installDelegationTool(ctx)
+    const sessionId = await newSession(harness)
+    const parent = ctx.agents.get(SessionId(sessionId))!
+    const queued = Promise.withResolvers<undefined>()
+    ctx.on('agent/inbox/inserted', ({ agent, message }) => {
+      if (agent === parent && message.content.some(block => block.type === 'text' && block.text === 'queued prompt')) {
+        queued.resolve(undefined)
+      }
+    })
+    const cleanupStarted = Promise.withResolvers<undefined>()
+    const releaseCleanup = Promise.withResolvers<undefined>()
+    const lateStarted = Promise.withResolvers<undefined>()
+    const releaseLate = Promise.withResolvers<undefined>()
+    const stream = harness.adapter.stream.bind(harness.adapter)
+    vi.spyOn(harness.adapter, 'stream').mockImplementation(async function* (options) {
+      if (options.messages.at(-1)?.content.some(block => block.type === 'text' && block.text === 'late child result')) {
+        lateStarted.resolve(undefined)
+        await releaseLate.promise
+      }
+      yield* stream(options)
+    })
+    const maintenance = parent.runMaintenance(async (signal) => {
+      await new Promise<void>((resolve) => {
+        signal.addEventListener('abort', () => { resolve() }, { once: true })
+      })
+      cleanupStarted.resolve(undefined)
+      await releaseCleanup.promise
+    })
+    let result: { stopReason: string } | undefined
+    const first = harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'queued prompt' }] })
+      .then((value) => { result = value; return value })
+    try {
+      await queued.promise
+      await harness.client.cancel({ sessionId })
+      await cleanupStarted.promise
+      parent.followup(createUserMessage({ content: [{ type: 'text', text: 'late child result' }], source: { kind: 'test' } }))
+      await setImmediate()
+      expect(parent.status).toBe('idle')
+      expect(result).toBeUndefined()
+      releaseCleanup.resolve(undefined)
+      await lateStarted.promise
+      await maintenance
+      await vi.waitFor(() => { expect(result).toEqual({ stopReason: 'cancelled' }) })
+      expect(parent.status).toBe('running')
+      releaseLate.resolve(undefined)
+      await parent.whenIdle()
+      await expect(harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'delegate again' }] }))
+        .resolves.toEqual({ stopReason: 'end_turn' })
+      expect(delegated()).toBe(true)
+      expect(messageText(harness)).toContain('later parent answer')
+    } finally {
+      releaseCleanup.resolve(undefined)
+      releaseLate.resolve(undefined)
+      await maintenance
+      await first
+      await parent.whenIdle()
+    }
+  })
+
   it.each([false, true])('waits for the later summary output and reports its delivery failure (%s)', async (fail) => {
     const script: StreamChunk[][] = [textResponse('waiting')]
     harness = await makeBridgeHarness({ script })

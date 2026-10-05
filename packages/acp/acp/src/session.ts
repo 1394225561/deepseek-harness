@@ -10,7 +10,7 @@ import {
   type SessionNotification,
   type StopReason,
 } from '@agentclientprotocol/sdk'
-import type { Agent, AgentHandle, AgentOptions, ModelSelection } from '@deepseek-ai/dsh-agent'
+import type { Agent, AgentHandle, AgentOptions, AgentStatus, ModelSelection } from '@deepseek-ai/dsh-agent'
 import { createUserMessage, errorChain, type UserMessage } from '@deepseek-ai/dsh-llm'
 import { type Session, type SessionEvent, type SessionId, type TurnEndReason } from '@deepseek-ai/dsh-session'
 import { AcpContentError, admitAcpPrompt } from './content.ts'
@@ -57,7 +57,8 @@ interface InflightPrompt {
   admissionDone: Promise<void>
   finishAdmission: () => void
   admissionController: AbortController
-  cancelRequested: boolean
+  cancellationDone: PromiseWithResolvers<void>
+  cancelStartedIdle: boolean
   settlementStarted: boolean
   outputError: Error | undefined
   agentError: Error | undefined
@@ -262,7 +263,8 @@ export class AcpSession {
       admissionDone: admission.promise,
       finishAdmission: admission.resolve,
       admissionController,
-      cancelRequested: false,
+      cancellationDone: Promise.withResolvers<void>(),
+      cancelStartedIdle: false,
       settlementStarted: false,
       outputError: undefined,
       agentError: undefined,
@@ -310,7 +312,7 @@ export class AcpSession {
         inflight.finishAdmission()
       }
 
-      if (inflight.cancelRequested) {
+      if (inflight.admissionController.signal.aborted) {
         this.settleAfterQuiescence(inflight)
         return { stopReason: await completion.promise }
       }
@@ -420,6 +422,18 @@ export class AcpSession {
     this.settleAfterQuiescence(inflight)
   }
 
+  /**
+   * Complete cancelled activity without following a later root driver.
+   * @param status - the emitted transition, which may precede a reentrant wake.
+   */
+  onAgentStatus(status: AgentStatus): void {
+    const inflight = this.inflight
+    if (inflight === undefined || !inflight.messageQueued || !inflight.admissionController.signal.aborted) return
+    // Maintenance remains publicly idle; its next running transition belongs
+    // to work released after the maintenance task finished.
+    if (status === 'idle' || inflight.cancelStartedIdle) inflight.cancellationDone.resolve(this.outputTail)
+  }
+
   /** Await every update queued before this call. */
   drainUpdates(): Promise<void> {
     return this.outputTail
@@ -479,10 +493,20 @@ export class AcpSession {
   private cancelPrompt(detail: string): void {
     const inflight = this.inflight
     if (inflight === undefined) return
-    inflight.cancelRequested = true
+    const firstCancellation = !inflight.admissionController.signal.aborted
+    if (firstCancellation) inflight.cancelStartedIdle = this.agent.status === 'idle'
     inflight.admissionController.abort(new Error(detail))
     this.settleAfterQuiescence(inflight)
-    if (inflight.messageQueued) this.agent.cancel({ kind: 'user' })
+    if (!inflight.messageQueued) {
+      inflight.cancellationDone.resolve()
+      return
+    }
+    this.agent.cancel({ kind: 'user' })
+    if (firstCancellation) {
+      const done = inflight.cancellationDone
+      // Plugin disposal can detach status observers before this activity retires.
+      void this.agent.whenIdle().then(() => { done.resolve(this.outputTail) }, done.reject)
+    }
   }
 
   private settleAfterQuiescence(inflight: InflightPrompt): void {
@@ -492,32 +516,25 @@ export class AcpSession {
       await inflight.admissionDone
       if (inflight.messageQueued) {
         const subagents = this.ctx.get('subagents') as SubagentLifecycle | undefined
-        const signal = inflight.admissionController.signal
-        const cancelled = Promise.withResolvers<false>()
-        const onAbort = (): void => { cancelled.resolve(false) }
-        const isCancelled = (): boolean => inflight.cancelRequested
+        const cancelled = inflight.cancellationDone.promise
+        const isCancelled = (): boolean => inflight.admissionController.signal.aborted
         const idleAt = (seq: Session['seq']): boolean => this.agent.status === 'idle' && this.agent.session.seq === seq
-        signal.addEventListener('abort', onAbort, { once: true })
-        try {
-          while (true) {
-            await this.agent.whenIdle()
-            if (isCancelled()) break
-            const idleSeq = this.agent.session.seq
-            const children = await Promise.race([subagents?.waitForChildren(this.agent), cancelled.promise])
-            if (isCancelled()) break
-            if (children || !idleAt(idleSeq)) continue
-            await this.outputTail
-            if (isCancelled() || idleAt(idleSeq)) break
-          }
-        } finally {
-          signal.removeEventListener('abort', onAbort)
+        while (true) {
+          await Promise.race([this.agent.whenIdle(), cancelled])
+          if (isCancelled()) break
+          const idleSeq = this.agent.session.seq
+          const children = await Promise.race([subagents?.waitForChildren(this.agent), cancelled])
+          if (isCancelled()) break
+          if (children || !idleAt(idleSeq)) continue
+          await this.outputTail
+          if (isCancelled() || idleAt(idleSeq)) break
         }
-        if (inflight.cancelRequested) await this.outputTail
+        if (isCancelled()) await cancelled
       }
       /* v8 ignore next -- this prompt owns the slot until this exact settlement clears it. */
       if (this.inflight !== inflight) return
       this.inflight = undefined
-      if (inflight.cancelRequested) {
+      if (inflight.admissionController.signal.aborted) {
         inflight.resolve('cancelled')
         return
       }
