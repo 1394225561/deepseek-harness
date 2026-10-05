@@ -28,6 +28,23 @@ describe('CLI help discovery', () => {
     ])
   })
 
+  it('visits each command alias and lists a help command that repeats its parent once', async () => {
+    const visited: string[] = []
+    const parent = 'Usage: web [command]\n\nCommands:\n  serve|s [options]  Serve the UI\n  help [command]     display help for command\n'
+    const pages = await collectCliHelp(async (args) => {
+      visited.push(args.join(' '))
+      if (args.length === 0) return 'Usage: dsh\n'
+      if (args[0] === 'plugin') return 'Usage: dsh plugin\n'
+      const selected = args[0] === '--profile' ? args.slice(1) : args
+      return selected[1] === 'serve' || selected[1] === 's' ? 'Usage: web serve\n' : parent
+    }, ['web'])
+    expect(visited).toEqual(['', 'plugin', 'web', 'web serve', 'web s', 'web help', '--profile web'])
+    expect(pages.map(page => page.invocations)).toEqual([
+      ['dsh'], ['dsh plugin'], ['dsh web', 'dsh web help', 'dsh --profile web', 'dsh --profile web help'],
+      ['dsh web serve', 'dsh web s', 'dsh --profile web serve', 'dsh --profile web s'],
+    ])
+  })
+
   it.each(['', ' \r\n\n'])('rejects blank help %j', (help) => {
     expect(() => parseCliHelp(help)).toThrow('CLI help returned empty output')
   })

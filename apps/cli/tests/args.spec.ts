@@ -125,7 +125,11 @@ describe('parseDshArgs', () => {
       .toEqual({ mode: 'plugin', profile: 'tui', args: ['add', '--help'] })
     expect(parse(['plugin', '--profile', 'tui', 'add', '-h', '--profile', 'x']))
       .toEqual({ mode: 'plugin', profile: 'tui', args: ['add', '-h', '--profile', 'x'] })
+    // A leading pnpm option starts the forwarded arguments before the pnpm command.
+    expect(parse(['plugin', '--profile', 'tui', '--filter', 'x', '--profile', 'y', 'add', 'z']))
+      .toEqual({ mode: 'plugin', profile: 'tui', args: ['--filter', 'x', '--profile', 'y', 'add', 'z'] })
     expect(exitCode(['plugin', 'add', 'x', '--profile', 'tui'])).toBe(1)
+    expect(exitCode(['plugin', '--filter', 'x', 'add', '--profile', 'tui'])).toBe(1)
   })
 
   it.each([

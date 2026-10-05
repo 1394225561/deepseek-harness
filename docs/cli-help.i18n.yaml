@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/cli-help.md
 /:
-  en: 24a3ad7efe7ed273
-  zh: 24a3ad7efe7ed273
+  en: d11ca88bdc409249
+  zh: d11ca88bdc409249
 /dsh-cli-help:
   en: b7174eab3476579d
   zh: 5ddab967320e3cff
