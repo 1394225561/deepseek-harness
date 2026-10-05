@@ -389,6 +389,7 @@ export class AcpSession {
       const inflight = this.inflight
       if (inflight !== undefined && event.type === 'turn/end' && inflight.turn === event.data.turn) {
         inflight.endReason = event.data.reason
+        inflight.agentError = undefined
       }
       if (event.type === 'turn/end') this.modelControl.releaseTurn(event.data.turn)
     }
@@ -408,15 +409,13 @@ export class AcpSession {
 
   /**
    * Correlate an Agent interval failure with the active ACP prompt.
-   * @param turn - failed turn number.
    * @param error - original same-process failure.
    */
-  onAgentError(turn: number, error: unknown): void {
+  onAgentError(error: unknown): void {
     const inflight = this.inflight
     if (inflight === undefined || !inflight.messageQueued) return
-    // AgentLoop balances an in-turn failure with durable turn/end; settlement
-    // reads that exact error reason. This slot records interval failures outside it.
-    if (inflight.turn === turn) return
+    // A later committed turn/end supersedes this live failure. Failed turn
+    // start/end appends have no terminal record and keep the failure observable.
     inflight.agentError = new Error(errorChain(error))
     this.settleAfterQuiescence(inflight)
   }

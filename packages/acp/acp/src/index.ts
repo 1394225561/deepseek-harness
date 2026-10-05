@@ -141,8 +141,8 @@ export function apply(ctx: Context, config: AcpConfig): void {
     ownedRecord(agent)?.onInboxClaimed(message, turn)
   })
 
-  ctx.on('agent/error', ({ agent, turn, error }) => {
-    ownedRecord(agent)?.onAgentError(turn, error)
+  ctx.on('agent/error', ({ agent, error }) => {
+    ownedRecord(agent)?.onAgentError(error)
   })
 
   ctx.on('llm/adapters-updated', () => {

@@ -75,6 +75,8 @@ One connection can run several sessions at once, each independent. The calls a c
 
 A prompt remains in flight while managed descendants run, while their results trigger later root turns, and while committed output drains. Root work accepted during that output drain joins the same activity interval before completion. Its completion includes the latest root stop reason and any assistant output delivery failure; only the original prompt turn pins the model selection captured at admission. Cancellation stops root work present at that call and releases the prompt wait, leaving the session usable for later prompts; subsequent child messages may start autonomous root work. Closing the session also drains its descendants.
 
+A failure to append `turn/start` or `turn/end` rejects the prompt even when a preceding turn completed.
+
 Session configuration offers opaque provider/model choices from the live LLM service catalog and a `reasoning_effort` selector when the exact model declares one. A prompt snapshots that selection before asynchronous image admission and pins it across every model step in that turn; a concurrent option change applies to the next turn. ACP clients are trusted controllers: stdio MCP entries authorize their absolute commands and environment, HTTP entries authorize their absolute HTTP(S) URLs and headers, and any initial connection or discovery failure rolls back the unpublished Agent. Unsupported surfaces are omitted or rejected: `session/load`, deletion, fork, additional directories, SSE or ACP-transport MCP, modes, commands, plans, terminals, client filesystem operations, and elicitation.
 
 -----

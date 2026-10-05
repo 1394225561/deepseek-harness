@@ -204,6 +204,33 @@ describe('ACP prompt lifecycle', () => {
     vi.restoreAllMocks()
   })
 
+  it.each(['turn/start', 'turn/end'] as const)('rejects a later %s append failure after an earlier completed turn', async (failedEvent) => {
+    harness = await makeBridgeHarness({ script: [textResponse('waiting'), textResponse('summary')] })
+    const sessionId = await newSession(harness)
+    const parent = harness.ctx.agents.get(SessionId(sessionId))!
+    const append = parent.session.append.bind(parent.session)
+    const appendSpy = vi.spyOn(parent.session, 'append')
+    const failures: number[] = []
+    harness.ctx.on('agent/error', ({ turn }) => { failures.push(turn) })
+    const waitForChildren = vi.fn().mockImplementationOnce(() => {
+      appendSpy.mockImplementation(((type: string, ...rest: never[]) => {
+        if (type === failedEvent) throw new Error(`summary ${failedEvent} unavailable`)
+        return (append as (...args: never[]) => unknown)(type as never, ...rest)
+      }) as never)
+      parent.followup(createUserMessage({ content: [{ type: 'text', text: 'child result' }], source: { kind: 'test' } }))
+      return Promise.resolve(true)
+    }).mockResolvedValue(false)
+    harness.ctx.provide('subagents', { waitForChildren, drainDescendants: vi.fn() } as never)
+    try {
+      await expect(harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'delegate' }] }))
+        .rejects.toThrow(`summary ${failedEvent} unavailable`)
+      expect(failures).toEqual([failedEvent === 'turn/start' ? 1 : 2])
+      expect(harness.adapter.requests).toHaveLength(failedEvent === 'turn/start' ? 1 : 2)
+    } finally {
+      appendSpy.mockRestore()
+    }
+  })
+
   it('settles even when an earlier turn observer throws', async () => {
     harness = await makeBridgeHarness({ script: [textResponse('answer')] })
     harness.ctx.on('session/event', (_session, event) => {
