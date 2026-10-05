@@ -280,8 +280,7 @@ describe.skipIf(process.platform === 'win32')('Web sidebar terminal', () => {
     expect(scaffold.ctx.terminalController.list(agent.id).map(terminal => terminal.cwd)).toEqual([selected, returned])
     expect(alive(firstProcess)).toBe(true)
     expect(sandboxPolicy.resolve({ session: agent.session })).toEqual(policy)
-    expect(confine.mock.calls.length).toBeGreaterThanOrEqual(2)
-    expect(confine.mock.calls.every(call => call[1].mode === policy.mode && call[1].workspaceRoot === policy.workspaceRoot)).toBe(true)
+    expect(confine).not.toHaveBeenCalled()
     expect(tripwire.pageErrors).toEqual([])
   })
 
