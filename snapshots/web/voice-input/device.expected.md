@@ -1,0 +1,6 @@
+- menu:
+  - menuitem "System default"
+  - menuitem "Fake Audio Input 1 Microphone input level":
+    - text: Fake Audio Input 1
+    - img "Microphone input level"
+  - menuitem "Fake Audio Input 2"

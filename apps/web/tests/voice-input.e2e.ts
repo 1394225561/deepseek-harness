@@ -62,7 +62,14 @@ it.skipIf(webSnapshotMode() === 'record')('guides voice setup, records from stan
   resources.browser = browser
   const page = await newEnglishPage(browser), tripwire = watchConsole(page)
   await page.addInitScript(() => {
-    const holder = window as Window & { voiceTestRecorder?: MediaRecorder }
+    const holder = window as Window & { voiceTestRecorder?: MediaRecorder; voiceTestStreams?: MediaStream[] }
+    holder.voiceTestStreams = []
+    const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
+    navigator.mediaDevices.getUserMedia = async (constraints) => {
+      const stream = await getUserMedia(constraints)
+      holder.voiceTestStreams!.push(stream)
+      return stream
+    }
     const NativeRecorder = window.MediaRecorder
     window.MediaRecorder = class extends NativeRecorder {
       constructor(stream: MediaStream, options?: MediaRecorderOptions) { super(stream, options); holder.voiceTestRecorder = this }
@@ -120,6 +127,33 @@ it.skipIf(webSnapshotMode() === 'record')('guides voice setup, records from stan
   expect(recognize).not.toHaveBeenCalled()
   preparation = { phase: 'standby' }
   for (const listener of readinessListeners) listener()
+  const devicePicker = page.getByRole('button', { name: 'Input device', exact: true })
+  await devicePicker.click()
+  const level = page.getByRole('img', { name: 'Microphone input level', exact: true })
+  await level.waitFor()
+  const devices = await page.evaluate(async () => (await navigator.mediaDevices.enumerateDevices())
+    .filter(device => device.kind === 'audioinput' && device.deviceId !== 'default'))
+  const selectedDevice = devices[0]!
+  await page.getByRole('menuitem', { name: selectedDevice.label, exact: true }).click()
+  await page.getByRole('menuitem', { name: `${selectedDevice.label} Microphone input level`, exact: true }).waitFor()
+  await expect.poll(() => page.evaluate(() => {
+    const streams = (window as Window & { voiceTestStreams?: MediaStream[] }).voiceTestStreams!
+    return streams.filter(stream => stream.getTracks().some(track => track.readyState === 'live')).length
+  })).toBe(1)
+  await compareOrRefreshGolden(fileURLToPath(new URL('../../../snapshots/web/voice-input/device.expected.md', import.meta.url)),
+    await captureStableAria(page, '[role="menu"]', scaffold.workspaceCwd), webSnapshotMode())
+  for (const width of [1280, 360]) {
+    await page.setViewportSize({ width, height: 900 })
+    await expect.poll(async () => {
+      const bounds = await page.getByRole('menu').boundingBox()
+      return bounds !== null && bounds.x >= 0 && bounds.x + bounds.width <= width
+    }).toBe(true)
+  }
+  await page.keyboard.press('Escape')
+  await level.waitFor({ state: 'hidden' })
+  await expect.poll(() => page.evaluate(() => (window as Window & { voiceTestStreams?: MediaStream[] }).voiceTestStreams!
+    .every(stream => stream.getTracks().every(track => track.readyState === 'ended')))).toBe(true)
+  await page.setViewportSize({ width: 1280, height: 900 })
   await page.getByRole('button', { name: 'New session', exact: true }).filter({ hasText: 'New Session' }).click()
   await mic.waitFor()
   await page.getByRole('button', { name: 'Plugins', exact: true }).click()
@@ -134,6 +168,8 @@ it.skipIf(webSnapshotMode() === 'record')('guides voice setup, records from stan
   await input.fill(prefix)
   await mic.click()
   await page.getByRole('button', { name: 'Stop and transcribe', exact: true }).waitFor()
+  expect(await page.evaluate(() => (window as Window & { voiceTestStreams?: MediaStream[] }).voiceTestStreams!
+    .at(-1)!.getAudioTracks()[0]!.getSettings().deviceId)).toBe(selectedDevice.deviceId)
   await compareOrRefreshGolden(recordingExpected,
     await captureStableAria(page, '[data-composer-card]', scaffold.workspaceCwd), webSnapshotMode())
   expect(await page.getByRole('dialog').count()).toBe(0)

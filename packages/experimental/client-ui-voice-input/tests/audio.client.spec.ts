@@ -134,3 +134,56 @@ it('contains a failing interruption callback and still releases the microphone',
     expect(report).toHaveBeenCalledWith('Speech recording error handler failed', error)
   } finally { report.mockRestore(); await b.recording.dispose() }
 })
+
+it('previews an exact microphone without creating a recorder and releases it when disconnected', async () => {
+  const b = captureFixture({ constructError: true }), failure = vi.fn()
+  const preview = new Recording(() => {}, 'usb-microphone')
+  try {
+    await preview.preview(failure)
+    expect(b.getUserMedia).toHaveBeenCalledWith({ audio: { deviceId: { exact: 'usb-microphone' },
+      echoCancellation: true, noiseSuppression: true }, video: false })
+    expect(preview.amplitude()).toBe(0.25)
+    b.track.dispatchEvent(new Event('ended'))
+    expect(failure).toHaveBeenCalledWith(expect.objectContaining({ kind: 'interrupted' }))
+    expect(b.trackStop).toHaveBeenCalledOnce()
+    expect(preview.amplitude()).toBe(0)
+  } finally { await preview.dispose() }
+})
+
+it.each(['NotFoundError', 'OverconstrainedError'])('reports an unavailable selected microphone on %s without falling back', async (name) => {
+  const b = captureFixture(), recording = new Recording(() => {}, 'removed')
+  b.getUserMedia.mockRejectedValueOnce(new DOMException('missing device', name))
+  try {
+    await expect(recording.start()).rejects.toMatchObject({ kind: 'deviceMissing' })
+    expect(b.getUserMedia).toHaveBeenCalledOnce()
+  } finally { await recording.dispose() }
+})
+
+it('releases the microphone if audio analysis cannot initialize', async () => {
+  const b = captureFixture()
+  vi.stubGlobal('AudioContext', function AudioUnavailable() { throw new Error('audio unavailable') })
+  try {
+    await expect(b.recording.preview()).rejects.toThrow('audio unavailable')
+    expect(b.trackStop).toHaveBeenCalledOnce()
+  } finally { await b.recording.dispose() }
+})
+
+it('preserves browser device-busy errors', async () => {
+  const b = captureFixture(), error = new DOMException('busy', 'NotReadableError')
+  b.getUserMedia.mockRejectedValueOnce(error)
+  try { await expect(b.recording.preview()).rejects.toBe(error) } finally { await b.recording.dispose() }
+})
+
+it('does not create a recorder after cancellation at preview completion', async () => {
+  const b = captureFixture(), ready = Promise.withResolvers<undefined>(), proceed = Promise.withResolvers<undefined>()
+  const preview = b.recording.preview.bind(b.recording)
+  vi.spyOn(b.recording, 'preview').mockImplementation(async (onError) => { await preview(onError); ready.resolve(undefined); await proceed.promise })
+  const starting = b.recording.start(), rejected = expect(starting).rejects.toMatchObject({ kind: 'cancelled' })
+  try {
+    await ready.promise
+    await b.recording.dispose()
+    proceed.resolve(undefined)
+    await rejected
+    expect(b.trackStop).toHaveBeenCalledOnce()
+  } finally { proceed.resolve(undefined); await b.recording.dispose() }
+})

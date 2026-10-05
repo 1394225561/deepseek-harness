@@ -6,6 +6,7 @@ import type { TranscriptionRequest } from '@deepseek-ai/dsh-experimental-api-spe
 import type { SpeechPreparationOptions, SpeechProviderId, SpeechSelection, SpeechSelectionPatch, Transcript } from '@deepseek-ai/dsh-experimental-speech-to-text/types'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { RecordingError, audioBase64, type Recording } from './audio.ts'
+import type { MicrophoneDevice } from './microphone-device.ts'
 import type { SpeechReadiness } from './readiness.ts'
 import { Waveform } from './Waveform.tsx'
 import { VoiceSetupDialog } from './VoiceSetupDialog.tsx'
@@ -19,6 +20,8 @@ export interface VoiceInputActions {
   openSettings: () => void
   /** @returns one microphone operation owned by the plugin lifecycle. */
   createRecording: () => Recording
+  /** Remember the browser microphone used by previews and subsequent recordings. */
+  selectMicrophone: (device: MicrophoneDevice) => void
   transcribe: (request: TranscriptionRequest, signal: AbortSignal) => Promise<RemoteResult<Transcript>>
   prepare: (providerId: SpeechProviderId, options?: SpeechPreparationOptions) => Promise<void>
   cancelPreparation: (providerId: SpeechProviderId) => Promise<void>
@@ -27,7 +30,7 @@ export interface VoiceInputActions {
 
 /** Entry-injected Host readiness and microphone operations. */
 export interface VoiceInputInjected extends VoiceInputActions {
-  hooks: { speechReadiness: HostObservable<SpeechReadiness> }
+  hooks: { speechReadiness: HostObservable<SpeechReadiness>; microphoneDevice: HostObservable<MicrophoneDevice> }
 }
 
 /** Composer-owned expansion and draft actions; preferences stay in plugin settings. */
