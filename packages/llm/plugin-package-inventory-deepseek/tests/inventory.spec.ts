@@ -103,7 +103,7 @@ describe('DeepSeek plugin package inventory', () => {
     const versioned = await packagePlugin(root, 'versioned', { name: 'same', version: 'undefined' })
     const unversioned = await packagePlugin(root, 'unversioned', { name: 'same' })
     const entries = reversed ? [unversioned, versioned] : [versioned, unversioned]
-    // Numeric generated IDs precede other keys in Loader's object-backed store.
+    // Canonical array-index IDs precede other keys in Loader's object-backed store.
     // Named IDs preserve both requested arrival orders before inventory sorting.
     await ctx.loader.root.update([...entries, ...entries].map((name, index) => ({
       id: `inventory-${String(index)}`,
