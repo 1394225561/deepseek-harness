@@ -1,16 +1,24 @@
+/* Full-viewport layer that blocks background clicks, including on the Windows caption. */
 .backdrop {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  display: grid;
-  place-items: center;
-  padding: calc(40px + var(--dsh-frame-chrome-top, 0px)) 40px 40px;
 }
 
-/* Shared dimming mask below the preview and its controls; like Modal, it leaves the Windows caption unpainted. */
-.mask {
+/* Painted area below the Windows caption; like Modal, the caption stays unpainted. */
+.stage {
   position: absolute;
   inset: var(--dsh-frame-chrome-top, 0px) 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+
+/* Shared dimming mask below the preview and its controls. */
+.mask {
+  position: absolute;
+  inset: 0;
   background: var(--dsw-alias-bg-mask-1);
   backdrop-filter: var(--dsw-mask-blur);
 }
@@ -18,7 +26,7 @@
 .image {
   position: relative;
   max-width: min(100%, 1600px);
-  max-height: calc(100vh - 80px - var(--dsh-frame-chrome-top, 0px));
+  max-height: 100%;
   object-fit: contain;
   border-radius: var(--dsw-radius-lg);
   background: var(--dsw-specific-input-major);
@@ -27,8 +35,8 @@
 }
 
 .close {
-  position: fixed;
-  top: calc(20px + var(--dsh-frame-chrome-top, 0px));
+  position: absolute;
+  top: 20px;
   right: 20px;
   z-index: 1;
   display: grid;

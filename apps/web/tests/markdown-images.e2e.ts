@@ -289,7 +289,7 @@ describe('web e2e: Markdown image rendering', () => {
     await page.getByRole('button', { name: `View full image: ${WORKSPACE_ALT}`, exact: true }).click()
     const lightbox = page.getByRole('dialog', { name: 'Image preview', exact: true })
     await lightbox.waitFor()
-    const lightboxMask = lightbox.locator(':scope > [aria-hidden="true"]')
+    const lightboxMask = lightbox.locator(':scope > div > [aria-hidden="true"]')
     const lightboxClose = lightbox.getByRole('button', { name: 'Close image preview' })
     for (const windows of [true, false]) {
       await page.evaluate((value) => {
