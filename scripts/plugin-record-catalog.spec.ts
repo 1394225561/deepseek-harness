@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { collectPluginRecords } from './plugin-record-catalog.ts'
-import { annotateSurface, collectLogEvents, render, renderKnownEventTypes } from './gen-persistence-catalog.ts'
+import { persistenceCatalogArtifacts, render, renderPluginRecordCatalog } from './gen-persistence-catalog.ts'
 import { extractPersistenceSchema } from './persistence-schema.ts'
 import { removeFixtureSafely } from './test-fixture-cleanup.ts'
 
@@ -124,8 +124,26 @@ describe('plugin record declarations', () => {
 
 describe('plugin record catalogue output', () => {
   it('renders honest empty states in both languages', () => {
-    expect(render([], [])).toContain('No production package currently declares a plugin record.')
-    expect(render([], [], undefined, 'zh')).toContain('当前没有生产包声明插件记录。')
+    const english = renderPluginRecordCatalog([])
+    const chinese = renderPluginRecordCatalog([], 'zh')
+    expect(english).toContain('# Experimental Plugin Record Catalog')
+    expect(english).toContain('English | [中文](experimental-persistence-catalog.zh.md)')
+    expect(english).toContain('No production package currently declares a plugin record.')
+    expect(english).toContain('[Session persistence event catalog](persistence-catalog.md)')
+    expect(chinese).toContain('[English](experimental-persistence-catalog.md) | 中文')
+    expect(chinese).toContain('当前没有生产包声明插件记录。')
+    expect(chinese).toContain('[会话持久化事件目录](persistence-catalog.zh.md)')
+  })
+
+  it('links the main catalogue to the experimental page without embedding its inventory', () => {
+    const english = render([], [])
+    const chinese = render([], [], undefined, 'zh')
+    expect(english).toContain('[experimental plugin record catalog](experimental-persistence-catalog.md)')
+    expect(chinese).toContain('[实验性插件记录目录](experimental-persistence-catalog.zh.md)')
+    expect(english).not.toContain('No production package currently declares')
+    expect(english).not.toContain('| Record | Owner |')
+    expect(chinese).not.toContain('当前没有生产包声明')
+    expect(chinese).not.toContain('| 记录 | 所属包 |')
   })
 
   it('renders compact, sorted rows with escaped annotations and no line-number churn', () => {
@@ -134,7 +152,7 @@ describe('plugin record catalogue output', () => {
       'plugin:bridge/state': { value: string | null; marker: 'a  b' }
       ${ENTRY}
     `) }))
-    const output = render([], [], undefined, 'en', [...records].reverse())
+    const output = renderPluginRecordCatalog([...records].reverse())
     expect(output).toContain('| `plugin:bridge/entry` | `@deepseek-ai/dsh-experimental-bridge` | Retains a bridge entry. | <code>SavedEntry</code>')
     expect(output).toContain('Retains state \\| metadata.')
     expect(output).toContain("<code>{ value: string &#124; null; marker: 'a  b'; }</code>")
@@ -143,7 +161,7 @@ describe('plugin record catalogue output', () => {
     expect(output).not.toMatch(/records\.ts:\d/u)
   })
 
-  it('keeps record declarations and payload changes out of persisted schemas and runtime names', () => {
+  it('limits record declaration changes to the experimental artifact pair and its metadata', () => {
     const root = fixture({
       'tsconfig.host.json': JSON.stringify({ compilerOptions: {
         target: 'es2024', module: 'esnext', moduleResolution: 'bundler', strict: true, types: [],
@@ -155,23 +173,43 @@ export interface SessionEventMap {
   /** One ordinary log event. */
   'test/record': { value: string }
 }
-export type SurfaceEventType = never
+/** Declared ordinary event names. */
+export type SessionEventType = keyof SessionEventMap
+/** Surface placement. */
+export type SurfaceOp = 'append'
+/** Events which can produce model history. */
+export type SurfaceEventType = 'test/record'
+/** One persisted event envelope. */
 export type SessionEvent<T extends keyof SessionEventMap = keyof SessionEventMap> = {
-  [K in keyof SessionEventMap]: { type: K; seq: number; time: number; data: SessionEventMap[K] }
+  [K in keyof SessionEventMap]: { type: K; seq: number; time: number; data: SessionEventMap[K]; surfaceOp: SurfaceOp }
 }[T]
 `,
       'packages/session/session-persistence-jsonl/src/format.ts': "interface HeaderLine {type: 'session'; version: number; id: string; delegationDepth: number}\nexport {}\n",
     })
     const schema = extractPersistenceSchema(root)
-    const known = renderKnownEventTypes(annotateSurface(collectLogEvents(root), []))
-    const empty = render([], [], undefined, 'en', collectPluginRecords(root))
+    const empty = persistenceCatalogArtifacts(root, schema)
+    const experimentalPaths = [
+      'docs/experimental-persistence-catalog.md',
+      'docs/experimental-persistence-catalog.zh.md',
+      'docs/experimental-persistence-catalog.i18n.yaml',
+    ]
+    expect(empty.map(artifact => artifact.path)).toEqual([
+      'docs/persistence-catalog.md', 'docs/persistence-catalog.zh.md', 'docs/persistence-catalog.i18n.yaml',
+      ...experimentalPaths,
+      'packages/core/session/src/known-event-types.ts', 'docs/persistence-schema.json',
+    ])
     put(root, RECORDS, `interface SavedEntry { value: string }\n${augmentation(ENTRY)}`)
-    const declared = render([], [], undefined, 'en', collectPluginRecords(root))
-    expect(declared).not.toBe(empty)
+    const declared = persistenceCatalogArtifacts(root, schema)
+    expect(declared.filter((artifact, index) => artifact.content !== empty[index]?.content).map(artifact => artifact.path))
+      .toEqual(experimentalPaths)
     expect(extractPersistenceSchema(root)).toEqual(schema)
-    put(root, RECORDS, `interface SavedEntry { nested: { count: number } }\n${augmentation(ENTRY)}`)
-    expect(render([], [], undefined, 'en', collectPluginRecords(root))).toBe(declared)
+    const nullable = augmentation(ENTRY.replace(': SavedEntry', ': SavedEntry | null'))
+    put(root, RECORDS, `interface SavedEntry { value: string }\n${nullable}`)
+    const changedAnnotation = persistenceCatalogArtifacts(root, schema)
+    expect(changedAnnotation.filter((artifact, index) => artifact.content !== declared[index]?.content).map(artifact => artifact.path))
+      .toEqual(experimentalPaths)
+    put(root, RECORDS, `interface SavedEntry { nested: { count: number } }\n${nullable}`)
+    expect(persistenceCatalogArtifacts(root, schema)).toEqual(changedAnnotation)
     expect(extractPersistenceSchema(root)).toEqual(schema)
-    expect(renderKnownEventTypes(annotateSurface(collectLogEvents(root), []))).toBe(known)
   })
 })

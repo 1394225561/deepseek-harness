@@ -3,7 +3,9 @@
 
 # Session Persistence Event Catalog
 
-Every repository-declared durable Session event appears here with its source declaration and resolved types. The catalog covers the logical and physical headers, event envelopes, every SessionEventMap declaration merge, and a separate inventory of experimental plugin records. See [Session](subsystems/session.md) for replay and [persistence](subsystems/persistence.md) for storage.
+Every repository-declared durable Session event appears here with its source declaration and resolved types. The catalog covers the logical and physical headers, event envelopes, and every SessionEventMap declaration merge. See [Session](subsystems/session.md) for replay and [persistence](subsystems/persistence.md) for storage.
+
+Experimental records appear in the separate [experimental plugin record catalog](experimental-persistence-catalog.md).
 
 Run `pnpm run gen-persistence-catalog` to regenerate both catalog languages, their pairing record, the known-event module, and the machine schema inventory. `pnpm run verify-persistence-catalog` checks all generated files. Declaration fences preserve source JSDoc and type references; resolved definitions expose their transitive structure.
 
@@ -1280,12 +1282,6 @@ Source: [`packages/web/web-search-deepseek/src/provider.ts:82`](../packages/web/
 ```
 
 Source: [`packages/deliverables/workspace-changes/src/types.ts:106`](../packages/deliverables/workspace-changes/src/types.ts)
-
-## Experimental plugin records
-
-These current-source PluginRecordMap declarations describe ignorable, log-only records owned by experimental packages. Payload annotations link to their owning source without expanding referenced types. Records stay outside the known-event set, persistence schema fingerprints, and compatibility history; format migrations retain them on a best-effort basis.
-
-No production package currently declares a plugin record.
 
 ## Resolved persistence types
 

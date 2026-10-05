@@ -5,7 +5,9 @@
 
 [English](persistence-catalog.md) | 中文
 
-本目录列出仓库声明的每个持久化 Session 事件及其源码声明和解析类型，覆盖逻辑与物理 header、事件信封、所有 SessionEventMap 声明合并，以及单独列出的实验性插件记录。回放规则参见 [Session](subsystems/session.zh.md)，存储规则参见[持久化](subsystems/persistence.zh.md)。
+本目录列出仓库声明的每个持久化 Session 事件及其源码声明和解析类型，覆盖逻辑与物理 header、事件信封及所有 SessionEventMap 声明合并。回放规则参见 [Session](subsystems/session.zh.md)，存储规则参见[持久化](subsystems/persistence.zh.md)。
+
+实验性记录单独列在[实验性插件记录目录](experimental-persistence-catalog.zh.md)中。
 
 运行 `pnpm run gen-persistence-catalog` 可重新生成目录的两种语言、配对记录、已知事件模块和机器 schema 目录。`pnpm run verify-persistence-catalog` 检查所有生成文件。声明围栏保留源码 JSDoc 和类型引用；解析后的定义展开其传递引用结构。
 
@@ -1282,12 +1284,6 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 ```
 
 来源：[`packages/deliverables/workspace-changes/src/types.ts:106`](../packages/deliverables/workspace-changes/src/types.ts)
-
-## 实验性插件记录
-
-这些当前源码中的 PluginRecordMap 声明描述实验性包拥有的 ignorable、仅日志记录。载荷类型注解链接到所属源码，不展开引用类型。记录不进入已知事件集合、持久化 schema 指纹或兼容性历史；格式迁移以尽力而为的方式保留它们。
-
-当前没有生产包声明插件记录。
 
 ## 已解析的持久化类型
 
