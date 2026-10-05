@@ -234,9 +234,10 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
   const snapshot = injected.useSnapshot(value => value)
   const state = { ...snapshot, rows: snapshot.rows.map(row => row.entry.provider === 'deepseek-account'
     ? { ...row, entry: { ...row.entry, displayName: t('deepSeekAccount') } } : row) }
-  /** A new surface waits for a current snapshot; later refreshes preserve its drafts. */
+  /** A new or failed surface waits for a current snapshot; background refreshes preserve its drafts. */
   const [hasReadySnapshot, setHasReadySnapshot] = useState(state.status === 'ready')
   if (state.status === 'ready' && !hasReadySnapshot) setHasReadySnapshot(true)
+  if (state.status === 'error' && hasReadySnapshot) setHasReadySnapshot(false)
   const [editing, setEditing] = useState<EditorTarget | undefined>(undefined)
   const [addOpen, setAddOpen] = useState(false)
   const [addMode, setAddMode] = useState<AddMode>('catalog')

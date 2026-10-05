@@ -192,7 +192,7 @@ function scriptedFace(overrides: {
   const unset = overrides.unset ?? vi.fn(() => Promise.resolve(remoteOk(undefined)))
   const face = {
     llm: {
-      listProviders: vi.fn(() => Promise.resolve(remoteOk([
+      listProviders: vi.fn((): ReturnType<PageContext['remote']['llm']['listProviders']> => Promise.resolve(remoteOk([
         { id: 'deepseek-official', name: 'DeepSeek' },
         { id: 'openai', name: 'openai' },
       ]))),
@@ -370,6 +370,55 @@ describe('ModelsSection', () => {
     fireEvent.click(screen.getByRole('button', { name: en.apply }))
     await waitFor(() => { expect(mutate).toHaveBeenCalledWith(
       'llm-deepseek', [{ op: 'set', path: ['baseURL'], value: 'https://next.example' }], 1,
+    ) })
+    await screen.findByRole('status')
+  })
+
+  it('waits for the current snapshot before remounting setup after a failed page load', async () => {
+    const { controller, face, mirror, mutate } = await mountFirstRun()
+    const oldKey = screen.getByLabelText<HTMLInputElement>(en.keyInput)
+    fireEvent.change(oldKey, { target: { value: 'sk-discarded-on-error' } })
+    face.llm.listProviders.mockResolvedValueOnce(remoteFail('directory unavailable', 'gateway/internal'))
+    await act(async () => { await controller.load() })
+    expect(screen.queryByLabelText(en.keyInput)).toBeNull()
+    expect(screen.getByText(`${en.loadFailed}: directory unavailable`)).toBeTruthy()
+    const before = controller.store.getSnapshot().namespaces.get('llm-deepseek')!
+    mirror.acceptView({
+      ...before,
+      value: { apiKeyEnv: 'DEEPSEEK_API_KEY', baseURL: 'https://recovered.example', models: DEFAULT_DEEPSEEK_MODELS },
+      user: { baseURL: 'https://recovered.example' },
+      revision: 2,
+    })
+    const read = Promise.withResolvers<RemoteResult<Record<string, CredentialInfo>>>()
+    const started = Promise.withResolvers<undefined>()
+    const describe = face.credentials.describe.getMockImplementation()!
+    face.credentials.describe.mockImplementation((refs) => {
+      if (refs.length > 1) { started.resolve(undefined); return read.promise }
+      return describe(refs)
+    })
+    const load = vi.spyOn(controller, 'load')
+    try {
+      fireEvent.click(screen.getByRole('button', { name: en.retry }))
+      await act(async () => { await started.promise })
+      expect(load).toHaveBeenCalledOnce()
+      expect(controller.store.getSnapshot()).toMatchObject({ status: 'loading' })
+      expect(controller.store.getSnapshot().namespaces.get('llm-deepseek')?.revision).toBe(0)
+      expect(screen.getByRole('heading', { name: en.title })).toBeTruthy()
+      expect(screen.queryByLabelText(en.keyInput)).toBeNull()
+    } finally {
+      await act(async () => { read.resolve(remoteOk({})); await load.mock.results[0]?.value })
+      load.mockRestore()
+    }
+    const key = await screen.findByLabelText<HTMLInputElement>(en.keyInput)
+    expect(key).not.toBe(oldKey)
+    expect(key.value).toBe('')
+    fireEvent.click(screen.getByText(en.customized))
+    const url = screen.getByLabelText<HTMLInputElement>(en.baseUrl)
+    expect(url.value).toBe('https://recovered.example')
+    fireEvent.change(url, { target: { value: 'https://after-retry.example' } })
+    fireEvent.click(screen.getByRole('button', { name: en.apply }))
+    await waitFor(() => { expect(mutate).toHaveBeenCalledWith(
+      'llm-deepseek', [{ op: 'set', path: ['baseURL'], value: 'https://after-retry.example' }], 2,
     ) })
     await screen.findByRole('status')
   })
