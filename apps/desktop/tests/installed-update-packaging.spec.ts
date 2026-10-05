@@ -1,7 +1,6 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
-import type { ExecFileSyncOptions } from 'node:child_process'
 import { describe, expect, it, vi } from 'vitest'
 import { createInstalledUpdateRun } from '../scripts/installed-update-qualification.ts'
 import { assertInstalledUpdateSigningClear, installedUpdatePackagingEnvironment, packageInstalledUpdate } from '../scripts/installed-update-packaging.ts'
@@ -20,18 +19,6 @@ vi.mock('node:child_process', async (original) => {
   } }
 })
 vi.mock('node:os', async original => ({ ...await original<typeof import('node:os')>(), homedir: () => state.home }))
-vi.mock('node:child_process', async (original) => {
-  const actual = await original<typeof import('node:child_process')>()
-  return {
-    ...actual,
-    execFileSync: (command: string, args: readonly string[], options?: ExecFileSyncOptions) => {
-      // Parallel suites create workspace files; this fixture owns stable Git inputs and real file hashes.
-      if (command === 'git' && args.join(' ') === 'rev-parse HEAD') return 'a'.repeat(40)
-      if (command === 'git' && args.join(' ') === 'status --porcelain=v1 --untracked-files=normal') return ''
-      return actual.execFileSync(command, args, options)
-    },
-  }
-})
 vi.mock('../scripts/desktop-package-environment.mjs', () => ({
   loadDesktopPackageEnvironment: () => { state.loads++; return state.settings },
   validateDesktopPackageEnvironment: () => undefined,
