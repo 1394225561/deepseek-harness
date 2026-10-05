@@ -72,7 +72,6 @@ This backend registers the provider and prepares a fresh child session. `dsh-sub
 | File | Role |
 |---|---|
 | [`src/index.ts`](src/index.ts) | Provider registration: `Config` schema, capability declaration, `prepareContinuable()` |
-| — | No runtime invariant companion is published; this package exposes no independent event sequence or mutable data relation beyond contracts enforced at its owning seam. |
 
 ### Run flow
 

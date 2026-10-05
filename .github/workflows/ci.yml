@@ -67,8 +67,7 @@ jobs:
           persist-credentials: false
 
       # Redirect the Node compile cache (enabled by pnpm and TypeScript) off
-      # the root partition's /tmp before the first pnpm call in this lane —
-      # see .agents/notes/implemented/process/2026-08-28-ci-node-compile-cache-data-disk.md.
+      # the root partition's /tmp before the first pnpm call in this lane.
       - name: Redirect Node compile cache to runner temp
         run: echo "NODE_COMPILE_CACHE=${{ runner.temp }}/node-compile-cache" >> "$GITHUB_ENV"
 
@@ -142,9 +141,16 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Restore coverage duration history
+        uses: actions/cache/restore@v4
+        with:
+          path: .coverage-times.json
+          key: coverage-times-Linux-${{ runner.environment }}-${{ vars.DSH_CI_FAILOVER_LINUX || 'enterprise' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            coverage-times-Linux-${{ runner.environment }}-${{ vars.DSH_CI_FAILOVER_LINUX || 'enterprise' }}-
+
       # Redirect the Node compile cache (enabled by pnpm and TypeScript) off
-      # the root partition's /tmp before the first pnpm call in this lane —
-      # see .agents/notes/implemented/process/2026-08-28-ci-node-compile-cache-data-disk.md.
+      # the root partition's /tmp before the first pnpm call in this lane.
       - name: Redirect Node compile cache to runner temp
         run: echo "NODE_COMPILE_CACHE=${{ runner.temp }}/node-compile-cache" >> "$GITHUB_ENV"
 
@@ -190,13 +196,20 @@ jobs:
       - name: Run exhaustive coverage
         run: pnpm run check:ci:coverage
 
+      - name: Save coverage duration history
+        if: ${{ !cancelled() }}
+        uses: actions/cache/save@v4
+        with:
+          path: .coverage-times.json
+          key: coverage-times-Linux-${{ runner.environment }}-${{ vars.DSH_CI_FAILOVER_LINUX || 'enterprise' }}-${{ github.run_id }}-${{ github.run_attempt }}
+
   node-24-bench:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
     name: node 24 / benchmarks
     # Wall-clock budgets need an otherwise idle runner, so this job runs the
     # benchmark lane alone instead of joining a concurrent gate aggregate.
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
         with:
@@ -269,8 +282,7 @@ jobs:
           persist-credentials: false
 
       # Redirect the Node compile cache (enabled by pnpm and TypeScript) off
-      # the root partition's /tmp before the first pnpm call in this lane —
-      # see .agents/notes/implemented/process/2026-08-28-ci-node-compile-cache-data-disk.md.
+      # the root partition's /tmp before the first pnpm call in this lane.
       - name: Redirect Node compile cache to runner temp
         run: echo "NODE_COMPILE_CACHE=${{ runner.temp }}/node-compile-cache" >> "$GITHUB_ENV"
 
@@ -386,6 +398,7 @@ jobs:
       DSH_GATE_FAIL_FAST: '1'
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         include:
           - node: '22.19'
@@ -486,6 +499,7 @@ jobs:
   # Linux ARM64 and both macOS architectures run in ci-master.yml.
   python-runtime:
     if: github.event_name == 'pull_request'
+    needs: python-sdk
     name: python runtime / release-shaped matrix
     uses: ./.github/workflows/build-exe-for-python-sdk.yml
     with:
@@ -595,9 +609,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .coverage-times.json
-          key: coverage-times-${{ github.run_id }}
+          key: coverage-times-Windows-${{ runner.environment }}-${{ vars.DSH_CI_FAILOVER_WINDOWS || 'enterprise' }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            coverage-times-
+            coverage-times-Windows-${{ runner.environment }}-${{ vars.DSH_CI_FAILOVER_WINDOWS || 'enterprise' }}-
       - name: Enable Developer Mode (symlink support)
         shell: pwsh
         run: >-
@@ -638,7 +652,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .coverage-times.json
-          key: coverage-times-${{ github.run_id }}
+          key: coverage-times-Windows-${{ runner.environment }}-${{ vars.DSH_CI_FAILOVER_WINDOWS || 'enterprise' }}-${{ github.run_id }}-${{ github.run_attempt }}
 
   windows-native-tests:
     if: github.event_name == 'pull_request'

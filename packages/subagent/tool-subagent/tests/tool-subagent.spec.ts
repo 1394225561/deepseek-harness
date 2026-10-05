@@ -663,17 +663,20 @@ describe('dsh-tool-subagent', () => {
 })
 
 describe('dsh-tool-subagent local activation', () => {
-  const roots: string[] = []
-  afterEach(() => {
-    for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+  const fixtures: { ctx: Context; root: string }[] = []
+  afterEach(async () => {
+    for (const { ctx, root } of fixtures.splice(0)) {
+      await ctx.fiber.dispose()
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
   /** Boot the real continuable stack without any model-facing follow-up adapter. */
   async function continuableSetup() {
-    const ctx = ownContext(new Context())
-    await mountAgentLoopTestDependencies(ctx)
+    const ctx = new Context()
     const root = mkdtempSync(path.join(tmpdir(), 'dsh-tool-subagent-continuable-'))
-    roots.push(root)
+    fixtures.push({ ctx, root })
+    await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(JsonlSessionPersistence, { root })
     await ctx.plugin(AgentLoop, { agents: [] })
     await ctx.plugin(SubagentRuntime)

@@ -131,7 +131,7 @@ Parent-originated delivery requires the parent to be live when admitted and keep
 
 ### Durability, disposal, and recovery
 
-An activation receipt exposes `result` and `dispose()` without Jobs. The caller signal owns unpublished work; receipt disposal cancels the exact activation and awaits descendant startup rollback and child-first release. The [current-turn interrupt](2026-08-06-continuable-subagent-interrupt.md) cancels only the live target turn with `keepInbox`, preserving residency, pending work, and descendants.
+An activation receipt exposes `result` and `dispose()` without Jobs. The caller signal owns unpublished work; receipt disposal cancels the exact activation and awaits descendant startup rollback and child-first release. The [current-turn interrupt](../../../../packages/subagent/subagent/README.md) cancels only the live target turn with `keepInbox`, preserving residency, pending work, and descendants.
 
 Host and manager teardown remains the lifecycle stop path. Manager unload applies it globally; a host applies it only below the exact top-level Agents it owns. Each form closes the applicable admission scope, stops the selected visible Activations, awaits admitted materializations in that scope, releases child-first, and preserves the durable Sessions.
 
@@ -145,7 +145,7 @@ Session and descriptor persistence survive restart. Activation state, Agent inbo
 
 Local continuable control and external execution share activation ownership. Only local children support later messages and cold resume.
 
-It adds no host-user continuation, subagent steering operation, durable mailbox, cross-process lease, automatic replay of interrupted inbox work, team authority, workflow authority, public residency query, or runtime cache; the later [current-turn interrupt](2026-08-06-continuable-subagent-interrupt.md) added the one public stop operation on top of this lifecycle. Existing delegation-depth policy remains unchanged. Optional child-to-parent reporting is a later consumer of this lifecycle rather than part of the base continuable capability.
+It adds no host-user continuation, subagent steering operation, durable mailbox, cross-process lease, automatic replay of interrupted inbox work, team authority, workflow authority, public residency query, or runtime cache; the later [current-turn interrupt](../../../../packages/subagent/subagent/README.md) added the one public stop operation on top of this lifecycle. Existing delegation-depth policy remains unchanged. Optional child-to-parent reporting is a later consumer of this lifecycle rather than part of the base continuable capability.
 
 ## Alternatives considered
 
@@ -186,7 +186,7 @@ The implementation pins these behaviors:
 - `sendMessage()` accepts only an exact live adjacent Agent and rechecks authority at final inbox admission after materialization; recorded source fields cannot authorize delivery.
 - Agent messages use Steer; human Queue prompts retain FIFO turn ordering.
 - `ctx.subagents.sendMessage()` returns the accepted `MessageId` without exposing materialization routing.
-- Caller signals stop unpublished work; activation receipts and host drains own child-first teardown. The [current-turn interrupt](2026-08-06-continuable-subagent-interrupt.md) preserves pending work and residency.
+- Caller signals stop unpublished work; activation receipts and host drains own child-first teardown. The [current-turn interrupt](../../../../packages/subagent/subagent/README.md) preserves pending work and residency.
 - Human prompt delivery and current-turn interruption retain their separate authorization checks.
 - An idle Agent with live owned children yields a `waiting` Activation whose `AgentHandle` remains retained.
 - A `next-turn` delivered to `waiting` wakes the same Activation; delivery after completed disposal cold-resumes a new Activation.
@@ -205,7 +205,7 @@ The implementation pins these behaviors:
 
 Removing Jobs gives up generic background-work inspection, result collection, and exact Task cancellation. If those product features become requirements, they need a request ticket or inbox capability that does not reintroduce a second execution queue.
 
-Retaining an Activation while descendants run consumes Agent resources proportional to the unfinished ownership graph. The existing delegation-depth policy still bounds nesting, and [shared Activation capacity](2026-09-15-continuable-activation-capacity.md) bounds live continuable descendants; settled historical Sessions retain no `AgentHandle`.
+Retaining an Activation while descendants run consumes Agent resources proportional to the unfinished ownership graph. The existing delegation-depth policy still bounds nesting, and [shared Activation capacity](../../../../packages/subagent/subagent/README.md) bounds live continuable descendants; settled historical Sessions retain no `AgentHandle`.
 
 The process-local inbox and ownership graph do not coordinate two harness processes. Deployments allowing concurrent access to one persistence store still require a durable lease and mailbox protocol.
 

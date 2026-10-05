@@ -9,7 +9,7 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import * as spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { MockAdapter, textResponse } from '../packages/core/agent-loop/tests/mock-adapter.ts'
-import type {} from '@deepseek-ai/dsh-tool-workflow'
+import type {} from '@deepseek-ai/dsh-tool-workflow/types'
 import type {} from '@deepseek-ai/dsh-session-log-deepseek'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 // @ts-expect-error Scenario plugins are runtime JavaScript without declaration artifacts.
@@ -67,7 +67,7 @@ describe('advanced Python snapshot workflow ordering', () => {
           return next()
         })
         inner.on('session/event', (_session, event) => {
-          if (event.type === 'tool-workflow/agent-start') order.push(event.type)
+          if (event.type === 'subagent/catalog' || event.type === 'tool-workflow/agent-start') order.push(event.type)
         })
         await inner.plugin(fixture, config)
       },
@@ -90,7 +90,7 @@ describe('advanced Python snapshot workflow ordering', () => {
     })
     expect((await run.result).output).toEqual([{ type: 'text', text: 'child complete' }])
     expect(adapter.requests).toHaveLength(1)
-    expect(order).toEqual(['tool-workflow/agent-start'])
+    expect(order).toEqual(['subagent/catalog', 'tool-workflow/agent-start'])
   })
 
   it('holds the child until the exact parent records the exact member', async () => {

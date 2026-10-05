@@ -83,7 +83,6 @@ The tool forwards its execution signal, which owns admission only until inbox ac
 |---|---|
 | [`src/index.ts`](src/index.ts) | `send_message` and `interrupt_agent` registration |
 | [`src/list-agents.ts`](src/list-agents.ts) | `list_agents` registration: direct-child discovery and status refinement |
-| — | No runtime invariant companion is published; this model-facing adapter has no independent lifecycle stream; delivery and activation relations are owned by the subagent service it calls. |
 
 </details>
 

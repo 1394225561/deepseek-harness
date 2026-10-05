@@ -131,7 +131,7 @@ activation-owner 作用域之所以存在，是因为普通 Cordis owner effect 
 
 ### 持久性、dispose 与恢复
 
-activation 回执无需 Jobs 即可暴露 `result` 与 `dispose()`。调用方 signal 持有未发布工作；回执 dispose 会取消确切的 activation，并等待后代启动回滚与 child-first 释放。[当前轮次中断](2026-08-06-continuable-subagent-interrupt.zh.md)仅以 `keepInbox` 取消在线目标轮次，保留驻留、待处理工作与后代。
+activation 回执无需 Jobs 即可暴露 `result` 与 `dispose()`。调用方 signal 持有未发布工作；回执 dispose 会取消确切的 activation，并等待后代启动回滚与 child-first 释放。[当前轮次中断](../../../../packages/subagent/subagent/README.zh.md)仅以 `keepInbox` 取消在线目标轮次，保留驻留、待处理工作与后代。
 
 宿主和管理器拆卸仍是生命周期停止路径。管理器卸载会全局应用它；宿主只会在自己确切拥有的顶层 Agent 之下应用它。两种形式都会关闭适用的准入作用域，停止选中的可见 Activation，等待该作用域中已获准的物化过程，按 child-first 顺序释放，并保留持久化 Session。
 
@@ -145,7 +145,7 @@ activation 回执无需 Jobs 即可暴露 `result` 与 `dispose()`。调用方 s
 
 本地可继续控制与外部执行共享 activation 所有权。只有本地 child 支持后续消息与冷恢复。
 
-它不新增 host-user 继续执行、subagent steering 操作、持久化邮箱、跨进程 lease、中断 inbox 工作的自动回放、团队权限、工作流权限、公开驻留查询、以及运行时缓存；后来的[当前轮次中断](2026-08-06-continuable-subagent-interrupt.zh.md)在此生命周期之上补充了唯一的公开停止操作。现有委派深度策略保持不变。可选的 child 到 parent 报告是后续消费该生命周期的功能，不属于基础可继续能力。
+它不新增 host-user 继续执行、subagent steering 操作、持久化邮箱、跨进程 lease、中断 inbox 工作的自动回放、团队权限、工作流权限、公开驻留查询、以及运行时缓存；后来的[当前轮次中断](../../../../packages/subagent/subagent/README.zh.md)在此生命周期之上补充了唯一的公开停止操作。现有委派深度策略保持不变。可选的 child 到 parent 报告是后续消费该生命周期的功能，不属于基础可继续能力。
 
 ## 曾考虑的替代方案
 
@@ -186,7 +186,7 @@ activation 回执无需 Jobs 即可暴露 `result` 与 `dispose()`。调用方 s
 - `sendMessage()` 只接受确切在线的相邻 Agent，并在物化后的最终 inbox 准入处重新检查权限；记录的来源字段不能授权投递。
 - Agent 消息使用 Steer；人类 Queue 提示词保留 FIFO 轮次顺序。
 - `ctx.subagents.sendMessage()` 返回已接受的 `MessageId`，不暴露物化路由。
-- 调用方 signal 停止未发布工作；activation 回执与宿主 drain 持有 child-first 拆卸。[当前轮次中断](2026-08-06-continuable-subagent-interrupt.zh.md)保留待处理工作与驻留。
+- 调用方 signal 停止未发布工作；activation 回执与宿主 drain 持有 child-first 拆卸。[当前轮次中断](../../../../packages/subagent/subagent/README.zh.md)保留待处理工作与驻留。
 - 人类提示词投递与当前轮次中断保留各自的权限检查。
 - 带有在线所持 child 的空闲 Agent 会产生 `waiting` 激活，其 `AgentHandle` 继续保留。
 - 向 `waiting` 投递 `next-turn` 会唤醒同一个激活；完成 dispose 后投递消息会冷恢复新激活。
@@ -205,7 +205,7 @@ activation 回执无需 Jobs 即可暴露 `result` 与 `dispose()`。调用方 s
 
 移除 Task 会放弃通用后台工作检查、结果收集和精确 Task 取消。如果这些产品功能成为需求，就需要不会重新引入第二条执行队列的请求 ticket 或 inbox 能力。
 
-在后代运行期间保留激活，会按尚未完成所有权图的规模消耗 Agent 资源。现有委派深度策略仍会限制嵌套层级，而[共享 Activation 容量](2026-09-15-continuable-activation-capacity.zh.md)限制存活的可续接后代数；已结算的历史会话不保留 `AgentHandle`。
+在后代运行期间保留激活，会按尚未完成所有权图的规模消耗 Agent 资源。现有委派深度策略仍会限制嵌套层级，而[共享 Activation 容量](../../../../packages/subagent/subagent/README.zh.md)限制存活的可续接后代数；已结算的历史会话不保留 `AgentHandle`。
 
 进程内 inbox 和所有权图无法协调两个 harness 进程。允许多个进程并发访问同一持久化存储的部署，仍需要持久化 lease 和邮箱协议。
 

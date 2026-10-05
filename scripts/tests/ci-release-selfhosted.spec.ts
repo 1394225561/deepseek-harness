@@ -146,7 +146,9 @@ for (const [file, jobIds] of [['release.yml', ['dependencies', 'pack']], ['relea
             const output = family === 'dsh' ? 'dist/npm' : 'dist/npm-vendor'
             expect(job.steps[0]?.with?.['fetch-depth']).toBe(0)
             expect(commands).toContain('pnpm run release:verify --family ' + family)
-            expect(commands).toContain('pnpm run ' + (family === 'dsh' ? 'build:official' : 'build:lib:host'))
+            expect(commands).toContain(family === 'dsh'
+              ? "${{ github.event_name == 'pull_request' && 'pnpm run build --artifacts-only --profile official' || 'pnpm run build:official' }}"
+              : "${{ github.event_name == 'pull_request' && 'pnpm exec tsx scripts/compile-referenced-projects.ts host-libraries' || 'pnpm run build:lib:host' }}")
             expect(commands).toContain('pnpm run release:pack --family ' + family + ' --out ' + output + ' --concurrency 8')
             expect(commands).toContain('pnpm run release:verify-packed-install --family ' + family + ' --from ' + output
               + (family === 'dsh' ? ' --from dist/npm-vendor --from dist/npm-landlock' : ''))
@@ -161,6 +163,6 @@ for (const [file, jobIds] of [['release.yml', ['dependencies', 'pack']], ['relea
 
 it.each(['release-publish.yml', 'release-vendor-publish.yml'])('keeps %s manual and entirely hosted', (file) => {
   const publish = workflow(file)
-  expect(publish.on).toEqual({ workflow_dispatch: null })
+  expect(Object.keys(publish.on)).toEqual(['workflow_dispatch'])
   for (const job of Object.values(publish.jobs)) expect(job['runs-on']).toBe(hosted)
 })
