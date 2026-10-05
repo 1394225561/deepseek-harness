@@ -6,7 +6,7 @@
 
 ## 请求与结果
 
-`TranslationProvider` 选择 `google` 或 `bing`。`TranslationRequest` 提供 `text`、`targetLanguage` 及可选的 `sourceLanguage` 和 `provider`。`resolve()` 将显式路由写入 `TranslationSpec`：配置的默认 Provider 为 Google，省略源语言时自动检测。常见中文 locale 标签映射为所选 Provider 的语言代码。`translate()` 返回所选 Provider 翻译后的纯文本。
+`TranslationProvider` 选择 `google` 或 `bing`。`TranslationRequest` 提供 `text`、`targetLanguage` 及可选的 `sourceLanguage` 和 `provider`。`resolve()` 将显式路由写入 `TranslationSpec`：配置的默认 Provider 为 Bing，省略源语言时自动检测。常见中文 locale 标签映射为所选 Provider 的语言代码。`translate()` 返回所选 Provider 翻译后的纯文本。
 
 服务公开配置的 `maxTextChars`，单位为 UTF-16 code unit。消费者先拆分超长输入，再请求翻译。每次调用限制响应字节数，并将响应体读取计入超时。调用者取消和服务卸载都会中止已接收的请求；卸载等待这些请求完成。
 

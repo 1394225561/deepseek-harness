@@ -56,9 +56,9 @@ const googlePayload = [[['你好', 'Hello', null, null], ['，世界。', 'world
 const bingPayload = [{ translations: [{ text: '你好，世界。', to: 'zh-Hans' }] }]
 
 describe('anonymous translator', () => {
-  it('resolves Google and automatic detection and combines translated segments', async () => {
+  it('uses explicitly selected Google with automatic detection and combines translated segments', async () => {
     const { translator, requests } = await fixture((_req, res) => { json(res, googlePayload) })
-    const spec = translator.resolve({ text: 'Hello world.', targetLanguage: 'zh' })
+    const spec = translator.resolve({ text: 'Hello world.', targetLanguage: 'zh', provider: 'google' })
     expect(spec).toEqual({ text: 'Hello world.', targetLanguage: 'zh', sourceLanguage: 'auto', provider: 'google' })
     expect(translator.maxTextChars).toBe(4000)
     expect(await translator.translate(spec)).toBe('你好，世界。')
@@ -69,10 +69,11 @@ describe('anonymous translator', () => {
     expect(request.headers.authorization).toBeUndefined()
   })
 
-  it('uses configured Bing and lets an explicit provider override it', async () => {
+  it('uses Bing by default and lets an explicit provider override it', async () => {
     const { translator, requests } = await fixture((req, res) => {
       json(res, req.url?.startsWith('/bing') ? bingPayload : googlePayload)
-    }, { provider: 'bing' })
+    })
+    expect(translator.resolve({ text: 'hello', targetLanguage: 'zh-Hans' }).provider).toBe('bing')
     expect(await translator.translate(translator.resolve({ text: 'hello', targetLanguage: 'zh-Hans' }))).toBe('你好，世界。')
     expect(requests[0]!.url.searchParams.has('from')).toBe(false)
     expect(await translator.translate(translator.resolve({ text: 'hello', targetLanguage: 'en', sourceLanguage: 'zh-Hant' }))).toBe('你好，世界。')
@@ -93,7 +94,7 @@ describe('anonymous translator', () => {
   })
 
   it('returns empty text locally and accepts the exact UTF-16 limit', async () => {
-    const { translator, requests } = await fixture((_req, res) => { json(res, googlePayload) }, { maxTextChars: 2 })
+    const { translator, requests } = await fixture((_req, res) => { json(res, googlePayload) }, { maxTextChars: 2, provider: 'google' })
     expect(await translator.translate(translator.resolve({ text: '', targetLanguage: 'zh' }))).toBe('')
     expect(requests).toHaveLength(0)
     await translator.translate(translator.resolve({ text: '😀', targetLanguage: 'zh' }))
@@ -106,7 +107,7 @@ describe('anonymous translator', () => {
 
   it.each([400, 429, 503, 304])('reports HTTP %s without provider error content or fallback', async (status) => {
     const { translator, requests } = await fixture((_req, res) => { res.writeHead(status); res.end('private source text') })
-    await expect(translator.translate(translator.resolve({ text: 'private source text', targetLanguage: 'zh' })))
+    await expect(translator.translate(translator.resolve({ text: 'private source text', targetLanguage: 'zh', provider: 'google' })))
       .rejects.toThrow(expect.objectContaining({ code: 'TRANSLATION_HTTP_ERROR', message: `google translation failed (HTTP ${status})` }))
     expect(requests).toHaveLength(1)
   })
@@ -120,7 +121,7 @@ describe('anonymous translator', () => {
 
   it('normalizes a disconnected provider into a safe transport failure', async () => {
     const { translator } = await fixture((req) => { req.socket.destroy() })
-    await expect(translator.translate(translator.resolve({ text: 'private source text', targetLanguage: 'zh' })))
+    await expect(translator.translate(translator.resolve({ text: 'private source text', targetLanguage: 'zh', provider: 'google' })))
       .rejects.toThrow(expect.objectContaining({ code: 'TRANSLATION_REQUEST_FAILED', message: 'google translation request failed' }))
   })
 
@@ -137,7 +138,7 @@ describe('anonymous translator', () => {
 
   it.each([null, {}, [], [null], [[]], [['not a segment']], [[[null]]]])('rejects malformed Google response %j', async (payload) => {
     const { translator } = await fixture((_req, res) => { json(res, payload) })
-    await expect(translator.translate(translator.resolve({ text: 'hello', targetLanguage: 'zh' })))
+    await expect(translator.translate(translator.resolve({ text: 'hello', targetLanguage: 'zh', provider: 'google' })))
       .rejects.toThrow(expect.objectContaining({ code: 'TRANSLATION_INVALID_RESPONSE' }))
   })
 
@@ -152,9 +153,9 @@ describe('anonymous translator', () => {
     const payload = [[['中']]]
     const bytes = Buffer.byteLength(JSON.stringify(payload))
     const exact = await fixture((_req, res) => { json(res, payload) }, { maxResponseBytes: bytes })
-    expect(await exact.translator.translate(exact.translator.resolve({ text: 'hello', targetLanguage: 'zh' }))).toBe('中')
+    expect(await exact.translator.translate(exact.translator.resolve({ text: 'hello', targetLanguage: 'zh', provider: 'google' }))).toBe('中')
     const short = await fixture((_req, res) => { json(res, payload) }, { maxResponseBytes: bytes - 1 })
-    await expect(short.translator.translate(short.translator.resolve({ text: 'hello', targetLanguage: 'zh' })))
+    await expect(short.translator.translate(short.translator.resolve({ text: 'hello', targetLanguage: 'zh', provider: 'google' })))
       .rejects.toThrow(expect.objectContaining({ code: 'TRANSLATION_RESPONSE_LIMIT' }))
   })
 
@@ -196,7 +197,7 @@ describe('anonymous translator', () => {
   })
 
   it('validates endpoint URLs and numerical limits before activation', () => {
-    expect(Translator.Config({})).toMatchObject({ provider: 'google', maxTextChars: 4000, timeoutMs: 10000 })
+    expect(Translator.Config({})).toMatchObject({ provider: 'bing', maxTextChars: 4000, timeoutMs: 10000 })
     for (const googleEndpoint of ['not a URL', 'ftp://provider.invalid/', 'https://user:password@provider.invalid/', 'https://provider.invalid/#fragment']) {
       expect(() => Translator.Config({ googleEndpoint })).toThrow()
     }
@@ -208,19 +209,21 @@ describe('anonymous translator', () => {
   })
 
   it('boots a real Loader composition and translates through its configured provider', async () => {
-    const { config, requests } = await fixture((_req, res) => { json(res, googlePayload) })
+    const { config, requests } = await fixture((_req, res) => { json(res, bingPayload) })
     const root = await mkdtemp(join(tmpdir(), 'dsh-translator-composition-'))
     cleanups.push(async () => { await rm(root, { recursive: true, force: true }) })
     const source = await readFile(new URL('./fixtures/cordis.yml', import.meta.url), 'utf8')
     const path = join(root, 'cordis.yml')
-    await writeFile(path, source.replace('TRANSLATION_ENDPOINT', config.googleEndpoint))
+    await writeFile(path, source.replace('TRANSLATION_ENDPOINT', config.bingEndpoint))
     const ctx = await boot('translator-composition', path, [], (host) => {
       host.loader.builtins.translator = Translator
     })
     cleanups.push(async () => { await ctx.fiber.dispose() })
-    expect(ctx.translator.resolve({ text: 'Hello world.', targetLanguage: 'zh' }).provider).toBe('google')
+    expect(ctx.translator.resolve({ text: 'Hello world.', targetLanguage: 'zh' }).provider).toBe('bing')
     expect(await ctx.translator.translate(ctx.translator.resolve({ text: 'Hello world.', targetLanguage: 'zh' }))).toBe('你好，世界。')
     expect(requests).toHaveLength(1)
-    expect(requests[0]!.url.searchParams.get('tl')).toBe('zh-CN')
+    expect(requests[0]!.method).toBe('POST')
+    expect(requests[0]!.url.searchParams.get('to')).toBe('zh-Hans')
+    expect(JSON.parse(requests[0]!.body)).toEqual(['Hello world.'])
   })
 })

@@ -42,7 +42,7 @@ function endpoint(value: string): string {
 /** One Host service with explicit routing, cancellation and quiescent unload. */
 export default class Translator extends Service {
   static Config = z.object({
-    provider: z.union(['google', 'bing'] as const).default('google'),
+    provider: z.union(['google', 'bing'] as const).default('bing'),
     googleEndpoint: z.transform(z.string().default('https://translate.googleapis.com/translate_a/single'), endpoint),
     bingEndpoint: z.transform(z.string().default('https://edge.microsoft.com/translate/translatetext'), endpoint),
     timeoutMs: z.natural().min(1).max(2_147_483_647).default(10_000),

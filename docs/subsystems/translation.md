@@ -6,7 +6,7 @@ The experimental [translator](../../packages/experimental/translator/README.md) 
 
 ## Requests and results
 
-`TranslationProvider` selects `google` or `bing`. `TranslationRequest` supplies `text`, `targetLanguage`, and optional `sourceLanguage` and `provider`. `resolve()` captures explicit routing in `TranslationSpec`: the configured provider defaults to Google and omitted source language uses automatic detection. Common Chinese locale tags map to the selected provider's language codes. `translate()` returns plain text from the resolved provider.
+`TranslationProvider` selects `google` or `bing`. `TranslationRequest` supplies `text`, `targetLanguage`, and optional `sourceLanguage` and `provider`. `resolve()` captures explicit routing in `TranslationSpec`: the configured provider defaults to Bing and omitted source language uses automatic detection. Common Chinese locale tags map to the selected provider's language codes. `translate()` returns plain text from the resolved provider.
 
 The service exposes its configured `maxTextChars`, measured in UTF-16 code units. Consumers split longer inputs before requesting translation. Each call bounds the response bytes and includes the response-body read in its deadline. Caller cancellation and service disposal abort accepted requests; disposal waits for them to settle.
 

@@ -1,5 +1,5 @@
 ---
-description: "Translate transient text through anonymous Google and Bing browser endpoints."
+description: "Translate transient text through anonymous Bing or Google endpoints, defaulting to Bing."
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`ctx.translator` translates one bounded text request through Google or Bing. It requires no API key or login and defaults to Google. This experimental package is opt-in.
+`ctx.translator` translates one bounded text request through Bing or Google. It requires no API key or login and defaults to Bing. This experimental package is opt-in.
 
 ## Table of Contents
 
@@ -25,11 +25,11 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount the package as a Cordis service. Call `resolve({ text, targetLanguage, sourceLanguage?, provider? })`, then `translate(spec, signal?)`. The result is plain translated text. An omitted source uses `auto`; an omitted provider uses configured `provider`, initially `google`. Consumers can read `maxTextChars` to split longer text before submission.
+Mount the package as a Cordis service. Call `resolve({ text, targetLanguage, sourceLanguage?, provider? })`, then `translate(spec, signal?)`. The result is plain translated text. An omitted source uses `auto`; an omitted provider uses configured `provider`, initially `bing`. Consumers can read `maxTextChars` to split longer text before submission.
 
 | Config | Default | Meaning |
 |---|---|---|
-| `provider` | `google` | `google` or `bing` |
+| `provider` | `bing` | `google` or `bing` |
 | `googleEndpoint` | `https://translate.googleapis.com/translate_a/single` | Google-compatible anonymous endpoint |
 | `bingEndpoint` | `https://edge.microsoft.com/translate/translatetext` | Microsoft Edge browser translation endpoint |
 | `timeoutMs` | `10000` | Deadline for the request and complete response body |

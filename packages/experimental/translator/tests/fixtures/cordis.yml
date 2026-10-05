@@ -1,4 +1,4 @@
 - id: translator
   name: cordis:translator
   config:
-    googleEndpoint: TRANSLATION_ENDPOINT
+    bingEndpoint: TRANSLATION_ENDPOINT

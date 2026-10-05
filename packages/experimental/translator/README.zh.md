@@ -1,5 +1,5 @@
 ---
-description: "通过无需登录的 Google 和 Bing 浏览器端点翻译临时文本。"
+description: "通过无需登录的 Bing 或 Google 端点翻译临时文本，默认使用 Bing。"
 kind: "package-reference"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-`ctx.translator` 通过 Google 或 Bing 翻译一次有大小限制的文本请求。它无需 API 密钥或登录，默认使用 Google。此实验包需要显式启用。
+`ctx.translator` 通过 Bing 或 Google 翻译一次有大小限制的文本请求。它无需 API 密钥或登录，默认使用 Bing。此实验包需要显式启用。
 
 ## 目录
 
@@ -25,11 +25,11 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-将本包挂载为 Cordis 服务。先调用 `resolve({ text, targetLanguage, sourceLanguage?, provider? })`，再调用 `translate(spec, signal?)`，结果为翻译后的纯文本。省略源语言时使用 `auto`；省略提供者时使用配置中的 `provider`，初始为 `google`。消费者可以读取 `maxTextChars`，在提交前拆分较长文本。
+将本包挂载为 Cordis 服务。先调用 `resolve({ text, targetLanguage, sourceLanguage?, provider? })`，再调用 `translate(spec, signal?)`，结果为翻译后的纯文本。省略源语言时使用 `auto`；省略提供者时使用配置中的 `provider`，初始为 `bing`。消费者可以读取 `maxTextChars`，在提交前拆分较长文本。
 
 | 配置 | 默认值 | 含义 |
 |---|---|---|
-| `provider` | `google` | `google` 或 `bing` |
+| `provider` | `bing` | `google` 或 `bing` |
 | `googleEndpoint` | `https://translate.googleapis.com/translate_a/single` | 兼容 Google 的匿名端点 |
 | `bingEndpoint` | `https://edge.microsoft.com/translate/translatetext` | Microsoft Edge 浏览器翻译端点 |
 | `timeoutMs` | `10000` | 请求及完整响应正文的截止时间 |
