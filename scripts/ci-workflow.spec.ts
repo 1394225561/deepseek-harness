@@ -70,24 +70,25 @@ describe('CI workflow', () => {
     }
   })
 
-  it('builds PR Python artifacts before reusing them in the executable builder', () => {
+  it('selects PR artifact compilation inside the Python executable builder', () => {
     const job = workflowJob(loadWorkflow('.github/workflows/build-exe-for-python-sdk.yml'), 'build')
     if (!Array.isArray(job.steps)) throw new TypeError('Python runtime builder must define steps')
     const steps = job.steps.filter(isRecord)
-    const prepare = steps.findIndex(step => step.run === 'pnpm run build --artifacts-only')
-    const execute = steps.findIndex(step => step.name === 'Build single-exe')
-    expect(prepare).toBeGreaterThanOrEqual(0)
-    expect(execute).toBeGreaterThan(prepare)
-    expect(steps[prepare]).toMatchObject({
-      if: "inputs.ci && github.event_name == 'pull_request'",
+    const execute = steps.find(step => step.name === 'Build single-exe')
+    expect(steps.some(step => step.run === 'pnpm run build --artifacts-only')).toBe(false)
+    expect(execute).toMatchObject({
       env: { DSH_BUILD_CLIENT_PROFILE: 'official' },
     })
-    expect(steps[execute]?.run).toContain("${{ inputs.ci && github.event_name == 'pull_request' && '--skip-build' || '' }}")
+    if (typeof execute?.run !== 'string') throw new TypeError('Python executable builder must define a command')
+    const expression = [...execute.run.matchAll(/\$\{\{ ([^{}]+) \}\}/g)]
+      .map(match => match[1]).find(value => value?.startsWith('inputs.ci'))
+    expect(expression).toBe("inputs.ci && github.event_name == 'pull_request' && '--artifacts-only' || ''")
+    if (expression === undefined) throw new TypeError('Python executable builder must select its build mode')
     for (const ci of [false, true]) {
       for (const event of ['pull_request', 'push', 'workflow_dispatch']) {
         const context = { inputs: { ci }, github: { event_name: event } }
-        const selected: unknown = runInNewContext("inputs.ci && github.event_name == 'pull_request'", context, { timeout: 1000 })
-        expect(selected).toBe(ci && event === 'pull_request')
+        const selected: unknown = runInNewContext(expression, context, { timeout: 1000 })
+        expect(selected).toBe(ci && event === 'pull_request' ? '--artifacts-only' : '')
       }
     }
   })
