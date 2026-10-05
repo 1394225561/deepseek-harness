@@ -694,6 +694,26 @@ describe('workspace context instruction discovery', () => {
     }
   })
 
+  it('uses an already-resolved home its owner passes instead of the environment', async () => {
+    const root = await tempRepo()
+    const ownerHome = await tempRepo()
+    const envHome = await tempRepo()
+    try {
+      await write(join(ownerHome, 'AGENTS.md'), 'owner-resolved rule')
+      await write(join(envHome, 'AGENTS.md'), 'environment rule')
+      pinHarnessHome(envHome)
+
+      const files = await discoverBaselineInstructionFiles({ cwd: root, dshHome: ownerHome })
+
+      expect(files).toEqual([{ absolutePath: join(ownerHome, 'AGENTS.md'), displayPath: '$DSH_HOME/AGENTS.md' }])
+    } finally {
+      vi.unstubAllEnvs()
+      await rm(root, { recursive: true, force: true })
+      await rm(ownerHome, { recursive: true, force: true })
+      await rm(envHome, { recursive: true, force: true })
+    }
+  })
+
   it('honors DSH_HOME from the process environment', async () => {
     const root = await tempRepo()
     const envHome = await tempRepo()

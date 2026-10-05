@@ -96,15 +96,18 @@ export function resolveConfig(config: Config): ResolvedConfig {
  *
  * The harness home comes from the process environment through
  * {@link resolveDshHome}; the row cannot point instruction loading at a second
- * root that other harness consumers would not share.
- * @param config - optional discovery controls.
+ * root that other harness consumers would not share. An owner that already
+ * resolved the home passes it as `dshHome`, which is normalized here so
+ * discovery and reconciliation use the same value.
+ * @param config - optional discovery controls plus an already-resolved home.
  * @returns normalized home, root markers, and instruction candidates.
  */
 export function resolveDiscoveryConfig(
-  config: Pick<Config, 'projectRootMarkers' | 'instructionFileCandidates' | 'localInstructionFileCandidates'>,
+  config: Pick<Config, 'projectRootMarkers' | 'instructionFileCandidates' | 'localInstructionFileCandidates'>
+    & { dshHome?: string },
 ): ResolvedDiscoveryConfig {
   return {
-    dshHome: resolveDshHome(),
+    dshHome: resolveDshHome(config.dshHome),
     projectRootMarkers: config.projectRootMarkers ?? [...DEFAULT_PROJECT_ROOT_MARKERS],
     instructionFileCandidates: resolveInstructionFileCandidates(
       config.instructionFileCandidates,
