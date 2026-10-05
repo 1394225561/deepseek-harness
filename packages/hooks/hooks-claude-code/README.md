@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Hook processes and their payload `cwd` use the Session's current working directory when each hook point starts. `CLAUDE_PROJECT_DIR` follows it unless `projectDir` is configured.
+Hook processes and their payload `cwd` use the Session's current working directory when each hook point starts. `CLAUDE_PROJECT_DIR` follows it unless `projectDir` is configured. `SubagentStop` reads the child's final committed directory after disposal; it cannot recover a missing directory or mutate that Session, and a failed stop hook is warned.
 
 Mount this package, point `configPath` at your hook config, and the hooks you already have start firing at the corresponding moments in agent runs. There is nothing else to set up before the first hook works.
 

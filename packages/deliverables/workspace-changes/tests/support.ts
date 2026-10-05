@@ -7,6 +7,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import { ToolCallId, createAssistantMessage, createToolResultMessage } from '@deepseek-ai/dsh-llm'
 import type { Session } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-tools'
+import type {} from '@deepseek-ai/dsh-fs'
+import { mutationPath } from '../src/capture.ts'
 import type { WorkspaceChangesSummary } from '../src/types.ts'
 
 let callNumber = 0
@@ -59,7 +61,14 @@ export async function mutate(
   ctx: Context, session: Session, turn: number, name: string, args: unknown, apply: () => Promise<void>,
   result: { meta?: unknown; isError?: boolean } = {},
 ) {
-  await ctx.waterfall('tools/pre-execute', { agent: { session }, name, arguments: args } as never, () => Promise.resolve(undefined as never))
+  const actor = { agent: { session }, name, arguments: args }
+  await ctx.waterfall('tools/pre-execute', actor as never, () => Promise.resolve(undefined as never))
+  const path = mutationPath(name, args)
+  if (path !== undefined) {
+    const target = await ctx.fs.resolve(path, session.header.cwd === undefined ? {} : { cwd: session.header.cwd })
+    const event = name === 'edit' ? 'fs/edit-intent' : 'fs/write-intent'
+    await ctx.waterfall(event, target, actor, () => undefined)
+  }
   await apply()
   return toolCall(session, turn, name, args, result)
 }

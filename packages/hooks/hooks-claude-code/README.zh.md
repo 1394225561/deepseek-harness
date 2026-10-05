@@ -25,7 +25,7 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-每个钩子事件开始时，钩子进程及其载荷中的 `cwd` 均使用 Session 的当前工作目录。未配置 `projectDir` 时，`CLAUDE_PROJECT_DIR` 同样使用该目录。
+每个钩子事件开始时，钩子进程及其载荷中的 `cwd` 均使用 Session 的当前工作目录。未配置 `projectDir` 时，`CLAUDE_PROJECT_DIR` 同样使用该目录。`SubagentStop` 在子智能体释放后读取其最终已提交的目录；它不能恢复缺失目录或修改该 Session，停止钩子失败时会发出警告。
 
 挂载本包并把 `configPath` 指向你的钩子配置，你已有的钩子就会在 agent 运行中的对应时刻开始触发。在第一个钩子生效之前无需其他设置。
 

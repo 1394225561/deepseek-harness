@@ -7,6 +7,7 @@ import { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-agent'
 import SessionStore, { SessionId, type Session } from '@deepseek-ai/dsh-session'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
+import LocalFileSystem from '@deepseek-ai/dsh-fs-local'
 import * as WorkspaceChanges from '../src/index.ts'
 import { changes, endTurn, git, mutate, scratchDir, settle, startTurn, toolCall } from './support.ts'
 
@@ -24,6 +25,7 @@ async function boot(config: Partial<WorkspaceChanges.Config> = {}) {
   cleanups.push(() => ctx.fiber.dispose())
   await ctx.plugin(SessionStore)
   await ctx.plugin(LocalSubprocessRuntime)
+  await ctx.plugin(LocalFileSystem)
   const fiber = await ctx.plugin(WorkspaceChanges, config as WorkspaceChanges.Config)
   return { ctx, fiber }
 }
@@ -322,6 +324,7 @@ describe('workspace-changes in a repository', () => {
     cleanups.push(() => ctx.fiber.dispose())
     await ctx.plugin(SessionStore)
     await ctx.plugin(LocalSubprocessRuntime)
+    await ctx.plugin(LocalFileSystem)
     await expect(ctx.plugin(WorkspaceChanges, { maxFiles: 0 } as WorkspaceChanges.Config)).rejects.toThrow('positive integer maxFiles')
     await expect(ctx.plugin(WorkspaceChanges, { diffTimeoutMs: 1.5 } as WorkspaceChanges.Config)).rejects.toThrow('positive integer diffTimeoutMs')
   })

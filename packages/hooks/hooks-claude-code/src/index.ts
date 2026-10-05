@@ -144,12 +144,14 @@ export function apply(ctx: Context, config: Config): void {
     point: string,
     matchQuery: string,
     payload: Record<string, unknown>,
-    opts: { agent?: Agent; turn?: number; readonly signal: AbortSignal },
+    opts: { agent?: Agent; turn?: number; directory?: 'committed'; readonly signal: AbortSignal },
   ): Promise<MergedHookOutcome> {
     const groups = selectHookGroups(parsed[point], matchQuery, 'claude-code')
     if (groups.length === 0) return mergeHookOutputs([])
     const outputs: HookOutput[] = []
-    const workdir = opts.agent === undefined ? undefined : await ctx.workingDirectory.ensure(opts.agent, opts.signal)
+    const workdir = opts.agent === undefined ? undefined
+      : opts.directory === 'committed' ? ctx.workingDirectory.get(opts.agent.session)
+        : await ctx.workingDirectory.ensure(opts.agent, opts.signal)
     // CLAUDE_PROJECT_DIR: an explicit config value wins; otherwise default it to the session
     // workspace (the same dir the hook runs in).
     const projectDir = config.projectDir ?? workdir
@@ -281,7 +283,7 @@ export function apply(ctx: Context, config: Config): void {
   })
 
   // SubagentStart may inject child context; SubagentStop only observes. Both
-  // use the live child's workspace and the generic agent-type matcher subject.
+  // use the child's directory and the generic agent-type matcher subject.
   ctx.on('subagent/start', (info) => {
     const child = ctx.get('agents')?.get(info.id)
     if (child !== undefined) subagentChildren.set(info.runId, child)
@@ -295,7 +297,9 @@ export function apply(ctx: Context, config: Config): void {
   ctx.on('subagent/end', (info) => {
     const child = subagentChildren.get(info.runId) ?? ctx.get('agents')?.get(info.id)
     subagentChildren.delete(info.runId)
-    detached.track(runPoint('SubagentStop', SUBAGENT_TYPE, subagentPayload('SubagentStop', info, child), { ...child ? { agent: child } : {}, signal: detached.signal }))
+    // The end edge follows child disposal; committed Session state remains readable.
+    detached.track(runPoint('SubagentStop', SUBAGENT_TYPE, subagentPayload('SubagentStop', info, child), { ...child ? { agent: child, directory: 'committed' } : {}, signal: detached.signal })
+      .catch((error: unknown) => { ctx.logger.warn(`hooks-claude-code: SubagentStop hook failed: ${String(error)}`) }))
   })
 }
 

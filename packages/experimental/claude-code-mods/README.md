@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Run [Claude Code mods](https://code.claude.com/docs/en/plugins/mods/overview) inside agent runs: wrap a mod's `register(on, options)` with `defineMod`, mount it as a plugin after this bridge, and its hooks guard tool calls, rewrite prompts, add commands and tools, read session facts, and draw a band above the prompt through the same `$`, `e`, `next` chain. Mounting costs nothing until a mod acts; each `$` call rides a composed harness service. It is an alpha interface-compatibility demonstration: an unserved event is reported at load, an unserved `$` member fails naming the gap, and [the compatibility page](../../../docs/subsystems/claude-code-mods.md) lists every difference.
+Run [Claude Code mods](https://code.claude.com/docs/en/plugins/mods/overview) inside agent runs: wrap a mod's `register(on, options)` with `defineMod`, mount it as a plugin after this bridge, and its hooks guard tool calls, rewrite prompts, add commands and tools, read session facts, and draw a band above the prompt through the same `$`, `e`, `next` chain. The bridge requires `dsh-working-directory`, and each `$` call rides a composed harness service. It is an alpha interface-compatibility demonstration: an unserved event is reported at load, an unserved `$` member fails naming the gap, and [the compatibility page](../../../docs/subsystems/claude-code-mods.md) lists every difference.
 
 ## Table of Contents
 
@@ -59,7 +59,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 | Event | Raised from | A hook can |
 |---|---|---|
-| `session.start` | `agent/created` of a root agent, awaited before its first turn; cancelling the creation abandons a waiting hook | observe; register commands and tools |
+| `session.start` | `agent/created` of a root agent, awaited before its first turn; `cwd` uses the validated directory, including persisted resume; cancelling creation abandons validation and a waiting hook | observe; register commands and tools |
 | `prompt.submit` | `agent/pre-step` with claimed messages; `e.text` joins the text blocks of the human's own (`user`-sourced) messages, and a rewrite touches only those | rewrite `text`, add `context` blocks after the prompt as typed, or `{ drop }` the prompt |
 | `turn.start` | the first `agent/pre-step` of a turn | observe |
 | `tool.call` | the `tools/execute` waterfall, after the harness permission decision; a call a mod raised with `$.tool.call` reaches only the mods loaded before it, attributed to the caller | observe before and after, `{ deny }`, answer with `{ result }`, or rewrite the result or its `isError` after `next` |
@@ -85,12 +85,12 @@ The band is one instance per session, drawn by the first mod in load order whose
 | `$.command` | `register`, `run`, `list` | `ctx.commands`, scoped to the agent whose event is running |
 | `$.tool` | `register`, `call`, `list` | `ctx.tools`; a registered tool is named `mcp__<plugin>__<tool>`; contexts a tool defers to the next request are injected into the session |
 | `$.prompt` | `submit` | `agent.followup()` as a `user`-sourced message, framed as a message from the mod unless `asUser`; the `prompt.submit` it raises carries `origin: { kind: 'plugin', name }` |
-| `$.session` | `id`, `cwd`, `root`, `model`, `turns`, `messages`, `usage`, `version` | the agent's Session and the `turnBoundary` and `contextPressure` projections; `cwd` and `root` both report the session workspace, the harness's one directory per session |
+| `$.session` | `id`, `cwd`, `root`, `model`, `turns`, `messages`, `usage`, `version` | the agent's Session and the `turnBoundary` and `contextPressure` projections; `cwd` reports the committed current directory through `ctx.workingDirectory`; `root` keeps the original project |
 | `$.state` | `get`, `set` | memory held for the session, addressed by the `{ plugin, key }` a mod names; a read during `ui.render` subscribes the band |
 | `$.store` | `get`, `set`, `delete`, `keys` | the `claude_code_mods` storage domain, one JSON object per plugin, 4 MiB |
 | `$.clock` | `now`, `sleep`, `after`, `every` | timers owned by the session whose event scheduled them; `sleep` rejects when the event is cancelled |
-| `$.fs` | `read`, `write`, `list`, `exists`, `stat` | `ctx.fs`, relative to the session workspace, 4 MiB per file |
-| `$.process` | `run` | `ctx.subprocess`, argv without a shell |
+| `$.fs` | `read`, `write`, `list`, `exists`, `stat` | `ctx.fs`, relative to the validated current Session directory, 4 MiB per file |
+| `$.process` | `run` | `ctx.subprocess`, argv without a shell; new processes default to the validated current Session directory unless `init.cwd` is supplied |
 | `$.http` | `fetch` | the process's `fetch`, bodies up to 4 MiB |
 | `$.env` | `get`, `set` | this process's environment, shared by every session and plugin |
 
@@ -119,7 +119,7 @@ A call whose service is not composed rejects with the missing service's package 
 
 ### Mapping onto the harness
 
-[`index.ts`](src/index.ts) registers the listeners. `tool.call` runs around `tools/execute`, so the harness permission decision precedes the chain; a `{ deny }` becomes an error result with the reason, a `{ result }` becomes a successful result when the tool is mod-registered or the value satisfies the tool's output schema, and an error-shaped result otherwise. A result a hook rewrote after `next` is installed as replacement content through `tools/post-execute`. A hook that passes rewritten arguments to `next` is skipped with a report, because the call's arguments are already logged. [`host-ops.ts`](src/host-ops.ts) holds the engine behavior for each `$` call over `ctx.get(...)` services, so a deployment composes only what its mods use. [`surfaces.ts`](src/surfaces.ts) keeps one band per session: it raises `ui.render`, validates and serializes the tree with [`elements.ts`](src/elements.ts), holds each `Button`'s `onPress` behind a per-drawing action id, subscribes the band to the `$.state` slots the drawing read, and streams generations to the Client through the `claudeCodeMods` Remote (`watchBand`, `pressBand`).
+[`index.ts`](src/index.ts) registers the listeners. `tool.call` runs around `tools/execute`, so the harness permission decision precedes the chain; a `{ deny }` becomes an error result with the reason, a `{ result }` becomes a successful result when the tool is mod-registered or the value satisfies the tool's output schema, and an error-shaped result otherwise. A result a hook rewrote after `next` is installed as replacement content through `tools/post-execute`. A hook that passes rewritten arguments to `next` is skipped with a report, because the call's arguments are already logged. [`host-ops.ts`](src/host-ops.ts) holds the engine behavior for each `$` call over `ctx.get(...)` services; the directory owner is required and other services are read on demand. [`surfaces.ts`](src/surfaces.ts) keeps one band per session: it raises `ui.render`, validates and serializes the tree with [`elements.ts`](src/elements.ts), holds each `Button`'s `onPress` behind a per-drawing action id, subscribes the band to the `$.state` slots the drawing read, and streams generations to the Client through the `claudeCodeMods` Remote (`watchBand`, `pressBand`).
 
 ### Source map
 
