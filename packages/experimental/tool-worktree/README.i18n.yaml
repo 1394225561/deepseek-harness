@@ -3,23 +3,23 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write packages/experimental/tool-worktree/README.md
 /:
-  en: 45ef6180930233eb
-  zh: ff3a6ffd654fe2fd
+  en: 7c7c8316f315eee0
+  zh: dfd3abcef256029e
 /deepseek-ai-dsh-experimental-tool-worktree:
   en: db61f6b6ad671f45
   zh: 9f3083d7f5605cbb
 /deepseek-ai-dsh-experimental-tool-worktree/summary:
-  en: f59445c7b8e9ec4c
-  zh: ecd8112025d82fa8
+  en: f0df470fd16d8d29
+  zh: 5f2d371d844b0568
 /deepseek-ai-dsh-experimental-tool-worktree/table-of-contents:
   en: d152484eb41ac6b4
   zh: 2f8a621b991260a1
 /deepseek-ai-dsh-experimental-tool-worktree/use-this-package:
-  en: 8b680bd3bca915e8
-  zh: a914f4e32f549534
+  en: f69d3fdeed949ff5
+  zh: 05c9a85b7cdcfbad
 /deepseek-ai-dsh-experimental-tool-worktree/understand-the-implementation:
-  en: f2f400594f173ed2
-  zh: b1005daa669be314
+  en: c03f875211ab69a8
+  zh: 8f49b82f90a60223
 /deepseek-ai-dsh-experimental-tool-worktree/further-exploration:
   en: 6ec5bb0f5bfbbaa4
   zh: 45009dd139621d0e

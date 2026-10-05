@@ -1,6 +1,6 @@
 ---
 description: "创建新的本地 Git 工作树并改变当前 Session 目录的模型工具。"
-kind: "package-reference"
+kind: "package-bundle"
 ---
 
 # @deepseek-ai/dsh-experimental-tool-worktree
@@ -9,7 +9,7 @@ kind: "package-reference"
 
 ## 概述
 
-让模型通过一次调用创建并进入新的 Git 工作树。选择新分支名，并可指定本地起始版本。原生工具调用与 PTC 程序获得相同的带类型结果，创建操作沿用现有文件策略。
+从 GUI 插件管理器添加 Git 工作树，让模型通过一次调用创建并进入新的 Git 工作树。此可选 bundle 随 Harness 安装，在选中之前保持关闭。原生工具调用与 PTC 程序获得相同的带类型结果，创建操作沿用现有文件策略。
 
 ## 目录
 
@@ -25,7 +25,9 @@ kind: "package-reference"
 <a id="use-this-package"></a>
 ## 使用本包
 
-在显式组合中，将此函数插件挂载到[工作树运行时](../worktree/README.zh.md)和工具注册表之后。
+在 GUI 中打开**插件 → 官方 → Git 工作树**并启用开关。此 bundle 一起加载[工作树运行时](../worktree/README.zh.md)与本工具；所有随附 profile 默认关闭它。关闭后会移除 `create_worktree`，已有检出目录与分支会保留。内置 `working_directory` 工具仍然可用。
+
+在显式组合中，将此函数插件挂载到工作树运行时和工具注册表之后。
 
 ```yaml
 - name: '@deepseek-ai/dsh-experimental-worktree'
@@ -42,7 +44,7 @@ kind: "package-reference"
 <details>
 <summary>实现细节——点击展开</summary>
 
-[`src/index.ts`](src/index.ts) 注册一个带类型的工具。运行时创建操作拥有 Git 行为、取消处理与工作目录切换。工具将运行时记录作为规范返回值，并渲染为 JSON；Host 展示使用通用卡片。销毁插件会注销工具。
+[`cordis.patch.yml`](cordis.patch.yml) 插入 `worktree` 运行时行与 `tool-worktree` 消费方行。[`src/index.ts`](src/index.ts) 注册一个带类型的工具。运行时创建操作拥有 Git 行为、取消处理与工作目录切换。工具将运行时记录作为规范返回值，并渲染为 JSON；Host 展示使用通用卡片。销毁插件会注销工具。
 
 本包不发布运行时不变量伴随入口，因为工具不保留独立于工作树运行时的状态。
 

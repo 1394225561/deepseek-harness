@@ -1,6 +1,6 @@
 ---
 description: "Model tool that creates a new local Git worktree and changes the current Session directory."
-kind: "package-reference"
+kind: "package-bundle"
 ---
 
 # @deepseek-ai/dsh-experimental-tool-worktree
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Let a model create and enter a new Git worktree with one call. Choose a new branch name and an optional local starting revision. Native tool calls and PTC programs receive the same typed result, and the existing file policy governs creation.
+Add Git Worktrees from the GUI plugin manager to let a model create and enter a new Git worktree with one call. This optional bundle is installed with Harness and stays off until selected. Native tool calls and PTC programs receive the same typed result, and the existing file policy governs creation.
 
 ## Table of Contents
 
@@ -25,7 +25,9 @@ Let a model create and enter a new Git worktree with one call. Choose a new bran
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this function plugin after the [worktree runtime](../worktree/README.md) and tool registry in an explicit composition.
+In the GUI, open **Plugins → Official → Git Worktrees** and turn on the switch. The bundle loads the [worktree runtime](../worktree/README.md) and this tool together; it is off in every shipped profile. Turning it off removes `create_worktree` without deleting existing checkouts or branches. The built-in `working_directory` tool remains available.
+
+For an explicit composition, mount this function plugin after the worktree runtime and tool registry.
 
 ```yaml
 - name: '@deepseek-ai/dsh-experimental-worktree'
@@ -42,7 +44,7 @@ Call `create_worktree({ name?: string, from?: string })`. Success returns the ca
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-[`src/index.ts`](src/index.ts) registers one typed tool. Runtime creation owns Git behavior, cancellation, and the working-directory change. The tool returns the runtime record as its canonical value and renders that record as JSON; its Host presentation uses the generic card. Disposal unregisters the tool.
+[`cordis.patch.yml`](cordis.patch.yml) inserts the `worktree` runtime row and the `tool-worktree` consumer row. [`src/index.ts`](src/index.ts) registers one typed tool. Runtime creation owns Git behavior, cancellation, and the working-directory change. The tool returns the runtime record as its canonical value and renders that record as JSON; its Host presentation uses the generic card. Disposal unregisters the tool.
 
 No runtime invariant companion is published because the tool retains no state independently of the worktree runtime.
 
