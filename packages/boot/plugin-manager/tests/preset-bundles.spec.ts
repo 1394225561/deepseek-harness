@@ -247,6 +247,15 @@ it('refuses Remove after Off while an old Agent scope retains the bundle, then r
 
 it.each([false, true].flatMap(anonymous => [false, true].map(archive => ({ anonymous, archive }))))
 ('removes a released contribution while base presets keep using the same shared module (anonymous=$anonymous, archive=$archive)', async ({ anonymous, archive }) => {
+  // Resolver identities must be created under the same carrier that later refreshes them.
+  if (archive) {
+    const previousPkg = Object.getOwnPropertyDescriptor(process, 'pkg')
+    onTestFinished(() => {
+      if (previousPkg === undefined) Reflect.deleteProperty(process, 'pkg')
+      else Object.defineProperty(process, 'pkg', previousPkg)
+    })
+    Object.defineProperty(process, 'pkg', { configurable: true, value: {} })
+  }
   const { manager, ctx, dir, addon } = await fixture()
   const shared = join(dir, 'node_modules', 'shared-fixture')
   mkdirSync(shared)
@@ -280,14 +289,7 @@ it.each([false, true].flatMap(anonymous => [false, true].map(archive => ({ anony
   }])
   if (archive) {
     const original = fs.realpathSync
-    const previousPkg = Object.getOwnPropertyDescriptor(process, 'pkg')
-    onTestFinished(() => {
-      fs.realpathSync = original
-      if (previousPkg === undefined) Reflect.deleteProperty(process, 'pkg')
-      else Object.defineProperty(process, 'pkg', previousPkg)
-      syncBuiltinESMExports()
-    })
-    Object.defineProperty(process, 'pkg', { configurable: true, value: {} })
+    onTestFinished(() => { fs.realpathSync = original; syncBuiltinESMExports() })
     fs.realpathSync = new Proxy(original, {
       apply(target, receiver: unknown, args: unknown[]): unknown {
         if (['package.json', 'index.mjs'].some(file => String(args[0]).endsWith(join('shared-fixture', file)))) {
@@ -312,7 +314,8 @@ it.each([false, true].flatMap(anonymous => [false, true].map(archive => ({ anony
   await owner.dispose()
   expect(ctx.agentPresets.inspectCompositions().flatMap(preset => preset.modules).map(module => module.moduleName))
     .toEqual(['shared-fixture', 'shared-fixture'])
-  expect(await manager.removeBundle('addon')).toMatchObject({ application: 'applied', changed: true })
+  const removed = await manager.removeBundle('addon')
+  expect(removed, JSON.stringify(removed.error)).toMatchObject({ application: 'applied', changed: true })
   expect(remove).toHaveBeenCalledOnce()
 })
 
