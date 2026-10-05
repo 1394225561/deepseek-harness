@@ -116,9 +116,9 @@ function sessionsWithTitles(titles: Partial<Record<SessionId, string>>): Session
 afterEach(() => {
   try {
     cleanup()
-    vi.restoreAllMocks()
     localStorage.clear()
   } finally {
+    vi.restoreAllMocks()
     installedStyles?.remove()
     installedStyles = undefined
   }
@@ -139,10 +139,13 @@ function pinSystemZone(timeZone: string): void {
 // the open clock panel calls to bring the staged value into view.
 /** Device zone the cases pin: a rule without a stored zone seeds its clock in it. */
 const DEVICE_ZONE = 'Asia/Shanghai'
+/** Reference instant for static schedule assertions; timers retain their real scheduling. */
+const FIXTURE_NOW = Date.parse('2026-09-18T12:00:00.000Z')
 /** Elements whose `scrollIntoView` the open pickers called, in call order. */
 const scrolledIntoView: Element[] = []
 const scrollIntoView = vi.fn(function (this: Element) { scrolledIntoView.push(this) })
 beforeEach(() => {
+  vi.spyOn(Date, 'now').mockReturnValue(FIXTURE_NOW)
   pinSystemZone(DEVICE_ZONE)
   Element.prototype.scrollIntoView = scrollIntoView
   scrollIntoView.mockClear()
@@ -278,9 +281,7 @@ function relativeText(root: HTMLElement): string | null {
 /**
  * The relative next-run text both the row and the detail render for one instant.
  *
- * The components sample their reference clock once per mount, so the assertion
- * reads the same clock at assert time; every fixture instant is days away, where
- * one unit of drift cannot change the rendered value.
+ * Expected durations use the same pinned clock as component renders.
  * @param scheduledAt - stored target instant.
  * @param dictionary - active locale dictionary.
  * @returns the localized time remaining, or overdue text.
