@@ -77,7 +77,7 @@ A successful run returns the child's final assistant text (or accumulated partia
 
 ### Failure and recovery
 
-An already-aborted request fails before path resolution or spawn. A route, spawn, handshake, or pre-publication cancellation failure ordinarily rejects only after the subprocess is reaped. If initialization and cleanup both fail, the ordered safe facts preserve both failures without claiming quiescence. A child runtime that fails after publication settles through the run rather than rejecting it; partial output stays separate from the safe diagnostic. Diagnostics expose only the provider plus `initialize`, `session-run`, or `shutdown` stage and a fixed category. They never copy SDK messages, stderr, paths, task content, environment values, credentials, or protocol payloads.
+The configured SDK runtime must implement `session/wait`; a runtime without it reports an execution failure. Update the provider and a separately configured `dshBin` runtime together. An already-aborted request fails before path resolution or spawn. A route, spawn, handshake, or pre-publication cancellation failure ordinarily rejects only after the subprocess is reaped. If initialization and cleanup both fail, the ordered safe facts preserve both failures without claiming quiescence. A child runtime that fails after publication settles through the run rather than rejecting it; partial output stays separate from the safe diagnostic. Diagnostics expose only the provider plus `initialize`, `session-run`, or `shutdown` stage and a fixed category. They never copy SDK messages, stderr, paths, task content, environment values, credentials, or protocol payloads.
 
 -----
 

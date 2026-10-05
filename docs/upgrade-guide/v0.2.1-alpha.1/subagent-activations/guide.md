@@ -54,4 +54,6 @@ The published `@deepseek-ai/dsh-subagent-in-process-driver` package is removed. 
 
    External providers keep `start()`, but each returned `SubagentRun.id` must be unique across parents, providers, and local Sessions in the runtime. Generate a fresh id for each execution instead of using a parent-local counter.
 
+   For `dsh-subagent-dsh-sdk`, update any separately configured `dshBin` runtime to support `session/wait`.
+
 5. Confirm a delegation returns the activation result variant, its completion notice contains the final answer, and caller delivery returns the result without adding that notice. Confirm local children remain listed after completion and external children cannot be continued.

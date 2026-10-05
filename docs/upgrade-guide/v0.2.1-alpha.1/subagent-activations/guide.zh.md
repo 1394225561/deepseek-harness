@@ -54,4 +54,6 @@ description: "受管理的子 agent activation 替代前台与 Job 后台委派�
 
    外部提供方保留 `start()`，但每次返回的 `SubagentRun.id` 必须在运行时内跨父级、提供方和本地 Session 保持唯一。为每次执行生成新的 id，替代父级独立计数器。
 
+   使用 `dsh-subagent-dsh-sdk` 时，将单独配置的 `dshBin` 运行时更新到支持 `session/wait` 的版本。
+
 5. 确认委派返回 activation 结果变体，完成通知包含最终答案，且调用方投递返回结果而不添加该通知。确认本地子级在完成后仍可列出，外部子级不支持继续执行。
