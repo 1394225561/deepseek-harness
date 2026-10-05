@@ -174,7 +174,7 @@ it.skipIf(!built)('loads the packed GitHub example with its explicitly installed
       ...Object.fromEntries(runtimeMembers.map(member => [member.name, `file:${tarballs.get(member.name)!}`])),
     },
   }))
-  await packageCommand(['install', '--offline', '--no-frozen-lockfile'], installation)
+  await packageCommand(['install', '--prefer-offline', '--no-frozen-lockfile'], installation)
   await assertInstalledTree(installation)
   expect(existsSync(join(installation, 'node_modules', runtime))).toBe(false)
   expect(existsSync(join(installation, 'node_modules', adapter))).toBe(false)
@@ -200,7 +200,7 @@ it.skipIf(!built)('loads the packed GitHub example with its explicitly installed
   const adapterArchive = tarballs.get(adapter)
   const runtimeArchive = tarballs.get(runtime)
   if (adapterArchive === undefined || runtimeArchive === undefined) throw new Error('webhook tarballs were not packed')
-  await packageCommand(['add', runtimeArchive, adapterArchive, '--offline', '--ignore-scripts'], profile)
+  await packageCommand(['add', runtimeArchive, adapterArchive, '--prefer-offline', '--ignore-scripts'], profile)
   const manifest = JSON.parse(await readFile(join(profile, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
   expect(Object.keys(manifest.dependencies).sort()).toEqual([runtime, adapter].sort())
   await assertInstalledTree(profile)
