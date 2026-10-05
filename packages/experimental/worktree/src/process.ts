@@ -20,6 +20,7 @@ const GIT_ENV: NodeJS.ProcessEnv = Object.fromEntries([
   'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY',
   'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT',
   'GIT_CEILING_DIRECTORIES', 'GIT_PREFIX', 'GIT_SHALLOW_FILE', 'GIT_GRAFT_FILE',
+  'GIT_REPLACE_REF_BASE',
 ].map(key => [key, undefined]))
 
 /**
@@ -31,6 +32,7 @@ const GIT_ENV: NodeJS.ProcessEnv = Object.fromEntries([
  * @param argv - executable followed by literal arguments.
  * @param signal - operation cancellation.
  * @param allowedExitCodes - command-specific successful statuses.
+ * @param env - command-local environment overrides, applied after Git selector removal.
  * @returns complete bounded stdout and the exit code.
  */
 export async function runCommand(
@@ -41,6 +43,7 @@ export async function runCommand(
   argv: readonly [string, ...string[]],
   signal: AbortSignal,
   allowedExitCodes: readonly number[] = [0],
+  env: NodeJS.ProcessEnv = {},
 ): Promise<{ stdout: string; exitCode: number }> {
   using timeout = deadline(signal, config.timeoutMs, 'WORKTREE_TIMEOUT')
   timeout.signal.throwIfAborted()
@@ -53,7 +56,7 @@ export async function runCommand(
   const child = ctx.subprocess.spawn({
     argv: wrapped,
     cwd,
-    env: { ...GIT_ENV, GIT_TERMINAL_PROMPT: '0', GIT_LFS_SKIP_SMUDGE: '1' },
+    env: { ...GIT_ENV, GIT_TERMINAL_PROMPT: '0', GIT_LFS_SKIP_SMUDGE: '1', ...env },
     signal: timeout.signal,
     graceMs: config.graceMs,
     stdio: {

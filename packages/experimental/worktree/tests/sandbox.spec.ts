@@ -1,10 +1,10 @@
-import { mkdir, readFile, readdir, rm } from 'node:fs/promises'
+import { access, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { SandboxUnavailableError } from '@deepseek-ai/dsh-sandbox'
 import LocalSandbox from '@deepseek-ai/dsh-sandbox-local'
-import { git, harness, repository, testAgent } from './harness.ts'
+import { filterCommand, git, harness, repository, testAgent } from './harness.ts'
 
 let ctx: Context | undefined
 let root: string | undefined
@@ -49,8 +49,14 @@ describe.skipIf(!sandboxUsable)('worktree standing sandbox policy', () => {
     expect(confine.mock.calls.every(call => call[1].mode === 'read-only' && call[1].workspaceRoot === root)).toBe(true)
   })
 
-  it('creates a checkout in the default pool under the source workspace-write grant', async () => {
+  it('creates an unfiltered checkout in the default pool under the source workspace-write grant', async () => {
     root = await repository(process.cwd())
+    await writeFile(join(root, '.gitattributes'), '*.txt filter=configured -text\n')
+    await git(root, 'add', '.gitattributes')
+    await git(root, 'commit', '-m', 'attributes')
+    const { command, marker } = await filterCommand(root)
+    await git(root, 'config', 'filter.configured.smudge', command)
+    await git(root, 'config', 'filter.configured.required', 'true')
     ctx = await harness(root, {}, 'workspace-write')
     const agent = testAgent(ctx, root)
     const confine = vi.spyOn(ctx.sandbox, 'confine')
@@ -58,6 +64,7 @@ describe.skipIf(!sandboxUsable)('worktree standing sandbox policy', () => {
     const checkout = join(root, '.agents', 'worktrees', 'allowed')
 
     expect(created.path).toBe(checkout)
+    await expect(access(marker)).rejects.toMatchObject({ code: 'ENOENT' })
     expect(await readFile(join(checkout, 'tracked.txt'), 'utf8')).toBe('initial\n')
     expect(await git(checkout, 'branch', '--show-current')).toBe('allowed')
     expect(await git(root, 'branch', '--show-current')).toBe('main')

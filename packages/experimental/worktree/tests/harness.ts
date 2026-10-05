@@ -91,3 +91,21 @@ export async function harness(root: string, config: Config = {}, mode: SandboxMo
 export async function contents(path: string): Promise<string> {
   return readFile(path, 'utf8')
 }
+
+/**
+ * Create a filter whose file marker and transformed output reveal its execution.
+ * @param root - the owning test's private repository directory.
+ * @param processFilter - fail the process-filter handshake instead of transforming stdin.
+ * @returns a Git shell command and the marker it writes.
+ */
+export async function filterCommand(root: string, processFilter = false): Promise<{ command: string; marker: string }> {
+  const script = join(root, 'filter.cjs')
+  const marker = join(root, 'filter-executed')
+  await writeFile(script, `
+const fs = require('node:fs');
+fs.appendFileSync(${JSON.stringify(marker)}, 'executed\\n');
+${processFilter ? 'process.exit(1);' : "process.stdout.write('filtered\\n' + fs.readFileSync(0, 'utf8'));"}
+`)
+  const quoted = (value: string) => `'${value.replaceAll('\\', '/').replaceAll("'", "'\\''")}'`
+  return { command: `${quoted(process.execPath)} ${quoted(script)}`, marker }
+}

@@ -95,6 +95,7 @@ export class WorktreeService extends Service {
   /**
    * Create a fresh branch and checkout at a pinned local revision, then enter it.
    * Existing branches or checkout paths fail. Uncommitted files stay in the source checkout.
+   * Checkout disables configured clean, smudge, and process filters without changing Git config.
    * The new checkout becomes current only after Git setup succeeds. Failures may retain newly
    * allocated Git/filesystem artifacts; no branch or checkout is removed automatically.
    * @param agent - caller whose current directory selects the source repository and file policy.
@@ -125,10 +126,10 @@ export class WorktreeService extends Service {
   private async createCheckout(agent: Agent, { branch, revision }: WorktreeSpec, signal: AbortSignal): Promise<CreatedWorktree> {
     const cwd = await this.ctx.workingDirectory.ensure(agent, signal)
     const policy = this.ctx.sandboxPolicy.resolve({ session: agent.session })
-    const run = (directory: string, args: string[], allowedExitCodes?: number[]) => runCommand(
+    const run = (directory: string, args: string[], allowedExitCodes?: number[], env?: NodeJS.ProcessEnv) => runCommand(
       this.ctx, this.config, policy, directory,
       [this.config.gitCommand, '--no-lazy-fetch', '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', ...args],
-      signal, allowedExitCodes,
+      signal, allowedExitCodes, env,
     )
     await run(cwd, ['check-ref-format', `refs/heads/${branch}`])
     const rootOutput = await run(cwd, ['rev-parse', '--show-toplevel'])
@@ -147,7 +148,24 @@ export class WorktreeService extends Service {
       await runCommand(this.ctx, this.config, policy, repositoryRoot,
         [this.config.nodeCommand, '--input-type=module', '-e', PREPARE_DIRECTORY, poolPath, path], signal)
       await run(repositoryRoot, ['--work-tree', repositoryRoot, 'worktree', 'add', '--no-checkout', '-b', branch, '--', path, baseCommit])
-      await run(path, ['--work-tree', path, 'reset', '--hard', '--no-recurse-submodules', baseCommit])
+      const configured = await run(path, ['config', '--null', '--name-only', '--get-regexp', '^filter\\.'], [0, 1])
+      const drivers = new Set<string>()
+      for (const key of configured.stdout.split('\0')) {
+        const separator = key.lastIndexOf('.')
+        if (separator > 'filter.'.length && ['clean', 'smudge', 'process', 'required'].includes(key.slice(separator + 1))) {
+          drivers.add(key.slice('filter.'.length, separator))
+        }
+      }
+      const overrides: NodeJS.ProcessEnv = { GIT_CONFIG_COUNT: String(drivers.size * 4) }
+      let index = 0
+      for (const driver of drivers) {
+        for (const attribute of ['clean', 'smudge', 'process', 'required']) {
+          overrides[`GIT_CONFIG_KEY_${index}`] = `filter.${driver}.${attribute}`
+          overrides[`GIT_CONFIG_VALUE_${index}`] = attribute === 'required' ? 'false' : ''
+          index++
+        }
+      }
+      await run(path, ['--work-tree', path, 'reset', '--hard', '--no-recurse-submodules', baseCommit], undefined, overrides)
       const canonicalPath = await this.ctx.workingDirectory.set(agent, path, signal)
       return { path: canonicalPath, branch, baseCommit, repositoryRoot }
     } catch (error) {
