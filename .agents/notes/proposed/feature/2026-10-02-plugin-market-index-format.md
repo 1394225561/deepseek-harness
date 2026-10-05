@@ -16,6 +16,8 @@ An index must therefore carry everything a list page displays: localized title a
 
 Separate the **index** from the **index generator**. DSH defines and reads one JSON index format. How an index is produced, and from which source list, belongs to the generator. DSH's reader, its Discover page, and a reference generator are separate changes that consume this format. Indexes list [profile plugin bundles](../../implemented/architecture/2026-08-05-profile-plugin-bundles.md) and install them through [guided plugin installation](../../implemented/architecture/2026-09-15-guided-plugin-installation.md).
 
+The market reuses npm's package names, versions, ranges, distribution tags, and person declarations. Readers and generators use maintained npm parsers and validators. Additional fields or changed meanings require a plugin-market requirement that npm does not meet.
+
 ### Example
 
 ```json
@@ -48,18 +50,19 @@ Separate the **index** from the **index generator**. DSH defines and reads one J
         "labels": ["official"],
         "sortKeys": { "downloads": 12034, "rating": 4.6 }
       },
+      "dist-tags": { "latest": "0.2.0-rc.1", "next": "0.2.0-rc.2" },
       "versions": [
         {
           "version": "0.2.0-rc.2",
           "publishTimestamp": 1790476800,
           "source": { "type": "npm" },
-          "engines": { "dsh": "0.2.0-rc.2" }
+          "engines": { "dsh": ">=0.2.0 <0.3.0" }
         },
         {
           "version": "0.2.0-rc.1",
           "publishTimestamp": 1789872000,
           "source": { "type": "npm" },
-          "engines": { "dsh": "0.2.0-rc.1" }
+          "engines": { "dsh": "0.2.0 - 0.2.4 || >=0.3.0 <0.4.0" }
         }
       ]
     },
@@ -67,6 +70,7 @@ Separate the **index** from the **index generator**. DSH defines and reads one J
       "name": "dsh-plugin-foo",
       "title": "Foo",
       "icon": "https://example.com/foo.png",
+      "dist-tags": { "latest": "1.0.0" },
       "versions": [
         {
           "version": "1.0.0",
@@ -76,7 +80,8 @@ Separate the **index** from the **index generator**. DSH defines and reads one J
             "url": "https://github.com/author/dsh-plugins",
             "commit": "3f9c2e1d8a4b6c0e7f1a2b3c4d5e6f708192a3b4",
             "path": "packages/foo"
-          }
+          },
+          "engines": { "dsh": "*" }
         }
       ]
     }
@@ -105,7 +110,7 @@ Category, label, and sort-key ids are non-empty strings. Readers look ids up as 
 
 | Field | Required | Rule |
 |---|---|---|
-| `name` | yes | Package name matching `^(@[a-z0-9][a-z0-9._~-]*/)?[a-z0-9][a-z0-9._~-]*$`, at most 214 characters, unique within the index. |
+| `name` | yes | Package name accepted by npm's maintained package-name validator for new packages; unique within the index. |
 | `title` | no | `LocalizedText`; a reader displays `name` when absent. |
 | `description` | no | `LocalizedText`. |
 | `icon` | no | Either `data:<type>;base64,<payload>`, where `<type>` is `image/svg+xml`, `image/png`, `image/jpeg`, or `image/webp`, `<payload>` is canonically padded base64, and the decoded payload is at most 256 KiB; or a URL reference whose resolution against the index URL is an `https:` URL or has the index URL's origin. |
@@ -115,17 +120,18 @@ Category, label, and sort-key ids are non-empty strings. Readers look ids up as 
 | `metadata.category` | no | One declared category id. |
 | `metadata.labels` | no | Array of distinct declared label ids. |
 | `metadata.sortKeys` | no | Object mapping a declared sort-key id → finite number. |
-| `versions` | yes | Non-empty array of versions; see below. Its order has no meaning. |
+| `dist-tags` | no | Object mapping npm distribution-tag names to exact listed version strings; absent means no recorded channels. |
+| `versions` | yes | Non-empty array of versions; see below. Array order does not select the installation version. |
 
 ### Version fields
 
 | Field | Required | Rule |
 |---|---|---|
-| `version` | yes | Exact version in the SemVer 2.0.0 grammar, with optional prerelease and build metadata and without a `v` prefix or whitespace; unique within the plugin. |
+| `version` | yes | Exact version parsed by npm's `node-semver`; preserve the complete string, including Git build metadata. The exact string is unique within the plugin. |
 | `publishTimestamp` | yes | Integer Unix timestamp in seconds, in `[0, 10^11)`. |
 | `source` | yes | Where `version` is installed from; see below. |
-| `engines` | no | Object. |
-| `engines.dsh` | no | Non-empty SemVer range string that does not start with `workspace:`; the DSH versions this version runs on. Absent means any DSH version. |
+| `engines` | yes | Object containing `dsh`. |
+| `engines.dsh` | yes | Non-blank valid npm SemVer range declared in the source manifest; copied unchanged. `*` explicitly declares support for any DSH version. |
 
 A relative `icon` reference resolves against the index URL, as an HTML image reference resolves against its page. For an index at `https://market.example/dsh/index.json`, `"icon": "icons/foo.svg"` names `https://market.example/dsh/icons/foo.svg`. A generator can therefore publish the index and its icon files as one directory on any static host without knowing the final URL. Absolute icon URLs on other origins must use `https:`; the same-origin allowance lets an `http:` index on a loopback or intranet host serve its own icons. Readers resolve the reference when they read the index, so clients receive absolute URLs.
 
@@ -143,9 +149,9 @@ A client installs one version with exactly these pnpm arguments:
 
 ### DSH compatibility
 
-DSH's installation check reads `engines.dsh` from the package manifest. When it is present, the package is compatible exactly when the running DSH version satisfies that range, prereleases included; an invalid range is incompatible. Only a manifest without `engines.dsh` falls back to its `@deepseek-ai/dsh` and `@deepseek-ai/dsh-*` `peerDependencies`. Exact `name@version` exemptions apply to both rules.
+Every market-listed version must declare valid `engines.dsh`. The reader and market-origin installation evaluate that range against the running DSH version with npm's `node-semver` and `includePrerelease: true`. There is no peer fallback or range synthesis. npm package peer resolution remains outside market host compatibility.
 
-The fallback tests every DSH peer range against the same running DSH version, so their conjunction is one SemVer range with the same result. SemVer ranges have no parentheses, so the conjunction joins one `||` alternative from each range with spaces, for every combination, and joins the combinations with `||`. An index therefore carries a single `engines.dsh`.
+Installation rechecks the source manifest before accepting a market-origin package. An exact local `name@version` exemption may permit a valid range that rejects the runtime; it cannot make a missing or invalid declaration eligible. Exemptions are not published in the index.
 
 ### Generator obligations
 
@@ -153,19 +159,25 @@ A reader cannot verify these rules; a generator that violates them publishes a m
 
 - `name` and each `version` equal the package manifest of the installed source.
 - `publishTimestamp` is the registry publish time of `version` for npm sources and the committer time of `commit` for Git sources.
-- `engines.dsh` copies the manifest's `engines.dsh`. Without one, it is the conjunction, as defined in DSH compatibility, of the manifest's DSH peer ranges after publication rewriting, omitting `workspace:*`, `workspace:^`, and `workspace:~`, because installation treats them as the running DSH version; with no remaining range, `engines.dsh` is absent. Installation finds any other `workspace:` range incompatible with every DSH version, so generators do not list such a version.
+- `engines.dsh` copies the manifest's declared range unchanged. A version with a missing, blank, or invalid range is omitted with a diagnostic. A plugin with no eligible version is omitted.
+- `dist-tags` snapshots npm's [distribution tags](https://docs.npmjs.com/cli/v11/commands/npm-dist-tag/), retaining only targets present among the eligible listed versions. For Git sources, the publisher or market supplies the same exact tag-to-version mapping.
 - Each listed version declares `dsh.bundle`. Installation independently refuses a package without a bundle patch.
-- `title`, `description`, `icon`, and `author` come from the highest listed version's locale `meta` fields, manifest fields, and icon, using the rules for installed plugin display metadata. `homepage` copies that version's manifest `homepage` and is absent without one.
+- `title`, `description`, and `icon` come from the highest listed version's locale metadata, manifest fields, and icon under the installed-plugin display rules. Use npm's `node-semver.rsort()` order, retaining input order for ties. This metadata choice does not select the installation version. `homepage` copies that version's manifest `homepage` and is absent without one.
+- `author` comes from the same highest listed version's npm author declaration. Copy an object's `name`; parse shorthand strings with a maintained npm person normalizer. Omit an absent or whitespace-only name and contact fields. Normalize a fresh projection, leaving the source manifest untouched.
 
 ### Reader rules
 
-A reader rejects the whole index when the document violates any rule in Root fields, Plugin fields, Version fields, or the `source` forms, including an undeclared category, label, or sort-key reference, a duplicate `name` or `version`, or a `format` other than `1`. Each such defect is a generator bug, and dropping entries silently would hide it. Readers may bound the document size.
+A reader rejects the whole index when the document violates any rule in Root fields, Plugin fields, Version fields, or the `source` forms, including an undeclared category, label, or sort-key reference, an unlisted distribution-tag target, a duplicate `name` or exact `version` string, or a `format` other than `1`. Each such defect is a generator bug, and dropping entries silently would hide it. Readers may bound the document size.
 
 A reader ignores members that this note does not define, at every level; an unknown `source.type` value is rejected. Format 1 can then gain optional members without breaking existing readers; a change that existing readers would misinterpret uses a new `format` value.
 
+Tag names must parse as registry tag specs under npm's maintained `npm-package-arg`; targets are exact listed version strings. npm sources use canonical published identifiers (`node-semver.valid(version) === version`); Git sources retain build metadata and pin their exact source by commit.
+
 Categories, labels, and sort keys are opaque: a reader filters and sorts by them, displays their `title`, and never interprets an id. Readers display declarations in the order of their localized `title`. When sorting plugins, a plugin without a value for the selected sort key follows all plugins with a value in either direction, and equal values keep the index order. Sorting by publish time uses a plugin's greatest `publishTimestamp`.
 
-A reader evaluates each version's compatibility from `engines.dsh` with the rule in DSH compatibility. A reader orders versions by SemVer precedence. A plugin's default version is its highest compatible version without a prerelease tag; a plugin with no such version at all uses its highest compatible prerelease. A plugin without a compatible default version displays as incompatible, and a client may still offer its other versions individually.
+A reader evaluates the required `engines.dsh` range under DSH compatibility. Versions use npm's `node-semver.rsort()` order, retaining index order for ties. Exact tag targets, not this display order, select installation versions.
+
+The initial channel is `latest`. Its exact target is the publisher- or market-selected version. Clients install that recorded version or commit, never `name@latest`. Missing or incompatible `latest` requires explicit version or channel selection; clients do not switch automatically. Installation confirmation identifies the version, selected channel if any, prerelease status, index URL, and source.
 
 ## Alternatives considered
 
@@ -183,9 +195,9 @@ A reader evaluates each version's compatibility from `engines.dsh` with the rule
 
 **Inline icons only.** A list without extra requests needs inline icons, but 256 KiB of raw bytes is about 341 KiB as base64, so a 100-plugin index could reach about 35 MB. URL icons trade extra requests, and disclosure of the user's IP address to the image host, for a small index.
 
-**Copying DSH `peerDependencies` into the index.** It maps several package names to ranges that all constrain one DSH version, and names the constraint after npm peer resolution. `engines.dsh` states the same constraint once, and installation reads it first.
+**Inferring host compatibility from peer dependencies.** The market defines a new standard requiring an author-declared `engines.dsh`. Existing packages must add that declaration before listing; no fallback, workspace mapping, or range intersection is needed.
 
-**A structured `author` such as npm's `{ name, email, url }`.** Clients only display an author, and an email member would spread addresses into every index.
+**Copying the complete npm person object into the display field.** The list needs a name. The generator supports npm's original declaration while omitting unused contact fields.
 
 **Opaque sort values for time, including ISO date strings.** Publish time has fixed semantics that clients format and sort, so it is a typed field. Without time, sort values can be numbers only, which needs no per-key value-type rule.
 
@@ -193,9 +205,9 @@ A reader evaluates each version's compatibility from `engines.dsh` with the rule
 
 **Declaration order as display order.** JavaScript reorders integer-like object keys, so declaration order would need either an id pattern or array declarations. Clients sort declarations by their localized title instead.
 
-**Allowing `workspace:` ranges.** Installation maps `workspace:*`, `workspace:^`, and `workspace:~` to the running DSH version, so every runtime would appear compatible; omitting them states the same result explicitly.
+**Selecting the greatest compatible version.** npm's `latest` can name an older release. Inferring a target from SemVer ranking loses the recorded channel choice and is ambiguous for equally ranked builds.
 
-**Prereleases as default versions.** Installation accepts prereleases, but offering a release candidate by default to users of a plugin with stable releases would install untested builds without a choice.
+**Automatic prerelease fallback.** Missing or incompatible channel targets do not mean that the user selected a prerelease.
 
 **Rejecting unknown members.** Every optional addition would then require a new `format` value and break every deployed reader.
 
@@ -204,13 +216,15 @@ A reader evaluates each version's compatibility from `engines.dsh` with the rule
 - A validator accepts the example above and rejects one violation of each rule in Root fields, Plugin fields, Version fields, and the `source` forms, with a diagnostic naming the JSON path.
 - Install arguments built from every example version are accepted by DSH's install-spec parser and by pnpm.
 - A validator ignores unknown members at every level.
-- DSH's installation check prefers `engines.dsh` over DSH `peerDependencies`, and compatibility computed from an index version matches it for the same manifest.
+- Generator and validator refuse missing, blank, and invalid `engines.dsh`; omitted versions leave no dangling tag target. Index and market-origin installation agree on valid ranges, including hyphen ranges, prereleases, and valid ranges that reject the runtime. Exemptions never bypass the declaration requirement.
+- Exact tag targets select the same source after equally ranked Git build versions are reordered. Missing targets are rejected; absent or incompatible `latest` causes no automatic switch.
+- npm author objects and shorthand strings produce the declared name without contact fields or mutation of source identity.
 
 ## Risks
 
-- An index is unsigned. A market can use a misleading `title`, such as one claiming to be official; clients must show the index URL and each version's `source`.
+- An index is unsigned. Titles, authors, labels, and scores are market claims; an `official` label is not DSH verification. Clients must show the index URL and each version's `source`.
 - A Git version's `name`, `version`, and `engines.dsh` are claims about the repository. A repository can claim any name, including an `@deepseek-ai/dsh-` name, and the installed manifest decides what is actually installed.
 - An npm version's `source.registry` is equally a claim: it directs the install of any `name`, including an `@deepseek-ai/dsh-` name, to a registry the market chooses, and that registry decides what is installed.
 - URL icons disclose the user's IP address to image hosts.
-- Pinned versions stay stale until the index is regenerated.
+- Pinned versions and distribution tags stay stale until the index is regenerated.
 - Market text reaches users, and models through any client tool that lists plugins, without review by DSH.
