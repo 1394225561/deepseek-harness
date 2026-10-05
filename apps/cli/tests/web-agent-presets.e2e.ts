@@ -860,8 +860,7 @@ describe('the default preset as a user setting', () => {
         setup: agentCtx => ctx.agentPresets.mount(agentCtx).then(() => undefined),
       })
       try {
-        // `mount()` with no id resolves the effective default. One tool, not
-        // `standard`'s catalog: the setting decided the composition.
+        // An omitted preset id resolves the stored default instead of the composed default.
         expect(toolNames(ctx, handle.agent)).toEqual(['bash', 'working_directory'])
       } finally {
         await handle.dispose()
@@ -908,7 +907,7 @@ describe('a profile patch stored before Developer tools owned preset selection',
       setup: agentCtx => legacy.agentPresets.mount(agentCtx).then(() => undefined),
     })
     try {
-      expect(toolNames(legacy, handle.agent)).toEqual(['bash'])
+      expect(toolNames(legacy, handle.agent)).toEqual(['bash', 'working_directory'])
     } finally {
       await handle.dispose()
     }
@@ -925,7 +924,7 @@ describe('a session keeps the preset it was created with', () => {
     try {
       // The api-proxy guard reads exactly this: the header records what the
       // session runs, so naming anything else is a caller error rather than a
-      // switch. Its history was produced under `minimal`'s single tool.
+      // switch.
       expect(handle.agent.session.header.agentPreset).toBe('minimal')
     } finally {
       await handle.dispose()
