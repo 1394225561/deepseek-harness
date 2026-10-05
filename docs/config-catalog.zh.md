@@ -3142,7 +3142,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-subagent-acp`
 
 - `inject`: `subagents` · `subprocess`
-- `source`: [`packages/subagent/subagent-acp/src/index.ts:26`](../packages/subagent/subagent-acp/src/index.ts)
+- `source`: [`packages/subagent/subagent-acp/src/index.ts:25`](../packages/subagent/subagent-acp/src/index.ts)
 
 ```ts config-catalog
 /** Config: how to spawn and drive the child ACP agent process. */
