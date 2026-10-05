@@ -946,7 +946,8 @@ export interface StagehandModelConfig {
 
 ## `@deepseek-ai/dsh-experimental-claude-code-mods`
 
-- `source`: [`packages/experimental/claude-code-mods/src/index.ts:52`](../packages/experimental/claude-code-mods/src/index.ts)
+- `inject`: `workingDirectory`
+- `source`: [`packages/experimental/claude-code-mods/src/index.ts:53`](../packages/experimental/claude-code-mods/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: the limits mod hooks run under. */
@@ -4346,8 +4347,8 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-workspace-changes`
 
-- `inject`: `subprocess`
-- `source`: [`packages/deliverables/workspace-changes/src/index.ts:33`](../packages/deliverables/workspace-changes/src/index.ts)
+- `inject`: `subprocess` · `fs`
+- `source`: [`packages/deliverables/workspace-changes/src/index.ts:34`](../packages/deliverables/workspace-changes/src/index.ts)
 
 ```ts config-catalog
 /** Snapshot, capture, and comparison bounds. Invalid values fail plugin load. */

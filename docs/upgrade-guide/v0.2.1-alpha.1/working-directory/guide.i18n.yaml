@@ -3,14 +3,14 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-alpha.1/working-directory/guide.md
 /:
-  en: a7c17e352374c537
-  zh: d0321bc63c6bbf2b
-/migrate-working-directory-templates-and-subagent-configuration:
-  en: f83861180d272d05
-  zh: 27717359b5290a94
-/migrate-working-directory-templates-and-subagent-configuration/change:
-  en: 508e243b8f9980ca
-  zh: 9eba95b0617d5ddb
-/migrate-working-directory-templates-and-subagent-configuration/migration:
-  en: 37046f846fcec632
-  zh: c7d715171e70655a
+  en: bd716a636d3631a4
+  zh: 7a3a4de1d3669d57
+/migrate-working-directory-configuration-and-tool-presentation:
+  en: 0c783661ea6973cb
+  zh: 087e487812b4933b
+/migrate-working-directory-configuration-and-tool-presentation/change:
+  en: d2738fe9f819599d
+  zh: 4eaacaeadcd80adf
+/migrate-working-directory-configuration-and-tool-presentation/migration:
+  en: 2c0921b75b8154da
+  zh: b64d4f4174356753
