@@ -210,6 +210,20 @@ describe('SubagentRuntime', () => {
     )).rejects.toMatchObject({ code: 'CONTINUATION_UNAVAILABLE' })
   })
 
+  it('reports an unavailable runtime before checking the parent of a registered provider', async () => {
+    const { subagents } = await service(false)
+    const provider = new StubProvider('external')
+    subagents.registerProvider(provider)
+    await expect(subagents.startActivation({
+      provider: provider.name,
+      label: 'Unavailable runtime',
+      request: baseRequest(),
+      signal: new AbortController().signal,
+      delivery: 'caller',
+    })).rejects.toMatchObject({ code: 'CONTINUATION_UNAVAILABLE' })
+    expect(provider.startCount).toBe(0)
+  })
+
   it.each([
     ['agentOptions', { agentOptions: { model: 'child-model' } }],
     ['outputSchema', { outputSchema: { type: 'object', properties: {} } }],

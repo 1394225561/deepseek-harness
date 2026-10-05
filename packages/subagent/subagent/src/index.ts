@@ -268,11 +268,11 @@ export class SubagentRuntime extends TypertRemoteService {
     }
     assertSubagentMaxDepth(spec.request.maxDepth)
     this.assertCapabilities(provider, { ...spec.request, signal: spec.signal })
+    const manager = this.requireManager()
     if (this.ctx.get('agents')?.get(spec.request.parent.id) !== spec.request.parent) {
       throw new SubagentError('subagent creation requires the exact live parent agent', 'UNAUTHORIZED')
     }
     if (spec.request.outputSchema !== undefined) assertObjectJsonSchema(spec.request.outputSchema)
-    const manager = this.requireManager()
     return provider.prepareContinuable === undefined
       ? manager.startExternal(spec)
       : manager.startLocal(spec)
