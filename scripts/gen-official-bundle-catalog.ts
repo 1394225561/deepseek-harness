@@ -106,16 +106,19 @@ function localized(value: LocalizedText): string {
 }
 
 /**
- * Write or freshness-check metadata against the owning package resources.
+ * Write changed metadata or freshness-check it against the owning package resources.
  * @param root - Repository root containing source and metadata resources.
  * @param check - Reject drift without changing the generated file.
  */
 export function syncOfficialBundleCatalog(root: string, check: boolean): void {
   const source = renderOfficialBundleCatalog(generateOfficialBundleCatalog(root))
   const path = resolve(root, OUTPUT)
-  if (check) {
-    if (readFileSync(path, 'utf8') !== source) throw new Error(`${OUTPUT} is stale; run pnpm gen-official-bundle-catalog`)
-  } else writeFileSync(path, source)
+  let current: string | undefined
+  try { current = readFileSync(path, 'utf8') }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
+  if (current === source) return
+  if (check) throw new Error(`${OUTPUT} is stale; run pnpm gen-official-bundle-catalog`)
+  writeFileSync(path, source)
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

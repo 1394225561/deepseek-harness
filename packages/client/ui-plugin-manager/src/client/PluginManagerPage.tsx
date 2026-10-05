@@ -310,12 +310,7 @@ function RowsSection({ rows, t, resolveText, toggle, configure }: {
   )
 }
 
-/**
- * Where a bundle comes from: the spec that installs it elsewhere, or built in
- * for one whose loaded copy the installation supplies, and its version. A
- * selected bundle that neither the profile nor the installation holds has no
- * section.
- */
+/** Declared install source and versions; unavailable files retain their recorded dependency spec. */
 function SourceSection({ pkg, t }: { readonly pkg: PackageView; readonly t: Translate }): ReactNode {
   if (pkg.source === undefined && !pkg.installed && pkg.availability === 'installation' && !pkg.optional) return null
   return (
@@ -324,7 +319,8 @@ function SourceSection({ pkg, t }: { readonly pkg: PackageView; readonly t: Tran
       <dl className={css.facts}>
         <div>
           <dt>{t('sourceSpec')}</dt>
-          <dd>{pkg.availability === 'missing' ? t(pkg.installed ? 'statusMissingFiles' : 'sourceNotInstalled') : pkg.source === undefined ? t('sourceBuiltIn') : <code>{pkg.source}</code>}</dd>
+          <dd>{pkg.source !== undefined ? <code>{pkg.source}</code> : pkg.availability === 'missing'
+            ? t(pkg.installed ? 'statusMissingFiles' : 'sourceNotInstalled') : t('sourceBuiltIn')}</dd>
         </div>
         {pkg.version === undefined
           ? null

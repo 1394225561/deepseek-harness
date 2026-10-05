@@ -1834,6 +1834,38 @@ it('installs an absent Official entry directly at the host target and enables it
   expect(state().install.subject).toMatchObject({ selection: true, saveExact: true, version: '2.0.0' })
 })
 
+it.each(['before', 'after'] as const)('reports one Official toggle when inventory refresh finishes %s installation', async (order) => {
+  const installing = deferred<ReturnType<typeof ok<ChangeResult>>>()
+  const refreshing = deferred<ReturnType<typeof ok<BundleInfo[]>>>()
+  const installed: BundleInfo = { ...CATALOG, availability: 'profile', installed: true, enabled: true, removable: true, version: '2.0.0' }
+  const result = ok({ ...APPLIED, bundle: CATALOG.name })
+  const listBundles = vi.fn().mockResolvedValue(ok([installed]))
+    .mockResolvedValueOnce(ok([CATALOG])).mockReturnValueOnce(refreshing.promise)
+  const { controller, face, state, started, track } = bench({ listBundles, installBundle: vi.fn(() => installing.promise) })
+  const reads: Promise<void>[] = []
+  onTestFinished(async () => { installing.resolve(result); refreshing.resolve(ok([installed])); await Promise.all(reads) })
+  await controller.load()
+  face.setEnabled(CATALOG.name, true)
+  await started()
+  const refresh = controller.load()
+  reads.push(refresh)
+  await vi.waitFor(() => { expect(listBundles).toHaveBeenCalledTimes(2) })
+  expect(state().packages.find(pkg => pkg.name === CATALOG.name)?.availability).toBe('missing')
+  if (order === 'before') {
+    refreshing.resolve(ok([installed]))
+    await refresh
+  }
+  installing.resolve(result)
+  await vi.waitFor(() => { expect(state().install.phase).toBe('done') })
+  expect(track.mock.calls.filter(([event]) => event === 'plugin_toggle')).toEqual([['plugin_toggle', {
+    plugin_name: CATALOG.name, plugin_type: 'bundle', is_enabled: true, is_builtin: false,
+  }]])
+  refreshing.resolve(ok([installed]))
+  await refresh
+  await controller.load()
+  expect(track.mock.calls.filter(([event]) => event === 'plugin_toggle')).toHaveLength(1)
+})
+
 it.each([true, false])('updates an Official entry with enabled=%s through the same exact installer', async (enabled) => {
   const installed: BundleInfo = { ...CATALOG, availability: 'profile', installed: true, version: '1.0.0', enabled, removable: true }
   const { controller, plugins, face, state } = bench({ listBundles: vi.fn().mockResolvedValue(ok([installed])),

@@ -76,7 +76,7 @@ export const zh = {
   installGuideFill: '填入示例',
   installGuideFillAria: '填入示例 {example}',
   installGuideSafety: '请确认插件来源可信。插件在本机以你的权限运行，来源不明的插件可能损坏 DeepSeek Harness，或读取和泄露你的数据。',
-  installUpgradeNotice: '按需安装的官方插件会在版本与 DSH 不同时提供“更新”。其他插件请先卸载再安装新版',
+  installUpgradeNotice: '按需安装的官方插件会在版本与 DSH 不同时提供“更新”。其他插件请先卸载再安装新版。',
   registryToggle: '安装源',
   registryLegend: '从哪个 npm 源下载插件',
   registryDefault: '默认安装源',

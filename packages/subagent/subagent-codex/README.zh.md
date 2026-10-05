@@ -56,17 +56,18 @@ kind: "package-bundle"
 <a id="exposing-the-tool"></a>
 ### 暴露工具
 
-Bundle 通过作用于预设的配置补丁为每个完整预设添加 `optional-tool-subagent-codex`。minimal 预设和 Host 工具目录保持不变。对于不包含这些预设目标的自定义配置，保留包依赖并直接组合提供方和工具：
+Bundle 通过作用于预设的配置补丁为每个完整预设添加 `optional-tool-subagent-codex`。minimal 预设和 Host 工具目录保持不变。对于不包含这些预设目标、但使用共享 base 服务的 profile，先按[恢复步骤](../../../docs/upgrade-guide/v0.2.1-alpha.1/native-subagent-bundle-tools/guide.zh.md#recovery)保留依赖并取消选择 bundle 层，再把以下插入操作加入该 profile 的 `cordis.patch.yml`：
 
 ```yaml
-- id: subagent-codex
-  name: '@deepseek-ai/dsh-subagent-codex'
-- id: tool-subagent-codex
-  name: '@deepseek-ai/dsh-tool-subagent'
-  config:
-    provider: codex
-    toolName: subagent_codex
-    maxDepth: provider-managed
+- insert:
+    - id: subagent-codex
+      name: '@deepseek-ai/dsh-subagent-codex'
+    - id: tool-subagent-codex
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: codex
+        toolName: subagent_codex
+        maxDepth: provider-managed
 ```
 
 工具接受任务后返回 child id；任务完成后向父 agent 发送结果通知。外部 activation 只执行一次，不支持追加输入或恢复对话。
