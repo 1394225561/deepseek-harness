@@ -14,9 +14,9 @@
       - text: minimax-cn
       - img "API 密钥已配置"
       - button "编辑 minimax-cn" [disabled]: 编辑
-      - button "删除 minimax-cn": 删除
+      - button "删除 minimax-cn" [disabled]: 删除
     - listitem:
       - text: Acme 网关 自定义
       - button "编辑 Acme 网关 (acme-gateway)" [disabled]: 编辑
-      - button "删除 Acme 网关 (acme-gateway)": 删除
-  - button "添加模型提供商"
+      - button "删除 Acme 网关 (acme-gateway)" [disabled]: 删除
+  - button "添加模型提供商" [disabled]

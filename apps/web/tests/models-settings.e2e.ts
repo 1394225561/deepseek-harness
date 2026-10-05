@@ -48,6 +48,32 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
     browser = await chromium.launch()
     // The scenario asserts the shipped Chinese copy, so the browser asks for it.
     page = await browser.newPage({ viewport: { width: 1680, height: 1000 }, locale: ZH_BROWSER_LOCALE })
+    await page.addInitScript(() => {
+      const events = { received: 0, handled: 0 }
+      Reflect.set(window, '__DSH_MODELS_ADAPTER_EVENTS__', events)
+      const NativeWebSocket = window.WebSocket
+      window.WebSocket = class extends NativeWebSocket {
+        constructor(url: string | URL, protocols?: string | string[]) {
+          super(url, protocols)
+          this.addEventListener('message', (event: MessageEvent<unknown>) => {
+            if (typeof event.data !== 'string') return
+            const frame: unknown = JSON.parse(event.data)
+            if (typeof frame !== 'object' || frame === null || !('type' in frame) || frame.type !== 'item' || !('value' in frame)) return
+            const value = frame.value
+            if (typeof value !== 'object' || value === null || !('type' in value) || value.type !== 'emit' || !('event' in value) || value.event !== 'llm/adapters-updated') return
+            const received = ++events.received
+            // The Gateway starts notification handlers before this acknowledgement task.
+            const channel = new MessageChannel()
+            channel.port1.onmessage = () => {
+              events.handled = Math.max(events.handled, received)
+              channel.port1.close()
+              channel.port2.close()
+            }
+            channel.port2.postMessage(undefined)
+          })
+        }
+      }
+    })
     tripwire = watchConsole(page)
     await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
     await page.waitForSelector('[class*="frame"]', { timeout: 30_000 })
@@ -368,12 +394,20 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
         inputModalities: ['image'],
       })
       await firstStarted.promise
+      const obsolete = [...reads]
+      const receivedBefore = await page.evaluate(() => {
+        const events: unknown = Reflect.get(window, '__DSH_MODELS_ADAPTER_EVENTS__')
+        if (typeof events !== 'object' || events === null || !('received' in events) || typeof events.received !== 'number') throw new Error('Missing adapter event observer')
+        return events.received
+      })
       nextStarted = Promise.withResolvers<undefined>()
+      const successorHandled = page.waitForFunction((received) => {
+        const events: unknown = Reflect.get(window, '__DSH_MODELS_ADAPTER_EVENTS__')
+        return typeof events === 'object' && events !== null && 'handled' in events && typeof events.handled === 'number' && events.handled > received
+      }, receivedBefore)
       scaffold.ctx.emit('llm/adapters-updated')
+      await successorHandled
       await nextStarted.promise
-      const latest = reads.at(-1)
-      if (latest === undefined) throw new Error('Missing current credentials read')
-      const obsolete = reads.slice(0, -1)
       const oldResponses = obsolete.map(read => page.waitForResponse(response => response.request() === read.request))
       for (const read of obsolete) read.release()
       await Promise.all(oldResponses.map(async (response) => { await (await response).finished() }))
