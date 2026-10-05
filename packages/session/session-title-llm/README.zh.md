@@ -72,7 +72,7 @@ kind: "package-library"
 
 ### 请求流程
 
-生成在注册时校验一次配置；每次修订把选中的消息封装为 JSON，依据 `maxInputBytes` 检查封装提示词的 UTF-8 字节数，解析路由（显式对或已记录 `request/header`），追加一条携带确切可分发请求的仅日志 `session/title-llm-request` 事件，然后在组合的超时与取消截止时间内通过 `ctx.llm` 流式生成。分发的封套携带 `purpose: 'session-title'`，且有意不包含 agent loop 的进程本地请求身份；DeepSeek 适配器根据该用途禁用思考，使少量输出预算全部用于可见标题文本，其他适配器负责自身用途专用行为。输出只组装为文本块；工具调用、格式错误或空输出与非 stop 结束原因都会拒绝，后续模型失败会保留请求记录。
+生成在注册时校验一次配置；每次修订把选中的消息封装为 JSON，依据 `maxInputBytes` 检查封装提示词的 UTF-8 字节数，解析路由（显式对或已记录 `request/header`），追加一条携带确切可分发请求的仅日志 `session/title-llm-request` 事件，然后在组合的超时与取消截止时间内通过 `ctx.llm` 流式生成。分发的封套携带 `purpose: 'session-title'`，且有意不包含 agent loop 的进程本地请求身份；适配器以模型支持的最少推理分发该用途，使少量输出预算全部用于可见标题文本：DeepSeek 适配器禁用思考，pi-ai 适配器选择模型支持的最低等级。输出只组装为文本块；工具调用、格式错误或空输出与非 stop 结束原因都会拒绝，后续模型失败会保留请求记录。
 
 </details>
 
@@ -102,7 +102,7 @@ kind: "package-library"
 
 #### Token 影响
 
-辅助请求根据所选输入大小与 `maxOutputTokens` 消耗 token。它与主 agent 请求相互独立，不会向 agent 历史增加标题文本或封装内容。DeepSeek 标题调用会关闭思考；主对话保留自身配置的思考模式。
+辅助请求根据所选输入大小与 `maxOutputTokens` 消耗 token。它与主 agent 请求相互独立，不会向 agent 历史增加标题文本或封装内容。标题调用在 DeepSeek 路由上关闭思考，在 pi-ai 路由上使用模型支持的最低等级；无法停止推理的模型仍会把部分 `maxOutputTokens` 用于推理。主对话保留自身配置的思考模式。
 
 #### KV Cache 影响
 

@@ -547,7 +547,9 @@ export interface GenerateOptions {
   /**
    * Provider-neutral classification for an auxiliary model call. Adapters may
    * map the purpose to model-hidden transport metadata or purpose-specific
-   * generation policy. Ordinary conversation requests leave it unset.
+   * generation policy. A `session-title` call caps output for one short visible
+   * title, so adapters dispatch it with the least reasoning the model supports.
+   * Ordinary conversation requests leave it unset.
    */
   purpose?: 'compaction' | 'session-title'
 }

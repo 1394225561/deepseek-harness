@@ -4,7 +4,7 @@ import { stream as streamAnthropic } from '@earendil-works/pi-ai/api/anthropic-m
 import { stream as streamCompletions } from '@earendil-works/pi-ai/api/openai-completions'
 import { stream as streamResponses } from '@earendil-works/pi-ai/api/openai-responses'
 import { normalizeContext } from '@earendil-works/pi-ai/utils/transcript'
-import { closeMockServers, mockServer } from './mock-server.ts'
+import { anthropicFrame as frame, anthropicMessageStart, closeMockServers, mockServer } from './mock-server.ts'
 
 afterEach(closeMockServers)
 
@@ -63,13 +63,8 @@ describe('streamed tool-call arguments (patched pi-ai)', () => {
   })
 
   it('anthropic-messages parses arguments once, at the end of the call', async () => {
-    const frame = (data: Record<string, unknown>): { event: string; data: string } =>
-      ({ event: String(data['type']), data: JSON.stringify(data) })
     const server = await mockServer([{ events: [
-      frame({ type: 'message_start', message: {
-        id: 'msg_1', type: 'message', role: 'assistant', model: 'm', content: [],
-        stop_reason: null, stop_sequence: null, usage: { input_tokens: 3, output_tokens: 1 },
-      } }),
+      anthropicMessageStart,
       frame({ type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'toolu_1', name: 'write', input: {} } }),
       ...fragments.map(fragment => frame({
         type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: fragment },

@@ -154,6 +154,25 @@ function describableReasoningLevel(
     : undefined
 }
 
+/**
+ * The level one request dispatches with. A `session-title` request takes the
+ * model's lowest supported level, which is `off` whenever the model can stop
+ * reasoning, because its small output cap must hold visible title text;
+ * every other request validates the requested or profile effort.
+ * @param model - the resolved model descriptor.
+ * @param options - the request's purpose and requested effort.
+ * @param profile - the route profile carrying the default effort.
+ * @returns the level to dispatch, or undefined to send none.
+ */
+function requestReasoningLevel(
+  model: Model<Api>,
+  options: GenerateOptions,
+  profile: ResolvedPiAiProviderProfile,
+): ModelThinkingLevel | undefined {
+  if (options.purpose === 'session-title') return getSupportedThinkingLevels(model)[0]
+  return resolveReasoningLevel(model, options.reasoningEffort ?? profile.reasoning)
+}
+
 /** Validate an explicit Harness/profile effort without invoking pi-ai's clamp. */
 function resolveReasoningLevel(
   model: Model<Api>,
@@ -341,10 +360,7 @@ export class PiAiAdapter extends LlmAdapter {
     // the one it started with and the next call picks up the new one.
     const profile = this.profileOf(snapshot, options.provider)
     const model = this.modelOf(snapshot, options.provider, options.model)
-    const reasoning = resolveReasoningLevel(
-      model,
-      options.reasoningEffort ?? profile.reasoning,
-    )
+    const reasoning = requestReasoningLevel(model, options, profile)
     const apiKey = await this.config.resolveApiKey(options.provider, profile)
 
     const consumer = new AbortController()
