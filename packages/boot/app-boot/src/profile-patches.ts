@@ -1,9 +1,9 @@
 /** Compile preset-scoped profile operations to the native Include patch language. */
 
 import { createHash } from 'node:crypto'
-import { realpathSync } from 'node:fs'
 import { applyEntryPatches, type PatchOptions } from '@deepseek-ai/cordis-plugin-include'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
+import { realModuleFile } from './profile-resolution/legacy-links.ts'
 
 /** A native entry patch, optionally applied inside one preset row's `config.plugins`. */
 export interface ProfilePatch extends PatchOptions {
@@ -44,7 +44,7 @@ export function cloneProfilePatches(patches: readonly ProfilePatch[]): ProfilePa
  * @throws When a preset target is malformed, naming its declaring file and operation.
  */
 export function prepareLoadedProfilePatches(patches: ProfilePatch[], file: string, binName: string): ProfilePatch[] {
-  const canonical = realpathSync(file)
+  const canonical = realModuleFile(file)
   patches.forEach((patch, operation) => {
     patchSources.set(patch, { binName, file, operation })
     try {

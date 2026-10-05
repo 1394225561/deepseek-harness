@@ -1,6 +1,6 @@
 /** Current-profile plugin and bundle management over shared dsh plugin operations. */
 import { randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -13,7 +13,7 @@ import z from '@deepseek-ai/schemastery'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import { pluginEntryId, readPluginInventory } from '@deepseek-ai/dsh-host-plugin-inventory'
 import {
-  readPluginMeta, resolvePluginResource, readProfileManifest, resolveBundleDir, loadOverlayPatches, composeEntries,
+  readPluginMeta, resolvePluginResource, realModuleFile, readProfileManifest, resolveBundleDir, loadOverlayPatches, composeEntries,
   reconcileProfilePatches, readProfilePatches, OPTIONAL_BUNDLES, bundlePatchPaths,
   evaluatePluginCompatibility, readProfileCompatibility, readProfileVersionExemptions,
   setProfileVersionExemption, PROFILE_COMPATIBILITY_FILENAME, profilePatchPreset, type ProfilePatch,
@@ -690,10 +690,10 @@ export class PluginManager extends TypertRemoteService {
     if (presets === undefined || declarations.length === 0) return false
     const manifest = join(resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir), 'package.json')
     const base = pathToFileURL(manifest).href
-    const owner = realpathSync(manifest)
+    const owner = realModuleFile(manifest)
     const moduleKey = (specifier: string, parentURL: string): string | undefined => {
       if (specifier.startsWith('cordis:')) return specifier
-      try { return realpathSync(resolvePluginResource(specifier, parentURL)) }
+      try { return realModuleFile(resolvePluginResource(specifier, parentURL)) }
       catch (error) {
         // An externally removed module cannot match another resolved file; identical declarations remain protected below.
         if (['ENOENT', 'ENOTDIR', 'ERR_MODULE_NOT_FOUND', 'ERR_PACKAGE_PATH_NOT_EXPORTED'].includes(String((error as NodeJS.ErrnoException).code))) return undefined

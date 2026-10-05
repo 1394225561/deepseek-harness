@@ -1,5 +1,6 @@
 /** Scoped bundles use real preset generations, profile reloads, and package-removal admission. */
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import fs, { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { syncBuiltinESMExports } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -244,7 +245,8 @@ it('refuses Remove after Off while an old Agent scope retains the bundle, then r
   expect(remove).toHaveBeenCalledOnce()
 })
 
-it.each([false, true])('removes a released contribution while base presets keep using the same shared module (anonymous=%s)', async (anonymous) => {
+it.each([false, true].flatMap(anonymous => [false, true].map(archive => ({ anonymous, archive }))))
+('removes a released contribution while base presets keep using the same shared module (anonymous=$anonymous, archive=$archive)', async ({ anonymous, archive }) => {
   const { manager, ctx, dir, addon } = await fixture()
   const shared = join(dir, 'node_modules', 'shared-fixture')
   mkdirSync(shared)
@@ -276,6 +278,28 @@ it.each([false, true])('removes a released contribution while base presets keep 
       { entryId: anonymous ? expect.any(String) as string : 'addon-shared', moduleName: 'shared-fixture' },
     ],
   }])
+  if (archive) {
+    const original = fs.realpathSync
+    const previousPkg = Object.getOwnPropertyDescriptor(process, 'pkg')
+    onTestFinished(() => {
+      fs.realpathSync = original
+      if (previousPkg === undefined) Reflect.deleteProperty(process, 'pkg')
+      else Object.defineProperty(process, 'pkg', previousPkg)
+      syncBuiltinESMExports()
+    })
+    Object.defineProperty(process, 'pkg', { configurable: true, value: {} })
+    fs.realpathSync = new Proxy(original, {
+      apply(target, receiver: unknown, args: unknown[]): unknown {
+        if (['package.json', 'index.mjs'].some(file => String(args[0]).endsWith(join('shared-fixture', file)))) {
+          throw Object.assign(new Error('archive-backed files have no realpath entry'), { code: 'ENOENT' })
+        }
+        return Reflect.apply(target, receiver, args)
+      },
+    })
+    syncBuiltinESMExports()
+    expect(() => fs.realpathSync(join(shared, 'package.json'))).toThrow('archive-backed')
+    expect(readFileSync(join(shared, 'index.mjs'), 'utf8')).toContain('export function apply')
+  }
   const remove = vi.spyOn(operations, 'runProfilePnpm').mockImplementation(async () => {
     const manifest = readProfileManifest('test', dir)
     delete manifest.dependencies?.addon

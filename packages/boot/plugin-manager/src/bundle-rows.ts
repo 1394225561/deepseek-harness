@@ -1,9 +1,9 @@
 /** Raw bundle declarations remain inspectable while their prerequisite layers are disabled. */
-import { existsSync, realpathSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { dirname, isAbsolute, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
-import { profilePatchPreset, type ProfilePatch, type PluginPackages } from '@deepseek-ai/dsh-app-boot'
+import { realModuleFile, profilePatchPreset, type ProfilePatch, type PluginPackages } from '@deepseek-ai/dsh-app-boot'
 
 /** A declared child row and the outer preset operation that contributes it. */
 export interface BundleDeclaration {
@@ -39,14 +39,14 @@ export function bundleModuleOwner(
   specifier: string, base: string, packages?: Pick<PluginPackages, 'packageOf'>,
 ): string | undefined {
   const known = packages?.packageOf(specifier, base)
-  if (known !== undefined) return realpathSync(known.manifestPath)
+  if (known !== undefined) return realModuleFile(known.manifestPath)
   if (!specifier.startsWith('file:') && !specifier.startsWith('.') && !isAbsolute(specifier)) return undefined
   const file = isAbsolute(specifier) ? specifier : fileURLToPath(new URL(specifier, base))
   if (!existsSync(file)) return undefined
-  let dir = dirname(realpathSync(file))
+  let dir = dirname(realModuleFile(file))
   while (true) {
     const manifest = join(dir, 'package.json')
-    if (existsSync(manifest)) return realpathSync(manifest)
+    if (existsSync(manifest)) return realModuleFile(manifest)
     const parent = dirname(dir)
     if (parent === dir) return undefined
     dir = parent

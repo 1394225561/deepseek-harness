@@ -48,4 +48,13 @@ it('finds canonical owners for bare, relative, absolute, and file URL modules wi
   const linked = join(dir, 'linked')
   symlinkSync(packageDir, linked, process.platform === 'win32' ? 'junction' : 'dir')
   expect(bundleModuleOwner(pathToFileURL(join(linked, 'lib/index.mjs')).href, base)).toBe(expected)
+  const otherPackage = join(dir, 'other-package')
+  mkdirSync(otherPackage)
+  writeFileSync(join(otherPackage, 'package.json'), '{"name":"other-package"}\n')
+  const otherModule = join(otherPackage, 'foreign.mjs')
+  writeFileSync(otherModule, 'export function apply() {}\n')
+  const fileLink = join(packageDir, 'borrowed.mjs')
+  symlinkSync(otherModule, fileLink, 'file')
+  expect(bundleModuleOwner(fileLink, base)).toBe(realpathSync(join(otherPackage, 'package.json')))
+
 })
