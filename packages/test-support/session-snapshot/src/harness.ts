@@ -65,12 +65,13 @@ const WAIT_POLL_INTERVAL_MS = 10
  * selected session's latest complete raw-JSONL turn boundary is `turn/end`.
  * `waitForGoalPhase` waits for the latest durable goal snapshot to reach one phase.
  * `waitForInboxMessage` waits for inserted inbox text containing a scenario marker.
- * Its failures identify the session and deadline even if the first log read is
- * still pending; the underlying failure is retained as cause.
  * `waitForSubagentTurnEnd` waits until one background child has persisted a
  * closed model-work turn after its own descriptor; child progress has no ACP
- * update to wait on. Failures identify the child, turn, and deadline even if
- * the first log read is still pending; the underlying failure is retained as cause.
+ * update to wait on.
+ * Timeouts in `waitForTurnStart`, `waitForTurnEnd`, `waitForSubagentTurnEnd`,
+ * `waitForGoalPhase`, and `waitForInboxMessage` identify the session or child
+ * and deadline even if the first log read is still pending; they retain the
+ * underlying failure as cause. Child waits also name the requested turn.
  * `waitForTitleAfterTurnEnd` additionally waits for a later durable title.
  * `waitForEventAfterTurnEnd` waits until a complete record of the given event
  * type follows the latest closed turn — for scenarios whose asserted state
@@ -558,23 +559,28 @@ async function waitForPersistedTurnStart(
   minimumTurn?: number,
 ): Promise<void> {
   let invalidRecord: { error: unknown } | undefined
-  await vi.waitFor(async () => {
-    const log = (await harvestSessionLogs(root)).find(candidate => candidate.id === sessionId)
-    let openTurn: number | undefined
-    try {
-      openTurn = log === undefined ? undefined : latestOpenTurn(log.content)
-    } catch (error) {
-      // A malformed persisted record is a scenario bug, not a not-yet state:
-      // vi.waitFor retries every callback throw, so capture the validation
-      // failure, resolve the wait, and rethrow immediately below.
-      invalidRecord = { error }
-      return
-    }
-    if (openTurn === undefined || (minimumTurn !== undefined && openTurn < minimumTurn)) {
-      const detail = minimumTurn === undefined ? 'turn/start' : `turn/start at or beyond turn ${minimumTurn}`
-      throw new Error(`snapshot-harness: session "${sessionId}" did not persist ${detail} within ${timeoutMs}ms`)
-    }
-  }, { interval: WAIT_POLL_INTERVAL_MS, timeout: timeoutMs })
+  const detail = minimumTurn === undefined ? 'turn/start' : `turn/start at or beyond turn ${minimumTurn}`
+  const message = `snapshot-harness: session "${sessionId}" did not persist ${detail} within ${timeoutMs}ms`
+  try {
+    await vi.waitFor(async () => {
+      const log = (await harvestSessionLogs(root)).find(candidate => candidate.id === sessionId)
+      let openTurn: number | undefined
+      try {
+        openTurn = log === undefined ? undefined : latestOpenTurn(log.content)
+      } catch (error) {
+        // A malformed persisted record is a scenario bug, not a not-yet state:
+        // vi.waitFor retries every callback throw, so capture the validation
+        // failure, resolve the wait, and rethrow immediately below.
+        invalidRecord = { error }
+        return
+      }
+      if (openTurn === undefined || (minimumTurn !== undefined && openTurn < minimumTurn)) {
+        throw new Error(message)
+      }
+    }, { interval: WAIT_POLL_INTERVAL_MS, timeout: timeoutMs })
+  } catch (cause) {
+    throw new Error(message, { cause })
+  }
   if (invalidRecord !== undefined) throw invalidRecord.error
 }
 
@@ -646,16 +652,19 @@ async function waitForPersistedGoalPhase(
   phase: string,
   timeoutMs = DEFAULT_WAIT_TIMEOUT_MS,
 ): Promise<void> {
-  await vi.waitFor(async () => {
-    const content = (await harvestSessionLogs(root)).find(log => log.id === sessionId)?.content
-    const matched = content?.split('\n').filter(Boolean).some((line) => {
-      const event = JSON.parse(line) as { type?: unknown; data?: { goal?: { phase?: unknown } } }
-      return event.type === 'goal/change' && event.data?.goal?.phase === phase
-    }) ?? false
-    if (!matched) {
-      throw new Error(`snapshot-harness: session "${sessionId}" did not persist goal phase "${phase}" within ${timeoutMs}ms`)
-    }
-  }, { interval: WAIT_POLL_INTERVAL_MS, timeout: timeoutMs })
+  const message = `snapshot-harness: session "${sessionId}" did not persist goal phase "${phase}" within ${timeoutMs}ms`
+  try {
+    await vi.waitFor(async () => {
+      const content = (await harvestSessionLogs(root)).find(log => log.id === sessionId)?.content
+      const matched = content?.split('\n').filter(Boolean).some((line) => {
+        const event = JSON.parse(line) as { type?: unknown; data?: { goal?: { phase?: unknown } } }
+        return event.type === 'goal/change' && event.data?.goal?.phase === phase
+      }) ?? false
+      if (!matched) throw new Error(message)
+    }, { interval: WAIT_POLL_INTERVAL_MS, timeout: timeoutMs })
+  } catch (cause) {
+    throw new Error(message, { cause })
+  }
 }
 
 /** Wait until an inserted inbox message contains scenario-owned text. */
