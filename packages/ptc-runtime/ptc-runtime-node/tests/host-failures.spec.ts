@@ -200,6 +200,32 @@ describe('Node runtime host failures', () => {
     expect(h.resolveExecutable).not.toHaveBeenCalled()
   })
 
+  it('keeps a null-deadline run active past the numeric ceiling until cancellation', async () => {
+    const h = await setup({ timeoutMs: 20, maxTimeoutMs: 40 })
+    const booted = Promise.withResolvers<undefined>()
+    h.onBoot(() => { booted.resolve(undefined) })
+    const controller = new AbortController()
+    let active: ReturnType<typeof h.start> | undefined
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      active = h.start({ ...request, timeoutMs: null, signal: controller.signal })
+      const settled = vi.fn()
+      void active.then(settled)
+      await booted.promise
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(settled).not.toHaveBeenCalled()
+      expect(h.terminate).not.toHaveBeenCalled()
+      controller.abort('stop unlimited run')
+      expect((await active).error).toEqual({ kind: 'abort', message: 'stop unlimited run' })
+      expect(h.terminate).toHaveBeenCalledOnce()
+      expect(h.waitForExit).toHaveBeenCalledOnce()
+    } finally {
+      controller.abort('test cleanup')
+      vi.useRealTimers()
+      await active
+    }
+  })
+
   it('does not launch after cancellation races executable lookup completion', async () => {
     const h = await setup()
     const controller = new AbortController()
@@ -458,12 +484,14 @@ describe('Node runtime host failures', () => {
     onTestFinished(() => { vi.unstubAllEnvs() })
     vi.stubEnv('TEMP', 'fixture-temp-first')
     vi.stubEnv('TMP', 'fixture-tmp-second')
+    vi.stubEnv('ELECTRON_RUN_AS_NODE', '1')
     vi.stubEnv('DSH_TEST_RUNTIME_SECRET', 'must-not-inherit')
     h.onBoot(() => { h.emit({ type: 'done' }) })
     expect((await h.start()).error).toBeUndefined()
     const env = h.spawn.mock.calls[0]?.[0].env ?? {}
     expect(Object.hasOwn(env, 'TEMP')).toBe(false)
     expect(Object.hasOwn(env, 'TMP')).toBe(false)
+    expect(Object.hasOwn(env, 'ELECTRON_RUN_AS_NODE')).toBe(false)
     expect(Object.hasOwn(env, 'DSH_TEST_RUNTIME_SECRET')).toBe(true)
     expect(env.DSH_TEST_RUNTIME_SECRET).toBeUndefined()
   })

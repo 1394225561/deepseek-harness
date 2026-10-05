@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { lstatSync, readFileSync, readlinkSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { historicalSchemaRegion } from './historical-schema-region.ts'
 
 const root = resolve(import.meta.dirname, '..')
 const blockedTerm = 'prove' + 'nance'
@@ -19,8 +20,10 @@ export interface ConcreteTermViolation {
 
 function isExcluded(file: string): boolean {
   return excludedPrefixes.some(prefix => file.startsWith(prefix))
-    // Release snapshots retain the identifiers present in their pinned source.
+    // Release snapshots retain the identifiers present in their pinned source;
+    // historical-format pairing records key sections by those identifiers' headings.
     || /^docs\/persistence-changes\/releases\/dsh-v\d+\.\d+\.\d+-(?:alpha|rc)\.\d+\.schema\.json$/u.test(file)
+    || /^docs\/persistence-changes\/historical-formats\/v(?:0|[1-9]\d*)\.(?:schema\.json|i18n\.yaml)$/u.test(file)
 }
 
 function containsBlockedTerm(value: string): boolean {
@@ -31,13 +34,16 @@ function containsBlockedTerm(value: string): boolean {
  * Find the blocked term in one maintained tracked file.
  * @param file - repository-relative tracked path.
  * @param source - text contents or symlink target.
- * @returns violations outside vendored sources, frozen Agent Notes and release schema snapshots.
+ * @returns violations outside vendored sources, frozen Agent Notes, historical schemas and their checked generated regions.
  */
 export function findConcreteTermViolations(file: string, source: string): ConcreteTermViolation[] {
   if (isExcluded(file)) return []
   const violations: ConcreteTermViolation[] = []
   if (containsBlockedTerm(file)) violations.push({ file, line: null })
-  for (const [index, line] of source.split('\n').entries()) {
+  const lines = source.split(/\r?\n/u)
+  const schemaRegion = historicalSchemaRegion(file, source)
+  for (const [index, line] of lines.entries()) {
+    if (schemaRegion !== undefined && index >= schemaRegion[0] && index < schemaRegion[1]) continue
     if (containsBlockedTerm(line)) violations.push({ file, line: index + 1 })
   }
   return violations

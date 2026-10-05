@@ -288,10 +288,14 @@ describe('Linux scope establishment and quiescence', () => {
     result.owner.cleanup?.()
   })
 
-  it('accepts request consumption followed by rapid --collect unload as stopped', async () => {
+  it.each([undefined, 'pipe'] as const)('accepts request consumption and rapid --collect unload with control %s', async (control) => {
     const states = [activeUnit(), unloadedUnit()]
-    const { child, result, requestPath } = launch(async () => states.shift() ?? missingUnit())
-    expect(consumeLinuxLaunchRequest(requestPath)).toEqual({ cwd: '/target', env: { TARGET: 'yes' } })
+    const controlOptions = control === undefined ? {} : { control }
+    const { child, result, requestPath } = launch(async () => states.shift() ?? missingUnit(), {}, {
+      ...spec(), stdio: { ...spec().stdio, ...controlOptions },
+    })
+    expect(consumeLinuxLaunchRequest(requestPath)).toEqual({ cwd: '/target', env: { TARGET: 'yes' }, ...controlOptions })
+    expect(result.control).toBe(control === undefined ? undefined : child.control)
     const waiting = result.owner.waitForExit()
     child.exit(0, null)
     await expect(result.direct).resolves.toEqual({ exitCode: 0, signal: null })
@@ -953,6 +957,7 @@ describe('Linux PTY bootstrap reuse', () => {
     env: { TARGET: 'yes' },
     rows: 24,
     cols: 80,
+    terminalType: 'dumb',
     graceMs: 100,
   } as const
 
@@ -1052,4 +1057,29 @@ describe('Linux ordinary launch adapters', () => {
     if (requestPath === undefined) throw new Error('spawn did not receive a request locator')
     expect(existsSync(linuxLaunchFilesFromLocator(requestPath).directory)).toBe(false)
   })
+})
+
+it('observes native task counts independently from process-tree membership', () => {
+  const terminalSpec = { argv: ['/bin/bash', '-i'], cwd: process.cwd(), rows: 24, cols: 80, terminalType: 'xterm-256color', graceMs: 100 }
+  const scope = prepareLinuxTerminalScope(terminalSpec, {}, { spawnSync: childProcessMocks.spawnSync })
+  const owner = scope.bindOwner({ running: () => true, signal: () => true, settled: Promise.resolve() })
+  try {
+    for (const tasks of [1, 2, 0]) {
+      childProcessMocks.spawnSync.mockReturnValue({ status: 0, stdout: `LoadState=loaded\nActiveState=active\nTasksCurrent=${tasks}\n` })
+      expect(owner.inspectTaskCount?.()).toBe(tasks)
+    }
+    for (const response of [
+      { status: 0, stdout: 'LoadState=loaded\nActiveState=active\nTasksCurrent=[not set]\n' },
+      { status: 0, stdout: 'LoadState=not-found\nActiveState=inactive\n' },
+      { status: 0, stdout: 'LoadState=loaded\nActiveState=inactive\n' },
+      { status: 1, stdout: '' },
+      { status: 0, stdout: null },
+      { status: null, error: new Error('manager unavailable') },
+    ]) {
+      childProcessMocks.spawnSync.mockReturnValue(response)
+      expect(owner.inspectTaskCount?.()).toBeUndefined()
+    }
+    childProcessMocks.spawnSync.mockReturnValue({ status: 0, stdout: 'LoadState=loaded\nActiveState=active\nTasksCurrent=invalid\n' })
+    expect(() => owner.inspectTaskCount?.()).toThrow('non-numeric')
+  } finally { scope.cleanup() }
 })

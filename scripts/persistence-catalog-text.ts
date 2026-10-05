@@ -11,7 +11,7 @@ const english = {
   envelope: 'Event envelope', events: 'Events', sources: 'Sources: ', source: 'Source: ', types: 'Types: ',
   fingerprints: 'Persistence type fingerprints',
   fingerprintsIntro: 'The [machine inventory](persistence-schema.json) contains every reachable normalized type and its SHA-256 digest. Root digests include referenced types. Comments, source locations, alias names, erased brands, readonly markers, and harmless field, union, or intersection reordering do not affect these fingerprints. Tuple order, property names, value types, and optionality do. Catalog text and source locations can still produce a diff when digests stay unchanged.',
-  historyIntro: 'The [change records](persistence-changes/README.md) acknowledge exact transitions using snapshots kept in this tree. Follow the [review workflow](cookbook/reviewing-persistence-type-changes.md) to classify a change and record it. These checks cover declared type structure; opaque payload contents and behavior without type changes are outside their scope.',
+  historyIntro: 'The [format references](persistence-changes/historical-formats/README.md) cover every historical Session format. The [change records](persistence-changes/README.md) acknowledge exact transitions using snapshots kept in this tree. Follow the [review workflow](cookbook/reviewing-persistence-type-changes.md) to classify a change and record it. These checks cover declared type structure; opaque payload contents and behavior without type changes are outside their scope.',
   rootColumns: '| Root | Kind | SHA-256 | Resolved type |',
   definitions: 'Resolved persistence types',
   definitionsIntro: 'Each definition appears once. References preserve sharing and recursion; the digest beside a definition includes its complete reachable structure. Source names and locations identify its declarations but are excluded from its digest.',
@@ -19,6 +19,9 @@ const english = {
   optional: 'optional', required: 'required', rest: 'rest', index: 'index signature',
   emptyObject: 'Object with no declared properties.', arrayPrefix: 'Array of ', arraySuffix: '.',
   oneOf: 'One of:', opaque: ' (opaque)', opaqueExplanation: ": the declaration does not expose the stored value's internal fields.",
+  sourceCompatibility: 'Source compatibility: ', attributionAdditions: 'Attribution-only additions: ',
+  sourceColumns: '| kind | Form property | Other required fields | Full definition |',
+  notDeclared: 'not declared', none: 'none',
 }
 
 const chinese: Record<keyof typeof english, string> = {
@@ -29,7 +32,7 @@ const chinese: Record<keyof typeof english, string> = {
   envelope: '事件信封', events: '事件', sources: '来源：', source: '来源：', types: '类型：',
   fingerprints: '持久化类型指纹',
   fingerprintsIntro: '[机器可读目录](persistence-schema.json)包含所有可达的规范化类型及其 SHA-256 摘要。根类型的摘要涵盖引用类型。注释、源码位置、别名、擦除的品牌标记、readonly 标记以及无语义变化的字段、联合类型或交叉类型重排不影响摘要；元组顺序、属性名称、值类型和可选性会影响摘要。摘要不变时，目录文本和源码位置仍可能产生 diff。',
-  historyIntro: '[变更记录](persistence-changes/README.zh.md)通过保存在本源码树中的快照确认精确的类型转换。按照[评审流程](cookbook/reviewing-persistence-type-changes.zh.md)分类并记录变更。这些检查覆盖已声明的类型结构；不透明载荷的内部内容和未改变类型的行为变更不在检查范围内。',
+  historyIntro: '[格式参考](persistence-changes/historical-formats/README.zh.md)覆盖每个历史 Session 格式。[变更记录](persistence-changes/README.zh.md)通过保存在本源码树中的快照确认精确的类型转换。按照[评审流程](cookbook/reviewing-persistence-type-changes.zh.md)分类并记录变更。这些检查覆盖已声明的类型结构；不透明载荷的内部内容和未改变类型的行为变更不在检查范围内。',
   rootColumns: '| 根类型 | 类别 | SHA-256 | 已解析类型 |',
   definitions: '已解析的持久化类型',
   definitionsIntro: '每个类型定义仅列出一次。引用保留共享和递归关系；定义旁的摘要涵盖其完整可达结构。源码名称和位置标识声明来源，但不参与摘要计算。',
@@ -37,6 +40,9 @@ const chinese: Record<keyof typeof english, string> = {
   optional: '可选', required: '必需', rest: '剩余项', index: '索引签名',
   emptyObject: '无已声明属性的对象。', arrayPrefix: '', arraySuffix: ' 的数组。',
   oneOf: '以下类型之一：', opaque: '（不透明）', opaqueExplanation: '：此声明未暴露存储值的内部字段。',
+  sourceCompatibility: '消息源兼容策略：', attributionAdditions: '仅表示归属的新增 kind：',
+  sourceColumns: '| kind | form 属性 | 其他必需字段 | 完整定义 |',
+  notDeclared: '未声明', none: '无',
 }
 
 /** Complete translated prose; adding an English key requires its Chinese counterpart. */

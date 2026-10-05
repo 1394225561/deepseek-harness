@@ -22,7 +22,7 @@ The required result is one raw Session journal and one Client presentation owner
 
 ## Decision
 
-The visual-equivalence requirements below exclude the separately approved [nested terminal-card fix](../bug-fix/2026-09-05-nested-terminal-cards.md); all other presentation and ownership constraints remain.
+The visual-equivalence requirements below exclude the separately approved [nested terminal-card fix](../bug-fix/2026-09-05-nested-terminal-cards.md) and [compact tool details](2026-09-10-compact-tool-details.md); all other presentation and ownership constraints remain.
 
 The Session Remote journal sends only raw, validated, persistable Session events. `session.page` and `session.follow` do not parse tool arguments, query the Tools registry, restore a presenter scope, execute `presentCall` or `presentResult`, or construct or clone any tool view.
 
@@ -51,7 +51,7 @@ The Host `ToolDefinition.presentCall`, `ToolDefinition.presentResult`, `ToolCall
 | Retained | the Session log format, Remote journal lifecycle, and Conversation identity/topology |
 | Retained | the existing keyed slot, Generic fallback, and Chat, Details, and Trajectory structure |
 | Forbidden | a new Client presenter service, parallel registry, or wire renderer id |
-| Forbidden | new cards, visual redesign, interaction redesign, or PTC dispatch rich-card enhancements except the [nested terminal-card exception](../bug-fix/2026-09-05-nested-terminal-cards.md) |
+| Forbidden | new cards, visual redesign, interaction redesign, or PTC dispatch rich-card enhancements except the [nested terminal-card exception](../bug-fix/2026-09-05-nested-terminal-cards.md) and [compact tool details](2026-09-10-compact-tool-details.md) |
 | Forbidden | compatibility dual-writing, version negotiation, or retention of the old `view` field |
 
 ## Terminology
@@ -64,7 +64,7 @@ The Host `ToolDefinition.presentCall`, `ToolDefinition.presentResult`, `ToolCall
 
 **Client card model** means the pure props data under `ui-tool/src/client/tool/models/` consumed directly by `TerminalBlock`, `DiffBlock`, `ReadBlock`, `SearchBlock`, `WebBlock`, or `ToolRow`.
 
-**Specialized card** means the structured terminal, diff, read, search, or web body. Titles, summaries, status dots, and ordinary IN/OUT text remain part of the generic tool row.
+**Specialized card** means the structured terminal, diff, read, search, or web body. Titles, summaries, lifecycle styling, business glyphs, and ordinary IN/OUT text remain part of the generic tool row.
 
 **Equivalent** means that the same supported input produces the user-visible result and interaction pinned by the existing component, assembly, and browser evidence. It does not require the same intermediate TypeScript types or internal calls.
 
@@ -301,7 +301,7 @@ The Client terminal model derives existing `TerminalBlock` props from the tool n
 | Input | Preserved result |
 |---|---|
 | running standard `bash`/`pwsh` foreground call | terminal prompt, description, cwd, and running state |
-| successful standard foreground call | terminal output, exit code/signal, and success or failure status dot |
+| successful standard foreground call | terminal output, exit code/signal, and settled state presentation |
 | `run_in_background:true` | Generic row and raw result |
 | tool execution error | Generic IN/OUT and error summary |
 | running persistent `bash`/`pwsh` | terminal prompt |
@@ -387,7 +387,7 @@ This change does not add a general tool-side-effect registry. The ability for a 
 
 ## Fixtures and Test Data
 
-The Client fixture deletes its handwritten `presentCall()`, `presentResult()`, `viewFor()`, and fixture tool-view types. It continues producing the same raw calls, result content, and result metadata as a real log.
+The assembled RemoteMock scenario contains no handwritten `presentCall()`, `presentResult()`, `viewFor()`, or tool-view types. It supplies the same raw calls, result content, and result metadata as a real log.
 
 | Fixture | Raw facts that must remain |
 |---|---|
@@ -398,7 +398,7 @@ The Client fixture deletes its handwritten `presentCall()`, `presentResult()`, `
 | web | result metadata sources/answer or url/statusCode/truncated |
 | generic/custom | name, argsRaw, content, and error |
 
-The fixture does not import Host tool packages to compute page presentation and retains no presenter mirror. The same raw fixture continues to drive jsdom, built Web snapshots, and the `?fixture` browser path.
+The scenario does not import Host tool packages to compute page presentation and retains no presenter mirror. The same raw scenario drives built Web snapshots under jsdom; real-Host browser cases independently cover the network path.
 
 ## Presentation-Equivalence Matrix
 
@@ -566,7 +566,7 @@ Changes to this decision use `dsh-pre-push-checks` to select commands for the fi
 - ui-chat and ui-trajectory Tool Definition tests;
 - ui-tool terminal, diff, read, search, web, row, tree, and details tests;
 - ui-deliverables produced-file tests;
-- connection fixture and Client runtime tests;
+- assembled RemoteMock and Client runtime tests;
 - affected Host and Client TypeScript faces;
 - lint and duplication;
 - per-file 100% coverage for affected source files;

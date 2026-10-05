@@ -18,10 +18,6 @@
     mode: !!js process.env.DSH_TOOLS_MODE
 
 - insert:
-    # PTC mode is a core execution capability, not a Web component.
-    - id: ptc-runtime
-      name: '@deepseek-ai/dsh-ptc-runtime-node'
-
     - id: headless-startup
       name: '@deepseek-ai/dsh-headless/startup'
 
@@ -33,3 +29,6 @@
         task: !!js ctx.headlessStartup.task
         sessionId: !!js ctx.headlessStartup.sessionId
         json: !!js ctx.headlessStartup.json
+
+- id: hmr
+  disabled: true

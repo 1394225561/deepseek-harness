@@ -44,6 +44,7 @@ const KIND_TEMPLATES: Readonly<Record<string, string>> = {
   'package-bundle': '.agents/skills/dsh-doc/templates/package-bundle.md',
   'persistence-change': '.agents/skills/dsh-doc/templates/persistence-change.md',
   'persistence-release': '.agents/skills/dsh-doc/templates/persistence-release.md',
+  'persistence-format': '.agents/skills/dsh-doc/templates/persistence-format.md',
 }
 
 /**
@@ -53,6 +54,7 @@ const KIND_TEMPLATES: Readonly<Record<string, string>> = {
  * library; the check re-derives the entry shape so a stale entry fails loud.
  */
 const PACKAGE_LIBRARIES: Readonly<Record<string, string>> = {
+  'packages/experimental/browser-use-runtime': 'Provider-owned browser resource management and MCP integration helpers; no plugin entry.',
   'packages/boot/app-boot': 'Boot library the app bins import; plain helper exports.',
   'packages/boot/cmdline': 'Command-line library the app bins import; plain module exports.',
   'packages/client/store': 'Browser-side state primitives; plain function/type exports.',
@@ -71,6 +73,7 @@ const PACKAGE_LIBRARIES: Readonly<Record<string, string>> = {
   'packages/session/session-format-catalog': 'Generated build-static Session format inventory with no plugin registration.',
   'packages/session/session-format-v0-to-v1': 'Pure released-v0 codec and adjacent migration library.',
   'packages/session/session-format-v2-to-v3': 'Pure released-v2 codec and adjacent migration library.',
+  'packages/session/session-format-v3-to-v4': 'Released V3 codec reuse and adjacent migration library.',
   'packages/session/session-telemetry': 'Telemetry Service Definition and capture library; providers mount the backend.',
   'packages/session/session-title-llm': 'Shared LLM title-provider registration and request policy.',
   'packages/subagent/subagent-in-process-driver': 'Shared one-shot child-agent driver used by provider plugins.',
@@ -88,8 +91,10 @@ const PACKAGE_LIBRARIES: Readonly<Record<string, string>> = {
   'packages/util/crypto': 'Zero-dependency identifier minting utility.',
   'packages/util/deque': 'Zero-dependency circular deque utility.',
   'packages/util/chunked-list': 'Persistent collection operations and checkpoint validation without a plugin surface.',
+  'packages/util/code-language': 'Zero-dependency file-extension to syntax-highlighting language table.',
   'packages/util/home-paths': 'Zero-dependency harness-home path resolver.',
   'packages/util/launch-environment': 'Zero-dependency environment resolver.',
+  'packages/util/lazy-require': 'Caller-relative CommonJS-compatible dependency loader.',
   'packages/util/native-command': 'Host-side subprocess runner utility.',
   'packages/util/output-retention': 'Zero-dependency retention utility.',
   'packages/util/package-manifest': 'Shared package manifest declarations with type-only exports.',
@@ -368,6 +373,16 @@ describe('dsh-doc skill consolidation', () => {
     }
   })
 
+  it('maps historical Session format references to their dedicated document kind', () => {
+    const files = globSync('docs/persistence-changes/historical-formats/v*.md', { cwd: root })
+    expect(files.length).toBe(readCurrentSessionFormatVersion(root) * 2)
+    for (const file of files) {
+      const metadata = readFrontmatter(file)
+      expect(metadata.kind, file).toBe('persistence-format')
+      expect(typeof metadata.description === 'string' && metadata.description.trim().length > 0, file).toBe(true)
+    }
+  })
+
   it('keeps the audited library registry accurate: every entry has a plain module entry and no bundle declaration', () => {
     for (const [dir, reason] of Object.entries(PACKAGE_LIBRARIES)) {
       expect(reason.trim().length, `${dir}: library justification`).toBeGreaterThan(0)
@@ -433,7 +448,6 @@ describe('reference-example README pair', () => {
 
   it('keeps the sidecar consistency record present', () => {
     const sidecar = readFileSync(resolve(root, dir, 'README.i18n.yaml'), 'utf8')
-    expect(sidecar).toMatch(/^README\.md: [0-9a-f]{40}$/m)
-    expect(sidecar).toMatch(/^README\.zh\.md: [0-9a-f]{40}$/m)
+    expect(sidecar).toMatch(/^\/[^\s:]*:\n {2}en: [0-9a-f]{16}\n {2}zh: [0-9a-f]{16}$/m)
   })
 })
