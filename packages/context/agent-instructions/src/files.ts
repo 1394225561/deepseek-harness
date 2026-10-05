@@ -48,6 +48,11 @@ export interface ProbedInstructionFile extends InstructionFile {
 
 interface DiscoverOptions {
   cwd: string
+  /**
+   * Already-resolved harness home. The plugin resolves it once at mount and
+   * passes it down so reconciliation and baseline loading cannot disagree.
+   */
+  dshHome?: string
   projectRootMarkers?: string[]
   instructionFileCandidates?: string[]
   localInstructionFileCandidates?: string[]
@@ -316,7 +321,7 @@ async function discoverInstructionFiles(
  * Discover host-visible user-global and root-to-cwd instruction candidates.
  * All present candidates in each directory are returned; trimmed-content
  * duplicates are collapsed later, once content is read.
- * @param options - cwd, home, root marker, and candidate configuration.
+ * @param options - cwd, resolved harness home, root marker, and candidate configuration.
  * @returns path-deduplicated instruction candidates in model precedence order.
  * @throws the original root-marker metadata error or cancellation reason when
  * discovery cannot identify the project root.
