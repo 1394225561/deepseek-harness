@@ -114,8 +114,8 @@ export interface RenderedInstructionSet {
   observed: LoadedInstructionFile[]
   /**
    * Candidates dropped as content duplicates of an earlier candidate in their
-   * group. Reconciliation keeps probing them, because deleting or changing the
-   * retained candidate can make a dropped duplicate the visible one.
+   * group. Duplicates of budget-retained content remain eligible for probing,
+   * because deleting or changing the retained candidate can make them visible.
    */
   deduped: LoadedInstructionFile[]
   /** Candidates retained by content deduplication and byte budgeting. */

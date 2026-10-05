@@ -1433,6 +1433,77 @@ describe('workspace context request injection', () => {
     }
   })
 
+  it('keeps duplicate budget-omitted global instructions excluded across steps and resumes', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const agents = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mkdir(join(root, '.git'), { recursive: true })
+      await write(join(root, 'AGENTS.md'), 'project instruction')
+      await write(join(home, 'AGENTS.md'), 'global instruction '.repeat(100))
+      await write(join(agents, 'AGENTS.md'), `\n${'global instruction '.repeat(100)}\n`)
+      pinHarnessHome(home)
+      pinAgentsHome(agents)
+      await mountAgentInstructions(ctx, { maxBytes: 700 })
+      const original = await stubAgent(root)
+      await composeBaselinePrefix(ctx, original)
+
+      const contexts = original.session.snapshotEvents().filter(event => event.type === 'user/message'
+        && event.data.source.kind === 'agent-instructions')
+      expect(contexts).toHaveLength(1)
+      expect(derivedText(original)).toContain('omitted $DSH_HOME/AGENTS.md')
+      expect(derivedText(original)).not.toContain('global instruction')
+      await syncAgentInstructions(ctx, original)
+      await syncAgentInstructions(ctx, original)
+      expect(original.inbox.nextStep.filter(message => message.source.kind === 'agent-instructions')).toEqual([])
+
+      const firstResume = await stubAgent(root, original.session.snapshotEvents())
+      await composeBaselinePrefix(ctx, firstResume)
+      const secondResume = await stubAgent(root, firstResume.session.snapshotEvents())
+      await composeBaselinePrefix(ctx, secondResume)
+      expect(secondResume.session.snapshotEvents().filter(event => event.type === 'user/message'
+        && event.data.source.kind === 'agent-instructions')).toHaveLength(1)
+    } finally {
+      vi.unstubAllEnvs()
+      await ctx.fiber.dispose()
+      for (const path of [root, home, agents]) await rm(path, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps a duplicate excluded when only a different digest fits the same group budget', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const ctx = new Context()
+    try {
+      await mkdir(join(root, '.git'), { recursive: true })
+      await write(join(root, 'AGENTS.md'), 'broad instruction '.repeat(100))
+      await write(join(root, 'CLAUDE.md'), 'project instruction')
+      await write(join(root, 'AGENTS.local.md'), 'broad instruction '.repeat(100))
+      pinHarnessHome(home)
+      await mountAgentInstructions(ctx, { maxBytes: 700 })
+      const original = await stubAgent(root)
+      await composeBaselinePrefix(ctx, original)
+
+      const contexts = original.session.snapshotEvents().filter(event => event.type === 'user/message'
+        && event.data.source.kind === 'agent-instructions')
+      expect(contexts).toHaveLength(1)
+      expect(contexts[0]?.type === 'user/message' ? contexts[0].data.source : undefined).toMatchObject({
+        changes: [{ scope: sk('.', 'CLAUDE.md') }],
+      })
+      await syncAgentInstructions(ctx, original)
+      expect(original.inbox.nextStep.filter(message => message.source.kind === 'agent-instructions')).toEqual([])
+      const resumed = await stubAgent(root, original.session.snapshotEvents())
+      await composeBaselinePrefix(ctx, resumed)
+      expect(resumed.session.snapshotEvents().filter(event => event.type === 'user/message'
+        && event.data.source.kind === 'agent-instructions')).toHaveLength(1)
+    } finally {
+      vi.unstubAllEnvs()
+      await ctx.fiber.dispose()
+      for (const path of [root, home]) await rm(path, { recursive: true, force: true })
+    }
+  })
+
   it('removes a previously visible baseline file that leaves the retained budget set', async () => {
     const root = await tempRepo()
     const home = await tempRepo()
