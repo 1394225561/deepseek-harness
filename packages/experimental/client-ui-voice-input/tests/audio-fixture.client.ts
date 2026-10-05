@@ -37,7 +37,9 @@ export function captureFixture(options: { empty?: boolean; recorderError?: boole
     return { destination: {}, createBufferSource: () => ({ buffer: null, connect() {}, start() {} }), startRendering: rendering }
   })
   const track = new EventTarget()
-  const stream = { getTracks: () => [Object.assign(track, { stop: trackStop })] }
+  const audioTrack = Object.assign(track, { stop: trackStop, label: 'Fixture microphone',
+    getSettings: (): MediaTrackSettings => ({ groupId: 'fixture-input' }) })
+  const stream = { getTracks: () => [audioTrack], getAudioTracks: () => [audioTrack] }
   const getUserMedia = vi.fn(async (_constraints: MediaStreamConstraints) => stream)
   vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } })
   vi.stubGlobal('MediaRecorder', Recorder)

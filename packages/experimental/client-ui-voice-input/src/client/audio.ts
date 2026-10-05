@@ -120,6 +120,15 @@ export class Recording {
   }
 
   /**
+   * Identify the input actually acquired by this operation.
+   * @returns the audio track's name and device group, or undefined outside capture.
+   */
+  deviceInfo(): Pick<MediaDeviceInfo, 'label' | 'groupId'> | undefined {
+    const track = this.stream?.getAudioTracks()[0]
+    return track ? { label: track.label, groupId: track.getSettings().groupId ?? '' } : undefined
+  }
+
+  /**
    * Finish capture and resample the recording.
    * @param maxDurationSeconds - truncate timer overshoot to the Host limit.
    * @returns one recording after the final MediaRecorder chunk arrives.

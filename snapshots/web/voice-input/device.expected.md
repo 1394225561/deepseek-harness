@@ -1,5 +1,5 @@
 - menu:
-  - menuitem "System default"
+  - menuitem "System default (Fake Default Audio Input)"
   - menuitem "Fake Audio Input 1 Microphone input level":
     - text: Fake Audio Input 1
     - img "Microphone input level"

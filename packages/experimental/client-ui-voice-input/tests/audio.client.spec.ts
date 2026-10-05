@@ -139,8 +139,12 @@ it('contains a failing interruption callback and still releases the microphone',
 it('previews an exact microphone without creating a recorder and releases it when disconnected', async () => {
   const b = captureFixture({ constructError: true }), failure = vi.fn()
   const preview = new Recording(() => {}, 'usb-microphone')
+  expect(preview.deviceInfo()).toBeUndefined()
   try {
     await preview.preview(failure)
+    expect(preview.deviceInfo()).toEqual({ label: 'Fixture microphone', groupId: 'fixture-input' })
+    vi.spyOn(b.stream.getAudioTracks()[0]!, 'getSettings').mockReturnValue({})
+    expect(preview.deviceInfo()).toEqual({ label: 'Fixture microphone', groupId: '' })
     expect(b.getUserMedia).toHaveBeenCalledWith({ audio: { deviceId: { exact: 'usb-microphone' },
       echoCancellation: true, noiseSuppression: true }, video: false })
     expect(preview.amplitude()).toBe(0.25)

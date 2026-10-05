@@ -3,11 +3,12 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { bindSnapshotSelector, makeTranslate } from '@deepseek-ai/dsh-client-test-runtime'
 import { zh as commonZh } from '@deepseek-ai/dsh-client-locale/src/locales/zh.ts'
+import { en as commonEn } from '@deepseek-ai/dsh-client-locale/src/locales/en.ts'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { MicrophonePicker } from '../src/client/MicrophonePicker.tsx'
 import { createMicrophoneDeviceStore } from '../src/client/microphone-device.ts'
 import { Recording, RecordingError } from '../src/client/audio.ts'
-import { zh } from '../src/client/locales.ts'
+import { en, zh } from '../src/client/locales.ts'
 import { captureFixture } from './audio-fixture.client.ts'
 
 const t = makeTranslate(zh, commonZh)
@@ -343,8 +344,113 @@ it('recovers system-default preview after its track ends and shows unavailable w
     expect(b.getUserMedia.mock.calls.at(-1)?.[0].audio).not.toHaveProperty('deviceId')
     b.enumerateDevices.mockResolvedValue([])
     await act(async () => { b.media.dispatchEvent(new Event('devicechange')) })
-    const unavailable = screen.getByRole<HTMLButtonElement>('menuitem', { name: new RegExp(`^${zh.systemMicrophone}\\s*${zh.deviceUnavailable}$`) })
+    const unavailable = screen.getByRole<HTMLButtonElement>('menuitem', { name: new RegExp(`^系统默认（Fixture microphone）\\s*${zh.deviceUnavailable}$`) })
     expect(unavailable.disabled).toBe(true)
     expect(screen.queryByRole('img', { name: zh.inputLevel })).toBeNull()
+  } finally { b.unmount(); await Promise.all(b.recordings.map(recording => recording.dispose())) }
+})
+
+it('updates locale text without re-enumerating or restarting the open microphone', async () => {
+  const b = fixture()
+  try {
+    await open()
+    const acquisitions = b.getUserMedia.mock.calls.length, enumerations = b.enumerateDevices.mock.calls.length
+    b.rerender(<MicrophonePicker {...b.props} t={makeTranslate(en, commonEn)} />)
+    expect(screen.getByRole('button', { name: en.inputDevice }).textContent).toContain('System default (Fixture microphone)')
+    expect(b.getUserMedia).toHaveBeenCalledTimes(acquisitions)
+    expect(b.enumerateDevices).toHaveBeenCalledTimes(enumerations)
+    expect(b.trackStop).not.toHaveBeenCalled()
+  } finally { b.unmount(); await Promise.all(b.recordings.map(recording => recording.dispose())) }
+})
+
+it('persists raw unnamed labels and translates a retained permission failure', async () => {
+  const b = fixture()
+  b.enumerateDevices.mockResolvedValue([{ kind: 'audioinput', deviceId: 'unnamed', label: '' }])
+  b.getUserMedia.mockRejectedValue(new DOMException('denied', 'NotAllowedError'))
+  try {
+    fireEvent.click(screen.getByRole('button', { name: zh.inputDevice }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: '麦克风 1' }))
+    await screen.findByText(zh.permission)
+    expect(b.selection.getSnapshot()).toEqual({ id: 'unnamed', label: '' })
+    const acquisitions = b.getUserMedia.mock.calls.length
+    b.rerender(<MicrophonePicker {...b.props} t={makeTranslate(en, commonEn)} />)
+    expect(screen.getByRole('button', { name: en.inputDevice }).textContent).toBe('Microphone 1')
+    expect(screen.getByText(en.permission)).toBeTruthy()
+    expect(b.getUserMedia).toHaveBeenCalledTimes(acquisitions)
+  } finally { b.unmount(); await Promise.all(b.recordings.map(recording => recording.dispose())) }
+})
+
+it('shows a localized name while a restored unnamed selection awaits enumeration', async () => {
+  localStorage.setItem('dsh.voice-input.microphone', JSON.stringify({ id: 'usb', label: '' }))
+  const b = fixture()
+  try {
+    expect(screen.getByRole('button', { name: zh.inputDevice }).textContent).toBe(zh.unnamedSelectedMicrophone)
+    await waitFor(() => { expect(screen.getByRole('button', { name: zh.inputDevice }).textContent).toBe('USB microphone') })
+    expect(b.getUserMedia).not.toHaveBeenCalled()
+  } finally { b.unmount(); await Promise.all(b.recordings.map(recording => recording.dispose())) }
+})
+
+it('shows refreshed names in the trigger and retains them on disconnect', async () => {
+  const b = fixture()
+  try {
+    await selectUsb(b)
+    const acquisitions = b.getUserMedia.mock.calls.length
+    b.enumerateDevices.mockResolvedValue([{ kind: 'audioinput', deviceId: 'usb', label: 'Renamed microphone' }])
+    await act(async () => { b.media.dispatchEvent(new Event('devicechange')) })
+    expect(screen.getByRole('button', { name: zh.inputDevice }).textContent).toBe('Renamed microphone')
+    expect(b.getUserMedia).toHaveBeenCalledTimes(acquisitions)
+    b.enumerateDevices.mockResolvedValue([])
+    await act(async () => { b.media.dispatchEvent(new Event('devicechange')) })
+    expect(screen.getByRole('button', { name: zh.inputDevice }).textContent).toBe(`Renamed microphone${zh.deviceUnavailable}`)
+  } finally { b.unmount(); await Promise.all(b.recordings.map(recording => recording.dispose())) }
+})
+
+it('shows an enumerated system default without capture and keeps the communications choice', async () => {
+  const b = fixture()
+  const inputs = [
+    { kind: 'audioinput', deviceId: 'default', groupId: 'internal', label: 'Default alias' },
+    { kind: 'audioinput', deviceId: 'internal', groupId: 'internal', label: 'Built-in microphone' },
+    { kind: 'audioinput', deviceId: 'communications', groupId: 'headset', label: 'Communications headset' },
+  ]
+  b.enumerateDevices.mockResolvedValue(inputs)
+  try {
+    await act(async () => { b.media.dispatchEvent(new Event('devicechange')) })
+    expect(screen.getByRole('button', { name: zh.inputDevice }).textContent).toBe('系统默认（Built-in microphone）')
+    expect(b.getUserMedia).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole('button', { name: zh.inputDevice }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Communications headset' }))
+    await screen.findByRole('img', { name: zh.inputLevel })
+    expect(b.getUserMedia.mock.calls.at(-1)?.[0].audio).toMatchObject({ deviceId: { exact: 'communications' } })
+    expect(screen.queryByRole('menuitem', { name: 'Default alias' })).toBeNull()
+  } finally { b.unmount(); await Promise.all(b.recordings.map(recording => recording.dispose())) }
+})
+
+it('uses the acquired device group to show its physical name without the browser default prefix', async () => {
+  const b = fixture()
+  b.stream.getAudioTracks()[0]!.label = 'Default - Active microphone'
+  const devices = [
+    { kind: 'audioinput', deviceId: 'default', groupId: 'other-input', label: 'Default - Other microphone' },
+    { kind: 'audioinput', deviceId: 'other', groupId: 'other-input', label: 'Other microphone' },
+    { kind: 'audioinput', deviceId: 'active', groupId: 'fixture-input', label: 'Active microphone' },
+  ]
+  b.enumerateDevices.mockResolvedValue(devices)
+  try {
+    await act(async () => { b.media.dispatchEvent(new Event('devicechange')) })
+    expect(screen.getByRole('button', { name: zh.inputDevice }).textContent).toBe('系统默认（Other microphone）')
+    fireEvent.click(screen.getByRole('button', { name: zh.inputDevice }))
+    await waitFor(() => { expect(screen.getByRole('button', { name: zh.inputDevice }).textContent).toBe('系统默认（Active microphone）') })
+    expect(b.getUserMedia).toHaveBeenCalledOnce()
+  } finally { b.unmount(); await Promise.all(b.recordings.map(recording => recording.dispose())) }
+})
+
+it('does not restore a previous default device name and persists only the system preference', async () => {
+  localStorage.setItem('dsh.voice-input.microphone', JSON.stringify({ id: '', label: 'Previous default microphone' }))
+  const b = fixture()
+  try {
+    expect(screen.getByRole('button', { name: zh.inputDevice }).textContent).toBe(zh.systemMicrophone)
+    await open()
+    fireEvent.click(screen.getByRole('menuitem', { name: /系统默认/ }))
+    expect(b.selection.getSnapshot()).toEqual({ id: '', label: '' })
+    expect(b.getUserMedia).toHaveBeenCalledOnce()
   } finally { b.unmount(); await Promise.all(b.recordings.map(recording => recording.dispose())) }
 })

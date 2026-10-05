@@ -1,10 +1,12 @@
 /** Device selection owns microphone previews only while its portaled menu is open. */
 import { useEffect, useRef, useState } from 'react'
-import { IconCheckOutlineRegular, IconChevronDownOutlineRegular, Menu, StateDot, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
+import { IconCheckOutlineRegular, IconChevronDownOutlineRegular, Menu, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { VoiceInputInjected } from './VoiceInput.tsx'
 import { RecordingError, type Recording } from './audio.ts'
 import type { MicrophoneDevice } from './microphone-device.ts'
+import { DeviceName } from './DeviceName.tsx'
+import { failureText } from './failure-text.ts'
 import { NS } from './locales.ts'
 import css from './VoiceInput.module.css'
 
@@ -34,7 +36,7 @@ export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, create
   Pick<InjectFace<VoiceInputInjected>, 'useMicrophoneDevice' | 'selectMicrophone' | 'createRecording'> & PropsLocale<typeof NS>) {
   const selected = useMicrophoneDevice(value => value)
   const [open, setOpen] = useState(false), [devices, setDevices] = useState<DeviceChoice[]>([])
-  const [preview, setPreview] = useState<Recording>(), [error, setError] = useState('')
+  const [preview, setPreview] = useState<Recording>(), [error, setError] = useState<{ failure: unknown }>()
   useEffect(() => {
     const media = (navigator as Partial<Navigator>).mediaDevices
     const lifetime = new AbortController()
@@ -43,12 +45,10 @@ export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, create
       if (capture) void capture.dispose().catch(() => undefined)
       capture = undefined
     }
-    setPreview(undefined); setError('')
+    setPreview(undefined); setError(undefined)
     const fail = (failure: unknown): void => {
       if (lifetime.signal.aborted) return
-      setError(failure instanceof RecordingError ? t(failure.kind) : t('failed', {
-        message: failure instanceof Error ? failure.message : String(failure),
-      }))
+      setError({ failure })
     }
     const acquire = async (): Promise<void> => {
       const recording = createRecording()
@@ -61,7 +61,7 @@ export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, create
       try {
         await recording.preview(interrupted)
         if (capture !== recording || lifetime.signal.aborted) return
-        setPreview(recording); setError('')
+        setPreview(recording); setError(undefined)
         void refresh()
       } catch (failure) {
         if (capture !== recording || lifetime.signal.aborted) return
@@ -77,18 +77,27 @@ export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, create
         // Before permission, browsers may hide device ids and labels; absence then does not establish disconnection.
         const known = inputs.length === 0 || inputs.some(device => device.label !== '')
         const missing = selected.id === '' ? inputs.length === 0 : known && !inputs.some(device => device.deviceId === selected.id)
-        const choices: DeviceChoice[] = [{ id: '', label: t('systemMicrophone'), unavailable: inputs.length === 0 },
-          ...inputs.filter(device => device.deviceId !== '' && device.deviceId !== 'default').map((device, index) => ({
-            id: device.deviceId, label: device.label || t('unnamedMicrophone', { number: String(index + 1) }),
+        const system = inputs.find(device => device.deviceId === 'default')
+        const activeDefault = selected.id === '' ? capture?.deviceInfo() : undefined
+        const groupId = activeDefault?.groupId || system?.groupId
+        const physicalDefault = groupId ? inputs.find(device => device.groupId === groupId
+          && device.deviceId !== 'default' && device.deviceId !== 'communications') : undefined
+        const defaultLabel = physicalDefault?.label || activeDefault?.label || system?.label || ''
+        // Our system row replaces default; communications keeps the OS's separate default communications input.
+        const choices: DeviceChoice[] = [{ id: '', label: defaultLabel, unavailable: inputs.length === 0 },
+          ...inputs.filter(device => device.deviceId !== '' && device.deviceId !== 'default').map(device => ({
+            id: device.deviceId, label: device.label,
           }))]
         setDevices((previous) => {
           const next = [...choices]
           if (selected.id !== '' && !next.some(device => device.id === selected.id)) {
-            next.splice(Math.max(1, previous.findIndex(device => device.id === selected.id)), 0, { ...selected, unavailable: missing })
+            const knownDevice = previous.find(device => device.id === selected.id)
+            next.splice(Math.max(1, previous.findIndex(device => device.id === selected.id)), 0,
+              { id: selected.id, label: knownDevice?.label ?? '', unavailable: missing })
           }
           return next
         })
-        if (missing) { release(); setPreview(undefined); setError('') }
+        if (missing) { release(); setPreview(undefined); setError(undefined) }
         else if (open && !document.hidden && !capture) void acquire()
       } catch (failure) { if (request === enumeration) fail(failure) }
     }
@@ -101,18 +110,25 @@ export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, create
       lifetime.abort()
       release()
     }
-  }, [open, selected, createRecording, t])
+  }, [open, selected.id, createRecording])
   const choices = devices.filter(device => !device.unavailable || device.id === selected.id || device.id === '')
   const missing = choices.find(device => device.id === selected.id)?.unavailable
-  const title = selected.id === '' ? t('systemMicrophone') : selected.label
+  const deviceName = (device: MicrophoneDevice, index: number): string => {
+    if (device.id === '') return device.label ? t('systemMicrophoneNamed', { name: device.label }) : t('systemMicrophone')
+    return device.label || (device.id === selected.id ? selected.label : '')
+      || (index > 0 ? t('unnamedMicrophone', { number: String(index) }) : t('unnamedSelectedMicrophone'))
+  }
+  const selectedIndex = choices.findIndex(device => device.id === selected.id)
+  const selectedDevice = choices[selectedIndex] ?? (selected.id === '' ? { id: '', label: '' } : selected)
+  const title = deviceName(selectedDevice, selectedIndex)
   return <div className={css.deviceRow}>
     <span>{t('inputDevice')}</span>
     <Menu open={open} onClose={() => { setOpen(false) }} portal autoFocus dense selection="fill"
       className={css.deviceAnchor} listClassName={css.deviceMenu} selectedId={selected.id}
-      items={choices.map(device => ({ id: device.id, disabled: device.unavailable === true,
+      items={choices.map((device, index) => ({ id: device.id, disabled: device.unavailable === true,
         icon: <span className={css.deviceCheck}>{device.id === selected.id && <IconCheckOutlineRegular />}</span>,
         label: <span className={css.deviceOption}>
-          <Tooltip label={device.label} portal><span className={css.deviceName}>{device.label}</span></Tooltip>
+          <DeviceName label={deviceName(device, index)} unavailable={device.unavailable} />
           {device.unavailable ? <span className={css.deviceStatus}>{t('deviceUnavailable')}</span>
             : device.id === selected.id && (preview ? <InputLevel recording={preview} label={t('inputLevel')} />
               : !error && <StateDot state="ongoing" />)}
@@ -120,12 +136,12 @@ export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, create
       }))}
       onSelect={(id) => {
         const device = choices.find(item => item.id === id) as DeviceChoice
-        selectMicrophone({ id: device.id, label: device.label })
+        selectMicrophone({ id: device.id, label: device.id === '' ? '' : device.label })
       }}
-      footer={error ? [{ id: 'error', type: 'label', text: error }] : []}
+      footer={error ? [{ id: 'error', type: 'label', text: failureText(error.failure, t) }] : []}
       anchor={<button type="button" className={css.deviceTrigger} aria-label={t('inputDevice')}
         aria-haspopup="menu" aria-expanded={open} onClick={() => { setOpen(value => !value) }}>
-        <span className={css.deviceName} data-unavailable={missing}>{title}</span>
+        <DeviceName label={title} unavailable={missing} />
         {missing && <span className={css.deviceStatus}>{t('deviceUnavailable')}</span>}<IconChevronDownOutlineRegular />
       </button>} />
   </div>

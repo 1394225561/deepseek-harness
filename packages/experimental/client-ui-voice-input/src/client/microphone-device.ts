@@ -1,7 +1,7 @@
 /** Browser-local microphone preference shared by settings previews and dictation. */
 import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 
-/** An empty id follows the system input; labels remain readable before a permission grant. */
+/** An empty id follows the system input; labels store browser names without localized placeholders. */
 export interface MicrophoneDevice {
   readonly id: string
   readonly label: string

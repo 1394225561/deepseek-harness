@@ -1,0 +1,6 @@
+- menu:
+  - menuitem "System default (Fake Default Audio Input)"
+  - menuitem "USB studio microphone — conference room recording input Microphone input level":
+    - text: USB studio microphone — conference room recording input
+    - img "Microphone input level"
+  - menuitem "Fake Audio Input 2"

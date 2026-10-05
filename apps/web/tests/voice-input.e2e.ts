@@ -62,12 +62,22 @@ it.skipIf(webSnapshotMode() === 'record')('guides voice setup, records from stan
   resources.browser = browser
   const page = await newEnglishPage(browser), tripwire = watchConsole(page)
   await page.addInitScript(() => {
-    const holder = window as Window & { voiceTestStreams?: MediaStream[]; voiceTestExcluded?: string[] }
+    const holder = window as Window & {
+      voiceTestStreams?: MediaStream[]
+      voiceTestExcluded?: string[]
+      voiceTestNames?: Record<string, string>
+    }
     holder.voiceTestStreams = []
     holder.voiceTestExcluded = []
+    holder.voiceTestNames = {}
     const enumerateDevices = navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices)
     navigator.mediaDevices.enumerateDevices = async () => (await enumerateDevices())
       .filter(device => !holder.voiceTestExcluded!.includes(device.deviceId))
+      .map((device) => {
+        const label = holder.voiceTestNames![device.deviceId]
+        if (label) Object.defineProperty(device, 'label', { value: label })
+        return device
+      })
     const getUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices)
     navigator.mediaDevices.getUserMedia = async (constraints) => {
       const stream = await getUserMedia(constraints)
@@ -186,6 +196,29 @@ it.skipIf(webSnapshotMode() === 'record')('guides voice setup, records from stan
   expect(await page.evaluate(() => (window as Window & { voiceTestStreams?: MediaStream[] }).voiceTestStreams!.length)).toBe(acquisitions)
   await devicePicker.click()
   await page.getByRole('menuitem', { name: `${selectedDevice.label} Microphone input level`, exact: true }).waitFor()
+  await page.keyboard.press('Escape')
+  const longName = 'USB studio microphone — conference room recording input'
+  await page.evaluate(({ id, label }) => {
+    (window as Window & { voiceTestNames?: Record<string, string> }).voiceTestNames![id] = label
+    navigator.mediaDevices.dispatchEvent(new Event('devicechange'))
+  }, { id: selectedDevice.deviceId, label: longName })
+  await expect.poll(() => devicePicker.innerText()).toBe(longName)
+  await page.setViewportSize({ width: 360, height: 900 })
+  const triggerName = devicePicker.getByText(longName, { exact: true })
+  await triggerName.hover()
+  await expect.poll(() => triggerName.evaluate(element => getComputedStyle(element).transform)).not.toBe('none')
+  await page.mouse.move(0, 0)
+  await expect.poll(() => triggerName.evaluate(element => getComputedStyle(element).transform)).toBe('none')
+  await devicePicker.click()
+  const longRow = page.getByRole('menuitem', { name: `${longName} Microphone input level`, exact: true })
+  await longRow.waitFor()
+  await compareOrRefreshGolden(fileURLToPath(new URL('../../../snapshots/web/voice-input/device-long.expected.md', import.meta.url)),
+    await captureStableAria(page, '[role="menu"]', scaffold.workspaceCwd), webSnapshotMode())
+  const menuName = longRow.getByText(longName, { exact: true })
+  const levelPosition = await level.boundingBox()
+  await menuName.hover()
+  await expect.poll(() => menuName.evaluate(element => getComputedStyle(element).transform)).not.toBe('none')
+  expect(await level.boundingBox()).toEqual(levelPosition)
   await page.keyboard.press('Escape')
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.getByRole('button', { name: 'New session', exact: true }).filter({ hasText: 'New Session' }).click()

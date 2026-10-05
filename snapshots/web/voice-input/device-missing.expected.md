@@ -1,4 +1,4 @@
 - menu:
-  - menuitem "System default"
+  - menuitem "System default (Fake Default Audio Input)"
   - menuitem "Fake Audio Input 1 Unavailable" [disabled]
   - menuitem "Fake Audio Input 2"
