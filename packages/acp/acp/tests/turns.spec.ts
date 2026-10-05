@@ -696,7 +696,7 @@ describe('ACP prompt lifecycle', () => {
     const ref = await harness.attachments!.saveImage({ data: Uint8Array.of(6), mediaType: 'image/png' })
     ctx.tools.register(defineContentToolFixture({
       name: 'continue_stream', description: 'Continue the interrupted response.', parameters: {},
-      execute: () => [{ type: 'text', text: 'continue until cancelled' }],
+      execute: () => Promise.resolve([{ type: 'text', text: 'continue until cancelled' }]),
     }))
     // Interrupted streams retain only text/reasoning, so a completed step supplies the queued image.
     script.push([
