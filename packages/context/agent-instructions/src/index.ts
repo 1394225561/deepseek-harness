@@ -140,6 +140,7 @@ export function apply(ctx: Context, config: Config): void {
       const instructions = await loadBaselineInstructionSet({
         cwd,
         dshHome: resolved.dshHome,
+        agentsHome: resolved.agentsHome,
         projectRootMarkers: resolved.projectRootMarkers,
         maxBytes: resolved.maxBytes,
         maxSourceBytes: resolved.maxSourceBytes,
@@ -151,8 +152,12 @@ export function apply(ctx: Context, config: Config): void {
       }, fileSystem)
       const baseline = baselineInstructionState(instructions?.included ?? [])
       const observedBaseline = baselineInstructionState(instructions?.observed ?? [])
+      const dedupedBaseline = baselineInstructionState(instructions?.deduped ?? [])
+      // Only budget-dropped candidates leave reconciliation: a content duplicate
+      // becomes visible when the candidate it duplicated changes or disappears.
       const excludedScopes = new Set(observedBaseline.changes.keys())
       for (const scope of baseline.changes.keys()) excludedScopes.delete(scope)
+      for (const scope of dedupedBaseline.changes.keys()) excludedScopes.delete(scope)
       excludedBaselineScopes = excludedScopes
       nextPreparation = { identity, excludedScopes }
       let versionStates = instructionVersions.get(agent.session)

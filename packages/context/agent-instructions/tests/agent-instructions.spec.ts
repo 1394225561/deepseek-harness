@@ -1,7 +1,7 @@
 import { chmod, mkdtemp, mkdir, rm, stat, symlink, utimes, writeFile } from 'node:fs/promises'
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
+import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
-import { afterAll, describe, expect, it, vi } from 'vitest'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import * as AgentInstructions from '@deepseek-ai/dsh-agent-instructions'
@@ -42,7 +42,7 @@ import {
   type InstructionVersionCache,
 } from '../src/state.ts'
 import { resolveConfig } from '../src/config.ts'
-import { candidateScopeKey, renderInstructionChanges, renderAgentInstructionSet, USER_GLOBAL_DIRECTORY, USER_GLOBAL_FILE } from '../src/render.ts'
+import { AGENTS_GLOBAL_DIRECTORY, candidateScopeKey, renderInstructionChanges, renderAgentInstructionSet, USER_GLOBAL_DIRECTORY, USER_GLOBAL_FILE } from '../src/render.ts'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import {
   mountAgentLoopTestDependencies,
@@ -72,7 +72,17 @@ const isolatedInboxCtx = new Context()
 await mountAgentLoopTestDependencies(isolatedInboxCtx)
 const isolatedAgentLoop = await mountAgentLoopTestHarness(isolatedInboxCtx)
 let nextStubSession = 1
-afterAll(() => isolatedInboxCtx.fiber.dispose())
+// The shared agents root defaults to the developer's real ~/.agents, whose
+// AGENTS.md would otherwise join every discovery result. Tests that exercise
+// that root pin `DSH_AGENTS_HOME`; the rest read this absent root.
+const absentAgentsHome = await mkdtemp(join(tmpdir(), 'dsh-absent-agents-'))
+beforeEach(() => {
+  vi.stubEnv('DSH_AGENTS_HOME', absentAgentsHome)
+})
+afterAll(async () => {
+  await isolatedInboxCtx.fiber.dispose()
+  await rm(absentAgentsHome, { recursive: true, force: true })
+})
 
 type TestAgent = Agent
 
@@ -98,6 +108,11 @@ async function write(path: string, content: string): Promise<void> {
  */
 function pinHarnessHome(home: string): void {
   vi.stubEnv('DSH_HOME', home)
+}
+
+/** Pin the shared agents root for the current test; the plugin resolves it from the process environment. */
+function pinAgentsHome(home: string): void {
+  vi.stubEnv('DSH_AGENTS_HOME', home)
 }
 
 class RecordingFileSystem extends FileSystem {
@@ -731,6 +746,76 @@ describe('workspace context instruction discovery', () => {
       vi.unstubAllEnvs()
       await rm(root, { recursive: true, force: true })
       await rm(envHome, { recursive: true, force: true })
+    }
+  })
+
+  it('honors DSH_AGENTS_HOME from the process environment', async () => {
+    const root = await tempRepo()
+    const emptyHome = await tempRepo()
+    const envAgents = await tempRepo()
+    try {
+      await write(join(envAgents, 'AGENTS.md'), 'env shared rule')
+      vi.stubEnv('DSH_AGENTS_HOME', envAgents)
+
+      pinHarnessHome(emptyHome)
+      const files = await discoverBaselineInstructionFiles({ cwd: root })
+
+      expect(files).toEqual([{ absolutePath: join(envAgents, 'AGENTS.md'), displayPath: '$DSH_AGENTS_HOME/AGENTS.md' }])
+    } finally {
+      vi.unstubAllEnvs()
+      await rm(root, { recursive: true, force: true })
+      await rm(emptyHome, { recursive: true, force: true })
+      await rm(envAgents, { recursive: true, force: true })
+    }
+  })
+
+  it('loads both user-global roots with the harness home first', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const agents = await tempRepo()
+    try {
+      await mkdir(join(root, '.git'), { recursive: true })
+      await write(join(home, 'AGENTS.md'), 'harness home rule')
+      await write(join(agents, 'AGENTS.md'), 'shared agents rule')
+
+      pinHarnessHome(home)
+      pinAgentsHome(agents)
+      const loaded = await loadBaselineInstructions({ cwd: root, maxBytes: 65536 })
+      const text = loaded?.text ?? ''
+
+      expect(text).toContain('Instructions from: $DSH_HOME/AGENTS.md\n\nharness home rule')
+      expect(text).toContain('Instructions from: $DSH_AGENTS_HOME/AGENTS.md\n\nshared agents rule')
+      expect(text.indexOf('harness home rule')).toBeLessThan(text.indexOf('shared agents rule'))
+    } finally {
+      vi.unstubAllEnvs()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+      await rm(agents, { recursive: true, force: true })
+    }
+  })
+
+  it('labels the default agents root as ~/.agents when HOME points at the configured default', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    try {
+      await write(join(home, '.agents/AGENTS.md'), 'shared default rule')
+
+      // A set environment variable would override the homedir default and
+      // relabel the root, so both homes must fall back to the stubbed OS home.
+      vi.stubEnv('DSH_HOME', '')
+      vi.stubEnv('DSH_AGENTS_HOME', '')
+      vi.resetModules()
+      vi.doMock('node:os', () => ({ homedir: () => home }))
+      const isolated = await import('@deepseek-ai/dsh-agent-instructions')
+      const files = await isolated.discoverBaselineInstructionFiles({ cwd: root })
+
+      expect(files.map(file => file.displayPath)).toEqual(['~/.agents/AGENTS.md'])
+    } finally {
+      vi.unstubAllEnvs()
+      vi.doUnmock('node:os')
+      vi.resetModules()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
     }
   })
 
@@ -1822,6 +1907,236 @@ describe('workspace context request injection', () => {
     }
   })
 
+  it('reports a changed shared-agents instruction through the visible-scope reconcile path', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const agents = await tempRepo()
+    try {
+      await mkdir(join(root, '.git'), { recursive: true })
+      await write(join(agents, 'AGENTS.md'), 'shared rule')
+      const ctx = new Context()
+      pinHarnessHome(home)
+      pinAgentsHome(agents)
+      await mountFileToolsAndAgentInstructions(ctx, { maxBytes: 65536 })
+      const agent = await stubAgent(root)
+      await composeBaselinePrefix(ctx, agent)
+
+      await write(join(agents, 'AGENTS.md'), 'updated shared rule')
+      await syncAgentInstructions(ctx, agent)
+
+      const pending = await agentInstructionsOf(agent)
+      expect(pending?.source).toMatchObject({
+        kind: 'agent-instructions',
+        changes: [{ action: 'replace', scope: sk(AGENTS_GLOBAL_DIRECTORY, USER_GLOBAL_FILE) }],
+      })
+      expect(blocksText(pending?.content)).toContain('updated shared rule')
+    } finally {
+      vi.unstubAllEnvs()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+      await rm(agents, { recursive: true, force: true })
+    }
+  })
+
+  it('queues a removal when a rendered shared-agents file disappears', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const agents = await tempRepo()
+    try {
+      await mkdir(join(root, '.git'), { recursive: true })
+      await write(join(agents, 'AGENTS.md'), 'shared rule')
+      const ctx = new Context()
+      pinHarnessHome(home)
+      pinAgentsHome(agents)
+      await mountFileToolsAndAgentInstructions(ctx, { maxBytes: 65536 })
+      const agent = await stubAgent(root)
+      await composeBaselinePrefix(ctx, agent)
+
+      await rm(join(agents, 'AGENTS.md'))
+      await syncAgentInstructions(ctx, agent)
+
+      const pending = await agentInstructionsOf(agent)
+      expect(pending?.source).toMatchObject({
+        kind: 'agent-instructions',
+        changes: [{ action: 'remove', scope: sk(AGENTS_GLOBAL_DIRECTORY, USER_GLOBAL_FILE) }],
+      })
+      expect(blocksText(pending?.content)).toContain('Instructions removed: $DSH_AGENTS_HOME/AGENTS.md')
+    } finally {
+      vi.unstubAllEnvs()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+      await rm(agents, { recursive: true, force: true })
+    }
+  })
+
+  it('renders a shared-agents delta without exposing the internal scope key', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const agents = await tempRepo()
+    try {
+      await mkdir(join(root, '.git'), { recursive: true })
+      await write(join(root, 'AGENTS.md'), 'repo rule')
+      const ctx = new Context()
+      pinHarnessHome(home)
+      pinAgentsHome(agents)
+      await mountFileToolsAndAgentInstructions(ctx, { maxBytes: 65536 })
+      const agent = await stubAgent(root)
+      await composeBaselinePrefix(ctx, agent)
+
+      await write(join(agents, 'AGENTS.md'), 'shared delta rule')
+      await syncAgentInstructions(ctx, agent)
+
+      const text = blocksText((await agentInstructionsOf(agent))?.content)
+      expect(text).toContain('Additional instructions from: $DSH_AGENTS_HOME/AGENTS.md')
+      expect(text).toContain('These user-global instructions apply to all work.')
+      expect(text).toContain('shared delta rule')
+      expect(text).not.toContain(AGENTS_GLOBAL_DIRECTORY)
+    } finally {
+      vi.unstubAllEnvs()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+      await rm(agents, { recursive: true, force: true })
+    }
+  })
+
+  it('promotes a content-deduplicated shared file when the harness-home file disappears', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const agents = await tempRepo()
+    try {
+      await mkdir(join(root, '.git'), { recursive: true })
+      await write(join(home, 'AGENTS.md'), 'shared global rule')
+      await write(join(agents, 'AGENTS.md'), 'shared global rule')
+      const ctx = new Context()
+      pinHarnessHome(home)
+      pinAgentsHome(agents)
+      await mountFileToolsAndAgentInstructions(ctx, { maxBytes: 65536 })
+      const agent = await stubAgent(root)
+      await composeBaselinePrefix(ctx, agent)
+
+      expect(derivedText(agent).match(/shared global rule/g)).toHaveLength(1)
+
+      await rm(join(home, 'AGENTS.md'))
+      await syncAgentInstructions(ctx, agent)
+
+      const text = blocksText((await agentInstructionsOf(agent))?.content)
+      expect(text).toContain('Instructions removed: $DSH_HOME/AGENTS.md')
+      expect(text).toContain('Additional instructions from: $DSH_AGENTS_HOME/AGENTS.md')
+      expect(text).toContain('shared global rule')
+      expect(text).not.toContain('agents-global')
+    } finally {
+      vi.unstubAllEnvs()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+      await rm(agents, { recursive: true, force: true })
+    }
+  })
+
+  it('loads a changed shared file that the baseline deduplicated', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const agents = await tempRepo()
+    try {
+      await mkdir(join(root, '.git'), { recursive: true })
+      await write(join(home, 'AGENTS.md'), 'shared global rule')
+      await write(join(agents, 'AGENTS.md'), 'shared global rule')
+      const ctx = new Context()
+      pinHarnessHome(home)
+      pinAgentsHome(agents)
+      await mountFileToolsAndAgentInstructions(ctx, { maxBytes: 65536 })
+      const agent = await stubAgent(root)
+      await composeBaselinePrefix(ctx, agent)
+
+      await write(join(agents, 'AGENTS.md'), 'updated shared global rule')
+      await syncAgentInstructions(ctx, agent)
+
+      const pending = await agentInstructionsOf(agent)
+      expect(pending?.source).toMatchObject({
+        kind: 'agent-instructions',
+        changes: [{ action: 'set', scope: sk(AGENTS_GLOBAL_DIRECTORY, USER_GLOBAL_FILE) }],
+      })
+      expect(blocksText(pending?.content)).toContain('updated shared global rule')
+    } finally {
+      vi.unstubAllEnvs()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+      await rm(agents, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps a shared file created later with identical content suppressed without re-reading it', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const agents = await tempRepo()
+    const pendingContexts = (agent: Agent): UserMessage[] =>
+      agent.inbox.nextStep.filter(message => message.source.kind === 'agent-instructions')
+    try {
+      await mkdir(join(root, '.git'), { recursive: true })
+      await write(join(home, 'AGENTS.md'), 'shared global rule')
+      const ctx = new Context()
+      pinHarnessHome(home)
+      pinAgentsHome(agents)
+      await mountFileToolsAndAgentInstructions(ctx, { maxBytes: 65536 })
+      const agent = await stubAgent(root)
+      await composeBaselinePrefix(ctx, agent)
+
+      await write(join(agents, 'AGENTS.md'), 'shared global rule')
+      await syncAgentInstructions(ctx, agent)
+      expect(pendingContexts(agent)).toEqual([])
+
+      // A second pass proves the duplicate is recognized from cached metadata
+      // rather than by reading the shared file again.
+      await syncAgentInstructions(ctx, agent)
+      expect(pendingContexts(agent)).toEqual([])
+      expect(derivedText(agent).match(/shared global rule/g)).toHaveLength(1)
+    } finally {
+      vi.unstubAllEnvs()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+      await rm(agents, { recursive: true, force: true })
+    }
+  })
+
+  it('keeps a project directory named agents-global out of the shared global scope', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const agents = await tempRepo()
+    try {
+      await mkdir(join(root, '.git'), { recursive: true })
+      const cwd = join(root, AGENTS_GLOBAL_DIRECTORY)
+      await write(join(cwd, 'AGENTS.md'), 'project rule')
+
+      const escapedDirectory = `.${sep}${AGENTS_GLOBAL_DIRECTORY}`
+      const escapedPath = `${escapedDirectory}${sep}AGENTS.md`
+      pinHarnessHome(home)
+      pinAgentsHome(agents)
+      const files = await discoverBaselineInstructionFiles({ cwd })
+      expect(files.map(file => file.displayPath)).toEqual([escapedPath])
+
+      const ctx = new Context()
+      pinHarnessHome(home)
+      pinAgentsHome(agents)
+      await mountFileToolsAndAgentInstructions(ctx, { maxBytes: 65536 })
+      const agent = await stubAgent(cwd)
+      await composeBaselinePrefix(ctx, agent)
+      expect(derivedText(agent)).toContain(`Instructions from: ${escapedPath}`)
+
+      await rm(join(cwd, 'AGENTS.md'))
+      await syncAgentInstructions(ctx, agent)
+
+      const pending = await agentInstructionsOf(agent)
+      expect(pending?.source).toMatchObject({
+        kind: 'agent-instructions',
+        changes: [{ action: 'remove', scope: sk(escapedDirectory, USER_GLOBAL_FILE) }],
+      })
+    } finally {
+      vi.unstubAllEnvs()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+      await rm(agents, { recursive: true, force: true })
+    }
+  })
+
   it('queues the desired workspace context when the current step is rejected', async () => {
     const root = await tempRepo()
     const home = await tempRepo()
@@ -2146,6 +2461,34 @@ describe('workspace context request injection', () => {
     } finally {
       vi.unstubAllEnvs()
       await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('deduplicates one AGENTS.md that is both the harness-home and shared-agents file', async () => {
+    const root = await tempRepo()
+    const home = await tempRepo()
+    const agents = await tempRepo()
+    try {
+      await mkdir(join(root, '.git'), { recursive: true })
+      await write(join(home, 'AGENTS.md'), '  shared global rule\n\n')
+      await write(join(agents, 'AGENTS.md'), 'shared global rule')
+      const ctx = new Context()
+      pinHarnessHome(home)
+      pinAgentsHome(agents)
+      await mountAgentInstructions(ctx, { maxBytes: 65536 })
+      const agent = await stubAgent(root)
+
+      await composeBaselinePrefix(ctx, agent)
+
+      const text = derivedText(agent)
+      expect(text.match(/shared global rule/g)).toHaveLength(1)
+      expect(text).toContain('Instructions from: $DSH_HOME/AGENTS.md')
+      expect(text).not.toContain('Instructions from: $DSH_AGENTS_HOME/AGENTS.md')
+    } finally {
+      vi.unstubAllEnvs()
+      await rm(root, { recursive: true, force: true })
+      await rm(home, { recursive: true, force: true })
+      await rm(agents, { recursive: true, force: true })
     }
   })
 
@@ -2599,6 +2942,7 @@ describe('workspace context request injection', () => {
       expect(derivedText(agent)).toContain(`Instructions from: ${join('child', 'AGENTS.md')}\n\nchild schema default rule`)
       await ctx.fiber.dispose()
     } finally {
+      vi.unstubAllEnvs()
       await rm(root, { recursive: true, force: true })
     }
   })
@@ -2620,6 +2964,7 @@ describe('workspace context request injection', () => {
       expect(derivedText(agent)).toContain('Instructions from: AGENTS.local.md\n\nlocal rule')
       await ctx.fiber.dispose()
     } finally {
+      vi.unstubAllEnvs()
       await rm(root, { recursive: true, force: true })
     }
   })
