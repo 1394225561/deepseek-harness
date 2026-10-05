@@ -86,7 +86,7 @@ it.each([false, true])('preserves same-ID preset patches across Host config read
     const updated = { ...host, config: { ...host.config, count } }
     expect(parse(readFileSync(profile.patchPath, 'utf8'))).toEqual(hostOverride ? [declaration, updated, preset] : [declaration, preset, updated])
     expect(configuration().override).toEqual(updated.config)
-    expect(restored.settings.describe().find(row => row.ns === 'first')!.value.count).toBe(count)
+    expect(restored.settings.describe().find(row => row.ns === 'first')!.value).toMatchObject({ count })
   }
   await restored.settings.replace('first', {})
   expect(parse(readFileSync(profile.patchPath, 'utf8'))).toEqual([declaration, preset])
