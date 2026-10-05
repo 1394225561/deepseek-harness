@@ -430,7 +430,7 @@ export class SubagentManager {
           { source: { kind: 'user' }, signal: spec.signal, delivery: 'queue' },
           parent,
           () => {
-            if (spec.delivery === 'parent') establishCatalogChild(parent.session, childHeader, descriptor)
+            establishCatalogChild(parent.session, childHeader, descriptor)
           },
         )
       })

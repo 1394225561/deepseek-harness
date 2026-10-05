@@ -701,7 +701,7 @@ describe('SubagentRuntime.startActivation', () => {
     })
   })
 
-  it('releases the Activation when the parent catalog append fails', async () => {
+  it.each(['parent', 'caller'] as const)('releases the %s-delivery activation when its catalog append fails', async (delivery) => {
     const { ctx, parent } = await setup([textResponse('unused')])
     const childId = SessionId('00000000-0000-4000-8000-000000000321')
     const catalogFailure = new Error('catalog append failed')
@@ -726,7 +726,7 @@ describe('SubagentRuntime.startActivation', () => {
     }) as typeof parent.session.append)
 
     await expect(ctx.subagents.startActivation({
-      delivery: 'parent',
+      delivery,
       ...startSpec(parent),
       childId,
     })).rejects.toBe(catalogFailure)
@@ -3393,7 +3393,7 @@ describe('continuable public API', () => {
     expect(names).not.toContain('steer_subagent')
   })
 
-  it('keeps controls on the service while caller-awaited local work can resume', async () => {
+  it('catalogs caller-awaited local work without a notice and permits cold continuation', async () => {
     const { ctx, parent } = await setup([textResponse('first answer'), textResponse('second answer')])
     parkParent(ctx, parent)
     const run = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'caller' })
@@ -3401,6 +3401,12 @@ describe('continuable public API', () => {
     expect((await run.result).output).toEqual(message('first answer'))
     await run.dispose()
     await waitNoActivation(ctx, run.childId)
+    expect(settlementNotices(parent)).toEqual([])
+    expect(await ctx.subagents.listChildren(parent.id)).toMatchObject([
+      { id: run.childId, mode: 'continuable' },
+    ])
+    expect(userTexts((await loadStoredSession(ctx.sessionPersistence, run.childId)).events))
+      .toEqual(['child task'])
 
     await queuePrompt(ctx, parent, run.childId, message('continue'))
     await waitNoActivation(ctx, run.childId)

@@ -29,7 +29,7 @@ interface SubagentCapabilities {
 interface SubagentActivationSpec {
   /** Registered backend to use. */
   readonly provider: string
-  /** Short task label; parent delivery retains it in the parent catalog. */
+  /** Short task label retained in cataloged child membership. */
   readonly label: string
   /** Optional reserved identity for a local child; external backends allocate their own ids. */
   readonly childId?: SessionId
@@ -37,7 +37,7 @@ interface SubagentActivationSpec {
   readonly request: Omit<SubagentStartRequest, 'label' | 'signal'>
   /** Cancellation before publication; callers own later cancellation through dispose. */
   readonly signal: AbortSignal
-  /** Parent delivery records catalog membership and notifies the model; caller delivery only returns the result. */
+  /** Parent delivery notifies the model; caller delivery only returns the result. Local children always enter the parent catalog. */
   readonly delivery: 'parent' | 'caller'
 }
 ```
@@ -222,7 +222,7 @@ type SubagentInterruptAuthority =
 
 ## 持久枚举
 
-`listChildren` 读取父级拥有的目录，其中只包含 parent 投递的子级。caller 投递的执行不进入此目录，其调用方负责成员关系与结果收集。外部条目携带 `mode: 'external'`，不能打开子 Session 或接受后续消息。目录在创建时记录成员关系，不携带执行状态。`list_agents` 展示可继续的直接子级，其活跃状态为 `running` 或 `inactive`；参见[控制工具](../../packages/subagent/tool-subagent-control/README.zh.md#list_agents)。
+`listChildren` 读取父级拥有的目录，其中包含所有本地子级及 parent 投递的外部子级。caller 投递的外部执行由调用方负责成员关系与结果收集；本地工作流子级在完成后仍可被发现。外部条目携带 `mode: 'external'`，不能打开子 Session 或接受后续消息。目录在创建时记录成员关系，不携带执行状态。`list_agents` 展示可继续的直接子级，其活跃状态为 `running` 或 `inactive`；参见[控制工具](../../packages/subagent/tool-subagent-control/README.zh.md#list_agents)。
 
 ## 结果与后端句柄
 

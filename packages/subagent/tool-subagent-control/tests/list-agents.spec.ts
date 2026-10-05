@@ -106,6 +106,25 @@ async function waitNoActivation(ctx: Context, childId: SessionId): Promise<void>
 }
 
 describe('dsh-tool-subagent-control/list-agents', () => {
+  it('lists a settled caller-delivery local child in both scopes', async () => {
+    const { ctx, parent } = await setup([textResponse('private result')])
+    const started = await ctx.subagents.startActivation({
+      delivery: 'caller', provider: 'spawn', label: 'workflow child',
+      request: { prompt: [{ type: 'text', text: 'child task' }], parent },
+      signal: testToolSignal,
+    })
+    await started.result
+    await started.dispose()
+
+    for (const scope of ['children', 'descendants']) {
+      const result = await callTool(ctx, 'list_agents', { scope }, parent)
+      expect(result.isError).toBe(false)
+      expect(text(result)).toBe(scope === 'children'
+        ? `${started.childId} [inactive] — workflow child`
+        : `${started.childId} [inactive] parent=${parent.id} depth=1 — workflow child`)
+    }
+  })
+
   it('omits external leaves from direct and recursive listings without diagnostics', async () => {
     const { ctx, parent } = await setup([])
     parent.session.append('subagent/catalog', {

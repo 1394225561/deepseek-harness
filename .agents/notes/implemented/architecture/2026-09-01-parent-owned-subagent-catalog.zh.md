@@ -14,7 +14,7 @@ child descriptor 对恢复与 composition 仍然必要，但它不能作为 disc
 
 共享 activation 入口、外部执行所有权，以及调用方与父级之间的结果投递选择由[统一 subagent activation](../simplification/2026-09-17-unified-subagent-activations.zh.md) 决策拥有。本记录保留下述独立理由。
 
-父级 Session 的必读 `subagent/catalog` 事件是发现直接子级的持久化权威。只有 parent 投递的子级进入目录；caller 拥有的执行保留调用方自己的成员记录。每个事件包含 `childId`、`childCreatedAt`、mode 与按 mode 区分的 label。本地子级使用 `continuable`；外部执行使用 `external`，不能作为本地 Session 打开。历史 `one-shot` 与 `unknown` 条目仍可读取。无效的自身事实（包括不支持的载荷版本）会使投影恢复失败，因为静默丢弃必读事实将返回不完整的 catalog。
+父级 Session 的必读 `subagent/catalog` 事件是发现直接子级的持久化权威。每个本地子级都会进入目录，与结果接收方无关；外部子级仅在 parent 投递时进入目录。工作流成员记录描述执行进度，不替代本地 Session 发现。每个事件包含 `childId`、`childCreatedAt`、mode 与按 mode 区分的 label。本地子级使用 `continuable`；外部执行使用 `external`，不能作为本地 Session 打开。历史 `one-shot` 与 `unknown` 条目仍可读取。无效的自身事实（包括不支持的载荷版本）会使投影恢复失败，因为静默丢弃必读事实将返回不完整的 catalog。
 
 创建只发布成功事实。本地 activation 先接纳初始提示词，再追加 catalog 事件。外部 activation 在提供方启动后、返回回执前追加事件。准入或发布失败会释放未发布的执行；不存在补偿 catalog 事件或回滚协议。
 

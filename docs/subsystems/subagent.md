@@ -29,7 +29,7 @@ interface SubagentCapabilities {
 interface SubagentActivationSpec {
   /** Registered backend to use. */
   readonly provider: string
-  /** Short task label; parent delivery retains it in the parent catalog. */
+  /** Short task label retained in cataloged child membership. */
   readonly label: string
   /** Optional reserved identity for a local child; external backends allocate their own ids. */
   readonly childId?: SessionId
@@ -37,7 +37,7 @@ interface SubagentActivationSpec {
   readonly request: Omit<SubagentStartRequest, 'label' | 'signal'>
   /** Cancellation before publication; callers own later cancellation through dispose. */
   readonly signal: AbortSignal
-  /** Parent delivery records catalog membership and notifies the model; caller delivery only returns the result. */
+  /** Parent delivery notifies the model; caller delivery only returns the result. Local children always enter the parent catalog. */
   readonly delivery: 'parent' | 'caller'
 }
 ```
@@ -222,7 +222,7 @@ type SubagentInterruptAuthority =
 
 ## Durable enumeration
 
-`listChildren` reads the parent-owned catalog of parent-delivery children. Caller-delivery executions do not enter this catalog; their caller owns membership and result collection. External entries carry `mode: 'external'` and cannot open a child Session or accept follow-ups. Catalog entries record membership at creation without execution status. `list_agents` exposes direct continuable children with `running` or `inactive` activity; see the [control tool](../../packages/subagent/tool-subagent-control/README.md#list_agents).
+`listChildren` reads the parent-owned catalog of all local children and parent-delivery external children. Caller-delivery external executions leave membership and result collection to their caller; local workflow children remain discoverable after completion. External entries carry `mode: 'external'` and cannot open a child Session or accept follow-ups. Catalog entries record membership at creation without execution status. `list_agents` exposes direct continuable children with `running` or `inactive` activity; see the [control tool](../../packages/subagent/tool-subagent-control/README.md#list_agents).
 
 ## Results and backend handles
 

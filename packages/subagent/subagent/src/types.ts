@@ -31,7 +31,7 @@ export function SubagentRunId(id: string): SubagentRunId {
 export interface SubagentActivationSpec {
   /** Registered backend to use. */
   readonly provider: string
-  /** Short task label; parent delivery retains it in the parent catalog. */
+  /** Short task label retained in cataloged child membership. */
   readonly label: string
   /** Optional reserved identity for a local child; external backends allocate their own ids. */
   readonly childId?: SessionId
@@ -39,7 +39,7 @@ export interface SubagentActivationSpec {
   readonly request: Omit<SubagentStartRequest, 'label' | 'signal'>
   /** Cancellation before publication; callers own later cancellation through dispose. */
   readonly signal: AbortSignal
-  /** Parent delivery records catalog membership and notifies the model; caller delivery only returns the result. */
+  /** Parent delivery notifies the model; caller delivery only returns the result. Local children always enter the parent catalog. */
   readonly delivery: 'parent' | 'caller'
 }
 

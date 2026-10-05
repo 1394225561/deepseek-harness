@@ -111,23 +111,26 @@ describe('SubagentRuntime.listChildren', () => {
     }
   })
 
-  it('lists parent-delivery children without caller-owned children or corpus reads', async () => {
+  it('lists settled local children for both delivery modes without corpus or child reads', async () => {
     const { ctx, parent } = await setup([textResponse('once'), textResponse('again')])
-    const oneShot = await startTestActivation(ctx, 'spawn', {
+    const callerOwned = await startTestActivation(ctx, 'spawn', {
       prompt: [{ type: 'text', text: 'finish once' }],
       agentOptions: { model: 'child-model' },
       parent,
       signal: testSignal,
     })
-    expect(await ctx.subagents.listChildren(parent.id)).toEqual([])
-    await oneShot.result
-    await oneShot.dispose()
+    expect(await ctx.subagents.listChildren(parent.id)).toMatchObject([
+      { id: callerOwned.childId, label: 'spawn', mode: 'continuable' },
+    ])
+    await callerOwned.result
+    await callerOwned.dispose()
     const continuableId = await startChild(ctx, parent, 'continuable child')
     const listSessions = vi.spyOn(ctx.sessionQuery, 'listSessions')
     const observeSession = vi.spyOn(ctx.sessionQuery, 'observeSession')
 
     const children = await ctx.subagents.listChildren(parent.id)
     expect(children.map(({ createdAt: _createdAt, ...child }) => child)).toEqual([
+      { id: callerOwned.childId, label: 'spawn', mode: 'continuable' },
       { id: continuableId, label: 'continuable child', mode: 'continuable' },
     ])
     expect(children.every(child => Number.isFinite(child.createdAt))).toBe(true)

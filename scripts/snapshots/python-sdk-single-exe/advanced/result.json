@@ -1363,8 +1363,20 @@
       }
     },
     {
-      "type": "tool-workflow/agent-start",
+      "type": "subagent/catalog",
       "seq": 54,
+      "time": 0,
+      "data": {
+        "version": 0,
+        "childId": "{{child-2}}",
+        "childCreatedAt": 0,
+        "mode": "continuable",
+        "label": "advanced-exe-snapshot child 1"
+      }
+    },
+    {
+      "type": "tool-workflow/agent-start",
+      "seq": 55,
       "time": 0,
       "data": {
         "runId": "{{workflow-run}}",
@@ -1376,7 +1388,7 @@
     },
     {
       "type": "tool-workflow/agent-end",
-      "seq": 55,
+      "seq": 56,
       "time": 0,
       "data": {
         "runId": "{{workflow-run}}",
@@ -1386,7 +1398,7 @@
     },
     {
       "type": "tool-workflow/run-end",
-      "seq": 56,
+      "seq": 57,
       "time": 0,
       "data": {
         "runId": "{{workflow-run}}",
@@ -1395,7 +1407,7 @@
     },
     {
       "type": "tool/result",
-      "seq": 57,
+      "seq": 58,
       "time": 0,
       "data": {
         "turn": 1,
@@ -1424,7 +1436,7 @@
     },
     {
       "type": "step/end",
-      "seq": 58,
+      "seq": 59,
       "time": 0,
       "data": {
         "turn": 1,
@@ -1433,7 +1445,7 @@
     },
     {
       "type": "agent/inbox/spliced",
-      "seq": 59,
+      "seq": 60,
       "time": 0,
       "data": {
         "target": "next-step",
@@ -1444,7 +1456,7 @@
     },
     {
       "type": "step/start",
-      "seq": 60,
+      "seq": 61,
       "time": 0,
       "data": {
         "turn": 1,
@@ -1453,7 +1465,7 @@
     },
     {
       "type": "user/message",
-      "seq": 61,
+      "seq": 62,
       "time": 0,
       "data": {
         "content": [
@@ -1483,17 +1495,17 @@
     },
     {
       "type": "session-log-deepseek/delivery-accepted",
-      "seq": 62,
+      "seq": 63,
       "time": 0,
       "data": {
         "sessionId": "{{parent}}",
         "sessionFormatVersion": 4,
-        "throughSeq": 61
+        "throughSeq": 62
       }
     },
     {
       "type": "assistant/message",
-      "seq": 63,
+      "seq": 64,
       "time": 0,
       "data": {
         "turn": 1,
@@ -1601,7 +1613,7 @@
     },
     {
       "type": "step/end",
-      "seq": 64,
+      "seq": 65,
       "time": 0,
       "data": {
         "turn": 1,
@@ -1610,7 +1622,7 @@
     },
     {
       "type": "command/run",
-      "seq": 65,
+      "seq": 66,
       "time": 0,
       "data": {
         "commandId": "{{command:1}}",
@@ -1622,7 +1634,7 @@
     },
     {
       "type": "feedback/record",
-      "seq": 66,
+      "seq": 67,
       "time": 0,
       "data": {
         "text": "The session needs a clearer explanation."
@@ -1630,7 +1642,7 @@
     },
     {
       "type": "command/done",
-      "seq": 67,
+      "seq": 68,
       "time": 0,
       "data": {
         "commandId": "{{command:1}}",
@@ -1640,7 +1652,7 @@
     },
     {
       "type": "feedback/record",
-      "seq": 68,
+      "seq": 69,
       "time": 0,
       "data": {
         "category": "other"
@@ -1648,7 +1660,7 @@
     },
     {
       "type": "feedback/message-put",
-      "seq": 69,
+      "seq": 70,
       "time": 0,
       "data": {
         "sessionId": "{{parent}}",
@@ -1665,7 +1677,7 @@
     },
     {
       "type": "feedback/message-put",
-      "seq": 70,
+      "seq": 71,
       "time": 0,
       "data": {
         "sessionId": "{{parent}}",
@@ -1681,7 +1693,7 @@
     },
     {
       "type": "feedback/message-delete",
-      "seq": 71,
+      "seq": 72,
       "time": 0,
       "data": {
         "sessionId": "{{parent}}",
@@ -1690,7 +1702,7 @@
     },
     {
       "type": "turn/end",
-      "seq": 72,
+      "seq": 73,
       "time": 0,
       "data": {
         "turn": 1,
@@ -4009,8 +4021,26 @@
       "payload": {
         "sessionId": "{{parent}}",
         "event": {
-          "type": "tool-workflow/agent-start",
+          "type": "subagent/catalog",
           "seq": 54,
+          "time": 0,
+          "data": {
+            "version": 0,
+            "childId": "{{child-2}}",
+            "childCreatedAt": 0,
+            "mode": "continuable",
+            "label": "advanced-exe-snapshot child 1"
+          }
+        }
+      }
+    },
+    {
+      "method": "session.event",
+      "payload": {
+        "sessionId": "{{parent}}",
+        "event": {
+          "type": "tool-workflow/agent-start",
+          "seq": 55,
           "time": 0,
           "data": {
             "runId": "{{workflow-run}}",
@@ -4420,7 +4450,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "tool-workflow/agent-end",
-          "seq": 55,
+          "seq": 56,
           "time": 0,
           "data": {
             "runId": "{{workflow-run}}",
@@ -4436,7 +4466,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "tool-workflow/run-end",
-          "seq": 56,
+          "seq": 57,
           "time": 0,
           "data": {
             "runId": "{{workflow-run}}",
@@ -4451,7 +4481,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "tool/result",
-          "seq": 57,
+          "seq": 58,
           "time": 0,
           "data": {
             "turn": 1,
@@ -4486,7 +4516,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "step/end",
-          "seq": 58,
+          "seq": 59,
           "time": 0,
           "data": {
             "turn": 1,
@@ -4501,7 +4531,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "agent/inbox/spliced",
-          "seq": 59,
+          "seq": 60,
           "time": 0,
           "data": {
             "target": "next-step",
@@ -4518,7 +4548,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "step/start",
-          "seq": 60,
+          "seq": 61,
           "time": 0,
           "data": {
             "turn": 1,
@@ -4533,7 +4563,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "user/message",
-          "seq": 61,
+          "seq": 62,
           "time": 0,
           "data": {
             "content": [
@@ -4569,12 +4599,12 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "session-log-deepseek/delivery-accepted",
-          "seq": 62,
+          "seq": 63,
           "time": 0,
           "data": {
             "sessionId": "{{parent}}",
             "sessionFormatVersion": 4,
-            "throughSeq": 61
+            "throughSeq": 62
           }
         }
       }
@@ -4585,7 +4615,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "assistant/message",
-          "seq": 63,
+          "seq": 64,
           "time": 0,
           "data": {
             "turn": 1,
@@ -4699,7 +4729,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "step/end",
-          "seq": 64,
+          "seq": 65,
           "time": 0,
           "data": {
             "turn": 1,
@@ -4714,7 +4744,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "command/run",
-          "seq": 65,
+          "seq": 66,
           "time": 0,
           "data": {
             "commandId": "{{command:1}}",
@@ -4732,7 +4762,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "feedback/record",
-          "seq": 66,
+          "seq": 67,
           "time": 0,
           "data": {
             "text": "The session needs a clearer explanation."
@@ -4746,7 +4776,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "command/done",
-          "seq": 67,
+          "seq": 68,
           "time": 0,
           "data": {
             "commandId": "{{command:1}}",
@@ -4762,7 +4792,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "feedback/record",
-          "seq": 68,
+          "seq": 69,
           "time": 0,
           "data": {
             "category": "other"
@@ -4776,7 +4806,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "feedback/message-put",
-          "seq": 69,
+          "seq": 70,
           "time": 0,
           "data": {
             "sessionId": "{{parent}}",
@@ -4799,7 +4829,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "feedback/message-put",
-          "seq": 70,
+          "seq": 71,
           "time": 0,
           "data": {
             "sessionId": "{{parent}}",
@@ -4821,7 +4851,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "feedback/message-delete",
-          "seq": 71,
+          "seq": 72,
           "time": 0,
           "data": {
             "sessionId": "{{parent}}",
@@ -4836,7 +4866,7 @@
         "sessionId": "{{parent}}",
         "event": {
           "type": "turn/end",
-          "seq": 72,
+          "seq": 73,
           "time": 0,
           "data": {
             "turn": 1,

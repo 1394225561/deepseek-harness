@@ -68,7 +68,7 @@ The workflow requests `timeoutMs: null` from PTC. Its initial VM slice still has
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The workflow engine owns orchestration; the PTC provider owns process launch, OS confinement, framed transport and managed process cleanup.
+The workflow engine owns orchestration; the PTC provider owns process launch, OS confinement, framed transport and managed process cleanup. Local children remain in the parent subagent catalog after completion, independently of caller-owned result collection; workflow runs add no parent completion notice.
 
 ### Design concept
 
