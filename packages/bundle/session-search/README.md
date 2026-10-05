@@ -1,5 +1,5 @@
 ---
-description: "Search and read earlier sessions from the current workspace."
+description: "Give Agents tools to search and read earlier sessions from the current workspace."
 kind: "package-bundle"
 ---
 
@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Search earlier sessions with five read-only tools in standard, cordis, and ptc. The shared content index opens on the first search. It ships switched off in Web and Desktop. Select it in Plugins to enable it.
+Give Agents five read-only tools to search earlier sessions in standard, cordis, and ptc. The content index opens on the first search and is shared by Agents using the same preset revision. The bundle ships switched off in Web and Desktop. Select it in Plugins to enable it.
 
 ## Table of Contents
 
@@ -29,6 +29,8 @@ In Web or Desktop, open Plugins and enable **Session search** in Official. Switc
 
 New Agents and subsequently reopened Sessions use the selected composition; live Agents retain their existing plugins. The minimal preset and host-level tool catalog remain unchanged.
 
+This bundle enables Agent search tools. Sidebar search keeps its existing behavior.
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -38,6 +40,8 @@ New Agents and subsequently reopened Sessions use the selected composition; live
 <summary>Implementation details — click to expand</summary>
 
 [`cordis.patch.yml`](cordis.patch.yml) contributes rows through `preset: preset-standard`, `preset: preset-cordis`, and `preset: preset-ptc`. Later profile patches can override their settings. The [profile composer](../../boot/app-boot/README.md) owns patch ordering and errors.
+
+Each preset revision owns an isolated `sessionQuery` provider with a lazy `:memory:` index. A retired revision releases its index when its last Agent closes. The host's metadata service keeps `openAt: never`.
 
 </details>
 
@@ -63,7 +67,7 @@ The layer adds no request content directly; the capability implementation owns c
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- The in-memory index is rebuilt after restarting the application. Search remains restricted to authorized workspaces.
+- Each active or retained preset revision keeps its own in-memory index after the first search. Indexes are rebuilt after restarting the application. Search remains restricted to authorized workspaces.
 
 -----
 

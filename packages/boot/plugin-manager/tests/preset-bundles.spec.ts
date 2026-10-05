@@ -108,14 +108,14 @@ it('lists scoped declarations while Off and keeps equal inner ids distinct acros
   ]))
   const moduleName = pathToFileURL(join(addon, 'plugin.mjs')).href
   expect((await manager.listBundles()).find(row => row.name === 'addon')?.rows).toEqual([
-    { rowId: 'shared-id', preset: 'preset-standard', moduleName },
-    { rowId: 'shared-id', preset: 'preset-cordis', moduleName },
+    { rowId: 'shared-id', preset: 'preset-standard', readOnlyReason: 'preset-managed', moduleName },
+    { rowId: 'shared-id', preset: 'preset-cordis', readOnlyReason: 'preset-managed', moduleName },
   ])
   expect(await manager.setBundleEnabled('addon', true)).toMatchObject({ application: 'applied', changed: true })
   const enabled = (await manager.listBundles()).find(row => row.name === 'addon')!
   expect(enabled.rows).toEqual([
-    { rowId: 'shared-id', preset: 'preset-standard', moduleName, composition: { enabled: true, fiberPhase: 'active' } },
-    { rowId: 'shared-id', preset: 'preset-cordis', moduleName, composition: { enabled: true, fiberPhase: 'active' } },
+    { rowId: 'shared-id', preset: 'preset-standard', readOnlyReason: 'preset-managed', moduleName, composition: { enabled: true, fiberPhase: 'active' } },
+    { rowId: 'shared-id', preset: 'preset-cordis', readOnlyReason: 'preset-managed', moduleName, composition: { enabled: true, fiberPhase: 'active' } },
   ])
   expect(enabled.rows.every(row => row.entryId === undefined)).toBe(true)
   expect(enabled.overrides).toEqual(['shared-id', 'preset-standard/absent'])

@@ -1,6 +1,6 @@
 {
   "name": "@deepseek-ai/dsh-session-search",
-  "description": "Search and read earlier sessions from the current workspace.",
+  "description": "Give Agents tools to search and read earlier sessions from the current workspace.",
   "version": "0.2.1-alpha.1",
   "icon": "./icon.svg",
   "publishConfig": {
@@ -8,7 +8,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/deepseek-harness/deepseek-harness.git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
     "directory": "packages/bundle/session-search"
   },
   "type": "module",
@@ -38,6 +38,7 @@
     }
   },
   "dependencies": {
+    "@deepseek-ai/dsh-session-query-sqlite": "workspace:*",
     "@deepseek-ai/dsh-tool-session-query": "workspace:*"
   },
   "peerDependencies": {

@@ -27,7 +27,7 @@ Generate experimental session titles from the conversation's eligible human prom
 
 In Web or Desktop, open Plugins and enable **Conversation-following titles** in Official. Switch it off to remove its profile layer.
 
-This host-level layer applies independently of preset selection. It adds no tool to the minimal preset or the host tool catalog.
+The switch changes the title provider for existing and new Sessions. Titles update on eligible human prompts or explicit refresh; automatic updates preserve user-pinned titles. Agent tool catalogs remain unchanged.
 
 -----
 

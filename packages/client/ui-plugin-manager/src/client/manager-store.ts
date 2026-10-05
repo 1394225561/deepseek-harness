@@ -424,6 +424,7 @@ export function packageRowKey(row: Pick<PackageRow, 'rowId' | 'preset'>): string
 export function packageView(bundle: BundleInfo, plugins: readonly PluginInfo[]): PackageView {
   const rows = bundle.rows.map((row): PackageRow => {
     const live = row.entryId === undefined ? undefined : plugins.find(plugin => plugin.entryId === row.entryId)
+    const readOnlyReason = row.readOnlyReason ?? live?.readOnlyReason
     return {
       rowId: row.rowId,
       ...row.preset === undefined ? {} : { preset: row.preset },
@@ -432,8 +433,7 @@ export function packageView(bundle: BundleInfo, plugins: readonly PluginInfo[]):
       phase: row.composition?.fiberPhase ?? live?.fiberPhase ?? null,
       ...row.meta === undefined ? {} : { meta: row.meta },
       ...row.entryId === undefined ? {} : { entryId: row.entryId },
-      ...row.preset !== undefined ? { readOnlyReason: 'unaddressable' as const }
-        : live?.readOnlyReason === undefined ? {} : { readOnlyReason: live.readOnlyReason },
+      ...readOnlyReason === undefined ? {} : { readOnlyReason },
     }
   })
   return {

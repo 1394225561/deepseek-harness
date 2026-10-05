@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/bundle/tmux-location/README.md
+/:
+  en: abb9ad88845a269c
+  zh: c9a96576c1c63e5f
+/deepseek-ai-dsh-tmux-location:
+  en: 7a09a973be4f5928
+  zh: 4421d7042de293cd
+/deepseek-ai-dsh-tmux-location/summary:
+  en: 0c24b9949fb2abca
+  zh: 48e3729f02b1b6fb
+/deepseek-ai-dsh-tmux-location/table-of-contents:
+  en: d152484eb41ac6b4
+  zh: 988e839059414d27
+/deepseek-ai-dsh-tmux-location/use-this-package:
+  en: 3060df5b52b95d4a
+  zh: c04fbce2fe75a633
+/deepseek-ai-dsh-tmux-location/understand-the-implementation:
+  en: 878820ec8f3bab5c
+  zh: 51eddc38d2a7685d
+/deepseek-ai-dsh-tmux-location/further-exploration:
+  en: 10b3d66543bb26a4
+  zh: a8474dcf3fc93d85
+/deepseek-ai-dsh-tmux-location/model-experience:
+  en: e9a9a7b0723e98b9
+  zh: 3cf108307e3093ce
+/deepseek-ai-dsh-tmux-location/model-experience/kv-cache-effect:
+  en: 1b2209bbbf869b1a
+  zh: 5b9de62271343e4e
+/deepseek-ai-dsh-tmux-location/known-limitations-and-deferred-work:
+  en: 487ebdb62ba78ea2
+  zh: acd142a5cdaa5301
+/deepseek-ai-dsh-tmux-location/known-limitations-and-deferred-work/dev-note:
+  en: 279d01435256cd2a
+  zh: 83780964e5de2f54

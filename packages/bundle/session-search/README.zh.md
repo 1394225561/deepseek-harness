@@ -1,5 +1,5 @@
 ---
-description: "搜索和读取当前工作区的历史会话。"
+description: "为智能体提供搜索和读取当前工作区历史会话的工具。"
 kind: "package-bundle"
 ---
 
@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概要
 
-在 standard、cordis 和 ptc 中使用五个只读工具搜索历史会话。共享内容索引在首次搜索时打开。 Web 和 Desktop 随附此功能，默认关闭。在插件页选择它即可启用。
+为 standard、cordis 和 ptc 中的智能体提供五个只读工具，用于搜索历史会话。内容索引在首次搜索时打开，由使用同一预设版本的智能体共享。Web 和 Desktop 随附此配置包，默认关闭。在插件页选择它即可启用。
 
 ## 目录
 
@@ -29,6 +29,8 @@ kind: "package-bundle"
 
 新智能体和随后重新打开的会话使用所选组合；正在运行的智能体保留已有插件。minimal 预设和 Host 层工具目录保持不变。
 
+此配置包启用智能体的搜索工具。侧边栏搜索保留现有行为。
+
 -----
 
 <a id="understand-the-implementation"></a>
@@ -38,6 +40,8 @@ kind: "package-bundle"
 <summary>实现细节 — 点击展开</summary>
 
 [`cordis.patch.yml`](cordis.patch.yml) 通过 `preset: preset-standard`、`preset: preset-cordis` 和 `preset: preset-ptc` 贡献插件行。后续配置补丁可以覆盖这些设置。[配置组合器](../../boot/app-boot/README.zh.md) 负责补丁顺序和错误处理。
+
+每个预设版本拥有独立的 `sessionQuery` 提供方和惰性打开的 `:memory:` 索引。已被替换的版本在最后一个智能体关闭时释放其索引。Host 的元数据服务仍使用 `openAt: never`。
 
 </details>
 
@@ -63,7 +67,7 @@ kind: "package-bundle"
 
 <a id="known-limitations-and-deferred-work"></a>
 
-- 内存索引会在应用重启后重建。搜索仍仅限获授权的工作区。
+- 每个当前或保留的预设版本在首次搜索后持有自己的内存索引。索引会在应用重启后重建。搜索仍仅限获授权的工作区。
 
 -----
 

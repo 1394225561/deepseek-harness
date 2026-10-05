@@ -27,7 +27,7 @@ Offer the experimental DSH badge skill to Agents whose presets load skills. The 
 
 In Web or Desktop, open Plugins and enable **DSH badge skill** in Official. Switch it off to remove its profile layer.
 
-This host-level layer applies independently of preset selection. It adds no tool to the minimal preset or the host tool catalog.
+The switch adds or removes a Host-wide skill provider for existing and new Agents. Presets that expose skill loading can use the badge; minimal keeps its tool catalog unchanged.
 
 -----
 

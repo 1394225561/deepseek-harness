@@ -9,7 +9,7 @@ kind: "package-bundle"
 
 ## 概要
 
-为 standard、cordis 和 ptc 添加六个实验性终端工具。每个智能体获得隔离的终端注册表和平台 shell 后端。 Web 和 Desktop 随附此功能，默认关闭。在插件页选择它即可启用。
+为 standard、cordis 和 ptc 添加六个实验性终端工具。每个预设修订拥有隔离的终端注册表和平台 shell 后端；终端仍由智能体拥有。 Web 和 Desktop 随附此功能，默认关闭。在插件页选择它即可启用。
 
 ## 目录
 

@@ -116,12 +116,12 @@ it('hands a custom page the shared configuration form of its entry', () => {
 describe('packageView', () => {
   it('keeps scoped rows read-only with distinct identities and their observed preset state', () => {
     const view = packageView({ ...BUNDLE, rows: [
-      { rowId: 'shared', preset: 'preset-standard', moduleName: 'tool', composition: { enabled: true, fiberPhase: 'active' } },
-      { rowId: 'shared', preset: 'preset-cordis', moduleName: 'tool', composition: { enabled: 'conditional', fiberPhase: null } },
+      { rowId: 'shared', preset: 'preset-standard', moduleName: 'tool', readOnlyReason: 'preset-managed', composition: { enabled: true, fiberPhase: 'active' } },
+      { rowId: 'shared', preset: 'preset-cordis', moduleName: 'tool', readOnlyReason: 'preset-managed', composition: { enabled: 'conditional', fiberPhase: null } },
     ] }, [])
     expect(view.rows).toEqual([
-      { rowId: 'shared', preset: 'preset-standard', moduleName: 'tool', enabled: true, phase: 'active', readOnlyReason: 'unaddressable' },
-      { rowId: 'shared', preset: 'preset-cordis', moduleName: 'tool', enabled: false, phase: null, readOnlyReason: 'unaddressable' },
+      { rowId: 'shared', preset: 'preset-standard', moduleName: 'tool', enabled: true, phase: 'active', readOnlyReason: 'preset-managed' },
+      { rowId: 'shared', preset: 'preset-cordis', moduleName: 'tool', enabled: false, phase: null, readOnlyReason: 'preset-managed' },
     ])
     expect(new Set(view.rows.map(packageRowKey)).size).toBe(2)
     expect(packageRowKey({ rowId: 'ordinary' })).toBe('ordinary')

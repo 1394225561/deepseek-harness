@@ -139,7 +139,9 @@ describe('preset patch composition', () => {
   it('rejects duplicate ids inside an insertion and allows anonymous rows', () => {
     expect(() => applyProfilePatches([preset()], [{ preset: 'preset-standard', insert: [row('same'), row('same')] }]))
       .toThrow('duplicate entry id "same"')
-    expect(children(applyProfilePatches([preset()], [{ preset: 'preset-standard', insert: [{ name: 'anonymous' }] }])))
+    const path = join(temp(), 'anonymous.patch.yml')
+    writeFileSync(path, JSON.stringify([{ preset: 'preset-standard', insert: [{ name: 'anonymous' }] }]))
+    expect(children(applyProfilePatches([preset()], loadOverlayPatches('test', path))))
       .toEqual([{ name: 'anonymous' }])
   })
 

@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Add six experimental terminal tools to standard, cordis, and ptc. Each Agent receives an isolated terminal registry with the platform shell backend. It ships switched off in Web and Desktop. Select it in Plugins to enable it.
+Add six experimental terminal tools to standard, cordis, and ptc. Each preset revision owns an isolated terminal registry with the platform shell backend; terminals remain Agent-owned. It ships switched off in Web and Desktop. Select it in Plugins to enable it.
 
 ## Table of Contents
 

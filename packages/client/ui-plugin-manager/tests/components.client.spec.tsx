@@ -732,17 +732,25 @@ describe('PluginManagerPage', () => {
   it('shows distinct preset targets and keeps scoped rows read-only despite a matching root configuration page', () => {
     const rows: PackageRow[] = ['preset-standard', 'preset-cordis'].map(preset => ({
       rowId: 'shared', preset, moduleName: 'shared-tool', enabled: true, phase: 'active',
-      readOnlyReason: 'unaddressable', meta: { title: 'shared' },
+      readOnlyReason: 'preset-managed', meta: { title: 'shared' },
     }))
-    const { actions } = renderTab({ packages: [pkg({ rows })] }, { rows: new Set(['dsh-better-sidebar#shared']) })
+    const { actions, setLanguage } = renderTab({ packages: [pkg({ rows })] }, { rows: new Set(['dsh-better-sidebar#shared']) })
     fireEvent.click(screen.getByRole('button', { name: en.openDetail.replace('{name}', 'dsh-better-sidebar') }))
     const listed = [...document.querySelectorAll('[data-plugin-row]')]
     expect(new Set(listed.map(item => item.getAttribute('data-plugin-row'))).size).toBe(2)
     expect(screen.getByText('preset-standard/shared')).toBeTruthy()
     expect(screen.getByText('preset-cordis/shared')).toBeTruthy()
-    for (const item of listed) expect(within(item as HTMLElement).getByRole('switch')).toHaveProperty('disabled', true)
+    for (const item of listed) {
+      const toggle = within(item as HTMLElement).getByRole('switch')
+      expect(toggle).toHaveProperty('disabled', true)
+      expect(toggle.getAttribute('title')).toBe(en.reasonPresetManaged)
+    }
     expect(screen.queryByRole('button', { name: en.configureRow.replace('{name}', 'shared') })).toBeNull()
     expect(actions.setRowEnabled).not.toHaveBeenCalled()
+    setLanguage(zh)
+    for (const item of listed) {
+      expect(within(item as HTMLElement).getByRole('switch').getAttribute('title')).toBe(zh.reasonPresetManaged)
+    }
   })
 
   it('resolves row fields independently from bundle metadata and preserves subpath specifiers', () => {

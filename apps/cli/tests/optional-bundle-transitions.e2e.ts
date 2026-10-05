@@ -63,7 +63,7 @@ class BundleModel extends LlmAdapter {
   }
 }
 
-describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official optional bundle transitions', () => {
+describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official optional bundle transitions', { retry: 0 }, () => {
   let ctx: Context
   let temporary: string
   let workspace: string
@@ -139,9 +139,9 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
     }
   }, 120_000)
 
-  async function agent(preset = 'standard'): Promise<AgentHandle> {
+  async function agent(preset = 'standard', cwd = workspace): Promise<AgentHandle> {
     const handle = await ctx.agents.create({
-      sessionId: SessionId(`optional-${preset}-${randomUUID()}`), meta: { cwd: workspace, agentPreset: preset },
+      sessionId: SessionId(`optional-${preset}-${randomUUID()}`), meta: { cwd, agentPreset: preset },
       agentOptions: { provider: 'bundle-test', model: 'scripted' },
       setup: scoped => ctx.agentPresets.mount(scoped, preset).then(() => undefined),
     })
@@ -161,7 +161,7 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
     if (enabled) selected.add(name)
     const result = await ctx.pluginManager.setBundleEnabled(name, enabled)
     if (!enabled && result.application === 'applied') selected.delete(name)
-    expect(result).toMatchObject({ changed: true, application: 'applied' })
+    expect(result, JSON.stringify(result)).toMatchObject({ changed: true, application: 'applied' })
   }
 
   const names = (owner?: Agent) => ctx.tools.schemas(owner).map(tool => tool.name).sort()
@@ -234,15 +234,27 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
     const seedId = seed.agent.session.id
     await seed.dispose()
     handles.delete(seed)
+    const live = await agent()
+    await turn(live.agent, 'Keep OPTIONAL_SEARCH_MARKER in this live session.', [textResponse('Live marker recorded.')])
+    const otherWorkspace = join(temporary, 'other-workspace')
+    await mkdir(otherWorkspace)
+    const foreign = await agent('standard', otherWorkspace)
+    await turn(foreign.agent, 'Keep OPTIONAL_SEARCH_MARKER in the other workspace.', [textResponse('Other marker recorded.')])
     await select(bundles.search, true)
     const searcher = await agent()
     await turn(searcher.agent, 'Find the previous marker in session history.', [
       toolCallResponse('search-history', 'session_search', { query: 'OPTIONAL_SEARCH_MARKER' }), textResponse('SEARCH_DONE'),
     ])
     expect(toolResult(searcher.agent, 'search-history')).toContain(seedId)
+    expect(toolResult(searcher.agent, 'search-history')).toContain(live.agent.session.id)
+    expect(toolResult(searcher.agent, 'search-history')).not.toContain(foreign.agent.session.id)
     expect(toolResult(searcher.agent, 'search-history')).toContain('OPTIONAL_SEARCH_MARKER')
     await select(bundles.search, false)
     expect(names((await agent()).agent)).not.toContain('session_search')
+    await turn(searcher.agent, 'Search the marker again using the retained capability.', [
+      toolCallResponse('search-retained', 'session_search', { query: 'OPTIONAL_SEARCH_MARKER' }), textResponse('RETAINED_SEARCH_DONE'),
+    ])
+    expect(toolResult(searcher.agent, 'search-retained')).toContain(seedId)
   })
 
   it('loads the actual badge asset only while its bundle is selected', async () => {
@@ -333,6 +345,8 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
     const following = await agent()
     await turn(following.agent, 'Start a growing conversation.', [textResponse('ONE')])
     await expect.poll(() => titleRequests(following.agent).length).toBe(1)
+    expect(titleRequests(following.agent)[0]?.data.titleProvider).toBe('session-title-all-prompts-llm')
+    await expect.poll(() => ctx.sessionTitle.get(following.agent.session)?.source.kind).toBe('provider')
     await turn(following.agent, 'Continue the growing conversation.', [textResponse('TWO')])
     await expect.poll(() => titleRequests(following.agent).length).toBe(2)
     expect(titleRequests(following.agent).every(event => event.data.titleProvider === 'session-title-all-prompts-llm')).toBe(true)

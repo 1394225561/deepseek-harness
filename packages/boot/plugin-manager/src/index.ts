@@ -669,7 +669,7 @@ export class PluginManager extends TypertRemoteService {
       const composition = inventory.agentPresets?.find(item => item.id === presetId)?.rows
         .find(item => item.entryId === row.id && item.moduleName === row.name)
       rows.push({ rowId: row.id, moduleName: row.name,
-        ...preset === undefined ? {} : { preset },
+        ...preset === undefined ? {} : { preset, readOnlyReason: 'preset-managed' as const },
         ...composition === undefined ? {} : { composition: { enabled: composition.enabled, fiberPhase: composition.fiberPhase } },
         ...active === undefined ? {} : { entryId: pluginEntryId(active.id) }, ...meta === undefined ? {} : { meta } })
     }
