@@ -72,6 +72,14 @@ A controlled mouse-refocus delay waits for the real DONE marker without pausing 
 
 The current Trajectory acceptance limit is 650 ms, represented by a 520 ms target with the shared 1.25× headroom. Run 35095609422 records medians of 666.651723 ms and 630.843184 ms on its original attempt and retry. This explicit 4% relaxation of the former 625 ms limit accepts the retry median but still rejects the original median; it is a budget decision, not a measured product speedup. Recorded retry samples exercise the accepted range, and the same verdict assertion rejects 651 ms. Other endpoint budgets and workload parameters remain unchanged.
 
+### Trajectory readiness polling
+
+Trajectory activation samples its visible searchbox and a visible record inside `[data-trajectory-scroll]` on animation frames. Playwright's selector polling uses increasing delays up to 500 ms, so DOM readiness can precede the observer by hundreds of milliseconds. The trusted tab click, its actionability checks and the final two-frame wait remain timed; workload and the current 650 ms budget are unchanged.
+
+A controlled macOS arm64 diagnostic on Node 24.19.0, Chromium 149.0.7827.55 and Playwright 1.61.1 makes the searchbox and record ready after 300 or 350 ms. Selector waits take 793.082/791.053 ms and observe readiness 493.5/439.2 ms late; frame sampling takes 307.324/357.423 ms and observes it 8.1/7.9 ms late. This isolates conditional observer delay, not product latency or the cause of the first #4119 CI miss.
+
+Complete local 240-turn runs produce Trajectory samples of 157.795/146.737/148.571 ms before the observer change and 130.184/191.247/157.543 ms afterward, with medians 148.571 and 157.543 ms. Both runs pass every fixed endpoint budget; no local speedup or hosted calibration is claimed. The readiness regression rejects a hidden searchbox or record despite a visible unrelated table row; restoring the original selector waits makes that test fail.
+
 ## Alternatives considered
 
 **Use the Node fold as paint evidence.** Rejected because it never performs DOM mutation, layout, or browser scheduling. The focused reconnect case likewise makes no GUI speed claim.
@@ -81,6 +89,8 @@ The current Trajectory acceptance limit is 650 ms, represented by a 520 ms targe
 **Coalesce active reconnect chunks.** Rejected as a benchmark shortcut: Client entries expose per-member ordering and timestamps to conversation definitions. The benchmark retains that production behavior; reducing retained entries requires a separate semantic design, not copied product algorithms or a synthetic approximation.
 
 **Search the entire loaded history for every stream marker.** Rejected because Playwright injects text and accessibility scans into the same renderer whose CPU the benchmark measures. Scoping queries to the composer and latest Assistant preserves visible completion checks without making observer cost proportional to loaded history.
+
+**Raise the Trajectory budget or retry failed samples.** This retains the measured selector backoff and can accept slower product behavior. Frame-based readiness removes that observer delay without changing the budget.
 
 **Measure stream CPU alone.** Rejected because transport stalls and final-settlement delays can leave main-thread CPU low. The independent input, first-reply, and complete-wall budgets cover those waits.
 

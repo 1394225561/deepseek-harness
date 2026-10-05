@@ -68,6 +68,17 @@ async function waitForReplyMarker(page: Page, marker: string, timeout = 30000) {
   }, { marker, first: FIRST, done: DONE }, { polling: 'raf', timeout })
 }
 
+async function waitForTrajectory(page: Page, timeout = 30000): Promise<void> {
+  // Selector retry backoff can delay observation after the view is already ready.
+  const ready = await page.waitForFunction(() => {
+    const search = document.querySelector('input[type="search"][aria-label="Search trajectory"]')
+    if (!search?.checkVisibility({ checkVisibilityCSS: true })) return false
+    return Array.from(document.querySelectorAll('[data-trajectory-scroll] [data-trajectory-row-key]'))
+      .some(row => row.checkVisibility({ checkVisibilityCSS: true }))
+  }, undefined, { polling: 'raf', timeout })
+  await ready.dispose()
+}
+
 async function watchInputOverlap(composer: Locator): Promise<void> {
   await composer.evaluate((element, markers) => {
     element.removeAttribute('data-benchmark-input-witness')
@@ -128,6 +139,22 @@ it('waits for visible marker text in the latest Assistant step', async () => {
   }
 })
 
+it('waits for visible Trajectory controls and records rather than unrelated table rows', async () => {
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage()
+    await page.setContent('<input type="search" aria-label="Search trajectory" style="visibility:hidden"><table><tbody><tr><td>unrelated</td></tr></tbody></table><div data-trajectory-scroll><table><tbody><tr data-trajectory-row-key="record"><td>record</td></tr></tbody></table></div>')
+    await expect(waitForTrajectory(page, 100)).rejects.toThrow('Timeout')
+    await page.locator('[data-trajectory-row-key]').evaluate(element => { element.style.display = 'none' })
+    await page.locator('input').evaluate(element => { element.style.visibility = 'visible' })
+    await expect(waitForTrajectory(page, 100)).rejects.toThrow('Timeout')
+    await page.locator('[data-trajectory-row-key]').evaluate(element => { element.style.display = 'table-row' })
+    await waitForTrajectory(page)
+  } finally {
+    await browser.close()
+  }
+})
+
 it('opens, pages, navigates and streams into a 240-turn browser history', async () => {
   if (webSnapshotMode() !== 'replay') throw new Error('browser benchmarks require keyless replay mode')
   const samples: { open: number; page: number; trajectory: number; first: number; streamTask: number; streamWall: number; input: number; inputOverlapped: boolean; heapMb: number; nodes: number }[] = []
@@ -173,8 +200,7 @@ it('opens, pages, navigates and streams into a 240-turn browser history', async 
           }
           const trajectory = await measure(page, async () => {
             await page.getByRole('tab', { name: 'Trajectory', exact: true }).click()
-            await page.getByRole('searchbox', { name: 'Search trajectory', exact: true }).waitFor()
-            await page.getByRole('row').last().waitFor()
+            await waitForTrajectory(page)
           })
           await page.getByRole('tab', { name: 'Chat', exact: true }).click()
           await page.waitForFunction(({ selector, expected }) => document.querySelectorAll(selector).length === expected, { selector: TAIL, expected: HISTORY_TURNS })
