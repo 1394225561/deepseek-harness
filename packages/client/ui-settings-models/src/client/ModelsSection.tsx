@@ -467,7 +467,9 @@ function Loaded({ injected, renderSlot }: { injected: ModelsSectionFace; renderS
                     type="button"
                     className={styles['secondaryButton']}
                     aria-label={providerCopy(t('editProvider'), target)}
+                    disabled={!open && state.status !== 'ready'}
                     onClick={() => {
+                      if (!open && controller.store.getSnapshot().status !== 'ready') return
                       setSavedTarget(undefined)
                       // One card at a time: the add card closes with whatever
                       // it held, since closing either card would otherwise

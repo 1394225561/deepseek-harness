@@ -331,6 +331,29 @@ async function mountDeepSeekCard(overrides: Parameters<typeof scriptedFace>[0] =
 }
 
 describe('ModelsSection', () => {
+  it('checks current readiness before opening an editor and preserves an open draft during refresh', async () => {
+    const { controller } = await mountSection()
+    const edit = screen.getByRole('button', { name: deepSeekCopy(en.editProvider) })
+    const ready = controller.store.getSnapshot()
+    // The store can publish loading before React commits the disabled button.
+    const snapshot = vi.spyOn(controller.store, 'getSnapshot').mockReturnValue({ ...ready, status: 'loading' })
+    try {
+      fireEvent.click(edit)
+      expect(screen.queryByLabelText(en.keyInput)).toBeNull()
+    } finally {
+      snapshot.mockRestore()
+    }
+    fireEvent.click(edit)
+    const key = await screen.findByLabelText(en.keyInput)
+    fireEvent.change(key, { target: { value: 'sk-unsaved-draft' } })
+    act(() => { controller.store.update((state) => { state.status = 'loading' }) })
+    expect((key as HTMLInputElement).value).toBe('sk-unsaved-draft')
+    expect((edit as HTMLButtonElement).disabled).toBe(false)
+    fireEvent.click(edit)
+    expect(screen.queryByLabelText(en.keyInput)).toBeNull()
+    expect((edit as HTMLButtonElement).disabled).toBe(true)
+  })
+
   it('hides the add action when no settings namespace can open an editor', async () => {
     const scripted = scriptedFace()
     scripted.face.settings.describe.mockResolvedValue(remoteOk({ writable: true, hasDocument: false, namespaces: [] }))

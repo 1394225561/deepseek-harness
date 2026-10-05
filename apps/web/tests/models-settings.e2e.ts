@@ -18,7 +18,7 @@ import { assertModelInputLayout } from './model-input-layout.ts'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
-import type { Browser, Page } from 'playwright'
+import type { Browser, Page, Request, Route } from 'playwright'
 import { chromium } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import {
@@ -340,20 +340,66 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
     expect(await inputs.getByRole('checkbox', { name: '文本' }).isDisabled()).toBe(true)
     await inputs.getByRole('checkbox', { name: '图片' }).check()
     await inputs.getByRole('checkbox', { name: '文本' }).uncheck()
-    await dialog.getByRole('button', { name: '保存', exact: true }).click()
-    await dialog.getByLabel('模型 ID 1').waitFor({ state: 'detached', timeout: 10_000 })
-    await expect(scaffold.ctx.llm.resolveModelInfo('acme-gateway', 'acme-large')).resolves.toMatchObject({
-      inputModalities: ['image'],
-    })
-    // The saved notice confirms the browser directory refresh after the editor closes.
-    await dialog.getByText('已保存 Acme 网关 (acme-gateway)。', { exact: true }).waitFor({ timeout: 10_000 })
-    await dialog.getByRole('button', { name: '编辑 Acme 网关 (acme-gateway)' }).click()
-    await dialog.getByText('自定义设置').click()
-    await dialog.getByRole('button', { name: '模型选项 1' }).click()
-    expect(await dialog.getByRole('group', { name: '输入类型 1' }).getByRole('checkbox', { name: '图片' }).isChecked()).toBe(true)
-    expect(await inputs.getByRole('checkbox', { name: '文本' }).isChecked()).toBe(false)
-    expect(await inputs.getByRole('checkbox', { name: '图片' }).isDisabled()).toBe(true)
-    await dialog.getByRole('button', { name: '取消', exact: true }).click()
+    const reads: { request: Request; release: () => void }[] = []
+    const firstStarted = Promise.withResolvers<undefined>()
+    let nextStarted: PromiseWithResolvers<undefined> | undefined
+    let released = false
+    const releaseAll = (): void => { released = true; for (const read of reads) read.release() }
+    const intercept = async (route: Route): Promise<void> => {
+      const body: unknown = route.request().postDataJSON()
+      const payload = typeof body === 'object' && body !== null && 'payload' in body ? body.payload : undefined
+      const args = typeof payload === 'object' && payload !== null && 'args' in payload ? payload.args : undefined
+      const refs = typeof args === 'object' && args !== null ? Object.values(args).find(Array.isArray) : undefined
+      // The page joins multiple references; the editor previews only its own reference.
+      if (Array.isArray(refs) && refs.length > 1 && !released) {
+        const gate = Promise.withResolvers<undefined>()
+        reads.push({ request: route.request(), release: () => { gate.resolve(undefined) } })
+        firstStarted.resolve(undefined)
+        nextStarted?.resolve(undefined)
+        await gate.promise
+      }
+      await route.continue()
+    }
+    await page.route('**/api/credentials/describe', intercept)
+    try {
+      await dialog.getByRole('button', { name: '保存', exact: true }).click()
+      await dialog.getByLabel('模型 ID 1').waitFor({ state: 'detached', timeout: 10_000 })
+      await expect(scaffold.ctx.llm.resolveModelInfo('acme-gateway', 'acme-large')).resolves.toMatchObject({
+        inputModalities: ['image'],
+      })
+      await firstStarted.promise
+      nextStarted = Promise.withResolvers<undefined>()
+      scaffold.ctx.emit('llm/adapters-updated')
+      await nextStarted.promise
+      const latest = reads.at(-1)
+      if (latest === undefined) throw new Error('Missing current credentials read')
+      const obsolete = reads.slice(0, -1)
+      const oldResponses = obsolete.map(read => page.waitForResponse(response => response.request() === read.request))
+      for (const read of obsolete) read.release()
+      await Promise.all(oldResponses.map(async (response) => { await (await response).finished() }))
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => { requestAnimationFrame(() => { resolve() }) })))
+      const saved = dialog.getByText('已保存 Acme 网关 (acme-gateway)。', { exact: true })
+      const edit = dialog.getByRole('button', { name: '编辑 Acme 网关 (acme-gateway)' })
+      expect(await saved.count()).toBe(0)
+      expect(await edit.isDisabled()).toBe(true)
+      await compareOrRefreshGolden(join(SNAPSHOT_DIR, 'refreshing.expected.md'),
+        await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd), MODE)
+      releaseAll()
+      // The saved notice confirms the current joined snapshot after the editor closes.
+      await saved.waitFor({ timeout: 10_000 })
+      await edit.click()
+      await dialog.getByText('自定义设置').click()
+      await dialog.getByRole('button', { name: '模型选项 1' }).click()
+      expect(await inputs.getByRole('checkbox', { name: '图片' }).isChecked()).toBe(true)
+      expect(await inputs.getByRole('checkbox', { name: '文本' }).isChecked()).toBe(false)
+      expect(await inputs.getByRole('checkbox', { name: '图片' }).isDisabled()).toBe(true)
+      await compareOrRefreshGolden(join(SNAPSHOT_DIR, 'image-only.expected.md'),
+        await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd), MODE)
+      await dialog.getByRole('button', { name: '取消', exact: true }).click()
+    } finally {
+      releaseAll()
+      await page.unrouteAll({ behavior: 'wait' })
+    }
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 
@@ -456,6 +502,7 @@ describe('web e2e: Models settings page configures a dormant provider', () => {
       'configured.expected.md', 'declared-edit.expected.md', 'declared.expected.md',
       'delete.expected.md', 'empty.expected.md', 'model-picker.expected.md',
       'native-delete.expected.md', 'catalog-inputs.expected.md',
+      'refreshing.expected.md', 'image-only.expected.md',
     ])
   })
 })
