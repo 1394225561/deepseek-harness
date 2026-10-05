@@ -1,11 +1,12 @@
 /** Source, installation, and composition regressions for default-product isolation. */
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { verifyDefaultProductIsolation } from './verify-default-product-isolation.ts'
+import { writeFixtureFile as write } from './fixture-file.ts'
 
 const roots: string[] = []
 const experimental = '@deepseek-ai/dsh-experimental-prototype'
@@ -14,12 +15,6 @@ const base = '@deepseek-ai/dsh-base'
 const profile = 'packages/boot/app-boot/src/profile.ts'
 const preset = 'packages/bundle/web-app/presets/standard.patch.yml'
 const patch = 'packages/bundle/base/cordis.patch.yml'
-
-function write(root: string, path: string, value: unknown): void {
-  const target = join(root, path)
-  mkdirSync(dirname(target), { recursive: true })
-  writeFileSync(target, typeof value === 'string' ? value : `${JSON.stringify(value)}\n`)
-}
 
 function manifest(root: string, path: string, fields: Record<string, unknown>): void {
   const existing = JSON.parse(readFileSync(join(root, path), 'utf8')) as Record<string, unknown>

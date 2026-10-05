@@ -1,11 +1,12 @@
 /** Product-use regressions exercise source reachability and effective Loader composition. */
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ProductPackagePolicy } from './product-package-policy.ts'
 import { verifyProductUse } from './verify-product-use.ts'
+import { writeFixtureFile as write } from './fixture-file.ts'
 
 const roots: string[] = []
 const base = '@deepseek-ai/dsh-base'
@@ -14,12 +15,6 @@ const candidate = '@deepseek-ai/dsh-candidate'
 const candidateDir = 'packages/core/candidate'
 const profile = 'packages/boot/app-boot/src/profile.ts'
 const patch = 'packages/bundle/base/cordis.patch.yml'
-
-function write(root: string, path: string, value: unknown): void {
-  const target = join(root, path)
-  mkdirSync(dirname(target), { recursive: true })
-  writeFileSync(target, typeof value === 'string' ? value : `${JSON.stringify(value)}\n`)
-}
 
 function pkg(root: string, directory: string, name: string, fields: Record<string, unknown> = {}): void {
   write(root, `${directory}/package.json`, { name, ...fields })

@@ -105,8 +105,11 @@ it.skipIf(!built)('loads the packed GitHub example with its explicitly installed
   const initialLinks = await workspaceLinks(sourceDirectories)
   onTestFinished(async () => { expect(await workspaceLinks(sourceDirectories)).toEqual(initialLinks) })
   const closure = packedWorkspaceClosure('@deepseek-ai/dsh', packages)
+  // A signed ping creates no Session and runs no confined process. The native
+  // platform packages load lazily for those operations and have separate smokes.
   const runtimeMembers = closure.filter(member => (
-    (!Array.isArray(member.manifest.os) || member.manifest.os.includes(process.platform))
+    !member.name.startsWith('@deepseek-ai/node-addon-system-')
+    && (!Array.isArray(member.manifest.os) || member.manifest.os.includes(process.platform))
     && (!Array.isArray(member.manifest.cpu) || member.manifest.cpu.includes(process.arch))
   ))
   const members = new Map(runtimeMembers.map(member => [member.name, member]))
