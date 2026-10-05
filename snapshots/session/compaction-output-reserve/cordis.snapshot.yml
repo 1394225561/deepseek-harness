@@ -1,6 +1,9 @@
 # With 1,800 tokens of headroom, a 1,000-token output reservation lowers the
 # trigger from 6,782 to 5,782, between the history and its condensed replacement.
 
+- id: agent-instructions
+  disabled: true
+
 - id: llm-deepseek
   name: '@deepseek-ai/dsh-llm-deepseek-api-key'
   disabled: true
@@ -30,3 +33,5 @@
               - id: deepseek-v4-flash
                 contextWindow: 8582
                 defaultMaxTokens: 1000
+    - id: compaction-working-directory
+      name: '../../../packages/test-support/session-snapshot/tests/fixtures/compaction-working-directory.ts'
