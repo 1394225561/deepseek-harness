@@ -85,7 +85,7 @@ The patch rides over `dsh-base`: it inherits the projection cache and shared PTC
 
 ### Exit mapping
 
-A completed final `turn/end` exits 0; any other outcome — aborted, error, or no turn in the owned interval — exits 1. An `error` reason also writes `dsh: <code>: <message>` to stderr. A direct driver failure (for example, Agent creation or an unusable `--session-id`) writes `dsh: <message>` to stderr and exits 1, and in `--json` mode also emits an `error` event.
+A completed final `turn/end` exits 0; any other outcome — aborted, error, or no turn in the owned interval — exits 1. An `error` reason also writes `dsh: <code>: <message>` to stderr. A live Agent failure without a later committed `turn/end` is a direct driver failure, including a summary whose start or end cannot be persisted; an earlier completed turn cannot make that run succeed. A direct driver failure (for example, Agent creation or an unusable `--session-id`) writes `dsh: <message>` to stderr and exits 1, and in `--json` mode also emits an `error` event without a `final` event.
 
 ### Source map
 
