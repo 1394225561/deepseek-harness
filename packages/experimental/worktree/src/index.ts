@@ -96,6 +96,7 @@ export class WorktreeService extends Service {
    * Create a fresh branch and checkout at a pinned local revision, then enter it.
    * Existing branches or checkout paths fail. Uncommitted files stay in the source checkout.
    * Checkout disables configured clean, smudge, and process filters without changing Git config.
+   * Repository-local replacement refs still apply; baseCommit reports the resolved object name.
    * The new checkout becomes current only after Git setup succeeds. Failures may retain newly
    * allocated Git/filesystem artifacts; no branch or checkout is removed automatically.
    * @param agent - caller whose current directory selects the source repository and file policy.

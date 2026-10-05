@@ -14,7 +14,7 @@ export interface CreatedWorktree {
   path: string
   /** Newly created branch name. */
   branch: string
-  /** Full commit identifier resolved before the checkout was created. */
+  /** Resolved commit object name; repository-local replacement refs can change its checked-out content. */
   baseCommit: string
   /** Canonical root of the source checkout. */
   repositoryRoot: string

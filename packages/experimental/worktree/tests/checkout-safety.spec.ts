@@ -72,6 +72,24 @@ describe('worktree checkout Git configuration', () => {
     expect(await contents(join(created.path, 'tracked.txt'))).toBe('initial\n')
   })
 
+  it('retains stored binary content without running its decryption filter', async () => {
+    const root = await repo()
+    const stored = Buffer.from([0, 255, 17, 128, 10])
+    await writeFile(join(root, 'tracked.txt'), stored)
+    await writeFile(join(root, '.gitattributes'), 'tracked.txt filter=encrypted -text\n')
+    await git(root, 'add', '.gitattributes', 'tracked.txt')
+    await git(root, 'commit', '-m', 'stored binary content')
+    await git(root, 'config', 'filter.encrypted.smudge', "printf 'decrypted content\\n'")
+    const control = join(root, 'ordinary-checkout')
+    await git(root, 'worktree', 'add', '-b', 'ordinary', control)
+    expect(await contents(join(control, 'tracked.txt'))).toBe('decrypted content\n')
+
+    ctx = await harness(root)
+    const created = await ctx.worktrees.create(testAgent(ctx, root), { name: 'stored' })
+
+    expect(await readFile(join(created.path, 'tracked.txt'))).toEqual(stored)
+  })
+
   it('reports invalid destination-only configuration and retains the unpopulated checkout', async () => {
     const root = await repo()
     const included = join(root, 'invalid-config')
@@ -150,6 +168,47 @@ describe('worktree checkout Git configuration', () => {
     expect(created.baseCommit).toBe(baseCommit)
     expect(await contents(join(created.path, 'tracked.txt'))).toBe('initial\n')
     expect(await git(other, 'branch', '--list', 'selected')).toBe('')
+  })
+
+  it('uses the selected checkout attributes instead of an inherited attribute tree', async () => {
+    const root = await repo()
+    const baseCommit = await git(root, 'rev-parse', 'HEAD')
+    await git(root, 'checkout', '-b', 'foreign-attributes')
+    await writeFile(join(root, '.gitattributes'), 'tracked.txt text eol=crlf\n')
+    await git(root, 'add', '.gitattributes')
+    await git(root, 'commit', '-m', 'foreign attributes')
+    const attributesCommit = await git(root, 'rev-parse', 'HEAD')
+    await git(root, 'checkout', 'main')
+    vi.stubEnv('GIT_ATTR_SOURCE', attributesCommit)
+    const control = join(root, 'ordinary-checkout')
+    await git(root, 'worktree', 'add', '-b', 'ordinary', control)
+    expect(await contents(join(control, 'tracked.txt'))).toBe('initial\r\n')
+
+    ctx = await harness(root)
+    const created = await ctx.worktrees.create(testAgent(ctx, root), { name: 'selected' })
+
+    expect(created.baseCommit).toBe(baseCommit)
+    expect(await contents(join(created.path, 'tracked.txt'))).toBe('initial\n')
+  })
+
+  it('honors repository-local replacement refs while reporting the resolved object name', async () => {
+    const root = await repo()
+    const baseCommit = await git(root, 'rev-parse', 'HEAD')
+    await git(root, 'checkout', '-b', 'replacement')
+    await writeFile(join(root, 'tracked.txt'), 'repository replacement\n')
+    await git(root, 'commit', '-am', 'replacement')
+    const replacement = await git(root, 'rev-parse', 'HEAD')
+    await git(root, 'checkout', 'main')
+    await git(root, 'replace', baseCommit, replacement)
+    const configuration = await readFile(join(root, '.git/config'))
+
+    ctx = await harness(root)
+    const created = await ctx.worktrees.create(testAgent(ctx, root), { name: 'selected' })
+
+    expect(created.baseCommit).toBe(baseCommit)
+    expect(await contents(join(created.path, 'tracked.txt'))).toBe('repository replacement\n')
+    expect(await git(root, 'replace', '--list')).toBe(baseCommit)
+    expect(await readFile(join(root, '.git/config'))).toEqual(configuration)
   })
 
   it('reports a missing Git executable before allocating a checkout', async () => {

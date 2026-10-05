@@ -15,12 +15,12 @@ export interface ProcessConfig {
   maxOutputBytes: number
 }
 
-/** Clear inherited repository and command-line Git configuration selectors. */
+/** Clear inherited repository, attribute-tree, command-line configuration, and replacement-ref selectors. */
 const GIT_ENV: NodeJS.ProcessEnv = Object.fromEntries([
   'GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR', 'GIT_INDEX_FILE', 'GIT_OBJECT_DIRECTORY',
   'GIT_ALTERNATE_OBJECT_DIRECTORIES', 'GIT_CONFIG', 'GIT_CONFIG_PARAMETERS', 'GIT_CONFIG_COUNT',
   'GIT_CEILING_DIRECTORIES', 'GIT_PREFIX', 'GIT_SHALLOW_FILE', 'GIT_GRAFT_FILE',
-  'GIT_REPLACE_REF_BASE',
+  'GIT_REPLACE_REF_BASE', 'GIT_ATTR_SOURCE',
 ].map(key => [key, undefined]))
 
 /**
