@@ -7,8 +7,8 @@ the completion), and posts a terminal :class:`DoneMessage`. The program calls
 host functions through the ``tools`` (or other namespace) proxy, whose attribute
 and subscript access return awaitables that ride binding messages over fd 3.
 
-This module runs under ``python3 -I`` with only ``TMPDIR`` in its environment
-and ``sys.path`` containing only its own directory.
+This module runs under ``python3 -I`` with only ``TMPDIR`` in its environment.
+The trusted stdin loader supplies this module and its ``protocol`` dependency.
 """
 
 from __future__ import annotations
@@ -34,13 +34,7 @@ from decimal import Context, Decimal
 # prec=28 (more than the 17 significant digits a double needs) makes the
 # normalize() spelling decision context-independent.
 _FLOAT_CONTEXT = Context(prec=28)
-from pathlib import Path
 from typing import Any
-
-# ``python3 -I`` (isolated) drops the script directory from ``sys.path`` so
-# the sibling ``protocol.py`` is invisible by default. Restore it explicitly
-# before importing.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from protocol import PROTOCOL_FD, log_truncation_marker  # noqa: E402
 
@@ -1020,6 +1014,19 @@ async def _run(channel: ProtocolChannel) -> None:
     if boot is None or boot.get("type") != "boot":
         raise RuntimeError("bootstrap: expected boot frame on fd 3")
 
+    report_cpu_timeout = _make_cpu_timeout_reporter(channel, boot["cpuSeconds"])
+    set_signal, sigxcpu, sig_dfl = signal.signal, signal.SIGXCPU, signal.SIG_DFL
+    kill, getpid = os.kill, os.getpid
+
+    def on_cpu_limit(_signum: int, _frame: Any) -> None:
+        try:
+            report_cpu_timeout()
+        finally:
+            set_signal(sigxcpu, sig_dfl)
+            kill(getpid(), sigxcpu)
+
+    signal.signal(signal.SIGXCPU, on_cpu_limit)
+
     # A limit that cannot be applied must fail the run as a diagnosable done
     # frame, not a bare traceback + exit(1): running the program UNCAPPED would
     # silently void the containment contract, and the host can only relay what
@@ -1030,8 +1037,7 @@ async def _run(channel: ProtocolChannel) -> None:
         # timeout would otherwise write a large memory-bearing core file into
         # the workspace. Forbid core dumps first so the timeout path leaves none.
         resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
-        # Soft limit at cpuSeconds fires SIGXCPU (its default disposition
-        # terminates the child; the host classifies that close as a timeout).
+        # The soft limit reports CPU expiry before SIGXCPU terminates the child.
         # Hard limit at +1s is a SIGKILL backstop for a program that traps
         # SIGXCPU and keeps burning CPU.
         cpu_soft, cpu_hard = _clamped(
@@ -1388,7 +1394,7 @@ async def _run(channel: ProtocolChannel) -> None:
         code = compile(wrapped, "<model>", "exec", dont_inherit=True)
         exec(code, ns)  # noqa: S102 -- defines __dsh_main__; executing model code is the point
         value = await ns["__dsh_main__"]()
-        die_if_cpu_exhausted(cpu_seconds)
+        die_if_cpu_exhausted(cpu_seconds, report_cpu_timeout)
         # Flush the log buffers BEFORE metering and framing the completion value.
         # `_done_with_value` materializes the value's escaped JSON form to meter
         # it and then pre-encodes the admitted value into its frame (see its
@@ -2130,6 +2136,42 @@ def _lossless_json_violation(value: Any) -> str | None:
     return None
 
 
+def _make_cpu_timeout_reporter(channel: ProtocolChannel, cpu_seconds: int) -> Any:
+    """Report CPU expiry before a launcher converts the signal into an exit code.
+
+    A busy writer keeps its frame intact: the reporter never waits on a lock
+    held by the interrupted thread. Signal termination remains the fallback.
+    """
+
+    acquire, release = channel._write_lock.acquire, channel._write_lock.release
+    write, set_blocking, view_of, fd = os.write, os.set_blocking, memoryview, channel._fd
+    caught = BaseException
+    message = (
+        "CPU time exhausted (limit at most the configured %ss; "
+        "a stricter inherited RLIMIT_CPU can fire sooner)" % cpu_seconds
+    )
+    payload = (
+        _encode_json_plain({"type": "done", "error": {"kind": "timeout", "message": message}})
+        + "\n"
+    ).encode("utf-8")
+
+    def report() -> None:
+        if not acquire(False):
+            return
+        try:
+            set_blocking(fd, False)
+            remaining = view_of(payload)
+            while remaining:
+                remaining = remaining[write(fd, remaining):]
+        except caught as error:
+            # Closed or backpressured transport cannot carry the report; termination still runs.
+            pass
+        finally:
+            release()
+
+    return report
+
+
 def _make_cpu_enforcer() -> Any:
     """Build the CPU post-check over closure-held primitives.
 
@@ -2160,7 +2202,7 @@ def _make_cpu_enforcer() -> Any:
     charged to this process — from a reported SUCCESS into the same `timeout`
     an untrapped program gets.
 
-    @returns The one-argument enforcement callable, taking `cpuSeconds`.
+    @returns The enforcement callable, taking the CPU ceiling and timeout reporter.
     """
 
     getrusage = resource.getrusage
@@ -2180,7 +2222,7 @@ def _make_cpu_enforcer() -> Any:
     pthread_sigmask = getattr(signal, "pthread_sigmask", None)
     sig_unblock = getattr(signal, "SIG_UNBLOCK", None)
 
-    def die_if_cpu_exhausted(cpu_seconds: int) -> None:
+    def die_if_cpu_exhausted(cpu_seconds: int, report_timeout: Any) -> None:
         """Die by re-delivered SIGXCPU when the CPU budget is already spent.
 
         Two cases reach here as a would-be SUCCESS. A model program can trap
@@ -2195,11 +2237,10 @@ def _make_cpu_enforcer() -> Any:
         own aggregate, which accumulates the CPU of every REAPED descendant
         (grandchildren included, verified).
 
-        ``getrusage`` is the kernel's own meter (unforgeable from model code),
-        and dying by SIGXCPU with the default disposition restored gives the
-        host the same kernel-authoritative close signal as the untrapped soft
-        limit — classified as `timeout`, after which the host's process-group
-        SIGTERM/SIGKILL teardown reaches any surviving descendants. Runs AFTER
+        ``getrusage`` supplies the kernel CPU meter. An exhausted budget is
+        reported before SIGXCPU terminates the process, so launchers that map
+        signals to exit codes retain the timeout diagnostic. Host process-group
+        teardown reaches surviving descendants. Runs AFTER
         the model program settled, so a program can re-trap SIGXCPU between
         this SIG_DFL and the kill only by running more code, which it no longer
         does. A program that tampers with this callable instead (see
@@ -2224,12 +2265,14 @@ def _make_cpu_enforcer() -> Any:
         0.0).
 
         @param cpu_seconds The `cpuSeconds` budget the soft RLIMIT_CPU used.
+        @param report_timeout The captured writer for the CPU timeout diagnostic.
         """
 
         own = getrusage(rusage_self)
         kids = getrusage(rusage_children)
         spent = own.ru_utime + own.ru_stime + kids.ru_utime + kids.ru_stime
         if spent >= cpu_seconds:
+            report_timeout()
             # A program can mask SIGXCPU (``pthread_sigmask(SIG_BLOCK, ...)``),
             # burn past the soft limit, and return during the soft-to-hard gap;
             # the re-delivered SIGXCPU below would then stay PENDING and the
