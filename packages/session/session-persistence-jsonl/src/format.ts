@@ -11,6 +11,7 @@
 import { isAbsolute, join } from 'node:path'
 import {
   SESSION_FORMAT_VERSION,
+  KNOWN_SESSION_EVENT_TYPES,
   SessionLogOffset,
 } from '@deepseek-ai/dsh-session'
 import type {
@@ -19,10 +20,11 @@ import type {
   SessionId,
   SessionLogOffset as SessionLogOffsetType,
 } from '@deepseek-ai/dsh-session'
-import { parseSessionFormatLogFilename, sessionFormatLogFilename } from '@deepseek-ai/dsh-session-format'
+import { parseSessionFormatLogFilename, sessionFormatLogFilename, SessionFormatUnsupportedMigrationError } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatEvent } from '@deepseek-ai/dsh-session-format'
 import type { SessionFormatRecovery, SessionFormatRestore } from '@deepseek-ai/dsh-session-format'
 import { sessionFormatCatalog } from '@deepseek-ai/dsh-session-format-catalog'
+import { assertV4RowAdmission, assertReleasedV4Relationships } from '@deepseek-ai/dsh-session-format-v3-to-v4'
 import {
   SessionFormatUnsupportedError,
   sessionFormatVersionRefusal,
@@ -75,7 +77,7 @@ export function parseGenerationLogFilename(
 }
 
 /**
- * The current v2 physical header stored as the first JSONL record. The exact
+ * The current physical header stored as the first JSONL record. The exact
  * inherited cut lives on the last tagged `session/end-seed` event.
  */
 interface HeaderLine {
@@ -303,7 +305,7 @@ export function logPath(
 }
 
 /**
- * Serialize a v2 event batch as JSONL lines (no trailing newline). Compact
+ * Serialize a current event batch as JSONL lines (no trailing newline). Compact
  * Assistant streams are nested event data; every event occupies one row.
  * @param events - the batch to serialize, in log order.
  * @returns the batch's JSONL text; the writer adds the final newline.
@@ -313,7 +315,7 @@ export function eventLines(events: readonly SessionEvent[]): string {
 }
 
 /**
- * Serialize one v2 event as one JSONL record without its trailing newline.
+ * Serialize one current event as one JSONL record without its trailing newline.
  * @param event - current event to encode.
  * @returns one physical JSON record.
  */
@@ -463,6 +465,7 @@ export class SessionLogScanner {
   finish(): SessionLogScan {
     this.finished = true
     const artifact = this.restore.finish()
+    assertReleasedV4Relationships(artifact, KNOWN_SESSION_EVENT_TYPES)
     return {
       meta: this.meta,
       inheritedEventCount: SessionLogOffset(artifact.inheritedEventCount),
@@ -484,6 +487,15 @@ export class SessionLogScanner {
       return
     }
 
+    // This scanner accepts only current-generation files. Owned structural refusal must
+    // precede its recoverable-tail suppression, independently of the strict decoder state.
+    try {
+      assertV4RowAdmission(decoded, KNOWN_SESSION_EVENT_TYPES)
+    } catch (error: unknown) {
+      if (error instanceof SessionFormatUnsupportedMigrationError) throw new SessionFormatUnsupportedError(error.message)
+      throw error
+    }
+
     if (this.issue !== undefined) {
       if (typeof decoded === 'object' && decoded !== null
         && (decoded as { type?: unknown }).type === 'turn/end') throw this.issue
@@ -492,6 +504,7 @@ export class SessionLogScanner {
     try {
       this.restore.decodeRow(decoded)
     } catch (error: unknown) {
+      // Unsupported current-format rows have already been refused before recovery.
       /* v8 ignore next -- every production Session format decoder rejects with Error. */
       const detail = error instanceof Error ? error.message : String(error)
       const issue = new Error(`corrupt session log: invalid committed event at line ${this.eventLine}: ${detail}`, {

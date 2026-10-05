@@ -5,7 +5,7 @@ import { scheduler } from 'node:timers/promises'
 import { Context } from '@deepseek-ai/cordis'
 import AgentLoop, { turnBoundaryProjectionDefinition } from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-presets'
+import { agentPresetProjectionDefinition } from '@deepseek-ai/dsh-agent-preset-registry'
 import SessionStore, {
   interruptedTurnClosers,
   SessionId,
@@ -159,10 +159,12 @@ class SessionBenchmarkHost {
 
   static async create(root: string, scenario: SessionOpenBenchmarkScenario): Promise<SessionBenchmarkHost> {
     const ctx = new Context()
-    await ctx.plugin(SessionProjectionRegistry)
     const agentScenario = scenario === 'agent-resume'
     if (agentScenario) await mountAgentLoopTestDependencies(ctx)
-    else await ctx.plugin(SessionStore)
+    else {
+      await ctx.plugin(SessionProjectionRegistry)
+      await ctx.plugin(SessionStore)
+    }
     await installProjectionSet(ctx, agentScenario)
     await ctx.plugin(JsonlSessionPersistence, { root, compression: 'zstd' })
     let history: SessionHistoryController | undefined
