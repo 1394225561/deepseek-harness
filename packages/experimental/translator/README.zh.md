@@ -18,7 +18,7 @@ kind: "package-reference"
 - [进一步探索](#further-exploration)
 - [模型体验](#model-experience)
 - [已知限制与待办事项](#known-limitations-and-deferred-work)
-- [开发者备注](#dev-note)
+- [开发备注](#dev-note)
 
 -----
 
@@ -82,7 +82,7 @@ Google 接收使用 `gtx` 客户端的 GET 请求；Bing 通过 Microsoft Edge �
 -----
 
 <a id="dev-note"></a>
-### 开发者备注
+### 开发备注
 
 <details>
 <summary>维护者细节 — 点击展开</summary>
