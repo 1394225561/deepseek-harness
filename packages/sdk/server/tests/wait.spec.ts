@@ -9,7 +9,7 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
-import SubagentRuntime from '@deepseek-ai/dsh-subagent'
+import SubagentRuntime, { NO_START_CAPABILITIES } from '@deepseek-ai/dsh-subagent'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 import { HarnessSdkJsonRpcServer } from '../src/server.ts'
 
@@ -38,6 +38,41 @@ async function setup(beforeServer?: (ctx: Context) => void) {
 }
 
 describe('SDK session/wait failures', () => {
+  it('keeps an unowned descendant failure separate from the SDK root outcome', async () => {
+    const { ctx, server, dispose } = await setup()
+    try {
+      await server.prompt({ sessionId: 'main', contentBlocks: [{ type: 'text', text: 'first' }] })
+      const parent = ctx.agents.get(SessionId('main'))!
+      await parent.whenIdle()
+      const failure = new Error('delegated work failed')
+      const observed: unknown[] = []
+      ctx.on('agent/error', ({ agent, error }) => {
+        if (agent.session.header.parentSession === parent.id) observed.push(error)
+      })
+      ctx.on('agent/pre-step', ({ agent }, next) => {
+        if (agent.session.header.parentSession === parent.id) throw failure
+        return next()
+      })
+      ctx.subagents.registerProvider({
+        name: 'local-test', capabilities: NO_START_CAPABILITIES, inheritsParentContext: false,
+        prepareContinuable: () => Promise.resolve({}),
+      })
+      const warnings = vi.spyOn(ctx.logger, 'warn')
+      const child = await ctx.subagents.startActivation({
+        provider: 'local-test', label: 'child failure', delivery: 'caller', signal: new AbortController().signal,
+        request: { parent, prompt: [{ type: 'text', text: 'delegated task' }] },
+      })
+      await expect(child.result).resolves.toMatchObject({ stopReason: 'error' })
+      expect(observed).toEqual([failure])
+      await expect(server.wait({ sessionId: 'main' })).resolves.toEqual({})
+      expect(warnings).not.toHaveBeenCalled()
+      await server.prompt({ sessionId: 'main', contentBlocks: [{ type: 'text', text: 'continue parent' }] })
+      await expect(server.wait({ sessionId: 'main' })).resolves.toEqual({})
+    } finally {
+      await dispose()
+    }
+  })
+
   it.each([
     ['turn/start', 'before'], ['turn/start', 'during'],
     ['turn/end', 'before'], ['turn/end', 'during'],

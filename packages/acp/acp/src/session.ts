@@ -498,7 +498,6 @@ export class AcpSession {
         const isCancelled = (): boolean => inflight.cancelRequested
         const idleAt = (seq: Session['seq']): boolean => this.agent.status === 'idle' && this.agent.session.seq === seq
         signal.addEventListener('abort', onAbort, { once: true })
-        if (signal.aborted) onAbort()
         try {
           while (true) {
             await this.agent.whenIdle()
