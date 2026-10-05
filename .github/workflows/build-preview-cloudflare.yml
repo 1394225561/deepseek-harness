@@ -69,7 +69,7 @@ jobs:
 
       # apps/web consumes workspace packages as built lib products, and
       # build:preview packs the image through the packer's installed bin
-      # (lib/bin.js), so neither half exists before the full build runs.
+      # (lib/bin.js), so neither half exists before the artifact build runs.
       - name: Build workspace
         run: pnpm run build --artifacts-only
 

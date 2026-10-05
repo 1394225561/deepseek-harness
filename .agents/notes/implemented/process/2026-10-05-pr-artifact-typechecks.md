@@ -32,4 +32,8 @@ Each Node version runs the same seven source compatibility specs in one serial V
 
 The cold Host reference build takes 23.49 seconds with 1.91 GiB peak RSS, compared with 84.01 seconds and 3.87 GiB for the complete compiler pass. All 5,932 emitted files match by path and SHA-256. These are single local compiler samples, excluding bundling and tests; current-head CI owns the PR latency result. The benchmark scenarios and their budgets remain unchanged.
 
+Parallel packing relies on the pinned pnpm CLI to honor exact recursive filters, the pack destination, the workspace concurrency limit, and each package's lifecycle hooks. A pnpm upgrade must pass the real-CLI checks in `scripts/release/pack.spec.ts` before release packing adopts it.
+
+Coverage weights sum Vitest's distinct environment, preparation, setup, collection, and execution costs. CI's platform/environment/pool cache prefixes exclude the previous `coverage-times-<run>` archives. Persistent local checkouts can retain wall-clock weights for files not measured during rollout; removing `.coverage-times.json` resets that history. These advisory weights affect partition assignment, while the complete inventory and merged coverage thresholds remain required.
+
 Artifact builds deliberately do not diagnose aggregate-only test or script errors. Required normal builds reject those errors; fixture checks also reject package errors on both paths and compare emitted JavaScript, declarations, maps, and build information. Removing or changing a required full build requires transferring both aggregate checks to another blocking owner first. Master serial references remain complete under their [existing policy](2026-07-21-serial-cross-platform-ci-reference.md).

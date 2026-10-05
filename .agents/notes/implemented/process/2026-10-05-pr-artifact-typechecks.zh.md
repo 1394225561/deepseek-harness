@@ -32,4 +32,8 @@ job 清单、runner 选择和 benchmark sample 数量保持固定；gate 与 wor
 
 冷启动 Host reference 构建耗时 23.49 秒、峰值 RSS 为 1.91 GiB；完整编译器阶段为 84.01 秒和 3.87 GiB。全部 5,932 个 emit 文件的路径与 SHA-256 相同。这些是单次本地编译器样本，不含 bundling 和测试；PR 延迟结果以当前 head 的 CI 为准。benchmark 场景与预算保持不变。
 
+并行打包依赖锁定的 pnpm CLI 正确处理精确 recursive filter、pack destination、workspace 并发上限及各包的 lifecycle hook。升级 pnpm 时，必须先通过 `scripts/release/pack.spec.ts` 中的真实 CLI 检查，再让 release 打包采用该版本。
+
+覆盖率权重累加 Vitest 互不重叠的 environment、preparation、setup、collection 和 execution 成本。CI 的平台/environment/pool cache prefix 不匹配原来的 `coverage-times-<run>` archive。持久化本地 checkout 在切换期间可能为未测量的文件保留墙钟权重；删除 `.coverage-times.json` 可重置该历史。这些参考权重影响分区分配，完整清单与合并后的覆盖率阈值仍然必需。
+
 产物构建有意不诊断仅属于 aggregate 的测试或脚本错误。必需的普通构建拒绝这些错误；fixture 检查还验证两个路径都会拒绝包错误，并比较 emit 的 JavaScript、声明、map 和 build 信息。删除或改变必需的完整构建前，必须先把两个 aggregate 检查转交另一处阻塞型 owner。master 串行 reference 按[现有政策](2026-07-21-serial-cross-platform-ci-reference.zh.md)保持完整。
