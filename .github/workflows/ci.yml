@@ -398,7 +398,7 @@ jobs:
       DSH_GATE_FAIL_FAST: '1'
     strategy:
       fail-fast: false
-      max-parallel: 2
+      max-parallel: 1
       matrix:
         include:
           - node: '22.19'
@@ -499,7 +499,7 @@ jobs:
   # Linux ARM64 and both macOS architectures run in ci-master.yml.
   python-runtime:
     if: github.event_name == 'pull_request'
-    needs: node-compat
+    needs: python-sdk
     name: python runtime / release-shaped matrix
     uses: ./.github/workflows/build-exe-for-python-sdk.yml
     with:

@@ -14,13 +14,59 @@ const runnerPrivatePnpmDestination = /^\$\{\{ runner\.temp \}\}\/setup-pnpm-\$\{
 const nativeWindowsPnpmDestination = '${{ runner.temp }}/setup-pnpm-js-${{ github.run_id }}-${{ github.run_attempt }}-${{ github.job }}'
 
 describe('CI workflow', () => {
-  it('bounds compatibility jobs before the two runtime targets start', () => {
+  it('keeps at most ten worker jobs active while runtime targets follow the SDK suite', () => {
     const ci = loadWorkflow('.github/workflows/ci.yml')
     const compatibility = workflowJob(ci, 'node-compat')
     const runtime = workflowJob(ci, 'python-runtime')
-    expect(compatibility.strategy).toMatchObject({ 'max-parallel': 2 })
-    expect(runtime.needs).toBe('node-compat')
+    if (!isRecord(ci.jobs) || !isRecord(compatibility.strategy) || !isRecord(runtime.with)) {
+      throw new TypeError('CI must define jobs, compatibility scheduling, and runtime inputs')
+    }
+    const compatibilityLimit = compatibility.strategy['max-parallel']
+    const targets = runtime.with.targets
+    if (typeof compatibilityLimit !== 'number' || typeof targets !== 'string') {
+      throw new TypeError('CI requires a numeric compatibility limit and explicit runtime targets')
+    }
+    expect(Number.isInteger(compatibilityLimit)).toBe(true)
+    expect(compatibilityLimit).toBeGreaterThan(0)
+    expect(compatibility.strategy).toMatchObject({
+      'fail-fast': false,
+      matrix: { include: [{ node: '22.19' }, { node: '24.9' }, { node: 26 }] },
+    })
+    expect(workflowJob(ci, 'all-checks-passed').needs).toContain('node-compat')
+    const ordinaryJobs = Object.entries(ci.jobs)
+      .filter(([name]) => !['node-compat', 'python-runtime', 'all-checks-passed'].includes(name))
+    for (const [name, job] of ordinaryJobs) {
+      if (!isRecord(job)) throw new TypeError(`${name} must define a job`)
+      expect(job).not.toHaveProperty('strategy')
+      expect(job).not.toHaveProperty('uses')
+    }
+    expect(ordinaryJobs.map(([name]) => name)).toContain('python-sdk')
+    expect(runtime.needs).toBe('python-sdk')
+    expect(runtime.strategy).toBeUndefined()
     expect(runtime.with).toMatchObject({ targets: 'node24-linux-x64,node24-win-x64' })
+    expect(runtime.uses).toBe('./.github/workflows/build-exe-for-python-sdk.yml')
+
+    const builder = loadWorkflow('.github/workflows/build-exe-for-python-sdk.yml')
+    if (!isRecord(builder.jobs)) throw new TypeError('Python runtime builder must define jobs')
+    expect(Object.keys(builder.jobs).sort()).toEqual(['build', 'plan', 'sdk-wheel'])
+    const plan = workflowJob(builder, 'plan')
+    const wheel = workflowJob(builder, 'sdk-wheel')
+    const build = workflowJob(builder, 'build')
+    expect(plan.needs).toBeUndefined()
+    expect(plan.strategy).toBeUndefined()
+    expect(plan.uses).toBeUndefined()
+    expect(wheel.needs).toBe('plan')
+    expect(wheel.strategy).toBeUndefined()
+    expect(wheel.uses).toBeUndefined()
+    expect(build.needs).toEqual(['plan', 'sdk-wheel'])
+    expect(build.uses).toBeUndefined()
+    if (!isRecord(build.strategy)) throw new TypeError('Python runtime build must define its target matrix')
+    expect(build.strategy.matrix).toEqual({ include: '${{ fromJSON(needs.plan.outputs.matrix) }}' })
+
+    const beforeSdk = ordinaryJobs.length + compatibilityLimit
+    const afterSdk = ordinaryJobs.length - 1 + compatibilityLimit + Math.max(1, targets.split(',').length)
+    expect(beforeSdk).toBeLessThanOrEqual(10)
+    expect(afterSdk).toBeLessThanOrEqual(10)
   })
 
   it('retains aggregate diagnostics in required builds and protected publication', () => {
