@@ -4,13 +4,13 @@
   z-index: 1000;
   display: grid;
   place-items: center;
-  padding: 40px;
+  padding: calc(40px + var(--dsh-frame-chrome-top, 0px)) 40px 40px;
 }
 
-/* Shared dimming mask below the preview and its controls. */
+/* Shared dimming mask below the preview and its controls; like Modal, it leaves the Windows caption unpainted. */
 .mask {
   position: absolute;
-  inset: 0;
+  inset: var(--dsh-frame-chrome-top, 0px) 0 0;
   background: var(--dsw-alias-bg-mask-1);
   backdrop-filter: var(--dsw-mask-blur);
 }
@@ -18,7 +18,7 @@
 .image {
   position: relative;
   max-width: min(100%, 1600px);
-  max-height: calc(100vh - 80px);
+  max-height: calc(100vh - 80px - var(--dsh-frame-chrome-top, 0px));
   object-fit: contain;
   border-radius: var(--dsw-radius-lg);
   background: var(--dsw-specific-input-major);
@@ -28,7 +28,7 @@
 
 .close {
   position: fixed;
-  top: 20px;
+  top: calc(20px + var(--dsh-frame-chrome-top, 0px));
   right: 20px;
   z-index: 1;
   display: grid;
