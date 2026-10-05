@@ -10,13 +10,12 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import { isAbsolute } from 'node:path'
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { assertNever, deepFreeze, snapshotJsonValue } from '@deepseek-ai/dsh-util-values'
-import type { JsonValue } from '@deepseek-ai/dsh-util-values'
 import { scopeOf, scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
 import type { Message } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION, SessionLogOffset, SessionSeq } from './types.ts'
 import type { TypertLookup } from '@deepseek-ai/dsh-typert-protocol'
-import type { CreateSessionOptions, EpochHeader, PluginRecord, PluginRecordType, PrepareSessionOptions, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SessionId, SessionSeedEventState, SurfaceIntent, SurfaceEventType } from './types.ts'
+import type { CreateSessionOptions, EpochHeader, PluginRecord, PluginRecordMap, PluginRecordType, PrepareSessionOptions, RequestContext, SessionEvent, SessionEventMap, SessionEventType, SessionHeader, SessionId, SessionSeedEventState, SurfaceIntent, SurfaceEventType } from './types.ts'
 import { SurfaceManager, validateSessionEventData, validateSurfaceMetadata } from './surface.ts'
 import type { SessionSurface, SessionMessageProjection } from './surface.ts'
 import { foldRequestHeader } from './request-header.ts'
@@ -464,13 +463,13 @@ function assertPluginRecordEvent(value: unknown): asserts value is SessionEvent 
 }
 
 /** Module-private access to {@link Session}'s record commit, assigned once by its static block. */
-let commitPluginRecord: (session: Session, type: PluginRecordType, data: JsonValue) => SessionSeq
+let commitPluginRecord: (session: Session, type: PluginRecordType, data: unknown) => SessionSeq
 
 /**
  * Append one experimental plugin record: an event marked `ignorable` whose
- * type, in the `plugin:` namespace, is not a {@link SessionEventMap} member.
- * The generated persistence catalog therefore does not list it. A reader that
- * does not recognize the type retains and skips the record, the record never
+ * type is declared in {@link PluginRecordMap}, outside {@link SessionEventMap}.
+ * The plugin record catalog lists it separately from released event schemas.
+ * A reader that does not recognize the type retains and skips the record, which never
  * enters the model-visible surface, and fork and resume carry it with the rest
  * of the log. A Session format migration retains records on a best-effort
  * basis, so a record holds plugin-owned state that its owner can lose without
@@ -481,15 +480,20 @@ let commitPluginRecord: (session: Session, type: PluginRecordType, data: JsonVal
  * production caller in this repository. Read records back with
  * {@link pluginRecordOf}.
  * @param session - the Session whose log receives the record.
- * @param type - `plugin:` followed by slash-separated segments of lowercase
- *   letters, digits, `.`, `_`, and `-`, each starting with a letter or digit.
+ * @param type - declared record name: `plugin:` followed by slash-separated
+ *   segments of lowercase letters, digits, `.`, `_`, and `-`, each starting
+ *   with a letter or digit.
  * @param data - JSON payload, snapshotted before it enters the log.
  * @returns the sequence number of the committed record.
  * @throws when `type` is outside that grammar, when `data` is not losslessly
  *   JSON-serializable, or when the call reenters another append's publication;
  *   a rejected record does not change the log.
  */
-export function appendPluginRecord(session: Session, type: PluginRecordType, data: JsonValue): SessionSeq {
+export function appendPluginRecord<K extends Extract<keyof PluginRecordMap, PluginRecordType>>(
+  session: Session,
+  type: K,
+  data: NoInfer<PluginRecordMap[K]>,
+): SessionSeq {
   return commitPluginRecord(session, type, data)
 }
 
@@ -832,7 +836,7 @@ export class Session {
    * @param data - JSON payload, snapshotted before it enters the log.
    * @returns the record's sequence number.
    */
-  #appendRecord(type: PluginRecordType, data: JsonValue): SessionSeq {
+  #appendRecord(type: PluginRecordType, data: unknown): SessionSeq {
     const dataSnapshot = snapshotJsonValue(data)
     if (dataSnapshot === undefined) {
       throw new Error(`plugin record "${type}" carries non-JSON-serializable data`)

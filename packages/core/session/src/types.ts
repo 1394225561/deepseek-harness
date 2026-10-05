@@ -524,6 +524,14 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 export type PluginRecordType = `plugin:${string}`
 
 /**
+ * Payloads written by experimental packages, keyed by their `plugin:` record
+ * names. Packages augment this map to type writes and enter the current plugin
+ * record catalog; these declarations do not enter {@link SessionEventMap} or
+ * released persistence schemas. Stored records still require owner validation.
+ */
+export interface PluginRecordMap {}
+
+/**
  * One committed experimental plugin record, read from the log by
  * `pluginRecordOf`. The record's owner validates `data` before use, because a
  * restored record carries whatever JSON an earlier build of its owner wrote,

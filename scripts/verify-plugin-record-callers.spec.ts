@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  checkDeclaredPluginRecordWrites,
   checkPluginRecordCallers,
   findPluginRecordReferences,
   isAdmittedCaller,
@@ -33,6 +34,33 @@ function repository(files: Record<string, string>): string {
 const OWNER_SOURCE = 'export function appendPluginRecord(session, type, data) { return commit(session, type, data) }\n'
 const EXPERIMENTAL = 'packages/experimental/bridge/src/index.ts'
 const RELEASE = 'packages/core/agent/src/index.ts'
+
+/** A source-only compiler fixture whose production map declares one bridge record. */
+function declaredRepository(source: string, extra: Record<string, string> = {}): string {
+  return repository({
+    'tsconfig.host.json': JSON.stringify({
+      compilerOptions: { module: 'NodeNext', moduleResolution: 'NodeNext', strict: true, noEmit: true,
+        paths: { '@deepseek-ai/dsh-session': ['./packages/core/session/src/index.ts'],
+          '@deepseek-ai/dsh-session/types': ['./packages/core/session/src/types.ts'] } },
+      include: ['packages/**/*.ts'],
+    }),
+    'packages/core/session/package.json': JSON.stringify({ name: '@deepseek-ai/dsh-session' }),
+    'packages/experimental/bridge/package.json': JSON.stringify({ name: '@deepseek-ai/dsh-experimental-bridge' }),
+    'packages/core/session/src/types.ts': 'export interface PluginRecordMap {}\n',
+    [OWNER_FILE]: "import type { PluginRecordMap } from './types.ts'\nexport function appendPluginRecord<K extends keyof PluginRecordMap>(session: object, type: K, data: NoInfer<PluginRecordMap[K]>): number { return 0 }\n",
+    'packages/experimental/bridge/src/types.ts': [
+      'export interface Entry { value: number }',
+      "declare module '@deepseek-ai/dsh-session/types' {",
+      '  interface PluginRecordMap {',
+      '    /** Stores the bridge state. */',
+      "    'plugin:bridge/state': Entry",
+      '  }',
+      '}',
+    ].join('\n'),
+    [EXPERIMENTAL]: source,
+    ...extra,
+  })
+}
 
 /** A minimal corpus: the owner, one experimental file, and one release file with the given source. */
 function corpus(release: string, extra: Record<string, string> = {}): Map<string, string> {
@@ -163,5 +191,134 @@ describe('verify-plugin-record-callers', () => {
       OWNER_FILE,
       'scripts/tool.mjs',
     ])
+  })
+
+  it('accepts declared names through renamed imports, inferred aliases, and namespace calls', () => {
+    const root = declaredRepository([
+      "import { appendPluginRecord as write } from '@deepseek-ai/dsh-session'",
+      "import * as session from '@deepseek-ai/dsh-session'",
+      'const alias = write',
+      "write({}, 'plugin:bridge/state', { value: 1 })",
+      "alias({}, 'plugin:bridge/state', { value: 2 })",
+      "session.appendPluginRecord({}, 'plugin:bridge/state', { value: 3 })",
+    ].join('\n'))
+    expect(checkDeclaredPluginRecordWrites(root, readRepositorySources(root))).toEqual([])
+  })
+
+  it('rejects undeclared literal names, partially declared unions, and dynamic strings', () => {
+    const root = declaredRepository([
+      "import { appendPluginRecord as write } from '@deepseek-ai/dsh-session'",
+      "declare const union: 'plugin:bridge/state' | 'plugin:bridge/missing'",
+      'declare const dynamic: string',
+      "write({}, 'plugin:bridge/missing', {})",
+      'write({}, union, {})',
+      'write({}, dynamic, {})',
+    ].join('\n'))
+    const errors = checkDeclaredPluginRecordWrites(root, readRepositorySources(root))
+    expect(errors.map(error => error.line)).toEqual([4, 5, 6])
+    expect(errors.map(error => error.reason)).toEqual([
+      expect.stringContaining('not assignable'),
+      expect.stringContaining('not assignable'),
+      expect.stringContaining('not assignable'),
+    ])
+  })
+
+  it('does not authorize a production write with a test-only declaration', () => {
+    const root = declaredRepository([
+      "import { appendPluginRecord } from '@deepseek-ai/dsh-session'",
+      "import type { PluginRecordMap } from '@deepseek-ai/dsh-session/types'",
+      "const key = 'plugin:bridge/test-only' as const",
+      'appendPluginRecord({}, key, {})',
+    ].join('\n'), {
+      'packages/experimental/bridge/tests/records.spec.ts': [
+        'export {}',
+        "declare module '@deepseek-ai/dsh-session/types' {",
+        "  interface PluginRecordMap { 'plugin:bridge/test-only': object }",
+        '}',
+      ].join('\n'),
+    })
+    expect(checkDeclaredPluginRecordWrites(root, readRepositorySources(root))).toHaveLength(1)
+  })
+
+  it('accepts finite generic keys and ignores test writes and unrelated function names', () => {
+    const root = declaredRepository([
+      "import { appendPluginRecord } from '@deepseek-ai/dsh-session'",
+      "function write<K extends 'plugin:bridge/state'>(key: K): void { appendPluginRecord({}, key, { value: 1 }) }",
+      'function other(type: string): void {}',
+      "other('plugin:bridge/missing')",
+    ].join('\n'), {
+      'packages/experimental/bridge/tests/records.spec.ts': "import { appendPluginRecord } from '@deepseek-ai/dsh-session'\nappendPluginRecord({}, 'plugin:test/state', {})\n",
+    })
+    expect(checkDeclaredPluginRecordWrites(root, readRepositorySources(root))).toEqual([])
+  })
+
+  it('checks an empty production caller set without loading a compiler project', () => {
+    const root = declaredRepository('export {}\n')
+    rmSync(join(root, 'tsconfig.host.json'))
+    expect(checkDeclaredPluginRecordWrites(root, readRepositorySources(root))).toEqual([])
+  })
+
+  it('rejects a test declaration imported transitively by production', () => {
+    const root = declaredRepository([
+      "import { appendPluginRecord } from '@deepseek-ai/dsh-session'",
+      "import type { Fixture } from '../tests/fixture.ts'",
+      'declare const data: Fixture',
+      "appendPluginRecord({}, 'plugin:bridge/test-only', data)",
+    ].join('\n'), {
+      'packages/experimental/bridge/tests/fixture.ts': [
+        'export interface Fixture { value: number }',
+        "declare module '@deepseek-ai/dsh-session/types' {",
+        "  interface PluginRecordMap { 'plugin:bridge/test-only': Fixture }",
+        '}',
+      ].join('\n'),
+    })
+    const errors = checkDeclaredPluginRecordWrites(root, readRepositorySources(root))
+    expect(errors).toHaveLength(1)
+    expect(errors[0]?.reason).toContain('visible to production but has no production catalogue declaration')
+  })
+
+  it('keeps compiler faces separate and rejects unconfigured writer source', () => {
+    const compilerOptions = { module: 'NodeNext', moduleResolution: 'NodeNext', strict: true, noEmit: true,
+      paths: { '@deepseek-ai/dsh-session': ['./packages/core/session/src/index.ts'],
+        '@deepseek-ai/dsh-session/types': ['./packages/core/session/src/types.ts'] } }
+    const root = declaredRepository('export {}\n', {
+      'tsconfig.host.json': JSON.stringify({ compilerOptions, include: ['packages/core/**/src/**/*.ts'] }),
+      'tsconfig.client.json': JSON.stringify({ compilerOptions, include: ['packages/**/src/**/*.ts'] }),
+      'packages/experimental/bridge/src/client.ts': "import { appendPluginRecord } from '@deepseek-ai/dsh-session'\nappendPluginRecord({}, 'plugin:bridge/state', { value: 1 })\n",
+      'packages/experimental/bridge/tsdown.config.ts': 'const broken: number = "config is not source"\n',
+      'packages/experimental/bridge/examples/hook.js': 'export const hook = value => value\n',
+    })
+    expect(checkDeclaredPluginRecordWrites(root, readRepositorySources(root))).toEqual([])
+    writeFileSync(join(root, 'packages/experimental/bridge/examples/write.ts'),
+      "import { appendPluginRecord } from '@deepseek-ai/dsh-session'\nappendPluginRecord({}, 'plugin:bridge/state', { value: 1 })\n")
+    const errors = checkDeclaredPluginRecordWrites(root, readRepositorySources(root))
+    expect(errors).toHaveLength(1)
+    expect(errors[0]?.reason).toContain('must be included in a Host or Client compiler face')
+  })
+
+  it('checks call, apply, and bound arguments without rejecting declared forwarding', () => {
+    const root = declaredRepository([
+      "import { appendPluginRecord as write } from '@deepseek-ai/dsh-session'",
+      "write.call(undefined, {}, 'plugin:bridge/missing', {})",
+      "write.apply(undefined, [{}, 'plugin:bridge/missing', {}])",
+      "const missing = [{}, 'plugin:bridge/missing', {}] as const",
+      'write.apply(undefined, [...missing])',
+      "const bound = write.bind(undefined, {}, 'plugin:bridge/missing', {})",
+      'bound()',
+      "write.call(undefined, {}, 'plugin:bridge/state', { value: 1 })",
+      "write.apply(undefined, [{}, 'plugin:bridge/state', { value: 1 }])",
+      "const valid = [{}, 'plugin:bridge/state', { value: 1 }] as const",
+      'write.apply(undefined, [...valid])',
+      "const validBound = write.bind(undefined, {}, 'plugin:bridge/state', { value: 1 })",
+      'validBound()',
+      'const partial = write.bind(undefined, {})',
+      "partial('plugin:bridge/state', { value: 1 })",
+      "partial('plugin:bridge/missing', {})",
+      'write(...valid)',
+    ].join('\n'))
+    const errors = checkDeclaredPluginRecordWrites(root, readRepositorySources(root))
+    expect([...new Set(errors.map(error => error.line))]).toEqual([2, 3, 5, 6, 16])
+    expect([...new Set(errors.filter(error => error.reason?.includes('plugin:bridge/missing'))
+      .map(error => error.line))]).toEqual([2, 3, 5, 6, 16])
   })
 })

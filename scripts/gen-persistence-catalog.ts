@@ -16,6 +16,7 @@ import {
 import { extractPersistenceSchema } from './persistence-schema.ts'
 import { persistenceCatalogText, type PersistenceCatalogLocale } from './persistence-catalog-text.ts'
 import { renderPersistencePair, type PersistenceArtifact } from './persistence-artifacts.ts'
+import { collectPluginRecords, type PluginRecordEntry } from './plugin-record-catalog.ts'
 
 export { annotateSurface, collectEventEnvelopeTypes, collectLogEvents, collectSurfaceEventTypes } from './persistence-catalog-source.ts'
 export type { AnnotatedLogEventEntry, EventEnvelopeTypeEntry, LogEventEntry } from './persistence-catalog-source.ts'
@@ -81,12 +82,32 @@ function renderEvent(e: AnnotatedLogEventEntry, locale: PersistenceCatalogLocale
   return out
 }
 
+/** Escape a source annotation as inline table code, including template literals and unions. */
+function recordCode(value: string): string {
+  return `<code>${value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    .replaceAll('|', '&#124;').replaceAll('`', '&#96;').replace(/\r?\n/gu, '<br>')}</code>`
+}
+
+/** Render the current plugin record inventory without expanding payload types. */
+function renderPluginRecords(records: readonly PluginRecordEntry[], locale: PersistenceCatalogLocale): string[] {
+  const text = persistenceCatalogText[locale]
+  const lines = [`## ${text.pluginRecords}`, '', text.pluginRecordsIntro, '']
+  if (records.length === 0) return [...lines, text.pluginRecordsEmpty, '']
+  lines.push(text.pluginRecordColumns, '|---|---|---|---|')
+  for (const record of [...records].sort((left, right) => left.owner.localeCompare(right.owner) || left.name.localeCompare(right.name))) {
+    const doc = record.doc.replaceAll('|', '\\|').replace(/\s*\n\s*/gu, ' ')
+    lines.push(`| \`${record.name}\` | \`${record.owner}\` | ${doc} | ${recordCode(record.payload)} · [\`${record.source}\`](../${record.source}) |`)
+  }
+  return [...lines, '']
+}
+
 /** Render the full catalog (pure, deterministic given the collected inputs). */
 export function render(
   events: AnnotatedLogEventEntry[],
   envelopeTypes: EventEnvelopeTypeEntry[],
   schema?: PersistenceSchemaInventory,
   locale: PersistenceCatalogLocale = 'en',
+  pluginRecords: readonly PluginRecordEntry[] = [],
 ): string {
   const text = persistenceCatalogText[locale]
   const lines: string[] = [
@@ -121,6 +142,7 @@ export function render(
       lines.push(...renderEvent(e, locale))
     }
   }
+  lines.push(...renderPluginRecords(pluginRecords, locale))
   if (schema) lines.push(renderPersistenceSchemaDefinitions(schema, locale, undefined, 2, 'current'))
   return lines.join('\n')
 }
@@ -175,8 +197,9 @@ export function renderKnownEventTypes(events: AnnotatedLogEventEntry[]): string 
 export function persistenceCatalogArtifacts(scanRoot: string, schema: PersistenceSchemaInventory): PersistenceArtifact[] {
   const events = annotateSurface(collectLogEvents(scanRoot), collectSurfaceEventTypes(scanRoot))
   const envelope = collectEventEnvelopeTypes(scanRoot)
+  const pluginRecords = collectPluginRecords(scanRoot)
   return [
-    ...renderPersistencePair(scanRoot, OUT, render(events, envelope, schema), render(events, envelope, schema, 'zh')),
+    ...renderPersistencePair(scanRoot, OUT, render(events, envelope, schema, 'en', pluginRecords), render(events, envelope, schema, 'zh', pluginRecords)),
     { path: OUT_RUNTIME_TYPES, content: renderKnownEventTypes(events) },
     { path: OUT_SCHEMA, content: `${JSON.stringify(persistenceSchemaSnapshot(schema), null, 2)}\n` },
   ]

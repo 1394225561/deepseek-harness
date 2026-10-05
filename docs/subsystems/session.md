@@ -754,7 +754,7 @@ The hook bridges' `hook/invoked` / `hook/result` pairs (from `@deepseek-ai/dsh-h
 
 ### Plugin records
 
-Experimental packages keep plugin-owned state in plugin records instead of declaring events: `appendPluginRecord()` appends an event marked `ignorable: true` whose type is in the `plugin:` namespace, and `pluginRecordOf()` reads one back. The [package README](../../packages/core/session/README.md#write-experimental-plugin-records) owns the caller restriction, retention, and read path.
+Experimental packages declare plugin-owned state in `PluginRecordMap`: `appendPluginRecord()` uses each declaration to type its name and payload, and appends an event marked `ignorable: true` in the `plugin:` namespace. `pluginRecordOf()` reads stored records with unknown payloads regardless of current declarations. The [package README](../../packages/core/session/README.md#write-experimental-plugin-records) owns the caller restriction, current-source catalog, retention, and read path.
 
 ```ts type-equiv
 /**
@@ -764,6 +764,16 @@ Experimental packages keep plugin-owned state in plugin records instead of decla
  * {@link SessionEventMap} member.
  */
 type PluginRecordType = `plugin:${string}`
+```
+
+```ts type-equiv
+/**
+ * Payloads written by experimental packages, keyed by their `plugin:` record
+ * names. Packages augment this map to type writes and enter the current plugin
+ * record catalog; these declarations do not enter {@link SessionEventMap} or
+ * released persistence schemas. Stored records still require owner validation.
+ */
+interface PluginRecordMap {}
 ```
 
 ```ts type-equiv

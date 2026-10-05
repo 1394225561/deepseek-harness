@@ -18,6 +18,8 @@ The field is removable only after a replacement supports the current third-party
 
 `appendPluginRecord()` in `@deepseek-ai/dsh-session` is the one first-party writer of the marker. It appends ignorable records whose type is in the `plugin:` namespace, which the V3-to-V4 edge already assigns to unknown ignorable V3 events, and only production source under `packages/experimental/` may call it; the `verify-plugin-record-callers` gate enforces that, and the persistence catalog generator rejects a `SessionEventMap` member in the namespace. Experimental packages keep state there that their owners can lose: a format migration retains records on a best-effort basis, so a release package declares its events instead.
 
+Experimental packages declare record names and payload types in the separate `PluginRecordMap`. The map types writes and supplies a compact current-source section in the persistence catalog, making plugin-owned persistence discoverable without expanding its payload schemas or recording released type history. It does not add names to `KNOWN_SESSION_EVENT_TYPES` or change stored-event admission. The reader returns unknown payloads for owner validation, including records whose declarations have changed or disappeared.
+
 Historical format migration is deliberately stricter in the alpha implementation. The v0-to-v1 edge refuses every unknown v0 type, including an ignorable one, because an opaque payload may contain references that a format edge cannot validate. The [alpha historical-event decision](2026-08-31-alpha-historical-unknown-event-refusal.md) owns that bounded exception; equal-version append and reload continue to follow this note.
 
 ## Alternatives considered
@@ -28,7 +30,9 @@ Historical format migration is deliberately stricter in the alpha implementation
 
 **Treat every repository-external event as ignorable.** Rejected because a reader cannot infer that an unknown durable event is informational. An external event may change later reconstruction or plugin-owned state.
 
-**Declare a `SessionEventMap` member for each experimental package's state.** Rejected because each member is required-on-read and enters the persistence catalog and its type history: a build without the experimental package refuses the Session, and removing the package leaves a released type behind.
+**Declare a `SessionEventMap` member for each experimental package's state.** Rejected because each member is required-on-read and enters the released-schema inventory and type history: a build without the experimental package refuses the Session, and removing the package leaves a released type behind.
+
+**Omit plugin records from the persistence catalog.** Rejected because maintainers need to find in-repository persistence writers. Current-source declarations provide that inventory while their payloads retain best-effort compatibility; a full schema history would impose the released-event obligations that these records deliberately avoid.
 
 **Let any package call the record writer.** Rejected because records survive a format migration only on a best-effort basis, and a release package must not keep state that an upgrade can drop.
 

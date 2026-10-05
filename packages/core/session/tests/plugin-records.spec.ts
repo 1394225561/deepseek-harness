@@ -10,7 +10,8 @@ import SessionStore, {
   SessionLogOffset,
   SessionSeq,
 } from '@deepseek-ai/dsh-session'
-import type { PluginRecordType, SessionEvent } from '@deepseek-ai/dsh-session'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import type { PluginRequestFixture } from './plugin-records.type-test.ts'
 
 /** One user turn opening, so a record lands between model-visible events. */
 function openTurn(session: Session): void {
@@ -53,6 +54,24 @@ describe('plugin records', () => {
     ])
   })
 
+  it('snapshots an interface-typed request with readonly messages', () => {
+    const session = Session.create(SessionId('typed-request'))
+    const request: PluginRequestFixture = {
+      config: { provider: 'fixture', model: 'fixture' },
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Translate this fragment.' }] }],
+    }
+    const seq = appendPluginRecord(session, 'plugin:test/request', request)
+    request.config.model = 'changed'
+
+    const event = session.eventAt(seq)
+    expect(event?.data).toEqual({
+      config: { provider: 'fixture', model: 'fixture' },
+      messages: [{ role: 'user', content: [{ type: 'text', text: 'Translate this fragment.' }] }],
+    })
+    expect(Object.isFrozen(event?.data)).toBe(true)
+    expect(session.deriveMessages()).toEqual([])
+  })
+
   it('does not read a known event, even one marked ignorable', () => {
     const events: SessionEvent[] = [
       { type: 'turn/start', seq: SessionSeq(0), time: 1, data: { turn: 1 } },
@@ -75,7 +94,10 @@ describe('plugin records', () => {
     const session = Session.create(SessionId('grammar'))
     const name: string = type
 
-    expect(() => appendPluginRecord(session, name as PluginRecordType, {}))
+    expect(() => {
+      // @ts-expect-error -- runtime callers can supply names outside the declared map.
+      appendPluginRecord(session, name, {})
+    })
       .toThrow(`plugin record type "${type}" must be "plugin:" followed by lowercase slash-separated segments`)
     expect(session.seq).toBe(0)
   })
@@ -83,8 +105,8 @@ describe('plugin records', () => {
   it('rejects data that is not losslessly JSON-serializable without changing the log', () => {
     const session = Session.create(SessionId('lossy'))
 
-    expect(() => appendPluginRecord(session, 'plugin:test/state', Number.NaN))
-      .toThrow('plugin record "plugin:test/state" carries non-JSON-serializable data')
+    expect(() => appendPluginRecord(session, 'plugin:test/number', Number.NaN))
+      .toThrow('plugin record "plugin:test/number" carries non-JSON-serializable data')
     expect(session.seq).toBe(0)
   })
 

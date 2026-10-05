@@ -2,7 +2,7 @@
  * Verify that only experimental packages call `appendPluginRecord` from production source.
  *
  * `appendPluginRecord` in `@deepseek-ai/dsh-session` appends an ignorable `plugin:` record that the
- * persistence catalog does not list and that a Session format migration keeps only on a best-effort
+ * persistence catalogue lists separately and that a Session format migration keeps only on a best-effort
  * basis. Experimental packages may rely on that; a release package must declare its events instead.
  * The owning module and test files, which exercise the operation, are exempt.
  *
@@ -14,12 +14,16 @@
  * it still names the function, and that reference is. A file is parsed when its text, or its text
  * with its escapes unescaped, contains the name, so a spelling that escapes part of it (`\u0061`,
  * `\x61`, `\u{61}`, `\141`, `\a`, a line continuation) is still found.
+ * Production writes must name a record in the production-only `PluginRecordMap` inventory;
+ * test declarations cannot authorize a production write.
  */
 
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { relative, resolve } from 'node:path'
 import ts from 'typescript'
+import { collectPluginRecords } from './plugin-record-catalog.ts'
+import { faceConfigs } from './ts-project.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -78,6 +82,8 @@ export interface PluginRecordCaller {
   readonly line: number
   /** The trimmed source line. */
   readonly text: string
+  /** Why a production write lacks a catalogue declaration, when applicable. */
+  readonly reason?: string
 }
 
 /**
@@ -162,6 +168,81 @@ export function checkPluginRecordCallers(files: ReadonlyMap<string, string>): Pl
 }
 
 /**
+ * Check production write keys against the generated catalogue's source inventory.
+ * The compiler reads production sources only, so test map augmentations cannot widen the writer.
+ * @param repoRoot - checkout holding the compiler face and record declarations.
+ * @param files - tracked and unignored repository sources.
+ * @returns compiler errors in experimental production consumers, including undeclared write keys.
+ */
+export function checkDeclaredPluginRecordWrites(
+  repoRoot: string,
+  files: ReadonlyMap<string, string>,
+): PluginRecordCaller[] {
+  const declared = new Set(collectPluginRecords(repoRoot).map(record => record.name))
+  const candidates = [...files.keys()].filter(file => file.startsWith(EXPERIMENTAL_PREFIX) && !isTestFile(file)
+    && findPluginRecordReferences(file, files.get(file) ?? '').length > 0)
+  if (candidates.length === 0) return []
+  const remaining = new Set(candidates)
+  const violations: PluginRecordCaller[] = []
+  for (const face of ['host', 'client'] as const) {
+    if (remaining.size === 0) break
+    const configs = faceConfigs(repoRoot, face)
+    const roots = new Set<string>()
+    for (const config of configs.byPath.values()) {
+      for (const file of config.fileNames) {
+        if (!isTestFile(relative(repoRoot, file).replaceAll('\\', '/'))) roots.add(file)
+      }
+    }
+    const admitted = candidates.filter(file => roots.has(resolve(repoRoot, file)))
+    if (admitted.length === 0) continue
+    for (const file of admitted) remaining.delete(file)
+    const consumers = new Set(admitted.map(file => file.split('/').slice(0, 3).join('/')))
+    const program = ts.createProgram([...roots], {
+      ...configs.root.options,
+      noEmit: true,
+      composite: false,
+      incremental: false,
+    })
+    const owner = program.getSourceFile(resolve(repoRoot, 'packages/core/session/src/types.ts'))
+    const map = owner?.statements.find((node): node is ts.InterfaceDeclaration =>
+      ts.isInterfaceDeclaration(node) && node.name.text === 'PluginRecordMap')
+    if (map === undefined) throw new Error('production compiler did not load the owning PluginRecordMap')
+    for (const member of program.getTypeChecker().getTypeAtLocation(map).getProperties()) {
+      if (declared.has(member.name)) continue
+      const declaration = member.declarations?.[0]
+      if (declaration === undefined) throw new Error(`plugin record has no source declaration: ${member.name}`)
+      const source = declaration.getSourceFile()
+      violations.push({
+        file: relative(repoRoot, source.fileName).replaceAll('\\', '/'),
+        line: source.getLineAndCharacterOfPosition(declaration.getStart(source)).line + 1,
+        text: declaration.getText(source),
+        reason: `record ${member.name} is visible to production but has no production catalogue declaration`,
+      })
+    }
+    for (const file of roots) {
+      const local = relative(repoRoot, file).replaceAll('\\', '/')
+      if (!consumers.has(local.split('/').slice(0, 3).join('/'))) continue
+      const source = program.getSourceFile(file)
+      if (source === undefined) throw new Error(`plugin record caller source was not loaded: ${local}`)
+      for (const diagnostic of program.getSemanticDiagnostics(source)) {
+        if (diagnostic.category !== ts.DiagnosticCategory.Error) continue
+        const line = source.getLineAndCharacterOfPosition(diagnostic.start ?? 0).line
+        violations.push({
+          file: local,
+          line: line + 1,
+          text: source.text.split(/\r?\n/u)[line]?.trim() ?? '',
+          reason: ts.flattenDiagnosticMessageText(diagnostic.messageText, ' '),
+        })
+      }
+    }
+  }
+  for (const file of remaining) {
+    violations.push({ file, line: 1, text: '', reason: 'production record writers must be included in a Host or Client compiler face' })
+  }
+  return violations
+}
+
+/**
  * Read every tracked or unignored source file outside `vendor/`.
  * @param repoRoot - the repository root; defaults to this checkout.
  * @returns repository-relative path, in POSIX separators, to contents.
@@ -187,13 +268,14 @@ export function readRepositorySources(repoRoot: string = root): Map<string, stri
 }
 
 function main(): void {
-  const callers = checkPluginRecordCallers(readRepositorySources())
+  const files = readRepositorySources()
+  const callers = [...checkPluginRecordCallers(files), ...checkDeclaredPluginRecordWrites(root, files)]
   if (callers.length === 0) {
-    console.log(`verify-plugin-record-callers: ${RESTRICTED_NAME} has no production caller outside ${EXPERIMENTAL_PREFIX}.`)
+    console.log('verify-plugin-record-callers: production callers are experimental and record keys are catalogued.')
     return
   }
-  console.error(`verify-plugin-record-callers: only ${EXPERIMENTAL_PREFIX} source may call ${RESTRICTED_NAME}.\n`)
-  for (const caller of callers) console.error(`  ${caller.file}:${String(caller.line)} ${caller.text}`)
+  console.error('verify-plugin-record-callers: invalid production record callers.\n')
+  for (const caller of callers) console.error(`  ${caller.file}:${String(caller.line)} ${caller.text}${caller.reason === undefined ? '' : ` — ${caller.reason}`}`)
   console.error('\nA release package declares its events in SessionEventMap instead of writing plugin records.')
   process.exit(1)
 }

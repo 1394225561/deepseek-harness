@@ -16,6 +16,12 @@ import { appendPluginRecord, pluginRecordOf, SessionId } from '@deepseek-ai/dsh-
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import type { SessionPersistence } from '../src/index.ts'
 
+declare module '@deepseek-ai/dsh-session/types' {
+  interface PluginRecordMap {
+    'plugin:persistence-test/state': { count: number }
+  }
+}
+
 /** One mounted backend under a session store, plus same-storage remount support. */
 export interface LiveWriteBackend {
   /** Context with SessionStore and the persistence backend mounted. */
@@ -90,7 +96,7 @@ export function runLiveWritePathContract(
       const session = ctx.sessions.create(SessionId('plugin-record'))
       const handle = await ctx.sessionPersistence.create(session.header)
       session.append('turn/start', { turn: 1 })
-      appendPluginRecord(session, 'plugin:test/state', { count: 1 })
+      appendPluginRecord(session, 'plugin:persistence-test/state', { count: 1 })
       await expect(ctx.sessions.flush(session)).resolves.toBe(true)
       await handle.close()
       await ctx.fiber.dispose()
@@ -99,11 +105,11 @@ export function runLiveWritePathContract(
       const events = await readAll(restarted.sessionPersistence, session.id)
       expect(events.map(event => [event.type, event.ignorable])).toEqual([
         ['turn/start', undefined],
-        ['plugin:test/state', true],
+        ['plugin:persistence-test/state', true],
       ])
       expect(events.map(pluginRecordOf)).toEqual([
         undefined,
-        { type: 'plugin:test/state', seq: 1, time: events[1]?.time, data: { count: 1 } },
+        { type: 'plugin:persistence-test/state', seq: 1, time: events[1]?.time, data: { count: 1 } },
       ])
       await restarted.fiber.dispose()
     })

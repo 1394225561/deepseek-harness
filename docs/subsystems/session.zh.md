@@ -758,7 +758,7 @@ interface TurnEndReasonMap {
 
 ### 插件记录
 
-实验性包把插件自有的状态保存为插件记录，而不是声明事件：`appendPluginRecord()` 追加一条带 `ignorable: true` 标记、类型位于 `plugin:` 命名空间的事件，`pluginRecordOf()` 把它读回。调用方限制、保留方式与读取路径见[包 README](../../packages/core/session/README.zh.md#write-experimental-plugin-records)。
+实验性包在 `PluginRecordMap` 中声明插件自有的状态：`appendPluginRecord()` 根据每项声明约束名称与 payload 类型，并在 `plugin:` 命名空间中追加一条带 `ignorable: true` 标记的事件。`pluginRecordOf()` 读取已存记录，其 payload 为未知类型，不受当前声明约束。调用方限制、当前源码目录、保留方式与读取路径见[包 README](../../packages/core/session/README.zh.md#write-experimental-plugin-records)。
 
 ```ts type-equiv
 /**
@@ -768,6 +768,16 @@ interface TurnEndReasonMap {
  * {@link SessionEventMap} member.
  */
 type PluginRecordType = `plugin:${string}`
+```
+
+```ts type-equiv
+/**
+ * Payloads written by experimental packages, keyed by their `plugin:` record
+ * names. Packages augment this map to type writes and enter the current plugin
+ * record catalog; these declarations do not enter {@link SessionEventMap} or
+ * released persistence schemas. Stored records still require owner validation.
+ */
+interface PluginRecordMap {}
 ```
 
 ```ts type-equiv

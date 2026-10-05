@@ -6,8 +6,8 @@
   en: a11f106978c9dce7
   zh: a11f106978c9dce7
 /session-persistence-event-catalog:
-  en: e7c80d1de4d328b4
-  zh: d9f368c27fd9f998
+  en: f7cbb5a4b1274855
+  zh: 5661d5180fc83054
 /session-persistence-event-catalog/persistence-type-fingerprints:
   en: 33dd28b1c768cd8b
   zh: 7256442baf2faed1
@@ -290,6 +290,9 @@
 /session-persistence-event-catalog/events/workspace/workspace-changes-log-only:
   en: ee6b592f9e2193a7
   zh: 7a7a69ae52aa714a
+/session-persistence-event-catalog/experimental-plugin-records:
+  en: 154c163feab69117
+  zh: b43c46a6c953f63e
 /session-persistence-event-catalog/resolved-persistence-types:
   en: 3493ecf0993e5397
   zh: ec95688f593a4ed4

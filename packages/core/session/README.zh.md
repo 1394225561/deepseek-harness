@@ -67,9 +67,13 @@ session.deriveMessages()         // the derived model history
 
 ### 写入实验性插件记录
 
-`appendPluginRecord(session, type, data)` 为 `packages/experimental/` 下的包追加一条插件记录；`verify-plugin-record-callers` 门禁拒绝本仓库中任何其他生产调用方。本仓库之外的插件同样不得调用它，尽管没有门禁能检查它们。记录是带有 `ignorable: true` 标记的事件，其类型为 `plugin:` 后接以斜杠分隔的小写段，例如 `plugin:pi-extensions/entry`。没有任何 `SessionEventMap` 成员使用该命名空间，因此持久化目录不列出记录；不认识某条记录的构建在读取时保留并跳过它。记录从不进入模型可见的 surface。resume 与 fork 随日志其余部分一起携带它，Session 格式迁移以尽力而为的方式保留它。
+`appendPluginRecord(session, type, data)` 为 `packages/experimental/` 下的包追加一条插件记录；`verify-plugin-record-callers` 检查拒绝本仓库中任何其他生产调用方。本仓库之外的插件同样不得调用它，尽管仓库检查无法检查它们。
 
-`pluginRecordOf(event)` 把事件作为记录返回，对其他任何事件返回 `undefined`；把每个事件都交给它的 `ctx.sessionProjections` 单元在 resume 时重建插件状态。V3-to-V4 格式迁移边也会把每个未知的 ignorable V3 事件改名放入 `plugin:` 命名空间，因此所属包以自己的包名命名其记录，并在使用 `data` 之前先校验：恢复出的记录携带的是早先构建写入或迁移事件带来的任意 JSON。[ignorable 事件决策](../../../.agents/notes/implemented/architecture/2026-08-30-retain-ignorable-external-session-events.zh.md)记录了为何只有实验性包可以写入记录。
+在所属实验性包的 `src/` 中，通过 `@deepseek-ai/dsh-session/types` 的 `PluginRecordMap` 为每条记录声明描述与显式 payload 类型注解。名称使用 `plugin:<owner>/<record>`，其中 `owner` 是包名 `@deepseek-ai/dsh-experimental-<owner>` 的后缀；例如 `plugin:pi-extensions/entry`。TypeScript 按声明检查每个名称与 payload；写入方运行时的 JSON 快照拒绝无法无损保留的值。扩展自定义名称或其他动态名称放在已声明记录的 payload 中。
+
+[持久化目录](../../../docs/persistence-catalog.zh.md)列出当前插件记录声明及其所属包、描述、payload 类型注解与源文件。这些声明与 `SessionEventMap`、展开的持久化 schema、已发布类型历史及 `KNOWN_SESSION_EVENT_TYPES` 分开。记录带有 `ignorable: true`：不认识某条记录的构建在读取时保留并跳过它。记录从不进入模型可见的 surface。resume 与 fork 随日志其余部分一起携带它们；Session 格式迁移以尽力而为的方式保留它们。
+
+`pluginRecordOf(event)` 把事件作为记录返回，对其他任何事件返回 `undefined`；把每个事件都交给它的 `ctx.sessionProjections` 单元在 resume 时重建插件状态。即使当前映射声明了该名称，其 `data` 仍为 `unknown`。所属包在使用前校验数据，因为早先构建可能写入不同的 payload，V3-to-V4 格式迁移边也可能把未知的 ignorable V3 事件改名放入同一个 `plugin:` 命名空间。删除或重命名声明不会丢弃已存记录。[ignorable 事件决策](../../../.agents/notes/implemented/architecture/2026-08-30-retain-ignorable-external-session-events.zh.md)定义兼容性策略。
 
 ### 派生会话的 fork
 
