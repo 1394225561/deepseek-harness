@@ -29,6 +29,7 @@ import { applyProfilePatches, compileProfilePatches, profilePatchPreset, prepare
 export { applyProfilePatches, compileProfilePatches, profilePatchPreset, type ProfilePatch, type ProfilePatchWarning } from './profile-patches.ts'
 export { prepareProfileEntries, prepareProfilePatches } from './compatibility-preflight.ts'
 export { readPluginMeta, resolvePluginResource } from './package-meta.ts'
+export { ON_DEMAND_BUNDLES, OFFICIAL_ON_DEMAND_CATALOG, type OfficialBundleCatalogEntry } from './official-bundles.ts'
 export { realModuleFile } from './profile-resolution/legacy-links.ts'
 export { generateConfigSchema, type ConfigSchemaDump, type NativeConfigSchema } from './config-schema/index.ts'
 export { createConfigProjector, LOADER_EXPRESSION_SCHEMA, type ConfigProjection } from './config-schema/projector.ts'

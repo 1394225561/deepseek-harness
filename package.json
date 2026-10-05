@@ -22,7 +22,7 @@
     "build:bench": "npm run build:native-system && npm run build:lib && tsdown --config-loader native --config benchmarks/tsdown.config.ts",
     "build:official": "tsx scripts/build.ts --profile official",
     "build:lib": "pnpm run build:lib:host && pnpm run build:lib:client",
-    "build:lib:host": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc -b tsconfig.host.json && tsdown --config-loader native --env.DSH_BUILD_FACE host && pnpm --filter @deepseek-ai/dsh-desktop run bundle",
+    "build:lib:host": "pnpm run gen-official-bundle-catalog && node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc -b tsconfig.host.json && tsdown --config-loader native --env.DSH_BUILD_FACE host && pnpm --filter @deepseek-ai/dsh-desktop run bundle",
     "build:lib:client": "tsc -b tsconfig.client.json && tsdown --config-loader native --env.DSH_BUILD_FACE client",
     "build:web": "pnpm --filter @deepseek-ai/dsh-web-frontend run build",
     "build:desktop": "pnpm --filter @deepseek-ai/dsh-desktop run build",
@@ -205,6 +205,8 @@
     "start:web": "node --import tsx/esm apps/cli/src/bin.ts web",
     "dev:web": "tsx scripts/dev-web.ts --poll",
     "postinstall": "node scripts/install-lefthook.mjs",
+    "gen-official-bundle-catalog": "tsx scripts/gen-official-bundle-catalog.ts",
+    "verify-official-bundle-catalog": "tsx scripts/gen-official-bundle-catalog.ts --check",
     "verify-product-use": "tsx scripts/verify-product-use.ts"
   },
   "devDependencies": {

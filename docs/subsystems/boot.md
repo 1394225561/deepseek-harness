@@ -12,9 +12,9 @@ The [boot package group](../../packages/boot/README.md) owns launcher-provided p
 
 `PluginInfo` carries module identity, effective enablement, fiber phase and optional display `meta`, plus a unique `patchId` or a `readOnlyReason`.
 
-`BundleInfo` carries the package name, optional installed version, selected enablement, removal availability, optional resolution error, and, for a bundle the profile's own dependency supplies and the installation does not, `source`: that dependency as a spec `pnpm add` accepts. Its optional `meta` and each `BundleRowInfo.meta` contain display text or a metadata diagnostic; Clients select a language at render time.
+`BundleInfo.official` records catalog membership independently of installation. `availability` identifies a readable installation-provided or profile package, or `missing`; `installed` records the profile dependency declaration. An on-demand `installTarget` carries the host-derived exact spec and version. `BundleInfo` also carries the package name, optional installed version, selected enablement, removal availability, optional resolution error, and, for a bundle the profile's own dependency supplies and the installation does not, `source`: that dependency as a spec `pnpm add` accepts. Its optional `meta` and each `BundleRowInfo.meta` contain display text or a metadata diagnostic; Clients select a language at render time.
 
-`InstallBundleOptions.enabled` defaults to true. False installs without selecting the bundle layer. `approvedBuilds` grants persistent script permission to the supplied pending package names before installation. `registry` names the registry asked first; absent, the configured one.
+`InstallBundleOptions.saveExact` passes `--save-exact` to the shared package installer. `InstallBundleOptions.enabled` defaults to true. False installs without selecting the bundle layer. `approvedBuilds` grants persistent script permission to the supplied pending package names before installation. `registry` names the registry asked first; absent, the configured one.
 
 `PluginRegistries` carries the configured first registry, `null` for the one pnpm's own configuration names, the fallbacks asked after it, and `resolved`, the URL pnpm's own configuration names or `null` while unread. `InspectOptions.registry` names the registry a lookup asks first.
 

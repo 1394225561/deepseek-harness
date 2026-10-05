@@ -1,5 +1,33 @@
-# Optional Profile Bundle: register the Codex provider on the Host plane only.
-# Agent Presets grant the model-facing tool independently.
 - insert:
     - id: subagent-codex
       name: '@deepseek-ai/dsh-subagent-codex'
+
+- preset: preset-standard
+  insert:
+    - id: optional-tool-subagent-codex
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: codex
+        toolName: subagent_codex
+        backgroundMode: one-shot
+        maxDepth: provider-managed
+
+- preset: preset-cordis
+  insert:
+    - id: optional-tool-subagent-codex
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: codex
+        toolName: subagent_codex
+        backgroundMode: one-shot
+        maxDepth: provider-managed
+
+- preset: preset-ptc
+  insert:
+    - id: optional-tool-subagent-codex
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: codex
+        toolName: subagent_codex
+        backgroundMode: one-shot
+        maxDepth: provider-managed

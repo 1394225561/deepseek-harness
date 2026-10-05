@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Install `@deepseek-ai/dsh-subagent-codex` into a Profile when delegated work should run in a genuine, unattended Codex session in the parent Session's workspace. Each delegation uses a fresh isolated Codex thread for one self-contained text task and returns only its final answer or a safe failure diagnostic. Native Codex configuration and authentication remain authoritative, while `permissionMode` selects the non-interactive approval and sandbox behavior. The Bundle supplies a compatible native Codex payload, but it exposes no model capability until a delegation tool is configured.
+Install `@deepseek-ai/dsh-subagent-codex` into a Profile when delegated work should run in a genuine, unattended Codex session in the parent Session's workspace. Each delegation uses a fresh isolated Codex thread for one self-contained text task and returns only its final answer or a safe failure diagnostic. Native Codex configuration and authentication remain authoritative, while `permissionMode` selects the non-interactive approval and sandbox behavior. The Bundle supplies a compatible native Codex payload and grants its delegation tool to the full Web presets.
 
 ## Table of Contents
 
@@ -25,19 +25,15 @@ Install `@deepseek-ai/dsh-subagent-codex` into a Profile when delegated work sho
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this provider when a delegation should run as a real Codex session in the parent's workspace. The common path is explicit: install the Bundle into a Profile, optionally configure the provider row, and expose it to the model through a delegation tool row.
+Enable **Codex subagent** in the Web or Desktop Plugins page when a task needs a fresh native Codex session in the parent workspace.
 
 ### Installing the Bundle
 
-Install the package into the target Profile, then restart that Profile. The installation brings the official wrapper and one compatible native platform payload into the Profile; the declared patch layer registers only the dormant provider and starts no Codex process.
+The Official entry is visible offline. Enabling it installs this package at the running DSH version through the ordinary bundle installer and selects its profile layer. The layer registers the provider and adds `subagent_codex` to `standard`, `cordis`, and `ptc`; it starts no native process until delegation. Restart when the installer reports that one is required.
 
-```sh
-dsh plugin --profile <name> add @deepseek-ai/dsh-subagent-codex
-dsh plugin --profile <name> remove @deepseek-ai/dsh-subagent-codex
-dsh --profile <name>
-```
+Switching Off deselects the layer and leaves the package installed. Remove is a separate package operation. New Agents and subsequently reopened Sessions use the selected tool composition; live Agents retain their existing composition.
 
-Removing the package withdraws the provider and its private runtime closure on the next Profile start. Installation controls Host availability, not model permission: the model can only reach the provider through a delegation tool row you compose.
+Profiles without the full Web presets, including the shipped headless, SDK, and ACP profiles, must install this package as a profile dependency without selecting its bundle layer, then mount the provider and delegation tool explicitly. Existing provider-only consumers follow the [upgrade guide](../../../docs/upgrade-guide/v0.2.1-alpha.1/native-subagent-bundle-tools/guide.md).
 
 ### Configuration
 
@@ -57,11 +53,14 @@ Removing the package withdraws the provider and its private runtime closure on t
 
 The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-subagent-codex) is the exhaustive source for every accepted field and its JSDoc. A configured `model` passes unchanged on each ephemeral `thread/start`; omission leaves native model selection in force. The provider does not discover models, rewrite aliases, select `modelProvider` or `serviceTier`, or set a fallback. Credential-shaped ambient variables are removed before the explicit `env` overlay, so an API key intended for the child must be supplied there.
 
+<a id="exposing-the-tool"></a>
 ### Exposing the tool
 
-Each delegation tool row names one provider and needs its own `toolName`, so the model sees static tools rather than a dynamic provider selector. Full Agent Presets carry a matching default tool row with `disabled: true`; copy a preset and remove that field to expose `subagent_codex` only to agents composed from the copy.
+The bundle adds `optional-tool-subagent-codex` to each full preset through scoped profile patches. The minimal preset and host tool catalog remain unchanged. For a custom profile without these preset targets, keep the package dependency and compose the provider and tool directly:
 
 ```yaml
+- id: subagent-codex
+  name: '@deepseek-ai/dsh-subagent-codex'
 - id: tool-subagent-codex
   name: '@deepseek-ai/dsh-tool-subagent'
   config:
@@ -103,7 +102,7 @@ This section explains how the provider drives a real Codex app-server and where 
 | [`src/index.ts`](src/index.ts) | Plugin entry: config schema, provider registration |
 | [`src/run.ts`](src/run.ts) | The run lifecycle, turn execution, result selection, and diagnostics |
 | [`src/wire.ts`](src/wire.ts) | The minimal app-server JSON-RPC wire implementation |
-| [`cordis.patch.yml`](cordis.patch.yml) | The Profile patch layer that registers the dormant provider |
+| [`cordis.patch.yml`](cordis.patch.yml) | The Profile layer that registers the provider and contributes preset delegation tools |
 
 ### Run flow
 

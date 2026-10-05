@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { officialClientBuildEnvironment, writeClientBuildRecord } from '../client-build-environment.ts'
+import { ON_DEMAND_BUNDLES } from '../../packages/boot/app-boot/src/official-bundles.ts'
 import { releaseFamily, type ReleaseMember } from './families.ts'
 import { compareVersions, nextVendorVersion, planShared, reachesPayload } from './bump.ts'
 
@@ -236,6 +237,52 @@ describe('release families', () => {
       '@deepseek-ai/dsh-consumer',
       '@deepseek-ai/dsh-zebra',
     ])
+  })
+
+  it('publishes on-demand catalog members before dsh without adding installed dependencies', () => {
+    const dsh = member('apps/cli', '@deepseek-ai/dsh')
+    const providers = ON_DEMAND_BUNDLES.map(name => member(`packages/subagent/${name}`, name))
+    const plan = releaseFamily('dsh').publishOrder([dsh, ...providers])
+    expect(plan.order.map(entry => entry.name)).toEqual([...ON_DEMAND_BUNDLES, dsh.name])
+    expect(dsh.manifest).toEqual({})
+    expect(plan.droppedPeerEdges).toEqual([])
+  })
+
+  it('rejects an advertised provider missing from the public release family', () => {
+    expect(() => releaseFamily('dsh').publishOrder([member('apps/cli', '@deepseek-ai/dsh')]))
+      .toThrow('Official catalog prerequisite')
+  })
+
+  it('keeps catalog prerequisites ahead of a dsh peer declaration', () => {
+    const dsh = member('apps/cli', '@deepseek-ai/dsh')
+    const providers = ON_DEMAND_BUNDLES.map(name => member(`packages/subagent/${name}`, name, {
+      peerDependencies: { '@deepseek-ai/dsh': 'workspace:*' },
+    }))
+    const plan = releaseFamily('dsh').publishOrder([dsh, ...providers])
+    expect(plan.order.map(entry => entry.name)).toEqual([...ON_DEMAND_BUNDLES, dsh.name])
+    expect(plan.droppedPeerEdges).toEqual(ON_DEMAND_BUNDLES.map(name => ({ consumer: name, peer: dsh.name })))
+  })
+
+  it.each(['dependencies', 'optionalDependencies', 'peerDependencies'])(
+    'requires exact packed DSH %s while preserving external ranges', (section) => {
+      const pkg = member('packages/example/provider', '@deepseek-ai/dsh-provider')
+      const family = releaseFamily('dsh')
+      const manifest = { name: pkg.name, version: pkg.version, [section]: { '@deepseek-ai/dsh-tools': pkg.version, external: '^4.0.0' } }
+      expect(() => { family.validatePackedManifest(pkg, manifest) }).not.toThrow()
+      for (const range of ['workspace:*', '^0.0.1', '~0.0.1', '0.0.2', '*']) {
+        expect(() => { family.validatePackedManifest(pkg, { ...manifest, [section]: { '@deepseek-ai/dsh-tools': range } }) })
+          .toThrow(`packed ${section}.@deepseek-ai/dsh-tools must equal`)
+      }
+    },
+  )
+
+  it('checks packed identities and preserves independent vendor versions', () => {
+    const pkg = member('vendor/example', '@deepseek-ai/example')
+    const family = releaseFamily('vendor')
+    expect(() => { family.validatePackedManifest(pkg, { name: pkg.name, version: pkg.version, dependencies: { '@deepseek-ai/dsh-tools': '^4.0.0' } }) })
+      .not.toThrow()
+    expect(() => { family.validatePackedManifest(pkg, { name: '@deepseek-ai/other', version: pkg.version }) }).toThrow('packed identity')
+    expect(() => { family.validatePackedManifest(pkg, { name: pkg.name, version: '0.0.2' }) }).toThrow('packed identity')
   })
 
   it('reports a runtime dependency cycle instead of emitting an arbitrary order', () => {
