@@ -1040,8 +1040,6 @@ export class SubagentManager {
     let resultFailure: { error: unknown } | undefined
     let externalDisposal: Promise<void> | undefined
     const child = activationAgent(activation)
-    const includeClosingText = child === undefined
-      || !isAdjacentAgentSendMessageTool(child.ctx.get('tools')?.get('send_message', child))
     const detail = (error: unknown): string => child === undefined
       ? failureMessage(error)
       : errorChain(error)
@@ -1118,7 +1116,7 @@ export class SubagentManager {
     this.resident.delete(childId)
     activation.releaseSlot()
     const terminal: SubagentResult = failure === undefined ? result : { output: [], stopReason: 'error' }
-    this.notifySettlement(activation, result, includeClosingText)
+    this.notifySettlement(activation, result)
     this.releaseOwnership(childId)
     activation.observer.settle(terminal)
     if (resultFailure === undefined) activation.result.resolve(result)
@@ -1127,13 +1125,13 @@ export class SubagentManager {
   }
 
   /** Deliver the captured execution result to the durable direct parent after cleanup. */
-  private notifySettlement(activation: Activation, terminal: SubagentResult, includeClosingText: boolean): void {
+  private notifySettlement(activation: Activation, terminal: SubagentResult): void {
     if (!activation.announced || activation.delivery === 'caller') return
     try {
       const parent = this.ctx.agents.get(activation.parent.id)
       if (parent !== activation.parent) return
       const message = createSettlementMessage(
-        activation.childId, terminal, includeClosingText, activationAgent(activation) !== undefined,
+        activation.childId, terminal, activationAgent(activation) !== undefined,
       )
       if (this.closingTeardownFor(parent) !== undefined) {
         parent.inject(message)

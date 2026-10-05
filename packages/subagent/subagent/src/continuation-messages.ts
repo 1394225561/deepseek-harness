@@ -132,27 +132,25 @@ function settlementSummary(childId: SessionId, stopReason: SubagentResult['stopR
  * Build the runtime-owned settlement notice from the child's nonempty closing text.
  * @param childId - durable child session id named in the notice.
  * @param terminal - recorded terminal state for the settled Activation.
- * @param includeClosingText - include final free-form text; structured results and diagnostics are always included.
  * @param continuable - whether the child can accept another task.
  * @returns the durable user-message representation delivered to the parent.
  */
 export function createSettlementMessage(
   childId: SessionId,
   terminal: SubagentResult,
-  includeClosingText = true,
   continuable = true,
 ): ReturnType<typeof createUserMessage> {
   const summary = settlementSummary(childId, terminal.stopReason, continuable)
   // Parent providers receive this notice as a user message and may reject
   // nontext assistant blocks. Keep this conversion local so SDK/UI consumers
   // retain the complete child output.
-  const closingText = (includeClosingText ? terminal.output : []).flatMap(block =>
+  const closingText = terminal.output.flatMap(block =>
     block.type === 'text' && block.text.length > 0 ? [block] : [],
   )
   return createUserMessage({
     content: [
       { type: 'text' as const, text: summary },
-      ...!includeClosingText ? [] : closingText.length === 0
+      ...closingText.length === 0
         ? [{ type: 'text' as const, text: 'It left no closing message.' }]
         : [{ type: 'text' as const, text: 'Its closing message:' }, ...closingText],
       ...terminal.structured !== undefined

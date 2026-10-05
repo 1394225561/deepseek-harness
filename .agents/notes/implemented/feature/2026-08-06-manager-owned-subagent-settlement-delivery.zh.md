@@ -18,7 +18,7 @@ Status: implemented
 
 继续执行管理器自己投递这份记账，就在结束 Activation 的那笔 dispose 事务内部完成。
 
-采用 `delivery: 'parent'` 的已发布 Activation 结算时，`notifySettlement()` 向其确切在线的直接父级发送一条用户角色状态通知。caller 投递不发送通知。具备 `send_message` 的本地 child 通过该工具投递自由文本答案；其他 child 在通知中附带收尾文本。结构化结果与安全诊断独立附带。启动回滚保持静默，因为尚未发布 child。
+采用 `delivery: 'parent'` 的已发布 Activation 结算时，`notifySettlement()` 向其确切在线的直接父级发送一条包含 child 收尾文本的用户角色状态通知。该投递不依赖 `send_message` 是否可用或是否调用：child 可能未调用工具便结束，也可能只汇报进展而没有发送最终答案。已经通过工具发送的最终答案可能出现两次。结构化结果与安全诊断独立附带。caller 投递不发送通知。启动回滚保持静默，因为尚未发布 child。
 
 ### 收尾文本
 

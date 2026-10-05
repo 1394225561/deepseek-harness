@@ -55,7 +55,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 
 ### What a fork delegation does
 
-One tool call creates a background child and returns its session id immediately. The child works in its own session; the parent receives a status notice when it settles; the child reports its results through `send_message`. A rejected start leaves no published child. Programmatic callers such as workflows can await the activation result directly.
+One tool call creates a background child and returns its session id immediately. The child works in its own session; the parent receives its final answer in a completion notice. The child can also send messages through `send_message`. A rejected start leaves no published child. Programmatic callers such as workflows can await the activation result directly.
 
 -----
 
@@ -124,7 +124,7 @@ The child may reuse the inherited byte-identical prefix under the same provider 
 
 #### What the model sees
 
-Through `dsh-tool-subagent`, the parent first receives the child session id and later a completion status notice; the child reports its results through `send_message`; the inherited prefix and internal work remain in the child session.
+Through `dsh-tool-subagent`, the parent first receives the child session id, then a completion notice with its final answer. Child-authored messages arrive through `send_message`; the inherited prefix and internal work remain in the child session.
 
 #### Token effect
 

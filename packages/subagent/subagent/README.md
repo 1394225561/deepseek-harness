@@ -147,7 +147,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-Parent delivery emits a user-role status notice for local children, whose results reach the parent through child-authored `send_message` calls. If that tool is unavailable to the child, the notice includes its final text instead. External notices also include the child’s nonempty final text blocks and state that further messages are unsupported. Reasoning and other nontext blocks are excluded. Every parent notice includes available structured output as `Structured result: <JSON>` and the provider’s safe diagnostic as a separate text block, independently of closing-text delivery. Empty closing text is reported as `It left no closing message.` when included. Caller delivery emits no notice; SDK lifecycle notifications retain complete child output when cleanup succeeds.
+Parent delivery emits a user-role status notice containing the child’s nonempty final text blocks, regardless of `send_message` availability or use. External notices also state that further messages are unsupported. Reasoning and other nontext blocks are excluded. Every parent notice includes available structured output as `Structured result: <JSON>` and the provider’s safe diagnostic as a separate text block. Empty closing text is reported as `It left no closing message.` Caller delivery emits no notice; SDK lifecycle notifications retain complete child output when cleanup succeeds.
 
 #### Token effect
 

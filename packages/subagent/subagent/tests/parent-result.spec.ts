@@ -1,4 +1,4 @@
-/** Parent result delivery when a local child's messaging tool is unavailable. */
+/** Parent result delivery independent of a local child's messaging tool. */
 
 import { expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
@@ -11,14 +11,14 @@ import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent
 import SubagentRuntime from '../src/index.ts'
 import { mountLocalActivations } from './local-activation.ts'
 
-it.each(['absent', 'filtered'] as const)('returns the closing answer when send_message is %s', async (availability) => {
+it.each(['absent', 'filtered', 'unused'] as const)('returns the closing answer when send_message is %s', async (availability) => {
   const ctx = new Context()
   await mountLocalActivations(ctx)
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(Spawn, { providerName: 'spawn' })
-  if (availability === 'filtered') await ctx.plugin(Control)
+  if (availability !== 'absent') await ctx.plugin(Control)
   const adapter = new MockAdapter([textResponse('CHILD_RESULT_42'), textResponse('Parent received the answer.')])
   ctx.llm.registerAdapter(['mock'], adapter)
   const parent = await ctx.agentLoop.create(SessionId('parent'), { provider: 'mock', model: 'mock' })
@@ -33,7 +33,7 @@ it.each(['absent', 'filtered'] as const)('returns the closing answer when send_m
     await ctx.subagents.waitForChildren(parent)
     await parent.whenIdle()
     expect(adapter.requests).toHaveLength(2)
-    expect(adapter.requests[0]!.tools?.some(tool => tool.name === 'send_message') ?? false).toBe(false)
+    expect(adapter.requests[0]!.tools?.some(tool => tool.name === 'send_message') ?? false).toBe(availability === 'unused')
     const notices = adapter.requests[1]!.messages.filter(message => message.role === 'user')
     expect(JSON.stringify(notices)).toContain('CHILD_RESULT_42')
     expect(JSON.stringify(notices)).toContain('Its closing message:')

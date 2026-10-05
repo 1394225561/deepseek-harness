@@ -2852,7 +2852,7 @@ describe('continuable adjacent-Agent delivery', () => {
 })
 
 describe('continuable settlement delivery', () => {
-  it('reports local completion without repeating the child answer', async () => {
+  it('includes the child answer when messaging is available', async () => {
     const { ctx, parent } = await setup([textResponse('the answer'), textResponse('parent ack')])
     await ctx.plugin(SubagentControl)
     const started = await ctx.subagents.startActivation({ ...startSpec(parent), delivery: 'parent' })
@@ -2862,7 +2862,7 @@ describe('continuable settlement delivery', () => {
     const notice = settlementNotices(parent)[0]!
     expect(notice.sender).toBe(started.childId)
     expect(notice.text).toBe(
-      `Background subagent ${started.childId} finished and will do no further work unless you send it more.`,
+      `Background subagent ${started.childId} finished and will do no further work unless you send it more.\nIts closing message:\nthe answer`,
     )
     // The collapsed row states the outcome without the child's content.
     expect(notice.summary).toBe(

@@ -18,6 +18,8 @@ ACP, DSH SDK, Codex, and Claude Code retain their existing single-execution prov
 
 The model-facing tool always returns a background child id and promises the manager's completion notice. It has no foreground switch or Job integration. Workflows select caller delivery, await the activation result, and dispose the handle before finishing; they add neither a completion notice nor initial return guidance to the parent/child exchange. Headless completion waits for its own child tree and subsequent parent turns.
 
+Parent completion notices include final text regardless of `send_message` availability or use. Tool availability cannot establish that the child sent its answer: it may send only progress or finish without calling the tool. An answer already sent through the tool can appear twice; accepting that duplication avoids making result delivery depend on model compliance or another delivery ledger.
+
 ### Retained decisions
 
 The native Session reader rejects duplicate child membership for both local and external catalog entries.

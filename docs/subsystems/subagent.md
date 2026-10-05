@@ -169,7 +169,7 @@ interface ContinuableCreateSpec {
 
 ## Messages and interruption
 
-sendMessage authorizes the exact live sender and permits only adjacent local agents. Running children receive steering input; absent continuable children resume from persistence. External executions reject follow-ups. Local children report their content through send_message; their parent receives an automatic status-only settlement notice. External executions automatically report their final text, structured result, diagnostic, and status. caller delivery suppresses these notices. drainDescendants and drainChildren await owned work teardown for local and external activations.
+sendMessage authorizes the exact live sender and permits only adjacent local agents. Running children receive steering input; absent continuable children resume from persistence. External executions reject follow-ups. Both local and external executions automatically report their final text, structured result, diagnostic, and status in the parent settlement notice. Local children can also send messages through send_message. caller delivery suppresses settlement notices. drainDescendants and drainChildren await owned work teardown for local and external activations.
 
 ```ts type-equiv
 /** Durable attribution for one model-authored message between adjacent Agents. */

@@ -18,7 +18,7 @@ The shared activation entry point, external execution ownership, and caller-vers
 
 The continuation manager delivers the account itself, from inside the disposal transaction that ends the Activation.
 
-When a published Activation with `delivery: 'parent'` settles, `notifySettlement()` sends its exact live direct parent one user-role status notice. Caller delivery emits no notice. Local children with `send_message` deliver free-form answers through that tool; other children include closing text in the notice. Structured results and safe diagnostics are included independently. Startup rollback stays silent because no child was published.
+When a published Activation with `delivery: 'parent'` settles, `notifySettlement()` sends its exact live direct parent one user-role status notice containing the child's closing text. This delivery does not depend on `send_message` availability or use: a child can finish without calling the tool, or send progress without its final answer. A final answer already sent through the tool can appear twice. Structured results and safe diagnostics are included independently. Caller delivery emits no notice. Startup rollback stays silent because no child was published.
 
 ### Closing text
 
