@@ -26,7 +26,7 @@ import type { createNavigationStore } from './navigation-store.ts'
 import { rowConfigKey, type OfficialItem } from './config-ledger.ts'
 import { INSTALL_GIT_EXAMPLE, INSTALL_PATH_EXAMPLE, type PluginManagerLocaleKey } from './locales.ts'
 import {
-  asksMirror, githubRecoveryRegistry, isInstallPending, offeredRegistries, rowKey,
+  asksMirror, githubRecoveryRegistry, isInstallPending, offeredRegistries, rowKey, packageRowKey,
   type InstallInputError, type InstallState, type InstallSubject, type PackageRow, type PackageView,
   type PluginManagerFace, type RegistryChoice,
 } from './manager-store.ts'
@@ -241,7 +241,7 @@ function RowsSection({ rows, t, resolveText, toggle, configure }: {
   const query = filter.trim().toLowerCase()
   const localized = rows.map(row => ({ row, ...rowText(row, resolveText) }))
   const shown = query === '' ? localized : localized.filter(({ row, title, description }) =>
-    [title, description, row.rowId, row.moduleName].some(value => value?.toLowerCase().includes(query)))
+    [title, description, row.rowId, row.preset, row.moduleName].some(value => value?.toLowerCase().includes(query)))
   return (
     <section className={css.detailSection} data-plugin-rows>
       <div className={css.sectionHead}>
@@ -268,9 +268,9 @@ function RowsSection({ rows, t, resolveText, toggle, configure }: {
           <ul className={css.rows}>
             {shown.map(({ row, title, description }) => (
               <li
-                key={row.rowId}
+                key={packageRowKey(row)}
                 className={css.row}
-                data-plugin-row={row.entryId ?? row.rowId}
+                data-plugin-row={row.entryId ?? packageRowKey(row)}
                 {...row.phase === 'failed' ? { 'data-state': 'failed' } : row.enabled ? {} : { 'data-state': 'off' }}
               >
                 <div className={css.rowLine}>
@@ -285,7 +285,7 @@ function RowsSection({ rows, t, resolveText, toggle, configure }: {
                       )
                       : <span className={css.rowId}>{title}</span>}
                     {description === undefined ? null : <span className={css.rowModule}>{description}</span>}
-                    {title === row.rowId ? null : <code className={css.rowModule}>{row.rowId}</code>}
+                    {title === row.rowId && row.preset === undefined ? null : <code className={css.rowModule}>{row.preset === undefined ? row.rowId : `${row.preset}/${row.rowId}`}</code>}
                     {title === row.moduleName ? null : <code className={css.rowModule}>{row.moduleName}</code>}
                   </div>
                   <span className={css.rowState}>
@@ -1370,7 +1370,7 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
   const refreshing = state.refreshStatus === 'refreshing'
   const openPkg = view.kind === 'package' || view.kind === 'row' ? listed.find(pkg => pkg.name === view.name) : undefined
   const openItem = view.kind === 'item' ? ledger.items.find(item => item.id === view.id) : undefined
-  const openRow = view.kind === 'row' && openPkg !== undefined ? openPkg.rows.find(row => row.rowId === view.rowId) : undefined
+  const openRow = view.kind === 'row' && openPkg !== undefined ? openPkg.rows.find(row => packageRowKey(row) === view.rowId) : undefined
   const showsCards = openPkg === undefined && openItem === undefined
   const activated = listed.find(pkg => pkg.name === activation && pkg.enabled && !state.busy.includes(pkg.name))
   const setRowEnabled = (row: PackageRow, enabled: boolean): void => {
@@ -1378,8 +1378,8 @@ export function PluginManagerPage(props: PluginManagerPageProps): ReactNode {
     if (row.entryId !== undefined) props.setRowEnabled(row.entryId, enabled)
   }
   const configure = (pkg: PackageView): RowConfigure => ({
-    has: row => ledger.rows.has(rowConfigKey(pkg.name, row.rowId)),
-    open: (row) => { setView({ kind: 'row', name: pkg.name, rowId: row.rowId }) },
+    has: row => row.preset === undefined && ledger.rows.has(rowConfigKey(pkg.name, row.rowId)),
+    open: (row) => { setView({ kind: 'row', name: pkg.name, rowId: packageRowKey(row) }) },
   })
   const packageCard = (pkg: PackageView): ReactNode => (
     <PackageCard

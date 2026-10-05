@@ -1,0 +1,14 @@
+- preset: preset-standard
+  insert:
+    - id: optional-tmux-context
+      name: '@deepseek-ai/dsh-tmux-context'
+
+- preset: preset-cordis
+  insert:
+    - id: optional-tmux-context
+      name: '@deepseek-ai/dsh-tmux-context'
+
+- preset: preset-ptc
+  insert:
+    - id: optional-tmux-context
+      name: '@deepseek-ai/dsh-tmux-context'

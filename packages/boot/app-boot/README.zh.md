@@ -62,7 +62,21 @@ profile 导入插件前，DSH 会检查其 `peerDependencies` 中对 `@deepseek-
 
 启用的 `dsh-hmr` 插件会监视 profile manifest 与两份用户 patch 文件，重新读取按顺序排列的组合包层，并应用[重载失败策略](#startup-and-reload-failures)。[DSH HMR](../hmr/README.zh.md) 将这些重载与[插件管理器](../plugin-manager/README.zh.md)的配置写入串行化；包操作在其队列之外执行。启动器不安装 HMR 或监视器；HMR 被禁用或不存在时，更改需要重启。
 
-插入条目的插件名可以是绝对文件系统路径、文件 URL 或包标识符。patch 加载会把 `insert` 条目及其嵌套分组中的绝对路径以及相对于 patch 文件的 `./` 或 `../` 路径转换为文件 URL；对已有条目名称的断言及替换用的 `config` 值保持原样。
+插入条目的插件名可以是绝对文件系统路径、文件 URL 或包标识符。patch 加载会把 `insert` 条目、其嵌套分组和插入的 preset 定义中的绝对路径，以及相对于 patch 文件的 `./` 或 `../` 路径转换为文件 URL；对已有条目名称的断言及替换用的 `config` 值保持原样。
+
+profile patch 可以将 `preset` 设为外层条目 id，把其余普通 patch 字段应用到该条目的字面量 `config.plugins` 列表中。任何 bundle 或用户层都可以提供这些操作。每个操作作用于当前子条目列表；较晚的用户操作优先，而较晚的整个 preset `config` 替换会覆盖此前所有子条目贡献。普通外层 patch 保留 Include 的单次索引查找语义：替换 group 的 `config` 所引入的子条目无法作为外层目标。外层 preset 目标缺失或格式错误、插入造成子条目 id 重复都会使组合失败。内层 `id` 不匹配时只警告并跳过，因此禁用 bundle 不会使用户保留的子条目覆盖失效。
+
+```yaml
+- preset: preset-standard
+  insert:
+    - id: optional-string-editor
+      name: '@deepseek-ai/dsh-tool-str-replace-editor'
+- preset: preset-standard
+  id: optional-string-editor
+  disabled: true
+```
+
+`ProfilePatch` 在原生 patch 字段上增加 `preset`。`applyProfilePatches` 组合这些操作；`compileProfilePatches` 返回普通 Include patch。启动、profile 重载、有效配置 dump、schema 检查及兼容性预检共用此编译器。限定到 preset 的 `insert` 模块路径以声明它的 patch 所在目录为基准，包括嵌套分组；`!!js` 保持不求值，直至对应子条目激活。原生被 Include 引入文件的 patch 列表仍使用普通 Include 语法。
 
 挂载 profile 条目前，`dsh` launcher 会从安装依赖图与有序 bundle 依赖图计算一份不可变的 runtime resolution。普通 Node、打包可执行文件与 Electron Host 等所有 profile 启动器都使用 runtime 解析，将 runtime resolution 安装到 Node 的 ESM 与 CommonJS 解析器中，不创建 fallback 链接。
 
@@ -87,7 +101,7 @@ profile 导入插件前，DSH 会检查其 `peerDependencies` 中对 `@deepseek-
 <a id="startup-and-reload-failures"></a>
 ### 启动与重载失败
 
-profile 重载返回未变化的已有故障诊断，不让无关修改因此失败。新增未激活条目、配置或 fiber 变化、诊断变化都会使重载失败；被移除的 fiber 仍须完成释放。显式启用的目标必须成功激活，即使它的故障早于本次操作。成功重载在生命周期结束及诊断检查通过后发出 `app-boot/config-reload`，包括未启用 HMR 时的程序化更新。事件不携带 diff 或解析后的配置。 成功重载在生命周期结束及诊断检查通过后返回；仅 volatile 的条目变化由 Loader 在更新过程中提交。
+profile 重载返回未变化的已有故障诊断，不让无关修改因此失败。新增未激活条目、配置或 fiber 变化、诊断变化都会使重载失败；被移除的 fiber 仍须完成释放。消失或被字面量禁用的活跃根条目先释放资源，再激活替代条目，因此单实例提供方可以先排空进行中的工作，再让后继者注册。显式启用的目标必须成功激活，即使它的故障早于本次操作。成功重载在生命周期结束及诊断检查通过后发出 `app-boot/config-reload`，包括未启用 HMR 时的程序化更新。事件不携带 diff 或解析后的配置。 成功重载在生命周期结束及诊断检查通过后返回；仅 volatile 的条目变化由 Loader 在更新过程中提交。
 
 Loader 结算后，app-boot 在仅 optional 条目未激活时输出警告。如果已启用的 required 条目无法激活，`boot()` 会在释放资源后以 `StartupError` 拒绝。独立管理生命周期的 logger exporter 会保留异步资源释放期间的警告和错误记录，并在 `boot()` 结算前释放。其消息分组列出所有失败插件和等待的服务，标记 required 条目，并保留原始堆栈、嵌套原因和聚合错误成员。CLI 仅输出该消息一次，并在保存[完整启动诊断](../../../apps/cli/reference/README.zh.md#startup-diagnostics)后以退出码 1 结束；其他异常保留正常堆栈输出。表中的“终止启动”指释放已挂载插件并以非零码退出，不报告就绪；“继续”指保留成功运行的插件。后续配置 HMR 不会再次执行 required 启动审计，也不会回滚整个更新。
 

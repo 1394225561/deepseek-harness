@@ -1,7 +1,7 @@
 /** Public plugin management records shared with clients. */
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { PluginLocalizedMeta } from '@deepseek-ai/dsh-package-manifest'
-import type { PluginInventoryEntry } from '@deepseek-ai/dsh-host-plugin-inventory/types'
+import type { PluginInventoryEntry, AgentPresetPluginRow } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 export type { PluginEntryId } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 import type { PluginEntryId } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 
@@ -35,6 +35,10 @@ export type PluginInfo = PluginInventoryEntry & (
 export interface BundleRowInfo {
   /** The row id as the patch declares it. */
   rowId: string
+  /** Outer preset row id; together with rowId identifies a scoped declaration. */
+  preset?: string
+  /** Current preset composition state; scoped rows have no editable root Loader entry. */
+  composition?: Pick<AgentPresetPluginRow, 'enabled' | 'fiberPhase'>
   /** The module the row names. */
   moduleName: string
   /** Local package display metadata, including rows whose bundle is disabled. */

@@ -64,6 +64,8 @@ export interface PackageRow {
   readonly entryId?: PluginEntryId
   /** The row id as the bundle declares it. */
   readonly rowId: string
+  /** Outer preset row id for a scoped, read-only contribution. */
+  readonly preset?: string
   /** The module the row names. */
   readonly moduleName: string
   /** Local package display text and metadata diagnostics supplied by the Host. */
@@ -405,6 +407,14 @@ export function rowKey(entryId: string): string {
   return `row:${entryId}`
 }
 
+/** Identify a bundle row independently of equal child ids in other presets.
+ * @param row Bundle declaration with its optional preset target.
+ * @returns Stable identity for list and detail navigation.
+ */
+export function packageRowKey(row: Pick<PackageRow, 'rowId' | 'preset'>): string {
+  return row.preset === undefined ? row.rowId : JSON.stringify([row.preset, row.rowId])
+}
+
 /**
  * One bundle as the page shows it: its rows joined with the Host's entries.
  * @param bundle - the Host's bundle.
@@ -416,12 +426,14 @@ export function packageView(bundle: BundleInfo, plugins: readonly PluginInfo[]):
     const live = row.entryId === undefined ? undefined : plugins.find(plugin => plugin.entryId === row.entryId)
     return {
       rowId: row.rowId,
+      ...row.preset === undefined ? {} : { preset: row.preset },
       moduleName: row.moduleName,
-      enabled: live?.enabled ?? false,
-      phase: live?.fiberPhase ?? null,
+      enabled: row.composition === undefined ? live?.enabled ?? false : row.composition.enabled === true,
+      phase: row.composition?.fiberPhase ?? live?.fiberPhase ?? null,
       ...row.meta === undefined ? {} : { meta: row.meta },
       ...row.entryId === undefined ? {} : { entryId: row.entryId },
-      ...live?.readOnlyReason === undefined ? {} : { readOnlyReason: live.readOnlyReason },
+      ...row.preset !== undefined ? { readOnlyReason: 'unaddressable' as const }
+        : live?.readOnlyReason === undefined ? {} : { readOnlyReason: live.readOnlyReason },
     }
   })
   return {

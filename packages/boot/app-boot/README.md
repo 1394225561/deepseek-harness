@@ -62,7 +62,21 @@ Your machine-local preferences also live in the Harness home:
 
 The enabled `dsh-hmr` plugin watches the profile manifest and both user patch files, re-reads the ordered bundle layers, and applies the [reload failure policy](#startup-and-reload-failures). [DSH HMR](../hmr/README.md) serializes these reloads with [Plugin Manager](../plugin-manager/README.md) configuration writes; package operations run outside its queue. The launcher does not install HMR or watchers; disabled or absent HMR means changes require restart.
 
-Inserted plugin names may be absolute filesystem paths, file URLs, or package specifiers. Patch loading converts absolute paths and patch-relative `./` or `../` paths to file URLs within `insert` rows and their nested groups; existing-entry name assertions and replacement `config` values remain literal.
+Inserted plugin names may be absolute filesystem paths, file URLs, or package specifiers. Patch loading converts absolute paths and patch-relative `./` or `../` paths to file URLs within `insert` rows, their nested groups, and inserted preset definitions; existing-entry name assertions and replacement `config` values remain literal.
+
+A profile patch may set `preset` to an outer row id and apply the remaining ordinary patch fields inside that row's literal `config.plugins` list. Any bundle or user layer can contribute these operations. Each operation sees the current child list; later user operations take precedence, and a later whole-preset `config` replacement replaces every earlier child contribution. Ordinary outer patches retain Include's single-index lookup: children introduced by replacing a group's `config` are not addressable outer targets. Missing or malformed outer preset targets and duplicate child ids introduced by an insertion fail composition. An unmatched inner `id` warns and skips, so disabling a bundle does not invalidate an old user override of its child.
+
+```yaml
+- preset: preset-standard
+  insert:
+    - id: optional-string-editor
+      name: '@deepseek-ai/dsh-tool-str-replace-editor'
+- preset: preset-standard
+  id: optional-string-editor
+  disabled: true
+```
+
+`ProfilePatch` extends the native patch fields with `preset`. `applyProfilePatches` composes these operations; `compileProfilePatches` returns ordinary Include patches. Startup, profile reload, effective-config dumps, schema inspection, and compatibility preflight share this compiler. Scoped `insert` module paths resolve beside their declaring patch, including nested groups; `!!js` remains unevaluated until each child activates. Native included-file patch lists keep their ordinary Include syntax.
 
 Before mounting profile rows, the `dsh` launcher computes one immutable runtime resolution from the installation and ordered bundle dependency graphs. Every profile launcher uses runtime resolution, including plain Node, packaged executables, and the Electron Host. It installs the runtime resolution through Node's ESM and CommonJS resolvers without creating fallback links.
 
@@ -87,7 +101,7 @@ Use `readPluginMeta(specifier, parentURL)` or `ctx.pluginPackages.metaOf(specifi
 <a id="startup-and-reload-failures"></a>
 ### Startup and reload failures
 
-Profile reconciliation returns diagnostics for unchanged inactive entries without failing an unrelated mutation. A new inactive entry, a changed configuration or fiber, or a changed diagnostic fails reconciliation; removed fibers must still finish disposal. Explicit enablement targets must activate even when their failure predates the operation. Successful reconciliation emits `app-boot/config-reload` after lifecycle settlement and diagnostic checks, including programmatic updates without HMR. The event carries no diff or parsed config. Successful reconciliation returns after lifecycle settlement and diagnostic checks; volatile-only entry changes are committed by Loader during the update.
+Profile reconciliation returns diagnostics for unchanged inactive entries without failing an unrelated mutation. A new inactive entry, a changed configuration or fiber, or a changed diagnostic fails reconciliation; removed fibers must still finish disposal. Active root rows that disappear or become literally disabled release their resources before replacement rows activate, so a singleton provider can drain in-flight work before its successor registers. Explicit enablement targets must activate even when their failure predates the operation. Successful reconciliation emits `app-boot/config-reload` after lifecycle settlement and diagnostic checks, including programmatic updates without HMR. The event carries no diff or parsed config. Successful reconciliation returns after lifecycle settlement and diagnostic checks; volatile-only entry changes are committed by Loader during the update.
 
 After the Loader settles, app-boot warns when only optional entries are inactive. If an enabled required entry cannot activate, `boot()` rejects with `StartupError` after disposal. An independently owned logger exporter retains warning and error records through asynchronous disposal and is released before `boot()` settles. Its message groups all failed plugins and pending services, marks required entries, and retains original stacks, nested causes, and aggregate members. The CLI prints that message once and saves [full startup diagnostics](../../../apps/cli/reference/README.md#startup-diagnostics) before exiting with code 1; unrelated exceptions retain their normal stack output. In the table, stopping startup means disposing any mounted plugins and exiting nonzero without reporting readiness; continuing keeps successful plugins running. Later configuration HMR does not repeat the required-startup audit and does not roll back the whole update.
 

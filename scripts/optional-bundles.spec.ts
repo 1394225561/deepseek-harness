@@ -4,6 +4,7 @@ import { globSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { describe, expect, it } from 'vitest'
+import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { loadOverlayPatches } from '../packages/boot/app-boot/src/index.ts'
 import { readPluginMeta } from '../packages/boot/app-boot/src/package-meta.ts'
 import { OPTIONAL_BUNDLES, PROFILE_TEMPLATES, bundlePatchPaths, composeEntries } from '../packages/boot/app-boot/src/profile.ts'
@@ -27,6 +28,26 @@ function bundle(name: string): { dir: string; patches: ReturnType<typeof loadOve
   return { dir: entry.dir, patches: bundlePatchPaths(entry.dir, entry.manifest.dsh.bundle).flatMap(path => loadOverlayPatches('test', path)) }
 }
 
+const lightweight = [
+  '@deepseek-ai/dsh-session-search',
+  '@deepseek-ai/dsh-string-editor',
+  '@deepseek-ai/dsh-tmux-location',
+  '@deepseek-ai/dsh-experimental-ralph-bundle',
+  '@deepseek-ai/dsh-experimental-terminal-bundle',
+  '@deepseek-ai/dsh-experimental-badge-skill-bundle',
+  '@deepseek-ai/dsh-experimental-session-titles-bundle',
+]
+
+function presetRows(entries: EntryOptions[], id: string): EntryOptions[] {
+  const preset = entries.find(entry => entry.id === id)
+  if (preset === undefined) throw new Error(`missing preset ${id}`)
+  return (preset.config as { plugins: EntryOptions[] }).plugins
+}
+
+function flattenRows(entries: EntryOptions[]): EntryOptions[] {
+  return entries.flatMap(entry => [entry, ...entry.group && Array.isArray(entry.config) ? flattenRows(entry.config as EntryOptions[]) : []])
+}
+
 describe('optional bundles', () => {
   const shipped = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'].map(name => bundle(name).patches)
 
@@ -42,12 +63,15 @@ describe('optional bundles', () => {
     const { patches } = bundle(name)
     const warnings: string[] = []
     const composed = composeEntries([...shipped, patches], message => warnings.push(message))
-    const ids = new Set(composed.map(entry => entry.id))
     expect(warnings).toEqual([])
-    // Inserted rows carry stable ids at the profile root, so a later profile patch can configure or disable them.
-    for (const row of patches.flatMap(patch => patch.insert ?? [])) {
-      expect(typeof row.id).toBe('string')
-      expect(ids.has(row.id)).toBe(true)
+    // Inserted ids remain addressable inside their selected profile or preset tree.
+    for (const patch of patches) {
+      const rows = typeof patch.preset === 'string' ? presetRows(composed, patch.preset) : composed
+      const ids = new Set(flattenRows(rows).map(entry => entry.id))
+      for (const row of patch.insert ?? []) {
+        expect(typeof row.id).toBe('string')
+        expect(ids.has(row.id)).toBe(true)
+      }
     }
     // One top-level row per id: a duplicate declaration leaves the Loader with the last one, silently
     // replacing the layer that declared the id first.
@@ -57,7 +81,7 @@ describe('optional bundles', () => {
     // row, and the override keeps the package the shipped layer declared on it.
     const shippedComposed = composeEntries([...shipped])
     for (const patch of patches) {
-      if (patch.insert !== undefined || typeof patch.id !== 'string') continue
+      if (patch.insert !== undefined || typeof patch.id !== 'string' || patch.preset !== undefined) continue
       const matches = composed.filter(entry => entry.id === patch.id)
       expect(matches).toHaveLength(1)
       expect(matches[0]?.name).toBe(shippedComposed.find(entry => entry.id === patch.id)?.name)
@@ -73,6 +97,51 @@ describe('optional bundles', () => {
       expect(composeEntries(shipped).some(row => row.name === moduleName)).toBe(false)
       expect(rows.filter(row => row.name === moduleName && row.disabled !== true)).toHaveLength(1)
     }
+  })
+
+  it('ships all seven lightweight bundles without selecting them in a default template', () => {
+    const defaults = Object.values(PROFILE_TEMPLATES).flatMap(template => template.bundles)
+    for (const name of lightweight) {
+      expect(OPTIONAL_BUNDLES).toContain(name)
+      expect(defaults).not.toContain(name)
+    }
+  })
+
+  it('composes every lightweight selection without changing minimal or adding host tools', () => {
+    const baseline = composeEntries(shipped)
+    const layers = lightweight.map(name => bundle(name).patches)
+    for (let mask = 0; mask < 2 ** lightweight.length; mask += 1) {
+      const selected = layers.filter((_layer, index) => (mask & 2 ** index) !== 0)
+      const warnings: string[] = []
+      const composed = composeEntries([...shipped, ...selected], warning => warnings.push(warning))
+      expect(warnings).toEqual([])
+      expect(presetRows(composed, 'preset-minimal')).toEqual(presetRows(baseline, 'preset-minimal'))
+      const addedHost = composed.filter(row => !baseline.some(existing => existing.id === row.id))
+      expect(addedHost.every(row => ['optional-skill-badge', 'optional-session-title-all-prompts'].includes(row.id ?? ''))).toBe(true)
+      for (const id of ['preset-standard', 'preset-cordis', 'preset-ptc']) {
+        const rows = flattenRows(presetRows(composed, id))
+        const ids = rows.map(row => row.id)
+        expect(new Set(ids).size).toBe(ids.length)
+      }
+    }
+  })
+
+  it('contributes tools inside all full presets with independently isolated services', () => {
+    const composed = composeEntries([...shipped, ...lightweight.map(name => bundle(name).patches)])
+    for (const id of ['preset-standard', 'preset-cordis', 'preset-ptc']) {
+      const roots = presetRows(composed, id)
+      const names = flattenRows(roots).map(row => row.name)
+      for (const name of [
+        '@deepseek-ai/dsh-tool-session-query', '@deepseek-ai/dsh-tool-str-replace-editor', '@deepseek-ai/dsh-tmux-context',
+        '@deepseek-ai/dsh-experimental-tool-ralph', '@deepseek-ai/dsh-experimental-tool-terminal',
+      ]) expect(names).toContain(name)
+      expect(roots.find(row => row.id === 'optional-ralph')?.isolate).toEqual({ workflowEngine: true })
+      expect(roots.find(row => row.id === 'optional-persistent-terminals')?.isolate).toEqual({ terminals: true })
+    }
+    expect(composed.find(row => row.id === 'session-query-sqlite')?.config).toEqual({ path: ':memory:', openAt: 'first-search' })
+    expect(composed.find(row => row.id === 'session-title-llm')?.disabled).toBe(true)
+    expect(composed.find(row => row.id === 'optional-session-title-all-prompts')?.name)
+      .toBe('@deepseek-ai/dsh-experimental-session-title-all-prompts-llm')
   })
 
   it('delivers the Schedule service and task page without a Host clock row', () => {

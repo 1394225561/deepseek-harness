@@ -28,6 +28,13 @@
     // not declaration path aliases, keep each package/vendor source compiled
     // under its own tsconfig boundary.
     "paths": {
+      "@deepseek-ai/dsh-session-search": ["./packages/bundle/session-search/src/index.ts"],
+      "@deepseek-ai/dsh-string-editor": ["./packages/bundle/string-editor/src/index.ts"],
+      "@deepseek-ai/dsh-tmux-location": ["./packages/bundle/tmux-location/src/index.ts"],
+      "@deepseek-ai/dsh-experimental-ralph-bundle": ["./packages/experimental/ralph-bundle/src/index.ts"],
+      "@deepseek-ai/dsh-experimental-terminal-bundle": ["./packages/experimental/terminal-bundle/src/index.ts"],
+      "@deepseek-ai/dsh-experimental-badge-skill-bundle": ["./packages/experimental/badge-skill-bundle/src/index.ts"],
+      "@deepseek-ai/dsh-experimental-session-titles-bundle": ["./packages/experimental/session-titles-bundle/src/index.ts"],
       "@deepseek-ai/dsh-client-product-analytics": ["./packages/client/product-analytics/src/index.ts"],
       "@deepseek-ai/dsh-client-product-analytics/types": ["./packages/client/product-analytics/src/events.ts"],
       "@deepseek-ai/dsh-client-product-analytics/client": ["./packages/client/product-analytics/src/client/index.ts"],

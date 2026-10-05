@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "tmux 位置",
+    "description": "在可用时让智能体读取当前 tmux 窗格和布局。"
+  }
+}

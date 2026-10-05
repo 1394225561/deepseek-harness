@@ -293,7 +293,8 @@ export function verifyDefaultProductIsolation(root: string): ProductIsolationRes
     const { manifest } = pkg
     for (const section of RUNTIME_SECTIONS) {
       for (const [name, range] of Object.entries(manifest[section] ?? {})) {
-        if (pkg === cli && section === 'dependencies' && optionalBundles.has(name)) continue
+        const target = packages.get(name)
+        if (pkg === cli && section === 'dependencies' && optionalBundles.has(name) && target !== undefined && isExperimental(target)) continue
         dependency(name, range, pkg, `${manifest.name} ${section}`)
       }
     }

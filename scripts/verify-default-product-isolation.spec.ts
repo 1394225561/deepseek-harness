@@ -138,6 +138,31 @@ describe('default product isolation', () => {
     expect(verifyDefaultProductIsolation(root).failures.join('\n')).toContain(`optional bundle ${layer} must not be a default bundle`)
   })
 
+  it.each(['dependencies', 'source', 'patch'])(
+    'checks a nonexperimental optional bundle for experimental %s', (kind) => {
+      const root = fixture()
+      const layer = '@deepseek-ai/dsh-optional-layer'
+      write(root, 'packages/bundle/optional-layer/package.json', {
+        name: layer, icon: './icon.svg', exports: { './locale/*.json': './locale/*.json' },
+        dsh: { bundle: { patch: './cordis.patch.yml' } },
+      })
+      write(root, 'packages/bundle/optional-layer/src/index.ts', 'export {}')
+      write(root, 'packages/bundle/optional-layer/cordis.patch.yml', [])
+      manifest(root, 'apps/cli/package.json', { dependencies: { [core]: 'workspace:*', [layer]: 'workspace:*' } })
+      write(root, profile, `export const PROFILE_TEMPLATES = { web: { bundles: ['${base}'] } }\n`
+        + `export const DEFAULT_PROFILE_BUNDLES = ['${base}']\nexport const OPTIONAL_BUNDLES = ['${layer}']\n`)
+      expect(verifyDefaultProductIsolation(root).failures).toEqual([])
+      if (kind === 'dependencies') {
+        manifest(root, 'packages/bundle/optional-layer/package.json', { dependencies: { [experimental]: 'workspace:*' } })
+      } else if (kind === 'source') {
+        write(root, 'packages/bundle/optional-layer/src/index.ts', `import '${experimental}'`)
+      } else {
+        write(root, 'packages/bundle/optional-layer/cordis.patch.yml', [{ preset: 'preset-standard', insert: [{ name: experimental }] }])
+      }
+      expect(verifyDefaultProductIsolation(root).failures.join('\n')).toContain('must not include experimental packages')
+    },
+  )
+
   it('requires each optional bundle to be a runtime dependency that declares a bundle patch, an icon, and locale metadata', () => {
     const root = fixture()
     write(root, profile, `export const PROFILE_TEMPLATES = { web: { bundles: ['${base}'] } }\n`

@@ -1,0 +1,19 @@
+- id: session-query-sqlite
+  config:
+    path: ':memory:'
+    openAt: first-search
+
+- preset: preset-standard
+  insert:
+    - id: optional-tool-session-query
+      name: '@deepseek-ai/dsh-tool-session-query'
+
+- preset: preset-cordis
+  insert:
+    - id: optional-tool-session-query
+      name: '@deepseek-ai/dsh-tool-session-query'
+
+- preset: preset-ptc
+  insert:
+    - id: optional-tool-session-query
+      name: '@deepseek-ai/dsh-tool-session-query'

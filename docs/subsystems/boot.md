@@ -6,6 +6,8 @@ The [boot package group](../../packages/boot/README.md) owns launcher-provided p
 
 ## Management records
 
+`ProfilePatch` adds an optional literal `preset` row id to native Include patch fields; `id` then targets a child in that preset. [App-boot](../../packages/boot/app-boot/README.md#profiles) owns compilation, ordering, validation, and path resolution.
+
 `PluginEntryId` identifies one Loader entry; callers obtain it from `listPlugins` rather than constructing a patch id.
 
 `PluginInfo` carries module identity, effective enablement, fiber phase and optional display `meta`, plus a unique `patchId` or a `readOnlyReason`.

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "tmux location",
+    "description": "Let agents read the current tmux pane and layout when available."
+  }
+}
