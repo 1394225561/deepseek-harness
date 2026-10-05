@@ -133,7 +133,7 @@ terminal model 使用浏览器安全入口 `@deepseek-ai/dsh-spill-policy/notice
 这些限制定义分派深度与视图归属；它们是当前包约束。
 
 - **Host 不把 `run_code` 暴露为 PTC mode 程序 binding**：生产事件只产生一层分发；递归的运行时/UI 约定支持嵌套。
-- **嵌套相对位置**——PTC dispatch 不持久化展示元数据。相对的嵌套文件链接与推断的命令目录保持不可用；绝对调用路径仍可使用。
+- **历史嵌套相对位置**——缺少展示元数据的旧 PTC dispatch 不推断相对文件目标或命令目录；绝对调用路径仍可使用。
 - **第一方工具视图集中在本包**：它们可以通过 keyed slot 独立迁移到各自所属的业务包。
 - **Web 工具链接总是打开新标签页**：折叠的 `web_fetch` URL 与展开的 web 卡片链接不遵循 `ui-chat` 的链接打开方式设置，因为工具视图没有外部链接回调。
 - **工具文案复用 `ui-conversation` locale namespace**：工具标题、行 chrome 与无 Cordis 的 primitive label 使用该字典；展示转换器模型保留 locale key 或数据，而不是已渲染文案。

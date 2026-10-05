@@ -13,6 +13,7 @@ import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
+import { PtcRuntime, type PtcRunRequest, type PtcRunResult, type PtcRunSpec } from '@deepseek-ai/dsh-ptc-runtime'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { FsVersion } from '@deepseek-ai/dsh-fs'
@@ -585,7 +586,31 @@ describe('current working directory', () => {
       })
       expect(edit.isError).toBe(false)
       expect(edit.meta).toMatchObject({ path: join(current, 'created.txt'), diffs: [{ path: join(current, 'created.txt') }] })
+      class ReadBindingRuntime extends PtcRuntime {
+        readonly language = 'typescript'
+        readonly isolation = 'fixture'
+        resolve(request: PtcRunRequest): PtcRunSpec {
+          return { ...request, cwd: current, timeoutMs: 120_000 }
+        }
+        async run(spec: PtcRunSpec): Promise<PtcRunResult> {
+          const read = spec.bindings.find(binding => binding.global === 'tools')?.functions.read
+          if (read === undefined) throw new Error('missing read binding')
+          const value = await read({ file_path: 'note.txt' })
+          expect(JSON.stringify(value)).toContain('current')
+          return { logs: [], value }
+        }
+      }
+      await ctx.plugin(ReadBindingRuntime)
+      agent.ctx.tools.presentAs('both')
+      const nested = await ctx.tools.execute({
+        signal: testToolSignal, callId: ToolCallId('ptc-read-current'), name: 'run_code',
+        arguments: { code: 'return await tools.read({file_path: "note.txt"})', description: 'Read the current note' }, agent,
+      })
+      expect(nested.isError).toBe(false)
+      const dispatch = session.snapshotEvents().find(event => event.type === 'tool/ptc-dispatch')
+      expect(dispatch?.data.meta).toMatchObject({ path: join(current, 'note.txt') })
       await ctx.workingDirectory.set(agent, dir)
+      expect(dispatch?.data.meta).toMatchObject({ path: join(current, 'note.txt') })
       expect(write.meta).toMatchObject({ path: join(current, 'created.txt') })
       expect(await readFile(join(next, 'created.txt'), 'utf8')).toBe('edited')
       await expect(readFile(join(dir, 'created.txt'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })

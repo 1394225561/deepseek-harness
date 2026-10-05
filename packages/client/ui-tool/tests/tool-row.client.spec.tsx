@@ -166,8 +166,8 @@ describe('tool-call-model', () => {
     expect(toolRowModel('read', running({ name: 'read', argsRaw: '{"path":"/Users/u/ws/a.md"}' }), '').summary).toBe('/Users/u/ws/a.md')
   })
 
-  it.each(['read', 'write', 'edit', 'read_image'])('opens %s at its recorded target after later directory changes without relabeling it', (name) => {
-    const block = result({ call: { name, argsRaw: '{"file_path":"note.txt"}' }, meta: { path: '/workspace/b/note.txt' } })
+  it.each(['read', 'write', 'edit', 'read_image'].flatMap(name => [false, true].map(nested => ({ name, nested }))))('opens $name nested=$nested at its recorded target after later directory changes without relabeling it', ({ name, nested }) => {
+    const block = result({ ...(nested ? { parentCallId: 'outer' } : {}), call: { name, argsRaw: '{"file_path":"note.txt"}' }, meta: { path: '/workspace/b/note.txt' } })
     for (const cwd of ['/workspace/a', '/workspace/c']) {
       const model = toolRowModel(name, block, cwd)
       expect(model.filePath).toBe('/workspace/b/note.txt')

@@ -159,6 +159,8 @@ describe('terminalCardModel', () => {
       const block = settled({ call: { name, argsRaw: shellArgs({ workdir: 'nested' }) }, meta: { cwd: '/b/nested' } })
       expect(terminalCardModel(block, '/a')?.card.cwd).toBe('/b/nested')
       expect(terminalCardModel(block, '/c')?.card.cwd).toBe('/b/nested')
+      expect(terminalCardModel({ ...block, parentCallId: 'outer' }, '/a')?.card.cwd).toBe('/b/nested')
+      expect(terminalCardModel({ ...block, parentCallId: 'outer' }, '/c')?.card.cwd).toBe('/b/nested')
       expect(terminalCardModel(settled({ ...block, meta: { cwd: 'relative' } }), '/a')?.card.cwd).toBe('/a/nested')
       expect(terminalCardModel(settled({ ...block, meta: { cwd: 'C:\\b\\nested' } }), '/a')?.card.cwd).toBe('C:\\b\\nested')
     }

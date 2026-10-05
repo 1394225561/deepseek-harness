@@ -188,6 +188,7 @@ describe('DeepSeekHarness', () => {
         arguments: { command: 'git push --force' },
         isError: true,
         content: [{ type: 'text', text: 'Error: blocked by policy' }],
+        meta: { cwd: '/selected', path: '/selected/note.txt', view: { line: 3 } },
         error: {
           name: 'AutoReviewDeniedError',
           code: 'AUTO_REVIEW_DENIED',
@@ -222,6 +223,8 @@ describe('DeepSeekHarness', () => {
     const result = await new HarnessSession(harness, 'owned').run('go')
 
     expect(result.events).toEqual([receipt, nativeResult, ptcStart, ptcResult])
+    expect(result.events.find(event => event.type === 'tool/ptc-dispatch')?.data.meta)
+      .toEqual({ cwd: '/selected', path: '/selected/note.txt', view: { line: 3 } })
     for (const event of result.events.filter(event => event.type.startsWith('tool/ptc-dispatch'))) {
       expect(event.data).not.toHaveProperty('description')
       expect(event.data).not.toHaveProperty('parameters')

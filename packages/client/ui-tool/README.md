@@ -133,7 +133,7 @@ None; this package neither assembles nor sends a provider request.
 These limits define the dispatch depth and the view ownership; they are current package constraints.
 
 - **The Host excludes `run_code` from PTC mode program bindings** — production events produce one dispatch level; the recursive Runtime/UI contract supports nesting.
-- **Nested relative locations** — PTC dispatches do not persist presentation metadata. Relative nested file links and inferred command directories stay unavailable; absolute call paths remain usable.
+- **Historical nested relative locations** — Older PTC dispatches without presentation metadata do not infer relative file targets or command directories; absolute call paths remain usable.
 - **First-party Tool views are colocated here** — they can move to their owning business packages independently through the keyed slot.
 - **Web tool links always open a new tab** — the collapsed `web_fetch` URL and the expanded web card links ignore the `ui-chat` link-opening setting because Tool views receive no external-link callback.
 - **Tool copy reuses the `ui-conversation` locale namespace** — tool titles, row chrome, and Cordis-free primitive labels use that dictionary; presenter models retain locale keys or data rather than rendered wording.
