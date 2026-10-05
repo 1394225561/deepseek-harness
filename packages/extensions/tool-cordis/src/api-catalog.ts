@@ -151,7 +151,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: 'async list(): Promise<AgentPreset[]>',
         description: 'Read every declared preset, including activation failures.',
         parameters: [],
-        returns: 'Display metadata and loading diagnostics.',
+        returns: 'Display metadata, declaring Loader row identities, and loading diagnostics.',
       },
       {
         signature: '@Remote(\'list\') async remoteExportList(): Promise<AgentPresetRoster>',
@@ -715,8 +715,8 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
   },
   {
     key: 'configEditor',
-    summary: 'Persist complete raw configs and apply them through the normal Loader path.',
-    description: 'Persist complete raw configs and apply them through the normal Loader path.',
+    summary: 'Persist Host entry configs without changing preset-scoped operations, then reconcile through Loader.',
+    description: 'Persist Host entry configs without changing preset-scoped operations, then reconcile through Loader.',
     methods: [
       {
         signature: 'entries(): Entry[]',

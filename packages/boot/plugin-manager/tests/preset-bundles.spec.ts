@@ -17,8 +17,9 @@ import SessionTitle, { SessionTitleProviderId, type SessionTitleProviderRequest,
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import PluginManager from '../src/index.ts'
 import * as operations from '../src/operations.ts'
+import * as appBoot from '@deepseek-ai/dsh-app-boot'
 
-async function fixture(options: { title?: boolean } = {}) {
+async function fixture(options: { title?: boolean; hmr?: boolean; presets?: boolean } = {}) {
   const home = mkdtempSync(join(tmpdir(), 'preset-bundle-'))
   let owner: Context | undefined
   onTestFinished(async () => { await owner?.fiber.dispose(); rmSync(home, { recursive: true, force: true }) })
@@ -40,7 +41,7 @@ async function fixture(options: { title?: boolean } = {}) {
     { id: 'sessions', name: 'cordis:sessions' },
     { id: 'session-projections', name: 'cordis:session-projections' },
     { id: 'presets', name: 'cordis:presets', config: { default: 'standard' } },
-    ...['standard', 'cordis'].map(id => ({ id: `preset-${id}`, name: 'cordis:preset', config: { id, plugins: [] } })),
+    ...(options.presets === false ? [] : ['standard', 'cordis']).map(id => ({ id: `preset-${id}`, name: 'cordis:preset', config: { id, plugins: [] } })),
     ...options.title === true ? [
       { id: 'title', name: 'cordis:title', config: { fallbackMaxWords: 5, fallbackMaxBytes: 100, maxTitleBytes: 100 } },
       { id: 'default-title', name: 'cordis:title-provider', config: { id: 'default' } },
@@ -90,8 +91,10 @@ async function fixture(options: { title?: boolean } = {}) {
     await host.plugin(PluginPackages, { resolution })
   })
   await ctx.plugin(Timer)
-  await ctx.plugin(Hmr, { root: [], ignored: [], debounce: 0 })
-  await ctx.hmr.runExclusive(async () => {})
+  if (options.hmr !== false) {
+    await ctx.plugin(Hmr, { root: [], ignored: [], debounce: 0 })
+    await ctx.hmr.runExclusive(async () => {})
+  }
   onTestFinished(() => {
     for (const call of calls) call.pending.resolve({ title: 'teardown', messageSeqs: call.request.messages.map(message => message.seq) })
   })
@@ -182,6 +185,30 @@ it('retains a failed selection, reports affected preset failures again, and keep
   expect((await ctx.agentPresets.list()).every(row => row.broken === undefined)).toBe(true)
 })
 
+it.each([{ id: 'standard' }, { id: 'standard', plugins: [] }])(
+  'keeps existing preset failures as warnings when an unrelated Host config is %j', async (config) => {
+    const { manager, bundle, ctx } = await fixture()
+    expect(await ctx.agentPresets.list()).toMatchObject([{ id: 'cordis', definitionEntryId: 'preset-cordis' }, { id: 'standard', definitionEntryId: 'preset-standard' }])
+    expect((await ctx.agentPresets.remoteExportList()).presets.every(row => !Object.hasOwn(row, 'definitionEntryId'))).toBe(true)
+    bundle('broken', [{ preset: 'preset-standard', insert: [{ id: 'broken', name: './plugin.mjs', config: { fail: true } }] }])
+    expect(await manager.setBundleEnabled('broken', true)).toMatchObject({ application: 'failed' })
+    bundle('ordinary', [{ insert: [{ id: 'ordinary', name: './plugin.mjs', config }] }])
+    expect(await manager.setBundleEnabled('ordinary', true)).toMatchObject({
+      application: 'applied', warnings: [expect.stringContaining('agent preset standard')],
+    })
+  },
+)
+
+it('reports invalid composition immediately without HMR while retaining the saved selection', async () => {
+  const { manager, dir } = await fixture({ hmr: false, presets: false })
+  expect(await manager.setBundleEnabled('addon', true)).toMatchObject({
+    application: 'failed', changed: true, error: { diagnostic: expect.stringContaining(join('addon', 'cordis.patch.yml')) as string },
+  })
+  expect(readProfileManifest('test', dir).dsh?.profile?.bundles).toContain('addon')
+  expect(await manager.setBundleEnabled('addon', false)).toMatchObject({ application: 'restart-required', changed: true })
+  expect(readProfileManifest('test', dir).dsh?.profile?.bundles).not.toContain('addon')
+})
+
 it('refuses Remove after Off while an old Agent scope retains the bundle, then removes after release', async () => {
   const { manager, ctx, dir, trace } = await fixture()
   expect(await manager.setBundleEnabled('addon', true)).toMatchObject({ application: 'applied' })
@@ -205,8 +232,8 @@ it('refuses Remove after Off while an old Agent scope retains the bundle, then r
   expect(remove).toHaveBeenCalledOnce()
 })
 
-it('removes a released contribution while base presets keep using the same shared module', async () => {
-  const { manager, ctx, dir, addon, bundle } = await fixture()
+it.each([false, true])('removes a released contribution while base presets keep using the same shared module (anonymous=%s)', async (anonymous) => {
+  const { manager, ctx, dir, addon } = await fixture()
   const shared = join(dir, 'node_modules', 'shared-fixture')
   mkdirSync(shared)
   writeFileSync(join(shared, 'package.json'), JSON.stringify({ name: 'shared-fixture', version: '1.0.0', type: 'module', exports: './index.mjs' }))
@@ -218,7 +245,9 @@ it('removes a released contribution while base presets keep using the same share
     if (row.id === 'preset-cordis') row.config = { id: 'cordis', plugins: [{ id: 'addon-shared', name: 'shared-fixture' }] }
   }
   writeFileSync(join(core, 'cordis.patch.yml'), JSON.stringify(corePatches))
-  bundle('addon', [{ preset: 'preset-standard', insert: [{ id: 'addon-shared', name: 'shared-fixture' }] }])
+  writeFileSync(join(addon, 'cordis.patch.yml'), JSON.stringify([{
+    preset: 'preset-standard', insert: [{ ...anonymous ? {} : { id: 'addon-shared' }, name: 'shared-fixture' }],
+  }]))
   for (const packageDir of [core, addon]) {
     const manifest = readProfileManifest('test', packageDir)
     manifest.dependencies = { 'shared-fixture': '1.0.0' }
@@ -232,7 +261,7 @@ it('removes a released contribution while base presets keep using the same share
   expect(ctx.agentPresets.inspectCompositions(owner.ctx)).toMatchObject([{
     id: 'standard', definitionEntryId: 'preset-standard', modules: [
       { entryId: 'base-shared', moduleName: 'shared-fixture' },
-      { entryId: 'addon-shared', moduleName: 'shared-fixture' },
+      { entryId: anonymous ? expect.any(String) as string : 'addon-shared', moduleName: 'shared-fixture' },
     ],
   }])
   const remove = vi.spyOn(operations, 'runProfilePnpm').mockImplementation(async () => {
@@ -249,6 +278,34 @@ it('removes a released contribution while base presets keep using the same share
     .toEqual(['shared-fixture', 'shared-fixture'])
   expect(await manager.removeBundle('addon')).toMatchObject({ application: 'applied', changed: true })
   expect(remove).toHaveBeenCalledOnce()
+})
+
+it('removes an unrelated bundle when another retained row with the same id has lost its module file', async () => {
+  const { manager, ctx, dir, addon, bundle } = await fixture()
+  expect(await manager.setBundleEnabled('addon', true)).toMatchObject({ application: 'applied' })
+  const owner = createScope(ctx, {})
+  onTestFinished(() => owner.dispose())
+  await ctx.agentPresets.mount(owner.ctx, 'standard')
+  expect(await manager.setBundleEnabled('addon', false)).toMatchObject({ application: 'applied' })
+  bundle('unrelated', [{ preset: 'preset-standard', insert: [{ id: 'shared-id', name: './plugin.mjs' }] }])
+  const manifest = readProfileManifest('test', dir)
+  manifest.dependencies = { ...manifest.dependencies, unrelated: '1.0.0' }
+  writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+  rmSync(join(addon, 'plugin.mjs'))
+  const remove = vi.spyOn(operations, 'runProfilePnpm').mockResolvedValue({
+    exitCode: 0, output: '', truncated: false, logPath: join(dir, 'remove.log'),
+  })
+  onTestFinished(() => { remove.mockRestore() })
+  expect(await manager.removeBundle('addon')).toMatchObject({ application: 'failed', error: { code: 'bundle-in-use' } })
+  expect(remove).not.toHaveBeenCalled()
+  const resolution = vi.spyOn(appBoot, 'resolvePluginResource').mockImplementationOnce(() => { throw new Error('resolver unavailable') })
+  onTestFinished(() => { resolution.mockRestore() })
+  expect(await manager.removeBundle('unrelated')).toMatchObject({ application: 'failed', error: { diagnostic: 'resolver unavailable' } })
+  expect(remove).not.toHaveBeenCalled()
+  resolution.mockRestore()
+  expect(await manager.removeBundle('unrelated')).toMatchObject({ application: 'applied' })
+  expect(remove).toHaveBeenCalledOnce()
+  expect(ctx.agentPresets.inspectCompositions(owner.ctx)[0]?.modules).toHaveLength(1)
 })
 
 it('retains contributed builtin rows even when no package owns their module names', async () => {

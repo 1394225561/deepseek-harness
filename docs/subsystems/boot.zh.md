@@ -32,7 +32,7 @@ Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnp
 
 ### `ctx.configEditor` — `ConfigEditor`
 
-Persist complete raw configs and apply them through the normal Loader path.
+Persist Host entry configs without changing preset-scoped operations, then reconcile through Loader.
 
 ```ts cordis-catalog
 /** Addressable profile rows; nested Includes have independent configuration ownership.

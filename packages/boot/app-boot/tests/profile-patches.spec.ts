@@ -14,6 +14,8 @@ import {
   prepareProfilePatches, profilePatchPreset, reconcileProfilePatches, renderConfigDump, type ProfilePatch,
 } from '../src/index.ts'
 
+import { cloneProfilePatches } from '../src/profile-patches.ts'
+
 const preset = (plugins: EntryOptions[] = []): Omit<EntryOptions, 'config'> & {
   config: { id: string; description: string; plugins: EntryOptions[] }
 } => ({
@@ -109,6 +111,7 @@ describe('preset patch composition', () => {
     const path = join(dir, 'patch.yml')
     writeFileSync(path, JSON.stringify([{ preset: target, insert: [] }]))
     expect(() => loadOverlayPatches('test', path)).toThrow('nonempty literal row id')
+    expect(() => loadOverlayPatches('test', path)).toThrow(path)
   })
 
   it('allows callers to omit a warning sink for skipped ordinary and scoped rows', () => {
@@ -142,7 +145,64 @@ describe('preset patch composition', () => {
     const path = join(temp(), 'anonymous.patch.yml')
     writeFileSync(path, JSON.stringify([{ preset: 'preset-standard', insert: [{ name: 'anonymous' }] }]))
     expect(children(applyProfilePatches([preset()], loadOverlayPatches('test', path))))
-      .toEqual([{ name: 'anonymous' }])
+      .toEqual([{ id: expect.any(String) as string, name: 'anonymous' }])
+  })
+
+  it('keeps anonymous scoped identities stable by file and position without naming ordinary anonymous rows', () => {
+    const dir = temp()
+    const file = join(dir, 'contribution.patch.yml')
+    const content = JSON.stringify([
+      { insert: [{ name: 'ordinary-anonymous' }] },
+      { preset: 'preset-standard', insert: [
+        { name: 'anonymous' },
+        { id: 'explicit', name: 'cordis:group', group: true, config: [{ name: 'nested-anonymous' }] },
+      ] },
+      { preset: 'preset-standard', insert: [{ name: 'anonymous' }] },
+    ])
+    writeFileSync(file, content)
+    const first = loadOverlayPatches('test', file)
+    const second = loadOverlayPatches('test', file)
+    expect(second).toEqual(first)
+    expect(first[0]?.insert?.[0]?.id).toBeUndefined()
+    expect(first[1]?.insert?.[1]?.id).toBe('explicit')
+    const nested = first[1]?.insert?.[1]?.config as EntryOptions[]
+    const ids = [first[1]?.insert?.[0]?.id, nested[0]?.id, first[2]?.insert?.[0]?.id]
+    expect(ids.every(id => typeof id === 'string' && id.length > 0)).toBe(true)
+    expect(new Set(ids).size).toBe(3)
+    const other = join(dir, 'other.patch.yml')
+    writeFileSync(other, content)
+    expect(loadOverlayPatches('test', other)[1]?.insert?.[0]?.id).not.toBe(ids[0])
+    expect(children(applyProfilePatches([preset()], first))).toEqual(children(applyProfilePatches([preset()], second)))
+    expect(Object.keys(first[1]!)).toEqual(['preset', 'insert'])
+  })
+
+  it.each([
+    { initial: [], insert: [] },
+    { initial: [preset()], insert: [{ id: 'group', name: 'cordis:group', group: true, config: [row('duplicate'), row('duplicate')] }] },
+    { initial: [{ ...preset(), config: null }], insert: [] },
+  ])('attributes scoped errors after cloning and flattening through composition, dumps, and boot', async ({ initial, insert }) => {
+    const dir = temp()
+    const path = join(dir, 'cordis.yml')
+    writeFileSync(path, JSON.stringify(initial))
+    const patchFile = join(dir, 'third-party.patch.yml')
+    writeFileSync(patchFile, JSON.stringify([{ preset: 'preset-standard', insert }]))
+    const patches = cloneProfilePatches(loadOverlayPatches('test', patchFile))
+    expect(() => composeEntries([[{ insert: initial }], patches])).toThrow(patchFile)
+    expect(() => renderConfigDump('test', path, [{ label: 'third-party', patches }])).toThrow(patchFile)
+    await expect(boot('test', path, patches)).rejects.toThrow(patchFile)
+  })
+
+  it('keeps anonymous rows from the initial preset beside newly inserted rows', () => {
+    const initial = load(JSON.stringify([{ ...preset(), config: { id: 'standard', plugins: [{ name: 'anonymous-base' }] } }])) as EntryOptions[]
+    expect(children(applyProfilePatches(initial, [{ preset: 'preset-standard', insert: [row('contributed')] }])))
+      .toEqual([{ name: 'anonymous-base' }, row('contributed')])
+  })
+
+  it('attributes errors from a caller warning sink to the loaded scoped operation', () => {
+    const path = join(temp(), 'warning.patch.yml')
+    writeFileSync(path, JSON.stringify([{ preset: 'preset-standard', id: 'absent', disabled: true }]))
+    expect(() => applyProfilePatches([preset()], loadOverlayPatches('test', path), () => { throw 'warning sink unavailable' }))
+      .toThrow(`warning sink unavailable in ${path}`)
   })
 
   it('attributes ordinary and scoped warnings to their own dump layers', () => {

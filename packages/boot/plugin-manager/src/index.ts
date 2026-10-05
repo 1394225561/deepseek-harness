@@ -8,7 +8,7 @@ import { withFileLock, writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { Context } from '@deepseek-ai/cordis'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import type { PluginInventorySnapshot } from '@deepseek-ai/dsh-host-plugin-inventory/types'
-import type {} from '@deepseek-ai/dsh-agent-preset-registry'
+import type { AgentPreset } from '@deepseek-ai/dsh-agent-preset-registry'
 import z from '@deepseek-ai/schemastery'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import { pluginEntryId, readPluginInventory } from '@deepseek-ai/dsh-host-plugin-inventory'
@@ -281,6 +281,7 @@ export class PluginManager extends TypertRemoteService {
   @Remote
   async listBundles(): Promise<BundleInfo[]> {
     const inventory = await readPluginInventory(this.ctx)
+    const definitions = await this.ctx.get('agentPresets')?.list() ?? []
     const manifest = readProfileManifest('dsh', this.profile.dir)
     const exemptions = readProfileVersionExemptions(this.profile.dir)
     const selected = manifest.dsh?.profile?.bundles ?? []
@@ -319,7 +320,7 @@ export class PluginManager extends TypertRemoteService {
           ...meta === undefined ? {} : { meta },
           ...sourceOf(info.name), enabled, installed, optional, removable: removable && readOnlyReason === undefined,
           ...(readOnlyReason === undefined ? {} : { readOnlyReason }),
-          ...this.declaredRows(name, info, inventory) })
+          ...this.declaredRows(name, info, inventory, definitions) })
       } catch (error) {
         if (enabled || installed) {
           bundles.push({ name, ...sourceOf(), enabled, installed, optional, removable: removable && readOnlyReason === undefined,
@@ -653,7 +654,7 @@ export class PluginManager extends TypertRemoteService {
   }
 
   /** The rows a bundle declares, joined by outer preset and child id where applicable. */
-  private declaredRows(name: string, info: ProfileManifest, inventory: PluginInventorySnapshot): Pick<BundleInfo, 'rows' | 'overrides'> {
+  private declaredRows(name: string, info: ProfileManifest, inventory: PluginInventorySnapshot, definitions: readonly AgentPreset[]): Pick<BundleInfo, 'rows' | 'overrides'> {
     const patches = this.bundlePatches(name, info)
     const dir = resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir)
     const entries = [...this.ctx.loader.entries()]
@@ -665,7 +666,7 @@ export class PluginManager extends TypertRemoteService {
       const active = matches.length === 1 ? matches[0] : undefined
       const base = active?.parent.tree.ctx.baseUrl ?? pathToFileURL(join(dir, 'package.json')).href
       const meta = packages?.metaOf(row.name, base)
-      const presetId = preset === undefined ? undefined : this.presetId(preset)
+      const presetId = preset === undefined ? undefined : definitions.find(item => item.definitionEntryId === preset)?.id
       const composition = inventory.agentPresets?.find(item => item.id === presetId)?.rows
         .find(item => item.entryId === row.id && item.moduleName === row.name)
       rows.push({ rowId: row.id, moduleName: row.name,
@@ -683,12 +684,6 @@ export class PluginManager extends TypertRemoteService {
     return { rows, overrides }
   }
 
-  /** Map an outer profile row to the preset identity registered by its current configuration. */
-  private presetId(outer: string): string | undefined {
-    const config = [...this.ctx.loader.entries()].find(entry => entry.options.id === outer)?.options.config as { id?: unknown } | undefined
-    return typeof config?.id === 'string' ? config.id : undefined
-  }
-
   /** Retained revisions still hold module code even after a bundle has been deselected. */
   private retainedBundleModules(name: string, declarations: readonly BundleDeclaration[]): boolean {
     const presets = this.ctx.get('agentPresets')
@@ -696,14 +691,24 @@ export class PluginManager extends TypertRemoteService {
     const manifest = join(resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir), 'package.json')
     const base = pathToFileURL(manifest).href
     const owner = realpathSync(manifest)
-    const moduleKey = (specifier: string, parentURL: string): string => specifier.startsWith('cordis:')
-      ? specifier : realpathSync(resolvePluginResource(specifier, parentURL))
+    const moduleKey = (specifier: string, parentURL: string): string | undefined => {
+      if (specifier.startsWith('cordis:')) return specifier
+      try { return realpathSync(resolvePluginResource(specifier, parentURL)) }
+      catch (error) {
+        // An externally removed module cannot match another resolved file; identical declarations remain protected below.
+        if (['ENOENT', 'ENOTDIR', 'ERR_MODULE_NOT_FOUND', 'ERR_PACKAGE_PATH_NOT_EXPORTED'].includes(String((error as NodeJS.ErrnoException).code))) return undefined
+        throw error
+      }
+    }
     return presets.inspectCompositions().some(composition => composition.modules.some((module) => {
       const moduleBase = module.baseUrl ?? base
       if (bundleModuleOwner(module.moduleName, moduleBase, this.ctx.get('pluginPackages')) === owner) return true
-      return module.useHostBase && declarations.some(({ row, preset }) => preset !== undefined
-        && preset === composition.definitionEntryId && row.id === module.entryId
-        && moduleKey(row.name, base) === moduleKey(module.moduleName, moduleBase))
+      return module.useHostBase && declarations.some(({ row, preset }) => {
+        if (preset === undefined || preset !== composition.definitionEntryId || row.id !== module.entryId) return false
+        const declared = moduleKey(row.name, base)
+        const retained = moduleKey(module.moduleName, moduleBase)
+        return declared === undefined || retained === undefined ? row.name === module.moduleName : declared === retained
+      })
     }))
   }
 
@@ -829,24 +834,28 @@ export class PluginManager extends TypertRemoteService {
   }
 
   /** Configuration identity distinguishes a changed failed preset from an unrelated pre-existing warning. */
-  private presetConfiguration(id: string): string {
+  private presetConfiguration(preset: AgentPreset): string {
     return JSON.stringify([...this.ctx.loader.entries()].flatMap((entry) => {
       const config = entry.options.config as { id?: unknown; plugins?: unknown } | undefined
-      return config?.id === id && Array.isArray(config.plugins) ? [config] : []
+      return entry.options.id === preset.definitionEntryId && config?.id === preset.id && Array.isArray(config.plugins) ? [config] : []
     }))
   }
 
   private async reload(requiredIds: readonly string[] = [], requiredPresets: readonly string[] = []): Promise<string[]> {
-    if (this.ownerContext.get('hmr') === undefined) return []
+    if (this.ownerContext.get('hmr') === undefined) {
+      composeEntries([readProfilePatches('dsh', this.profile)])
+      return []
+    }
     const presets = this.ctx.get('agentPresets')
     const before = new Map((await presets?.list() ?? []).map(row =>
-      [row.id, { broken: row.broken, config: this.presetConfiguration(row.id) }]))
+      [row.id, { broken: row.broken, config: this.presetConfiguration(row) }]))
     const warnings = await reconcileProfilePatches(this.ownerContext.root, readProfilePatches('dsh', this.profile), 'dsh', requiredIds)
-    const required = new Set([...requiredIds, ...requiredPresets].map(id => this.presetId(id)))
     const after = await this.ctx.get('agentPresets')?.list() ?? []
+    const required = new Set(after.filter(row => row.definitionEntryId !== undefined && requiredPresets.includes(row.definitionEntryId))
+      .map(row => row.id))
     const broken = after.filter(row => row.broken !== undefined)
     const failed = broken.filter(row => required.has(row.id) || before.get(row.id)?.broken !== row.broken
-      || before.get(row.id)?.config !== this.presetConfiguration(row.id))
+      || before.get(row.id)?.config !== this.presetConfiguration(row))
     if (failed.length > 0) throw new Error(failed.map(row => `agent preset ${row.id}: ${row.broken}`).join('\n'))
     return [...warnings, ...broken.map(row => `agent preset ${row.id}: ${row.broken}`)]
   }

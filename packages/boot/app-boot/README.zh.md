@@ -76,7 +76,7 @@ profile patch 可以将 `preset` 设为外层条目 id，把其余普通 patch �
   disabled: true
 ```
 
-`ProfilePatch` 在原生 patch 字段上增加 `preset`。`applyProfilePatches` 组合这些操作；`compileProfilePatches` 返回普通 Include patch。启动、profile 重载、有效配置 dump、schema 检查及兼容性预检共用此编译器。限定到 preset 的 `insert` 模块路径以声明它的 patch 所在目录为基准，包括嵌套分组；`!!js` 保持不求值，直至对应子条目激活。原生被 Include 引入文件的 patch 列表仍使用普通 Include 语法。
+`ProfilePatch` 在原生 patch 字段上增加 `preset`。`applyProfilePatches` 组合这些操作；`compileProfilePatches` 返回普通 Include patch。启动、profile 重载、有效配置 dump、schema 检查及兼容性预检共用此编译器。限定到 preset 的 `insert` 模块路径以声明它的 patch 所在目录为基准，包括嵌套分组；`!!js` 保持不求值，直至对应子条目激活。原生被 Include 引入文件的 patch 列表仍使用普通 Include 语法。 读取的作用域插入行若未声明 ID，会依据声明文件的规范路径及条目位置获得稳定的内部 ID，嵌套组内的行也如此；普通匿名根行保留 Loader 的既有行为。生成的 ID 用于在重载和保留代际之间识别贡献项，是实现细节，不是作者应在 patch 中引用的名称。编译失败会标明声明 patch 文件和操作序号，profile 层合并后也保留这些信息。
 
 挂载 profile 条目前，`dsh` launcher 会从安装依赖图与有序 bundle 依赖图计算一份不可变的 runtime resolution。普通 Node、打包可执行文件与 Electron Host 等所有 profile 启动器都使用 runtime 解析，将 runtime resolution 安装到 Node 的 ESM 与 CommonJS 解析器中，不创建 fallback 链接。
 

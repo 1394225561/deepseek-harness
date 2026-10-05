@@ -25,7 +25,7 @@ export {
   setProfileVersionExemption, type ProfileCompatibility,
 } from './profile-compatibility.ts'
 import { prepareProfilePatches } from './compatibility-preflight.ts'
-import { applyProfilePatches, compileProfilePatches, profilePatchPreset, type ProfilePatch } from './profile-patches.ts'
+import { applyProfilePatches, compileProfilePatches, profilePatchPreset, prepareLoadedProfilePatches, type ProfilePatch } from './profile-patches.ts'
 export { applyProfilePatches, compileProfilePatches, profilePatchPreset, type ProfilePatch, type ProfilePatchWarning } from './profile-patches.ts'
 export { prepareProfileEntries, prepareProfilePatches } from './compatibility-preflight.ts'
 export { readPluginMeta, resolvePluginResource } from './package-meta.ts'
@@ -386,7 +386,6 @@ function anchorInsertedPluginNames(patches: ProfilePatch[], file: string): Profi
     }
   }
   for (const patch of patches) {
-    profilePatchPreset(patch)
     patch.insert?.forEach(visit)
   }
   return patches
@@ -421,7 +420,7 @@ function parsePatchList(
       throw new Error(`${binName}: ${label} entry ${index + 1} in ${file} must be a mapping (a loader patch entry)`)
     }
   })
-  return anchorInsertedPluginNames(parsed as ProfilePatch[], file)
+  return anchorInsertedPluginNames(prepareLoadedProfilePatches(parsed as ProfilePatch[], file, binName), file)
 }
 
 /** One overlay patch list with the source label printed in dump comments. */

@@ -176,13 +176,15 @@ export class AgentPresetRegistry extends TypertRemoteService {
   }
 
   /** Read every declared preset, including activation failures.
-   * @returns Display metadata and loading diagnostics.
+   * @returns Display metadata, declaring Loader row identities, and loading diagnostics.
    */
   async list(): Promise<AgentPreset[]> {
     const rows = await Promise.all([...this.definitions.values()].map(async (record) => {
       const broken = await this.diagnostic(record)
+      const definitionEntryId = record.context.fiber.entry?.options.id
       return {
         id: record.config.id,
+        ...definitionEntryId === undefined ? {} : { definitionEntryId },
         ...(record.config.name === undefined ? {} : { name: record.config.name }),
         ...(record.config.description === undefined ? {} : { description: record.config.description }),
         ...(record.config.order === undefined ? {} : { order: record.config.order }),
@@ -198,7 +200,7 @@ export class AgentPresetRegistry extends TypertRemoteService {
   @Remote('list')
   async remoteExportList(): Promise<AgentPresetRoster> {
     const defaultId = this.defaultId
-    return { presets: (await this.list()).map(row => ({ ...row, isDefault: row.id === defaultId })) }
+    return { presets: (await this.list()).map(({ definitionEntryId: _entryId, ...row }) => ({ ...row, isDefault: row.id === defaultId })) }
   }
 
   /** Resolve an identity without starting an Agent.

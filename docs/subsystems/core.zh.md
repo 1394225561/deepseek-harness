@@ -512,7 +512,7 @@ async register(definition: PresetDefinition): Promise<() => Promise<void>>
 inspectCompositions(ctx?: Context): AgentPresetInspection[]
 
 /** Read every declared preset, including activation failures.
- * @returns Display metadata and loading diagnostics.
+ * @returns Display metadata, declaring Loader row identities, and loading diagnostics.
  */
 async list(): Promise<AgentPreset[]>
 

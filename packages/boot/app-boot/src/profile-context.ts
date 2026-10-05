@@ -2,7 +2,7 @@
 import { join } from 'node:path'
 import { composeEntries, loadProfileDirectory, PROFILE_PATCH_FILENAME, type Profile } from './profile.ts'
 import { loadOptionalPatches } from './index.ts'
-import type { ProfilePatch } from './profile-patches.ts'
+import { cloneProfilePatches, type ProfilePatch } from './profile-patches.ts'
 
 /** Application-owned package manager executable; environment applies only to package operations. */
 export interface ProfilePnpmInvocation {
@@ -62,7 +62,7 @@ export function resolveTelemetryPatch(disabledEnv: string | undefined, hasRow: b
  */
 export function readProfilePatches(binName: string, context: ProfileContext, initialProfile?: Profile): ProfilePatch[] {
   const profile = initialProfile ?? loadProfileDirectory(binName, context.dir, context.installAnchor, { userLayer: false })
-  const patches = structuredClone([
+  const patches = cloneProfilePatches([
     ...profile.layers.flatMap(layer => layer.patches),
     ...(initialProfile?.patches ?? loadOptionalPatches(binName, context.patchPath) ?? []),
     ...(loadOptionalPatches(binName, join(context.home, PROFILE_PATCH_FILENAME)) ?? []),
