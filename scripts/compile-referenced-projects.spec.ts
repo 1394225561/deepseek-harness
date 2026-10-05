@@ -85,7 +85,7 @@ describe('internal artifact build order', () => {
       `require('node:fs').writeFileSync(${JSON.stringify(marker)}, process.env.DSH_CLIENT_TITLE)`,
     ])})`
     const result = spawnSync(process.execPath, [
-      '--import', fileURLToPath(import.meta.resolve('tsx/esm')),
+      '--import', import.meta.resolve('tsx/esm'),
       '--input-type=module', '-e', code,
     ], { cwd: root, env: environment, encoding: 'utf8' })
 
