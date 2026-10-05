@@ -34,6 +34,29 @@ function messageText(harness: BridgeHarness): string {
   )).join('')
 }
 
+async function installDelegationTool(ctx: BridgeHarness['ctx']): Promise<() => boolean> {
+  await ctx.plugin(SubagentRuntime)
+  ctx.subagents.registerProvider({
+    name: 'local-test', capabilities: NO_START_CAPABILITIES, inheritsParentContext: false,
+    prepareContinuable: () => Promise.resolve({}),
+  })
+  let delegated = false
+  ctx.tools.register(defineContentToolFixture({
+    name: 'delegate_again', description: 'Run a later child.', parameters: {},
+    execute: async (_args, exec) => {
+      if (exec.agent === undefined) throw new Error('delegation fixture requires an Agent')
+      const child = await ctx.subagents.startActivation({
+        provider: 'local-test', label: 'later child', delivery: 'caller', signal: exec.signal,
+        request: { parent: exec.agent, prompt: [{ type: 'text', text: 'later child task' }] },
+      })
+      const result = await child.result
+      delegated = result.stopReason === 'completed'
+      return [...result.output]
+    },
+  }))
+  return () => delegated
+}
+
 describe('ACP prompt lifecycle', () => {
   let harness: BridgeHarness | undefined
 
@@ -586,24 +609,7 @@ describe('ACP prompt lifecycle', () => {
       textResponse('later child answer'), textResponse('later parent answer'),
     ] })
     const ctx = harness.ctx
-    await ctx.plugin(SubagentRuntime)
-    ctx.subagents.registerProvider({
-      name: 'local-test', capabilities: NO_START_CAPABILITIES, inheritsParentContext: false,
-      prepareContinuable: () => Promise.resolve({}),
-    })
-    let delegated = false
-    ctx.tools.register(defineContentToolFixture({
-      name: 'delegate_again', description: 'Run a later child.', parameters: {},
-      execute: async (_args, exec) => {
-        const child = await ctx.subagents.startActivation({
-          provider: 'local-test', label: 'later child', delivery: 'caller', signal: exec.signal,
-          request: { parent: exec.agent, prompt: [{ type: 'text', text: 'later child task' }] },
-        })
-        const result = await child.result
-        delegated = result.stopReason === 'completed'
-        return [...result.output]
-      },
-    }))
+    const delegated = await installDelegationTool(ctx)
     const sessionId = await newSession(harness)
     const parent = ctx.agents.get(SessionId(sessionId))!
     const waiting = Promise.withResolvers<undefined>()
@@ -647,7 +653,7 @@ describe('ACP prompt lifecycle', () => {
       await parent.whenIdle()
       await expect(harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'delegate again' }] }))
         .resolves.toEqual({ stopReason: 'end_turn' })
-      expect(delegated).toBe(true)
+      expect(delegated()).toBe(true)
       expect(messageText(harness)).toContain('later parent answer')
     } finally {
       releaseLate.resolve(undefined)
@@ -687,6 +693,66 @@ describe('ACP prompt lifecycle', () => {
     if (fail) await expect(prompt).rejects.toThrow('assistant output delivery failed')
     else await expect(prompt).resolves.toEqual({ stopReason: 'end_turn' })
     await observed
+  })
+
+  it('includes root work started during output draining and permits the next prompt to delegate', async () => {
+    const script: StreamChunk[][] = []
+    harness = await makeBridgeHarness({ script })
+    const ctx = harness.ctx
+    const delegated = await installDelegationTool(ctx)
+    const ref = await harness.attachments!.saveImage({ data: Uint8Array.of(5), mediaType: 'image/png' })
+    script.push([
+      { type: 'block-start', index: 0, blockType: 'image' },
+      { type: 'block-end', index: 0, block: { type: 'image', attachment: ref } },
+      { type: 'finish', reason: { kind: 'stop' } },
+    ], textResponse('late autonomous answer'), toolCallResponse('delegate-again', 'delegate_again', {}),
+    textResponse('later child answer'), textResponse('later parent answer'))
+    const reading = Promise.withResolvers<undefined>()
+    const releaseImage = Promise.withResolvers<undefined>()
+    harness.attachments!.beforeRead = () => {
+      reading.resolve(undefined)
+      return releaseImage.promise
+    }
+    const sessionId = await newSession(harness)
+    const parent = ctx.agents.get(SessionId(sessionId))!
+    const noChildren = Promise.withResolvers<undefined>()
+    vi.spyOn(ctx.subagents, 'waitForChildren').mockImplementationOnce(() => {
+      noChildren.resolve(undefined)
+      return Promise.resolve(false)
+    })
+    const lateStarted = Promise.withResolvers<undefined>()
+    const releaseLate = Promise.withResolvers<undefined>()
+    const stream = harness.adapter.stream.bind(harness.adapter)
+    vi.spyOn(harness.adapter, 'stream').mockImplementation(async function* (options) {
+      if (options.messages.at(-1)?.content.some(block => block.type === 'text' && block.text === 'late autonomous turn')) {
+        lateStarted.resolve(undefined)
+        await releaseLate.promise
+      }
+      yield* stream(options)
+    })
+    let result: { stopReason: string } | undefined
+    const first = harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'render image' }] })
+      .then((value) => { result = value; return value })
+    try {
+      await Promise.all([reading.promise, noChildren.promise])
+      await setImmediate()
+      parent.followup(createUserMessage({ content: [{ type: 'text', text: 'late autonomous turn' }], source: { kind: 'test' } }))
+      await lateStarted.promise
+      releaseImage.resolve(undefined)
+      await setImmediate()
+      expect(result).toBeUndefined()
+      expect(parent.status).toBe('running')
+      releaseLate.resolve(undefined)
+      await expect(first).resolves.toEqual({ stopReason: 'end_turn' })
+      expect(messageText(harness)).toContain('late autonomous answer')
+      await expect(harness.client.prompt({ sessionId, prompt: [{ type: 'text', text: 'delegate again' }] }))
+        .resolves.toEqual({ stopReason: 'end_turn' })
+      expect(delegated()).toBe(true)
+    } finally {
+      releaseImage.resolve(undefined)
+      releaseLate.resolve(undefined)
+      await first
+    }
   })
 
   it('a failed turn with no retry still rejects', async () => {

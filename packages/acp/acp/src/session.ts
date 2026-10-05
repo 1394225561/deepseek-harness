@@ -496,21 +496,25 @@ export class AcpSession {
         const signal = inflight.admissionController.signal
         const cancelled = Promise.withResolvers<false>()
         const onAbort = (): void => { cancelled.resolve(false) }
+        const isCancelled = (): boolean => inflight.cancelRequested
+        const idleAt = (seq: Session['seq']): boolean => this.agent.status === 'idle' && this.agent.session.seq === seq
         signal.addEventListener('abort', onAbort, { once: true })
         if (signal.aborted) onAbort()
         try {
           while (true) {
             await this.agent.whenIdle()
-            if (inflight.cancelRequested) break
+            if (isCancelled()) break
             const idleSeq = this.agent.session.seq
             const children = await Promise.race([subagents?.waitForChildren(this.agent), cancelled.promise])
-            if (inflight.cancelRequested) break
-            if (!children && this.agent.status === 'idle' && this.agent.session.seq === idleSeq) break
+            if (isCancelled()) break
+            if (children || !idleAt(idleSeq)) continue
+            await this.outputTail
+            if (isCancelled() || idleAt(idleSeq)) break
           }
         } finally {
           signal.removeEventListener('abort', onAbort)
         }
-        await this.outputTail
+        if (inflight.cancelRequested) await this.outputTail
       }
       /* v8 ignore next -- this prompt owns the slot until this exact settlement clears it. */
       if (this.inflight !== inflight) return
