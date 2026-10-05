@@ -77,7 +77,13 @@ beforeEach(() => {
 })
 
 afterEach(async () => {
-  await Promise.all(openWatchers.splice(0).map(async (watcher) => { await watcher.close() }))
+  const closing = openWatchers.splice(0).map(async (watcher) => { await watcher.close() })
+  // A timed-out test or pending close must not retain its fake clock.
+  if (vi.isFakeTimers()) {
+    vi.clearAllTimers()
+    vi.useRealTimers()
+  }
+  await Promise.all(closing)
 })
 
 /** Await one emitter event while rejecting hangs deterministically. */
@@ -180,35 +186,33 @@ describe.each(CHOKIDAR_FIXTURES)('$label running unchanged', (fixture) => {
   })
 
   it('waits for a write burst to stabilize before publishing one add', async () => {
+    const path = `${ROOT}/settling.md`
+    const watcher = watchPath(ROOT, {
+      awaitWriteFinish: { stabilityThreshold: 30, pollInterval: 5 },
+    })
+    await onceEvent(watcher, 'ready')
     vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] })
-    try {
-      const path = `${ROOT}/settling.md`
-      const watcher = watchPath(ROOT, {
-        awaitWriteFinish: { stabilityThreshold: 30, pollInterval: 5 },
+    const events: { event: string; path: string; contents?: string | Uint8Array }[] = []
+    watcher.on('all', (event, eventPath) => {
+      events.push({
+        event, path: eventPath,
+        ...event === 'add' || event === 'change' ? { contents: vfs.readFileSync(eventPath, 'utf8') } : {},
       })
-      try {
-        await onceEvent(watcher, 'ready')
-        const events: { event: string; path: string; contents: string | Uint8Array }[] = []
-        watcher.on('all', (event, path) => { events.push({ event, path, contents: vfs.readFileSync(path, 'utf8') }) })
-        vfs.writeFileSync(path, 'a')
-        await vi.advanceTimersByTimeAsync(0)
-        await vi.advanceTimersByTimeAsync(10)
-        vfs.appendFileSync(path, 'b')
-        await vi.advanceTimersByTimeAsync(10)
-        vfs.appendFileSync(path, 'c')
-        // The next poll observes the final size and starts its stability window.
-        await vi.advanceTimersByTimeAsync(5)
-        await vi.advanceTimersByTimeAsync(29)
-        expect(events).toEqual([])
-        await vi.advanceTimersByTimeAsync(1)
-        expect(events).toEqual([{ event: 'add', path, contents: 'abc' }])
-        await vi.advanceTimersByTimeAsync(30)
-        expect(events).toEqual([{ event: 'add', path, contents: 'abc' }])
-      } finally { await watcher.close() }
-    } finally {
-      vi.clearAllTimers()
-      vi.useRealTimers()
-    }
+    })
+    vfs.writeFileSync(path, 'a')
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(10)
+    vfs.appendFileSync(path, 'b')
+    await vi.advanceTimersByTimeAsync(10)
+    vfs.appendFileSync(path, 'c')
+    // The next poll observes the final size and starts its stability window.
+    await vi.advanceTimersByTimeAsync(5)
+    await vi.advanceTimersByTimeAsync(29)
+    expect(events).toEqual([])
+    await vi.advanceTimersByTimeAsync(1)
+    expect(events).toEqual([{ event: 'add', path, contents: 'abc' }])
+    await vi.advanceTimersByTimeAsync(30)
+    expect(events).toEqual([{ event: 'add', path, contents: 'abc' }])
   })
 
   it('emits nothing after close has reached quiescence', async () => {
