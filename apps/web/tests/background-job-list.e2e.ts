@@ -135,6 +135,33 @@ describe.skipIf(MODE === 'record')('web e2e: background job list', () => {
     expect(tripwire.warnings).toEqual([])
   }, 90_000)
 
+  it('keeps the open list above the expanded right sidebar', async () => {
+    onTestFailed(() => saveFailureShot(page, 'web-e2e-background-job-right-sidebar'))
+    const trigger = page.getByRole('button', { name: '1 background job', exact: true })
+    if (await trigger.getAttribute('aria-expanded') === 'true') await trigger.click()
+    await page.getByRole('button', { name: 'Open right sidebar' }).click()
+    const sidebar = page.locator('[class*="rightbarCol"]')
+    await expect.poll(async () => (await sidebar.boundingBox())?.width ?? 0).toBeGreaterThan(100)
+    await trigger.click()
+    const list = page.getByRole('list', { name: 'Background jobs' })
+    await list.waitFor({ timeout: 10_000 })
+    // The list crosses into the sidebar column, so the hit test below covers it.
+    const [menuBox, sidebarBox] = await Promise.all([list.boundingBox(), sidebar.boundingBox()])
+    if (menuBox === null || sidebarBox === null) throw new Error('job list geometry is unavailable')
+    expect(menuBox.x + menuBox.width).toBeGreaterThan(sidebarBox.x)
+    // Every corner of the list hit-tests to the list itself.
+    const covered = await list.evaluate((menu) => {
+      const rect = menu.getBoundingClientRect()
+      const inset = 4
+      const points: Array<[number, number]> = [
+        [rect.left + inset, rect.top + inset], [rect.right - inset, rect.top + inset],
+        [rect.left + inset, rect.bottom - inset], [rect.right - inset, rect.bottom - inset],
+      ]
+      return points.filter(([x, y]) => !menu.contains(document.elementFromPoint(x, y)))
+    })
+    expect(covered).toEqual([])
+  }, 60_000)
+
   it('keeps its snapshot inventory closed', async () => {
     await assertFixtureInventory(SNAPSHOT_DIR, ['running.expected.md', 'settled.expected.md'])
   })

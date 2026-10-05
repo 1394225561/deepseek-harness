@@ -38,11 +38,11 @@
   margin: 0 5px;
 }
 
+/* Portaled and fixed in the viewport with coordinates supplied inline from the
+   trigger rect; the z-index matches the Menu primitive's portaled lists. */
 .menu {
-  position: absolute;
-  top: calc(100% + 5px);
-  left: 0;
-  z-index: 100;
+  position: fixed;
+  z-index: 1100;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
