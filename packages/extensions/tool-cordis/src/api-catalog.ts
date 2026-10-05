@@ -145,7 +145,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         signature: 'inspectCompositions(ctx?: Context): AgentPresetInspection[]',
         description: 'Inspect retained revisions, or the exact revision an Agent joined.',
         parameters: [{ name: 'ctx', description: 'optional Agent context; omission includes all retained revisions.' }],
-        returns: 'detached module references and isolation diagnostics; no match returns an empty list.',
+        returns: 'detached definition and module row identities, resolution bases, and isolation diagnostics; no match returns an empty list.',
       },
       {
         signature: 'async list(): Promise<AgentPreset[]>',
@@ -4614,7 +4614,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'AgentPresetInspection',
-    declaration: 'export interface AgentPresetInspection {\n    readonly id: string;\n    readonly modules: readonly {\n        readonly moduleName: string;\n        readonly baseUrl?: string;\n        readonly useHostBase: boolean;\n    }[];\n    readonly leakedServices: readonly string[];\n}',
+    declaration: 'export interface AgentPresetInspection {\n    readonly id: string;\n    readonly definitionEntryId?: string;\n    readonly modules: readonly {\n        readonly moduleName: string;\n        readonly entryId: string;\n        readonly baseUrl?: string;\n        readonly useHostBase: boolean;\n    }[];\n    readonly leakedServices: readonly string[];\n}',
   },
   {
     name: 'AgentPresetPluginRow',

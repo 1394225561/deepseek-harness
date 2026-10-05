@@ -64,7 +64,7 @@ function assertPackageOwned(file: string, name: string): void {
 
 /**
  * Resolve a plugin resource through the active Node ESM resolver without evaluating it.
- * @param specifier - complete resource module specifier, including its locale filename.
+ * @param specifier - plugin module or exported resource specifier.
  * @param parentURL - owning module-resolution base.
  * @returns the local filesystem path selected by Node and the active profile.
  * @throws when the resolver is unavailable or the resource cannot resolve to a local file.

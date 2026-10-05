@@ -1,6 +1,6 @@
 /** Current-profile plugin and bundle management over shared dsh plugin operations. */
 import { randomUUID } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { readFile, rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -13,7 +13,7 @@ import z from '@deepseek-ai/schemastery'
 import { TypertRemoteService, Remote } from '@deepseek-ai/dsh-typert-protocol'
 import { pluginEntryId, readPluginInventory } from '@deepseek-ai/dsh-host-plugin-inventory'
 import {
-  readPluginMeta, readProfileManifest, resolveBundleDir, loadOverlayPatches, composeEntries,
+  readPluginMeta, resolvePluginResource, readProfileManifest, resolveBundleDir, loadOverlayPatches, composeEntries,
   reconcileProfilePatches, readProfilePatches, OPTIONAL_BUNDLES, bundlePatchPaths,
   evaluatePluginCompatibility, readProfileCompatibility, readProfileVersionExemptions,
   setProfileVersionExemption, PROFILE_COMPATIBILITY_FILENAME, profilePatchPreset, type ProfilePatch,
@@ -693,15 +693,17 @@ export class PluginManager extends TypertRemoteService {
   private retainedBundleModules(name: string, declarations: readonly BundleDeclaration[]): boolean {
     const presets = this.ctx.get('agentPresets')
     if (presets === undefined || declarations.length === 0) return false
-    const base = pathToFileURL(join(resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir), 'package.json')).href
-    const owners = new Set(declarations.flatMap(({ row }) => {
-      const owner = bundleModuleOwner(row.name, base, this.ctx.get('pluginPackages'))
-      return owner === undefined ? [] : [owner]
-    }))
+    const manifest = join(resolveBundleDir('dsh', name, this.profile.installAnchor, this.profile.dir), 'package.json')
+    const base = pathToFileURL(manifest).href
+    const owner = realpathSync(manifest)
+    const moduleKey = (specifier: string, parentURL: string): string => specifier.startsWith('cordis:')
+      ? specifier : realpathSync(resolvePluginResource(specifier, parentURL))
     return presets.inspectCompositions().some(composition => composition.modules.some((module) => {
-      const owner = bundleModuleOwner(module.moduleName, module.baseUrl ?? base, this.ctx.get('pluginPackages'))
-      if (owner !== undefined && owners.size > 0) return owners.has(owner)
-      return declarations.some(({ row }) => row.name === module.moduleName)
+      const moduleBase = module.baseUrl ?? base
+      if (bundleModuleOwner(module.moduleName, moduleBase, this.ctx.get('pluginPackages')) === owner) return true
+      return module.useHostBase && declarations.some(({ row, preset }) => preset !== undefined
+        && preset === composition.definitionEntryId && row.id === module.entryId
+        && moduleKey(row.name, base) === moduleKey(module.moduleName, moduleBase))
     }))
   }
 

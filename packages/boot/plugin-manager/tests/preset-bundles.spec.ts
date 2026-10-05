@@ -205,6 +205,52 @@ it('refuses Remove after Off while an old Agent scope retains the bundle, then r
   expect(remove).toHaveBeenCalledOnce()
 })
 
+it('removes a released contribution while base presets keep using the same shared module', async () => {
+  const { manager, ctx, dir, addon, bundle } = await fixture()
+  const shared = join(dir, 'node_modules', 'shared-fixture')
+  mkdirSync(shared)
+  writeFileSync(join(shared, 'package.json'), JSON.stringify({ name: 'shared-fixture', version: '1.0.0', type: 'module', exports: './index.mjs' }))
+  writeFileSync(join(shared, 'index.mjs'), 'export function apply() {}\n')
+  const core = join(dir, 'node_modules', 'core')
+  const corePatches = JSON.parse(readFileSync(join(core, 'cordis.patch.yml'), 'utf8')) as ProfilePatch[]
+  for (const row of corePatches[0]!.insert!) {
+    if (row.id === 'preset-standard') row.config = { id: 'standard', plugins: [{ id: 'base-shared', name: 'shared-fixture' }] }
+    if (row.id === 'preset-cordis') row.config = { id: 'cordis', plugins: [{ id: 'addon-shared', name: 'shared-fixture' }] }
+  }
+  writeFileSync(join(core, 'cordis.patch.yml'), JSON.stringify(corePatches))
+  bundle('addon', [{ preset: 'preset-standard', insert: [{ id: 'addon-shared', name: 'shared-fixture' }] }])
+  for (const packageDir of [core, addon]) {
+    const manifest = readProfileManifest('test', packageDir)
+    manifest.dependencies = { 'shared-fixture': '1.0.0' }
+    writeFileSync(join(packageDir, 'package.json'), JSON.stringify(manifest))
+  }
+  expect(await manager.setBundleEnabled('addon', true)).toMatchObject({ application: 'applied' })
+  const owner = createScope(ctx, {})
+  onTestFinished(() => owner.dispose())
+  await ctx.agentPresets.mount(owner.ctx, 'standard')
+  expect(await manager.setBundleEnabled('addon', false)).toMatchObject({ application: 'applied' })
+  expect(ctx.agentPresets.inspectCompositions(owner.ctx)).toMatchObject([{
+    id: 'standard', definitionEntryId: 'preset-standard', modules: [
+      { entryId: 'base-shared', moduleName: 'shared-fixture' },
+      { entryId: 'addon-shared', moduleName: 'shared-fixture' },
+    ],
+  }])
+  const remove = vi.spyOn(operations, 'runProfilePnpm').mockImplementation(async () => {
+    const manifest = readProfileManifest('test', dir)
+    delete manifest.dependencies?.addon
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+    return { exitCode: 0, output: '', truncated: false, logPath: join(dir, 'remove.log') }
+  })
+  onTestFinished(() => { remove.mockRestore() })
+  expect(await manager.removeBundle('addon')).toMatchObject({ application: 'failed', error: { code: 'bundle-in-use' } })
+  expect(remove).not.toHaveBeenCalled()
+  await owner.dispose()
+  expect(ctx.agentPresets.inspectCompositions().flatMap(preset => preset.modules).map(module => module.moduleName))
+    .toEqual(['shared-fixture', 'shared-fixture'])
+  expect(await manager.removeBundle('addon')).toMatchObject({ application: 'applied', changed: true })
+  expect(remove).toHaveBeenCalledOnce()
+})
+
 it('retains contributed builtin rows even when no package owns their module names', async () => {
   const { manager, ctx, bundle } = await fixture()
   ctx.loader.builtins['retained-fixture'] = { apply() {} }

@@ -497,7 +497,7 @@ async register(definition: PresetDefinition): Promise<() => Promise<void>>
 
 /** Inspect retained revisions, or the exact revision an Agent joined.
  * @param ctx - optional Agent context; omission includes all retained revisions.
- * @returns detached module references and isolation diagnostics; no match returns an empty list.
+ * @returns detached definition and module row identities, resolution bases, and isolation diagnostics; no match returns an empty list.
  */
 inspectCompositions(ctx?: Context): AgentPresetInspection[]
 
