@@ -67,7 +67,7 @@ describe('worktree tool through real Loader composition', () => {
       ['@deepseek-ai/dsh-agent-loop', AgentLoop],
     ])
     const config = [...modules.keys()].flatMap(name => [
-      `- name: '${name}'`,
+      `- name: 'cordis:${name}'`,
       ...name === '@deepseek-ai/dsh-sandbox-policy' ? ['  config:', '    mode: danger-full-access'] : [],
       ...name === '@deepseek-ai/dsh-agent-loop' ? ['  config:', '    agents: []'] : [],
     ]).join('\n') + '\n'
@@ -77,13 +77,7 @@ describe('worktree tool through real Loader composition', () => {
     context.baseUrl = pathToFileURL(root).href + '/'
     await context.plugin(Loader)
     context.loader.builtins.include = Include
-    context.loader.internal = {
-      version: 'v2',
-      async import(specifier: string) {
-        if (!modules.has(specifier)) throw new Error(`unexpected Loader import: ${specifier}`)
-        return modules.get(specifier)
-      },
-    } as unknown as NonNullable<typeof context.loader.internal>
+    for (const [specifier, plugin] of modules) context.loader.builtins[specifier] = plugin
     await context.loader.create({ name: 'cordis:include', config: { path: pathToFileURL(configPath).href } })
     await context.loader.await()
 
@@ -105,7 +99,7 @@ describe('worktree tool through real Loader composition', () => {
     expect(failure.isError).toBe(true)
     expect(failure.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('\n')).toContain('requires a calling agent')
     expect(context.tools.get('create_worktree')!.presentCall!({ name: 'named' })).toEqual({ card: 'generic', title: 'create_worktree', rawInput: { name: 'named' } })
-    const entry = [...context.loader.entries()].find(candidate => candidate.options.name === '@deepseek-ai/dsh-experimental-tool-worktree')
+    const entry = [...context.loader.entries()].find(candidate => candidate.options.name === 'cordis:@deepseek-ai/dsh-experimental-tool-worktree')
     await entry!.fiber!.dispose()
     expect(context.tools.schemas().some(tool => tool.name === 'create_worktree')).toBe(false)
   })
