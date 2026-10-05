@@ -772,6 +772,85 @@ describe('agent loop', () => {
       message.role === 'user' && message.source?.kind === 'runtime-context')).toBe(true)
   })
 
+  it.each(['before', 'after'] as const)('reconciles runtime context replaced %s the pre-step fallback', async (timing) => {
+    const adapter = new MockAdapter([textResponse('one'), textResponse('two')])
+    const ctx = await harness(adapter)
+    try {
+      ctx.systemPrompt.context({ name: 'directory', order: 0, required: true, text: 'Current working directory: /workspace.' })
+      const agent = await ctx.agentLoop.create(SessionId(`runtime-context-pre-step-${timing}`), { provider: 'mock', model: 'mock' })
+      send(agent, 'first')
+      await agent.whenIdle()
+      const retained = agent.session.snapshotEvents().find(event => event.type === 'user/message' && event.data.source.kind === 'runtime-context')
+      if (retained === undefined) throw new Error('missing initial runtime context')
+      const replace = (): void => {
+        agent.session.append('user/message', createUserMessage({
+          content: [{ type: 'text', text: 'compacted summary' }], source: { kind: 'test-compaction' },
+        }), {
+          surfaceOp: { op: 'replace', startSeq: retained.seq, endSeq: retained.seq }, sourceEventSeqs: [retained.seq],
+        })
+      }
+      ctx.on('agent/pre-step', async (_payload, next) => {
+        if (timing === 'before') replace()
+        const decision = await next()
+        if (timing === 'after') replace()
+        return decision
+      })
+      send(agent, 'second')
+      await agent.whenIdle()
+      const snapshots = agent.session.snapshotEvents().filter(event => event.type === 'user/message' && event.data.source.kind === 'runtime-context')
+      expect(snapshots).toHaveLength(2)
+      expect(adapter.requests[1]?.messages.some(message => message.role === 'user' && message.source?.kind === 'runtime-context'
+        && message.content.some(block => block.type === 'text' && block.text.includes('/workspace')))).toBe(true)
+      expect(agent.session.snapshotEvents().filter(event => event.type === 'user/message' && event.data.source.kind === 'user')).toHaveLength(2)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('restores runtime context during a retry without admitting the user batch twice', async () => {
+    const adapter = new MockAdapter([textResponse('one'), () => { throw new LlmError('overflow', 'CONTEXT_LENGTH') }, textResponse('two')])
+    const ctx = await harness(adapter)
+    try {
+      ctx.systemPrompt.context({ name: 'directory', order: 0, required: true, text: 'Current working directory: /workspace.' })
+      const agent = await ctx.agentLoop.create(SessionId('runtime-context-retry'), { provider: 'mock', model: 'mock' })
+      send(agent, 'first')
+      await agent.whenIdle()
+      ctx.on('agent/request-error', () => {
+        const retained = agent.session.snapshotEvents().findLast(event => event.type === 'user/message' && event.data.source.kind === 'runtime-context')
+        if (retained === undefined) throw new Error('missing retained context')
+        agent.session.append('user/message', createUserMessage({
+          content: [{ type: 'text', text: 'compacted checkpoint' }], source: { kind: 'test-compaction' },
+        }), { surfaceOp: { op: 'replace', startSeq: retained.seq, endSeq: retained.seq }, sourceEventSeqs: [retained.seq] })
+        return Promise.resolve({ kind: 'retry' as const })
+      })
+      send(agent, 'second')
+      await agent.whenIdle()
+      expect(adapter.requests).toHaveLength(3)
+      expect(adapter.requests[2]?.messages.some(message => message.role === 'user' && message.source?.kind === 'runtime-context')).toBe(true)
+      expect(agent.session.snapshotEvents().filter(event => event.type === 'user/message' && event.data.source.kind === 'runtime-context')).toHaveLength(2)
+      expect(agent.session.snapshotEvents().filter(event => event.type === 'user/message' && event.data.source.kind === 'user')).toHaveLength(2)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it.each(['reject', 'empty'] as const)('does not commit required runtime context after a pre-step %s decision', async (decision) => {
+    const adapter = new MockAdapter([])
+    const ctx = await harness(adapter)
+    try {
+      ctx.systemPrompt.context({ name: 'directory', order: 0, required: true, text: 'Current working directory: /workspace.' })
+      const agent = await ctx.agentLoop.create(SessionId(`runtime-context-${decision}`), { provider: 'mock', model: 'mock' })
+      ctx.on('agent/pre-step', async () => decision === 'reject' ? { kind: 'reject' as const } : { kind: 'enter' as const, messages: [] })
+      send(agent, 'do not admit')
+      await agent.whenIdle()
+      expect(adapter.requests).toHaveLength(0)
+      expect(agent.session.snapshotEvents().filter(event => event.type === 'user/message')).toHaveLength(0)
+      expect(agent.session.snapshotEvents().filter(event => event.type === 'step/start')).toHaveLength(0)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('clears compacted runtime context after the active set becomes empty', async () => {
     const adapter = new MockAdapter([textResponse('one'), textResponse('two')])
     const ctx = await harness(adapter)
