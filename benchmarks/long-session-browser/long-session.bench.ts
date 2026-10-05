@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { chromium, type Page, type CDPSession, type Locator } from 'playwright'
-import { expect, it } from 'vitest'
+import { expect, it, vi } from 'vitest'
 import { launchWebScaffold, seedSession, watchConsole, webSnapshotMode } from '../../apps/web/tests/scaffold.ts'
 import { newEnglishPage } from '../../apps/web/tests/support.ts'
 import { ciTimeBudget, PERFORMANCE_BUDGET_HEADROOM } from '../support/calibration.ts'
@@ -31,6 +31,20 @@ async function measure(page: Page, action: () => Promise<void>): Promise<number>
   await action()
   await painted(page)
   return performance.now() - start
+}
+
+/** Time one trusted paging action after resolving its unique button. */
+async function measureOlderPage(page: Page, previous: number): Promise<number> {
+  const buttons = await page.getByRole('button', { name: 'Load earlier', exact: true }).elementHandles()
+  try {
+    expect(buttons).toHaveLength(1)
+    return await measure(page, async () => {
+      await buttons[0]!.click()
+      await page.waitForFunction(({ selector, previous }) => document.querySelectorAll(selector).length > previous, { selector: TAIL, previous })
+    })
+  } finally {
+    await Promise.all(buttons.map(button => button.dispose()))
+  }
 }
 
 async function taskMs(cdp: CDPSession): Promise<number> {
@@ -155,6 +169,109 @@ it('waits for visible Trajectory controls and records rather than unrelated tabl
   }
 })
 
+it('excludes older-page selector preparation while retaining the trusted click', async () => {
+  const browser = await chromium.launch({ headless: true })
+  const entered = Promise.withResolvers<undefined>()
+  const release = Promise.withResolvers<undefined>()
+  let operation: Promise<{ value: number } | { error: unknown }> | undefined
+  try {
+    const page = await browser.newPage()
+    await page.setContent('<button type="button">Load earlier</button><div data-chat-flow-key="9:turn-tail"></div>')
+    await page.locator('button').evaluate(button => {
+      button.addEventListener('click', event => {
+        button.setAttribute('data-click-trusted', String(event.isTrusted))
+        const tail = document.createElement('div')
+        tail.setAttribute('data-chat-flow-key', '9:turn-tail:next')
+        document.body.append(tail)
+      })
+    })
+    const button = page.getByRole('button', { name: 'Load earlier', exact: true })
+    const click = button.click.bind(button)
+    const elementHandles = button.elementHandles.bind(button)
+    const prepare = async (): Promise<void> => { entered.resolve(undefined); await release.promise }
+    vi.spyOn(page, 'getByRole').mockReturnValue(button)
+    vi.spyOn(button, 'click').mockImplementation(async options => { await prepare(); await click(options) })
+    vi.spyOn(button, 'elementHandles').mockImplementation(async () => { await prepare(); return elementHandles() })
+    let now = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    operation = measureOlderPage(page, 1).then(value => ({ value }), (error: unknown) => ({ error }))
+    await Promise.race([
+      entered.promise,
+      operation.then(outcome => {
+        if ('error' in outcome) throw outcome.error
+        throw new Error('Paging completed before the selector preparation barrier')
+      }),
+    ])
+    expect(await page.locator('button').getAttribute('data-click-trusted')).toBeNull()
+    expect(await page.locator(TAIL).count()).toBe(1)
+    now = PAGE_BUDGET_MS + 1
+    release.resolve(undefined)
+    const outcome = await operation
+    if ('error' in outcome) throw outcome.error
+    expectEndpointWithinBudget(outcome.value, PAGE_BUDGET_MS)
+    expect(outcome.value).toBe(0)
+    expect(await page.locator('button').getAttribute('data-click-trusted')).toBe('true')
+    expect(await page.locator(TAIL).count()).toBe(2)
+  } finally {
+    release.resolve(undefined)
+    await operation
+    vi.restoreAllMocks()
+    await browser.close()
+  }
+})
+
+it('rejects older-page rendering beyond the unchanged paging ceiling', async () => {
+  const browser = await chromium.launch({ headless: true })
+  let operation: Promise<{ value: number } | { error: unknown }> | undefined
+  try {
+    const page = await browser.newPage()
+    await page.setContent('<button type="button">Load earlier</button><div data-chat-flow-key="9:turn-tail"></div>')
+    await page.locator('button').evaluate(button => {
+      button.addEventListener('click', event => { button.setAttribute('data-click-trusted', String(event.isTrusted)) })
+    })
+    let now = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    operation = measureOlderPage(page, 1).then(value => ({ value }), (error: unknown) => ({ error }))
+    await page.waitForFunction(() => document.querySelector('button')?.getAttribute('data-click-trusted') === 'true')
+    now = PAGE_BUDGET_MS + 1
+    await page.evaluate(() => {
+      const tail = document.createElement('div')
+      tail.setAttribute('data-chat-flow-key', '9:turn-tail:next')
+      document.body.append(tail)
+    })
+    const outcome = await operation
+    if ('error' in outcome) throw outcome.error
+    expect(outcome.value).toBe(PAGE_BUDGET_MS + 1)
+    expect(() => expectEndpointWithinBudget(outcome.value, PAGE_BUDGET_MS)).toThrow()
+  } finally {
+    await browser.close()
+    await operation
+    vi.restoreAllMocks()
+  }
+})
+
+it('rejects ambiguous or replaced older-page buttons before paging', async () => {
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const page = await browser.newPage()
+    await page.setContent('<button type="button">Load earlier</button><button type="button">Load earlier</button>')
+    await expect(measureOlderPage(page, 0)).rejects.toThrow('length of 1')
+    await page.setContent('<button type="button">Load earlier</button>')
+    const button = page.getByRole('button', { name: 'Load earlier', exact: true })
+    const elementHandles = button.elementHandles.bind(button)
+    vi.spyOn(page, 'getByRole').mockReturnValue(button)
+    vi.spyOn(button, 'elementHandles').mockImplementation(async () => {
+      const handles = await elementHandles()
+      await button.evaluate(element => { element.replaceWith(element.cloneNode(true)) })
+      return handles
+    })
+    await expect(measureOlderPage(page, 0)).rejects.toThrow('Element is not attached')
+  } finally {
+    vi.restoreAllMocks()
+    await browser.close()
+  }
+})
+
 it('opens, pages, navigates and streams into a 240-turn browser history', async () => {
   if (webSnapshotMode() !== 'replay') throw new Error('browser benchmarks require keyless replay mode')
   const samples: { open: number; page: number; trajectory: number; first: number; streamTask: number; streamWall: number; input: number; inputOverlapped: boolean; heapMb: number; nodes: number }[] = []
@@ -192,10 +309,7 @@ it('opens, pages, navigates and streams into a 240-turn browser history', async 
           expect(initialTurns).toBeLessThan(HISTORY_TURNS)
           let count = initialTurns
           while (count < HISTORY_TURNS) {
-            pages.push(await measure(page, async () => {
-              await page.getByRole('button', { name: 'Load earlier', exact: true }).click()
-              await page.waitForFunction(({ selector, previous }) => document.querySelectorAll(selector).length > previous, { selector: TAIL, previous: count })
-            }))
+            pages.push(await measureOlderPage(page, count))
             count = await page.locator(TAIL).count()
           }
           const trajectory = await measure(page, async () => {
