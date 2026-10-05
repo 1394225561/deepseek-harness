@@ -113,9 +113,9 @@ Category, label, and sort-key ids are non-empty strings. Readers look ids up as 
 |---|---|---|
 | `name` | yes | Package name accepted by npm's maintained package-name validator for new packages; unique within the index. |
 | `title` | no | `LocalizedText`; a reader displays `name` when absent. |
-| `description` | no | `LocalizedText` for catalog display, derived from locale metadata and the npm description. |
+| `description` | no | `LocalizedText` for catalog display; see Generator obligations for its derivation. |
 | `icon` | no | Either `data:<type>;base64,<payload>`, where `<type>` is `image/svg+xml`, `image/png`, `image/jpeg`, or `image/webp`, `<payload>` is canonically padded base64, and the decoded payload is at most 256 KiB; or a URL reference whose resolution against the index URL is an `https:` URL or has the index URL's origin. |
-| `author` | no | Display name containing a non-whitespace character, projected from the npm author declaration; see Generator obligations. |
+| `author` | no | Display name containing a non-whitespace character; see Generator obligations for the npm author projection. |
 | `homepage` | no | Absolute `https:` or `http:` URL of a page about the plugin. |
 | `metadata` | no | Object holding the three values below. |
 | `metadata.category` | no | One declared category id. |
@@ -153,6 +153,10 @@ A client installs one version with exactly these pnpm arguments:
 
 An index carries the manifest's `peerDependencies` and `engines` as separate declarations. DSH tests every `@deepseek-ai/dsh` and `@deepseek-ai/dsh-*` peer against the running DSH version. A declared `engines.dsh` adds a host requirement; it does not replace those peers. The version is compatible only when every applicable requirement matches. Missing declarations add no requirement.
 
+This preserves the existing [app-boot peer check](../../../../packages/boot/app-boot/src/plugin-compatibility.ts), which receives the running DSH version explicitly. Peer declarations do not identify that process; npm's package resolution in a profile remains separate from DSH's check against its running runtime.
+
+Implementing this proposal extends that evaluator with `engines.dsh` enforcement and engine-aware exemptions. The current evaluator checks peers only. The index reader and installation must both use the extended evaluator before this format is deployed.
+
 The index reader and installation use one DSH compatibility evaluator with npm's `node-semver` parser and `includePrerelease: true`. Empty or invalid DSH ranges are incompatible. The existing peer rule maps `workspace:*`, `workspace:^`, and `workspace:~` to the running DSH version; other `workspace:` peer ranges are incompatible. Engine ranges do not use that peer mapping. Exact local `name@version` exemptions apply to both kinds of DSH requirement and are not published in the index.
 
 Generators preserve each requirement string. Readers evaluate the strings separately; they do not concatenate or expand their ranges. npm owns package peer resolution and its Node/npm engine checks. DSH owns enforcement of its custom `engines.dsh` key, as recorded in the [public manifest decision](../../implemented/architecture/2026-09-10-public-package-manifest.md).
@@ -167,7 +171,7 @@ A reader cannot verify these rules; a generator that violates them publishes a m
 - `dist-tags` snapshots the registry's [distribution tags](https://docs.npmjs.com/cli/v11/commands/npm-dist-tag/). A generator includes each retained tag's target version, or omits that tag when its target is outside the listed bundle versions. For Git sources, the publisher or market supplies the same exact tag-to-version mapping.
 - Each listed version declares `dsh.bundle`. Installation independently refuses a package without a bundle patch.
 - Package-derived display fields come from the exact version named by `dist-tags.latest`. Without that tag, generators omit those display fields and readers use the package-name fallback. `title`, `description`, and `icon` follow installed-plugin display metadata rules, subject to this format's `LocalizedText` requirements. Localized text is catalog display data, not another npm manifest declaration. `homepage` copies the selected manifest's `homepage` and is absent without one.
-- npm's `author` may be a person object or shorthand string. For an object, generators copy its `name` when it contains a non-whitespace character. For a shorthand string, they use a maintained npm person normalizer and take its `name` under the same condition. They omit an absent or whitespace-only name and do not copy email or URL into this display field. They normalize only the author projection, preserving version strings and exemption identities.
+- npm's `author` may be a person object or shorthand string. For an object, generators copy its `name` when it contains a non-whitespace character. For a shorthand string, they use a maintained npm person normalizer and take its `name` under the same condition. They omit an absent or whitespace-only name and do not copy email or URL into this display field. They normalize a fresh projection, leaving the source manifest untouched.
 
 ### Reader rules
 
@@ -175,7 +179,9 @@ A reader rejects the whole index when the document violates any rule in Root fie
 
 A reader ignores members that this note does not define, at every level; an unknown `source.type` value is rejected. Format 1 can then gain optional members without breaking existing readers; a change that existing readers would misinterpret uses a new `format` value.
 
-Entries in `engines`, `peerDependencies`, and `dist-tags` are declared data, not unknown members to discard. Their values must be strings; a non-string value invalidates the index. A DSH requirement string can be empty or syntactically invalid and remains visible as incompatible. Distribution-tag names use npm's tag validation, and targets match listed version strings exactly.
+Entries in `engines`, `peerDependencies`, and `dist-tags` are declared data, not unknown members to discard. Their values must be strings; a non-string value invalidates the index. A DSH requirement string can be empty or syntactically invalid and remains visible as incompatible. A distribution-tag name must make `name@tag` a registry tag spec under npm's maintained `npm-package-arg` parser, rather than a version or range. Tag targets match listed version strings exactly.
+
+npm sources use canonical published registry version identifiers: the string equals npm's `node-semver.valid()` result, without build metadata. npm's publishing normalization does not provide separately selectable build-metadata variants. Git sources can retain such variants because their commits pin the installed source independently. Readers reject non-canonical npm source versions instead of claiming an exact build selection that npm does not provide.
 
 Categories, labels, and sort keys are opaque: a reader filters and sorts by them, displays their `title`, and never interprets an id. Readers display declarations in the order of their localized `title`. When sorting plugins, a plugin without a value for the selected sort key follows all plugins with a value in either direction, and equal values keep the index order. Sorting by publish time uses a plugin's greatest `publishTimestamp`.
 
@@ -226,10 +232,10 @@ Clients identify prereleases when users choose an exact version or channel, and 
 - A validator accepts the example above and rejects one violation of each structural rule in Root fields, Plugin fields, Version fields, and the `source` forms, with a diagnostic naming the JSON path. Invalid DSH range strings are accepted structurally and evaluated as incompatible.
 - Install arguments built from every example version are accepted by DSH's install-spec parser and by pnpm.
 - A validator ignores unknown members at every level.
-- Index and installation compatibility match for the same manifest, runtime version, and local exemptions. Cases cover hyphen ranges, `||` alternatives, workspace shorthands, invalid ranges, and a broad engine range with an incompatible DSH peer.
+- Index and installation compatibility match for the same manifest, runtime version, and local exemptions. Cases cover hyphen ranges, `||` alternatives, workspace shorthands, invalid ranges, a broad engine range with an incompatible DSH peer, and compatible peers with an unsatisfied or empty `engines.dsh`.
 - Exact `dist-tags` targets select the same source when equally ranked build-metadata versions are reordered. Missing tag targets are rejected; absent or incompatible `latest` never causes an implicit version or channel switch.
 - Author objects and shorthand strings produce the declared display name without contact fields or version normalization.
-- A parser validates `1.0.0+one` and preserves that complete string for tag lookup, installation identity, and local exemption keys.
+- A Git version parser validates `1.0.0+one` and preserves that complete string for tag lookup, installation identity, and local exemption keys. Its commit selects the exact source; npm source versions with build metadata are rejected.
 - Installation confirmation identifies the selected version, channel when selected, prerelease status, index URL, and source. Market labels and scores remain attributed claims.
 
 ## Risks
@@ -240,5 +246,5 @@ Clients identify prereleases when users choose an exact version or channel, and 
 - URL icons disclose the user's IP address to image hosts.
 - Pinned versions and distribution tags stay stale until the index is regenerated.
 - Version pinning does not authenticate a market's identity or guarantee the bytes an arbitrary registry returns. Installed package checks remain independent of the catalog.
-- Readers and generators must adopt this revised proposal together before deployment; mixing the original and revised format-1 rules can change compatibility results and version selection.
+- Readers, generators, and installation must adopt this revised proposal together before deployment; mixing the original and revised format-1 rules can change compatibility results and version selection.
 - Market text reaches users, and models through any client tool that lists plugins, without review by DSH.
