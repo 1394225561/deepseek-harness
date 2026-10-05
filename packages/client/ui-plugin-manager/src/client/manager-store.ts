@@ -72,6 +72,8 @@ export interface PackageRow {
   readonly meta?: PluginLocalizedMeta
   /** Whether the entry runs; false for a row without a live entry. */
   readonly enabled: boolean
+  /** Whether a preset expression has not yet resolved this row's enablement. */
+  readonly conditional?: boolean
   /** The entry's fiber phase, null without a live fiber. */
   readonly phase: PluginInfo['fiberPhase']
   /** Why the Host refuses to switch the row, when it does. */
@@ -431,6 +433,7 @@ export function packageView(bundle: BundleInfo, plugins: readonly PluginInfo[]):
       moduleName: row.moduleName,
       enabled: row.composition === undefined ? live?.enabled ?? false : row.composition.enabled === true,
       phase: row.composition?.fiberPhase ?? live?.fiberPhase ?? null,
+      ...row.composition?.enabled === 'conditional' ? { conditional: true } : {},
       ...row.meta === undefined ? {} : { meta: row.meta },
       ...row.entryId === undefined ? {} : { entryId: row.entryId },
       ...readOnlyReason === undefined ? {} : { readOnlyReason },

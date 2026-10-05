@@ -121,7 +121,7 @@ describe('packageView', () => {
     ] }, [])
     expect(view.rows).toEqual([
       { rowId: 'shared', preset: 'preset-standard', moduleName: 'tool', enabled: true, phase: 'active', readOnlyReason: 'preset-managed' },
-      { rowId: 'shared', preset: 'preset-cordis', moduleName: 'tool', enabled: false, phase: null, readOnlyReason: 'preset-managed' },
+      { rowId: 'shared', preset: 'preset-cordis', moduleName: 'tool', enabled: false, phase: null, conditional: true, readOnlyReason: 'preset-managed' },
     ])
     expect(new Set(view.rows.map(packageRowKey)).size).toBe(2)
     expect(packageRowKey({ rowId: 'ordinary' })).toBe('ordinary')

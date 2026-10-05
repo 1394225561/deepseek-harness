@@ -753,6 +753,21 @@ describe('PluginManagerPage', () => {
     }
   })
 
+  it('shows an unevaluated preset condition without an Off label or switch', () => {
+    const rows: PackageRow[] = [{ rowId: 'conditional', preset: 'preset-standard', moduleName: 'tool',
+      enabled: false, conditional: true, phase: null, readOnlyReason: 'preset-managed' }]
+    const { setLanguage } = renderTab({ packages: [pkg({ rows })] })
+    fireEvent.click(screen.getByRole('button', { name: en.openDetail.replace('{name}', 'dsh-better-sidebar') }))
+    const item = document.querySelector<HTMLElement>('[data-plugin-row]')!
+    expect(within(item).getByText(en.rowStateConditional)).toBeTruthy()
+    expect(within(item).queryByText(en.partOff)).toBeNull()
+    expect(within(item).queryByRole('switch')).toBeNull()
+    expect(item.getAttribute('data-state')).toBeNull()
+    expect(screen.queryByText(en.partsCountOff.replace('{count}', '1'), { exact: false })).toBeNull()
+    setLanguage(zh)
+    expect(within(item).getByText(zh.rowStateConditional)).toBeTruthy()
+  })
+
   it('resolves row fields independently from bundle metadata and preserves subpath specifiers', () => {
     const rows = [
       row({ moduleName: '@acme/dsh-sidebar/navigation', meta: { description: { en: 'Navigation description.' } } }),

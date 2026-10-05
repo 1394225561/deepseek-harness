@@ -129,7 +129,7 @@ const PHASE_STATES = {
 /** The count line over a pack's components: the total, then only the states that occur. */
 function partsSummary(rows: readonly PackageRow[], t: Translate): string {
   const failed = rows.filter(row => row.phase === 'failed').length
-  const off = rows.filter(row => !row.enabled).length
+  const off = rows.filter(row => !row.enabled && !row.conditional).length
   const running = rows.filter(row => row.enabled && row.phase === 'active').length
   return [
     t('partsCountTotal', { count: String(rows.length) }),
@@ -195,6 +195,7 @@ function RowSwitch({ row, title, t, busy, onChange }: {
   readonly busy: boolean
   readonly onChange: (enabled: boolean) => void
 }): ReactNode {
+  if (row.conditional) return null
   const locked = row.readOnlyReason !== undefined || row.entryId === undefined
   return (
     <Switch
@@ -207,8 +208,9 @@ function RowSwitch({ row, title, t, busy, onChange }: {
   )
 }
 
-/** What a row's state line says: off, or the phase its fiber is in. */
+/** What a row's state line says: conditional, off, or its active fiber phase. */
 function rowStateText(row: PackageRow, t: Translate): string {
+  if (row.conditional) return t('rowStateConditional')
   if (!row.enabled) return t('partOff')
   return row.phase === null ? t('rowStateIdle') : t(PHASE_KEYS[row.phase])
 }
@@ -271,7 +273,7 @@ function RowsSection({ rows, t, resolveText, toggle, configure }: {
                 key={packageRowKey(row)}
                 className={css.row}
                 data-plugin-row={row.entryId ?? packageRowKey(row)}
-                {...row.phase === 'failed' ? { 'data-state': 'failed' } : row.enabled ? {} : { 'data-state': 'off' }}
+                {...row.phase === 'failed' ? { 'data-state': 'failed' } : row.enabled || row.conditional ? {} : { 'data-state': 'off' }}
               >
                 <div className={css.rowLine}>
                   <span className={css.rowIcon} aria-hidden="true"><PackageArtwork key={row.meta?.icon} src={row.meta?.icon} row /></span>
