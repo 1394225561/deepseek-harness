@@ -123,6 +123,51 @@ it('lists scoped declarations while Off and keeps equal inner ids distinct acros
   expect((await manager.listBundles()).find(row => row.name === 'addon')?.rows.every(row => row.composition === undefined)).toBe(true)
 })
 
+it('loads a third-party relative child inside a real preset group and retains its package until release', async () => {
+  const { manager, ctx, dir, addon, bundle, trace } = await fixture()
+  bundle('addon', [{ preset: 'preset-standard', insert: [{
+    id: 'relative-group', name: 'cordis:group', group: true, config: [{
+      id: 'relative-child', name: './nested/relative.mjs', config: { value: 'nested-preset' },
+    }],
+  }] }])
+  mkdirSync(join(addon, 'nested'))
+  writeFileSync(join(addon, 'nested/relative.mjs'), [
+    'export function apply(ctx, config) {',
+    '  ctx.get("scopedBundleTrace").push(`relative:start:${config.value}`)',
+    '  ctx.effect(() => () => { ctx.get("scopedBundleTrace").push("relative:stop") })',
+    '}',
+    '',
+  ].join('\n'))
+  const moduleName = pathToFileURL(join(addon, 'nested/relative.mjs')).href
+  const declared = (await manager.listBundles()).find(row => row.name === 'addon')?.rows
+    .find(row => row.rowId === 'relative-child')
+  expect(declared).toEqual({ rowId: 'relative-child', preset: 'preset-standard', readOnlyReason: 'preset-managed', moduleName })
+  expect(await manager.setBundleEnabled('addon', true)).toMatchObject({ application: 'applied' })
+  expect(trace).toEqual(['relative:start:nested-preset'])
+  expect((await ctx.agentPresets.compositionInventory()).find(preset => preset.id === 'standard')?.rows)
+    .toMatchObject([{ entryId: 'relative-child', moduleName, enabled: true }])
+
+  const owner = createScope(ctx, {})
+  onTestFinished(() => owner.dispose())
+  await ctx.agentPresets.mount(owner.ctx, 'standard')
+  expect(await manager.setBundleEnabled('addon', false)).toMatchObject({ application: 'applied' })
+  expect(ctx.agentPresets.inspectCompositions(owner.ctx)[0]?.modules).toMatchObject([{ moduleName }])
+  expect(trace).toEqual(['relative:start:nested-preset'])
+  const remove = vi.spyOn(operations, 'runProfilePnpm').mockImplementation(async () => {
+    const manifest = readProfileManifest('test', dir)
+    delete manifest.dependencies?.addon
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+    return { exitCode: 0, output: '', truncated: false, logPath: join(dir, 'remove.log') }
+  })
+  onTestFinished(() => { remove.mockRestore() })
+  expect(await manager.removeBundle('addon')).toMatchObject({ application: 'failed', error: { code: 'bundle-in-use' } })
+  expect(remove).not.toHaveBeenCalled()
+  await owner.dispose()
+  expect(trace).toEqual(['relative:start:nested-preset', 'relative:stop'])
+  expect(await manager.removeBundle('addon')).toMatchObject({ application: 'applied', changed: true })
+  expect(remove).toHaveBeenCalledOnce()
+})
+
 it('retains a failed selection, reports affected preset failures again, and keeps unrelated failures as warnings', async () => {
   const { manager, dir, bundle, ctx } = await fixture()
   bundle('broken', [{ preset: 'preset-standard', insert: [{ id: 'broken', name: './plugin.mjs', config: { fail: true } }] }])
