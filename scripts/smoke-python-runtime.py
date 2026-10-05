@@ -1740,7 +1740,10 @@ def smoke_sdk_scheduler_recovery(base_url: str, executable: Path, update_snapsho
             raise AssertionError(f"scheduler recovery duplicated or lost tool outcomes: {tool_results}")
         if sum(record.get("type") == "todo/write" for record in records) != 1:
             raise AssertionError("scheduler recovery executed an unstarted todo update")
-        replacements = [(str(root), "{{cwd}}"), (RECOVERY_SESSION_ID, "{{parent}}")]
+        replacements = [
+            *snapshot_directory_replacements(root, "{{cwd}}"),
+            (RECOVERY_SESSION_ID, "{{parent}}"),
+        ]
         result_value = [{
             "session_id": result.session_id,
             "final_response": result.final_response,
