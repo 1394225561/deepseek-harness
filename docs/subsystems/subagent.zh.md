@@ -226,7 +226,7 @@ type SubagentInterruptAuthority =
 
 ## 结果与后端句柄
 
-SubagentResult 供程序消费方读取。activation 注册表保留外部后端句柄，直到释放完成。清理失败不会覆盖已经返回的结果；父日志保留该输出并记录最终失败状态。后端提供的诊断必须满足下述安全信息要求。
+SubagentResult 供程序消费方读取。activation 注册表保留外部后端句柄，直到释放完成。清理失败不会覆盖已捕获的执行结果：activation 结果与父级通知保留该结果，dispose 拒绝，而在线 subagent/end 事件报告 error。后端提供的诊断必须满足下述安全信息要求。
 
 ```ts type-equiv
 /**

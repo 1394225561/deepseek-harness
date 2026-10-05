@@ -226,7 +226,7 @@ type SubagentInterruptAuthority =
 
 ## Results and backend handles
 
-SubagentResult is available to program consumers. The activation registry retains the external backend handle until disposal completes. A cleanup failure does not overwrite an already returned result; the parent log retains that output and records the final failure status. Backend-owned diagnostics must satisfy the safe-detail requirements below.
+SubagentResult is available to program consumers. The activation registry retains the external backend handle until disposal completes. A cleanup failure does not replace a captured execution result: the activation result and parent notice retain it, while dispose rejects and the live subagent/end event reports error. Backend-owned diagnostics must satisfy the safe-detail requirements below.
 
 ```ts type-equiv
 /**
