@@ -47,6 +47,8 @@ const headlessSessionExpected = join(goldensDir, 'headless-profile', 'session.ex
 const headlessReasoningExpected = join(goldensDir, 'headless-profile', 'reasoning.stderr.expected.txt')
 const headlessFailureExpected = join(goldensDir, 'headless-profile', 'stderr.expected.txt')
 const refreshing = process.env.DSH_SNAPSHOT === 'refresh'
+/** The shipped base bundle's title output cap, which marks a title request's `max_tokens`. */
+const TITLE_MAX_TOKENS = 256
 
 interface JsonObject {
   [key: string]: unknown
@@ -100,7 +102,7 @@ async function deepseekDefaultsServer(
       const write = (): void => {
         // One-shot teardown may cancel background title work after the main response.
         if (keepAlives-- > 0
-          || (options.waitForTitleRequest === true && !requests.some(request => request.max_tokens === 64))) {
+          || (options.waitForTitleRequest === true && !requests.some(request => request.max_tokens === TITLE_MAX_TOKENS))) {
           response.write(': keep-alive\n\n')
           timer = setTimeout(write, 60)
           return
@@ -610,7 +612,7 @@ describe('headless stream-json snapshots', () => {
       expect(server.requests).toHaveLength(2)
       expect(server.paths).toEqual(['/v1/messages', '/v1/messages'])
       const agentRequest = server.requests.find(request => request.max_tokens === 256_000)
-      const titleRequest = server.requests.find(request => request.max_tokens === 64)
+      const titleRequest = server.requests.find(request => request.max_tokens === TITLE_MAX_TOKENS)
       expect(agentRequest?.output_config).toEqual({ effort: 'low' })
       expect(titleRequest).toBeDefined()
       const header = (parseJsonl(result.stdout)
@@ -659,7 +661,7 @@ describe('headless stream-json snapshots', () => {
         }
         const title = await fetch(server.url, {
           method: 'POST',
-          body: JSON.stringify({ max_tokens: 64 }),
+          body: JSON.stringify({ max_tokens: TITLE_MAX_TOKENS }),
         })
         for (;;) {
           const chunk = await reader.read()
@@ -700,7 +702,7 @@ describe('headless stream-json snapshots', () => {
       expect(result.stderr).toBe('')
       expect(server.requests).toHaveLength(2)
       const agentRequest = server.requests.find(request => request.max_tokens === 1024)
-      const titleRequest = server.requests.find(request => request.max_tokens === 64)
+      const titleRequest = server.requests.find(request => request.max_tokens === TITLE_MAX_TOKENS)
       expect(agentRequest).not.toHaveProperty('max_completion_tokens')
       expect(titleRequest).toBeDefined()
       const header = (parseJsonl(result.stdout)
