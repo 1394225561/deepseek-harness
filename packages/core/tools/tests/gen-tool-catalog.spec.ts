@@ -49,9 +49,9 @@ describe('gen-tool-catalog collectToolCatalog', () => {
     }
     const directory = catalog.find(entry => entry.pkg === '@deepseek-ai/dsh-tool-working-directory')
     expect(directory?.sources.working_directory).toBe('packages/session/tool-working-directory/src/index.ts')
-    const parameters = directory?.schemas[0]?.parameters as unknown as JsonSchema
-    expect(parameters.properties?.cd?.type).toBe('string')
-    expect(parameters.required ?? []).not.toContain('cd')
+    const parameters = directory?.schemas[0]?.parameters
+    expect(parameters).toHaveProperty('properties.cd.type', 'string')
+    expect(parameters?.required ?? []).not.toContain('cd')
   })
 
   it('resolves a runtime-spread enum to its literal members (the payoff over AST)', async () => {

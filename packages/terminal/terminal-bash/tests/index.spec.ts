@@ -163,6 +163,7 @@ describe('BashTerminalBackend startup rollback', () => {
 
   it('awaits terminal cleanup when session construction fails', async () => {
     const ctx = new Context()
+    provideWorkingDirectoryFixture(ctx)
     await ctx.plugin(SessionProjectionRegistry)
     await ctx.plugin(SandboxPolicyService, { mode: 'danger-full-access', workspaceRoot: '/tmp' })
     const quiescent = Promise.withResolvers<undefined>()

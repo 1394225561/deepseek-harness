@@ -173,7 +173,7 @@ describe('tool-call-model', () => {
       expect(model.filePath).toBe('/workspace/b/note.txt')
       expect(model.summary).toBe('note.txt')
       const openFile = vi.fn()
-      const view = render(<GenericToolCard callId="c1" toolName={name} block={block} cwd={cwd} openFile={openFile} loadImage={vi.fn(async () => '')} t={t} />)
+      const view = render(<GenericToolCard useDisclosure={useDisclosure} phase="result" callId="c1" toolName={name} block={block} cwd={cwd} openFile={openFile} loadImage={vi.fn(async () => '')} t={t} />)
       fireEvent.click(view.getByText('note.txt'))
       expect(openFile).toHaveBeenCalledWith('/workspace/b/note.txt')
       view.unmount()

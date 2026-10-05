@@ -279,6 +279,7 @@ interface ToolOutputMap {
     cwd: string;
   } | {
     kind: "promoted";
+    cwd: string;
     jobId: string;
     timeoutMs: number;
     output: string;

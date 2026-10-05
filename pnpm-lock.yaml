@@ -1575,7 +1575,7 @@ importers:
         specifier: workspace:*
         version: link:../../util/crypto
       '@deepseek-ai/dsh-working-directory':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../../session/working-directory
 
   packages/api/workspace-controller:
@@ -6769,6 +6769,9 @@ importers:
       '@deepseek-ai/dsh-typert-protocol':
         specifier: workspace:*
         version: link:../../typert/protocol
+      '@deepseek-ai/dsh-working-directory':
+        specifier: workspace:*
+        version: link:../../session/working-directory
 
   packages/context/time-context:
     dependencies:
@@ -7539,7 +7542,7 @@ importers:
         specifier: workspace:*
         version: link:../../core/tools
       '@deepseek-ai/dsh-working-directory':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../../session/working-directory
 
   packages/experimental/browser-use-playwright-mcp:
@@ -7585,7 +7588,7 @@ importers:
         specifier: workspace:*
         version: link:../../core/tools
       '@deepseek-ai/dsh-working-directory':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../../session/working-directory
 
   packages/experimental/browser-use-runtime:
@@ -7619,7 +7622,7 @@ importers:
         specifier: workspace:*
         version: link:../../browser-use/browser-use
       '@deepseek-ai/dsh-fs-local':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../../fs/fs-local
       '@deepseek-ai/dsh-llm':
         specifier: workspace:*
@@ -7652,7 +7655,7 @@ importers:
         specifier: workspace:*
         version: link:../../core/tools
       '@deepseek-ai/dsh-working-directory':
-        specifier: workspace:^
+        specifier: workspace:*
         version: link:../../session/working-directory
 
   packages/experimental/browser-use-stagehand-native:
@@ -10449,6 +10452,9 @@ importers:
       '@deepseek-ai/dsh-agent-loop':
         specifier: workspace:*
         version: link:../../core/agent-loop
+      '@deepseek-ai/dsh-agent-loop-testkit':
+        specifier: workspace:*
+        version: link:../../test-support/agent-loop-testkit
       '@deepseek-ai/dsh-commands':
         specifier: workspace:*
         version: link:../../interaction/commands
@@ -12433,6 +12439,9 @@ importers:
       '@deepseek-ai/dsh-agent':
         specifier: workspace:*
         version: link:../../core/agent
+      '@deepseek-ai/dsh-agent-loop-testkit':
+        specifier: workspace:*
+        version: link:../../test-support/agent-loop-testkit
       '@deepseek-ai/dsh-attachment':
         specifier: workspace:*
         version: link:../../attachment/attachment
@@ -12839,6 +12848,9 @@ importers:
       '@deepseek-ai/dsh-agent':
         specifier: workspace:*
         version: link:../../core/agent
+      '@deepseek-ai/dsh-agent-loop-testkit':
+        specifier: workspace:*
+        version: link:../../test-support/agent-loop-testkit
       '@deepseek-ai/dsh-app-boot':
         specifier: workspace:*
         version: link:../../boot/app-boot
@@ -14529,7 +14541,7 @@ importers:
         specifier: link:../../vendor/cosmokit
         version: link:../../vendor/cosmokit
       '@deepseek-ai/dsh':
-        specifier: workspace:~
+        specifier: workspace:*
         version: link:../../apps/cli
       '@deepseek-ai/dsh-acp':
         specifier: workspace:*

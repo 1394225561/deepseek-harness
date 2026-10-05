@@ -124,7 +124,7 @@ Session consumers know only the current logical format. Header-only `stat` and `
 
 **Projection seam.** `dsh-session-projection` owns `ctx.sessionProjections`: registered units fold committed events incrementally, host consumers read one typed state with `stateOf()`, and carriers batch cropped client views with `snapshot()`. A host reader either requires this service during activation or fails explicitly when the registry or required key is absent. Contributors may retain `ctx.inject(['sessionProjections'], ...)` registration without silently defaulting a missing host value. The agent loop registers shared `turnBoundary` state for its readers ([decision](../.agents/notes/implemented/architecture/2026-08-19-session-projection-mandatory-seam.md)).
 
-[Working directories](subsystems/working-directory.md) are durable Session state independent of the original project and sandbox write roots. Their owner supplies user context and the directory for new operations; existing processes retain their own directories.
+[Working directories](subsystems/working-directory.md) supply user context and execution paths without changing original project identity, sandbox write roots, or existing process directories.
 
 ## Capability seams
 

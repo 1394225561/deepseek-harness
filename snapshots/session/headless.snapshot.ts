@@ -710,13 +710,13 @@ function verifyWorkingDirectory(log: string, cwd: string): void {
   const users = events.filter(event => event.type === 'user/message').map(event => event.data as JsonObject)
   const contexts = users.flatMap(message => {
     const source = message.source as JsonObject
-    if (source.plugin !== '@deepseek-ai/dsh-system-prompt') return []
+    if (source.kind !== 'runtime-context') return []
     return (source.sections as JsonObject[]).filter(section => section.name === 'working-directory:current')
       .map(section => section.text)
   })
   expect(contexts).toEqual([cwd, join(cwd, 'selected'), join(cwd, 'second'), cwd]
     .map(directory => `Current working directory: ${JSON.stringify(directory)}.`))
-  const notices = users.filter(message => (message.source as JsonObject).plugin === 'working-directory')
+  const notices = users.filter(message => (message.source as JsonObject).kind === 'working-directory')
     .map(message => (message.content as JsonObject[]).map(block => block.text).join(''))
   expect(notices).toEqual([
     `The working directory changed from ${JSON.stringify(cwd)} to ${JSON.stringify(join(cwd, 'selected'))}.`,

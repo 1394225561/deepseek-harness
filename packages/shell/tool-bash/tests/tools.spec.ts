@@ -516,6 +516,7 @@ describe('bash tool', () => {
 describe('the background surface follows the job registry', () => {
   async function bare() {
     const ctx = new Context()
+    provideWorkingDirectoryFixture(ctx)
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRuntime)
     await ctx.plugin(AgentRegistry)
@@ -1486,7 +1487,7 @@ describe('resolved launch directory metadata', () => {
     const ensure = vi.spyOn(ctx.workingDirectory, 'ensure').mockResolvedValue(current)
     const resolve = ctx.shell.resolve.bind(ctx.shell)
     const resolving = vi.spyOn(ctx.shell, 'resolve').mockImplementation(request => ({ ...resolve(request), workdir: directory }))
-    const launch = vi.spyOn(ctx.shell, background ? 'start' : 'run')
+    const launch = vi.spyOn(ctx.shell, 'execute')
     try {
       const owner = await registerFakeAgent(ctx, 'directory-metadata')
       const result = await call(ctx, 'bash', {

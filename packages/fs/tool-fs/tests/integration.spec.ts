@@ -5,17 +5,15 @@
  * messages.
  */
 
-import { provideWorkingDirectoryFixture } from '@deepseek-ai/dsh-agent-loop-testkit'
+import { mountAgentLoopTestDependencies, provideWorkingDirectoryFixture } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
-import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
-import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
-import WorkingDirectory from '@deepseek-ai/dsh-working-directory'
+import { SessionId } from '@deepseek-ai/dsh-session'
+import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import SandboxPolicyService from '@deepseek-ai/dsh-sandbox-policy'
-import type { Agent } from '@deepseek-ai/dsh-agent'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { FsVersion } from '@deepseek-ai/dsh-fs'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -554,16 +552,17 @@ describe('current working directory', () => {
     await writeFile(join(next, 'note.txt'), 'current')
     ctx = new Context()
     try {
-      await ctx.plugin(SessionStore)
-      await ctx.plugin(SessionProjectionRegistry)
-      await ctx.plugin(SystemPrompt)
-      await ctx.plugin(ToolRuntime)
       await ctx.plugin(LocalFileSystem, { cwd: dir })
-      await ctx.plugin(WorkingDirectory)
+      await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
+      await ctx.plugin(AgentLoop, { agents: [] })
       await ctx.plugin(SandboxPolicyService, { mode: 'workspace-write', workspaceRoot: dir })
       fiber = await ctx.plugin(ToolFs)
-      const session = ctx.sessions.create(SessionId('current-directory-files'), { meta: { cwd: dir } })
-      const agent = { ctx, session, inject: vi.fn() } as unknown as Agent
+      const handle = await ctx.agents.create({
+        sessionId: SessionId('current-directory-files'), meta: { cwd: dir },
+        agentOptions: { provider: 'mock', model: 'mock' },
+      })
+      const agent = handle.agent
+      const session = agent.session
       const policy = ctx.sandboxPolicy.resolve({ session })
       await ctx.workingDirectory.set(agent, next)
       const current = ctx.workingDirectory.get(session)
@@ -579,7 +578,7 @@ describe('current working directory', () => {
         arguments: { file_path: 'created.txt', content: 'new' }, agent,
       })
       expect(write.isError).toBe(false)
-      expect(write.meta).toEqual({ path: join(current, 'created.txt'), diffs: [] })
+      expect(write.meta).toEqual({ operation: 'create', path: join(current, 'created.txt'), diffs: [] })
       const edit = await ctx.tools.execute({
         signal: testToolSignal, callId: ToolCallId('edit-current'), name: 'edit',
         arguments: { file_path: 'created.txt', old_string: 'new', new_string: 'edited' }, agent,

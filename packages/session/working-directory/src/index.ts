@@ -20,6 +20,16 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    /**
+     * Committed working-directory transition notices.
+     * @persistenceAttribution
+     */
+    'working-directory': { kind: 'working-directory' }
+  }
+}
+
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /** Effective working directory; the immutable Session header retains the original project. */
@@ -186,7 +196,7 @@ export class WorkingDirectoryService extends Service {
           ? `The working directory ${JSON.stringify(previous)} is unavailable. The working directory is now ${JSON.stringify(directory)}.`
           : `The working directory changed from ${JSON.stringify(previous)} to ${JSON.stringify(directory)}.`,
       }],
-      source: { kind: 'plugin', plugin: 'working-directory' },
+      source: { kind: 'working-directory' },
     })
     try {
       agent.inject(notice)

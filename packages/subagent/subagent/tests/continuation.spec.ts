@@ -257,6 +257,7 @@ describe('continuable activation capacity', () => {
   it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])('rejects invalid configured capacity %s', async (maxActiveSubagents) => {
     const ctx = new Context()
     try {
+      await mountWorkingDirectoryFixture(ctx)
       await expect(ctx.plugin(SubagentRuntime, { maxActiveSubagents })).rejects.toThrow()
     } finally {
       await ctx.fiber.dispose()
@@ -266,7 +267,7 @@ describe('continuable activation capacity', () => {
   it('layers editable depth over composition and removes the section on disposal', async () => {
     const ctx = new Context()
     try {
-
+      await mountWorkingDirectoryFixture(ctx)
       const live = await liveConfig(ctx, SubagentRuntime, { maxDepth: 4 })
       subagentConfigs.set(ctx, live)
       const fiber = live.fiber
