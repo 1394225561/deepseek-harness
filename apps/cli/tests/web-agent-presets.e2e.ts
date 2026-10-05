@@ -192,16 +192,6 @@ function toolParameterNames(ctx: Context, agent: Agent, toolName: string): strin
   return Object.keys(properties).sort()
 }
 
-function enablePresetTool(composition: string, id: string): string {
-  const rows = load(composition, { schema: entryListSchema }) as import('@deepseek-ai/cordis-plugin-loader').EntryOptions[]
-  const visit = (entries: typeof rows): boolean => entries.some((row) => {
-    if (row.id === id) { row.disabled = false; return true }
-    return row.group === true && visit(row.config as typeof rows)
-  })
-  if (!visit(rows)) throw new Error(`missing preset row ${id}`)
-  return dump(rows, { schema: entryListSchema })
-}
-
 let ctx: Context
 beforeAll(async () => {
   ctx = await bootWeb(await mkdtemp(join(tmpdir(), 'dsh-web-presets-')))
@@ -547,14 +537,19 @@ describe('product Bundle and user-preset intersection', () => {
     const standardConfig = composeEntries([webPatches('test')]).find(row => row.id === 'preset-standard')!.config as import('@deepseek-ai/dsh-agent-preset-registry').PresetDefinition
     const standard = dump(standardConfig.plugins, { schema: entryListSchema })
     for (const id of presetIds) {
-      let composition = standard
+      const plugins = load(standard, { schema: entryListSchema }) as import('@deepseek-ai/cordis-plugin-loader').EntryOptions[]
+      // User presets declare their own delegation rows; provider bundles target only the three full shipped presets.
       if (id === 'products-codex' || id === 'products-both') {
-        composition = enablePresetTool(composition, 'tool-subagent-codex')
+        plugins.push({ id: 'custom-tool-subagent-codex', name: '@deepseek-ai/dsh-tool-subagent', config: {
+          provider: 'codex', toolName: 'subagent_codex', backgroundMode: 'one-shot', maxDepth: 'provider-managed',
+        } })
       }
       if (id === 'products-claude' || id === 'products-both') {
-        composition = enablePresetTool(composition, 'tool-subagent-claude-code')
+        plugins.push({ id: 'custom-tool-subagent-claude-code', name: '@deepseek-ai/dsh-tool-subagent', config: {
+          provider: 'claude-code', toolName: 'subagent_claude_code', backgroundMode: 'one-shot', maxDepth: 'provider-managed',
+        } })
       }
-      definitions.push({ id: `preset-${id}`, name: '@deepseek-ai/dsh-agent-preset', config: { id, plugins: load(composition, { schema: entryListSchema }) } })
+      definitions.push({ id: `preset-${id}`, name: '@deepseek-ai/dsh-agent-preset', config: { id, plugins } })
     }
     const packageDir = (product: Product): string => (
       product === 'codex' ? CODEX_PACKAGE_DIR : CLAUDE_CODE_PACKAGE_DIR
