@@ -4,7 +4,7 @@ Status: implemented
 
 [English](2026-07-28-continuable-subagent-conversations.md) | 中文
 
-本记录取代[可继续的后台 subagent](../../archived/feature/2026-07-21-continuable-background-subagents.md)中由 Task 支撑的继续执行管理器。它保留[将 subagent 控制合并到 subagent 服务](../../archived/simplification/2026-07-26-merge-subagent-control-service.md)确立的单一 `ctx.subagents` 服务，以及[以意图命名的 subagent 继续执行操作](../../archived/simplification/2026-07-27-intent-named-subagent-continuation-operations.md)确立的 `followup` 操作。
+本记录取代[可继续的后台 subagent](../../archived/feature/2026-07-21-continuable-background-subagents.md)中由 Task 支撑的继续执行管理器。它保留[将 subagent 控制合并到 subagent 服务](../../archived/simplification/2026-07-26-merge-subagent-control-service.md)确立的单一 `ctx.subagents` 服务。
 
 ## 问题
 
@@ -30,7 +30,7 @@ persisted Session
        -> zero or more owned child Activations
 ```
 
-激活是重建 child Agent 的一次驻留周期。它可以执行多个 FIFO 轮次，并在等待后代时保持驻留。它不是请求、结果、取消或 Task 边界。
+激活是重建 child Agent 的一次驻留周期。它可以执行多个 FIFO 轮次，并在等待后代时保持驻留。其回执持有这次确切驻留的结果与取消操作；它不会为每条已接受的消息分配独立结果或 Task。
 
 继续执行管理器负责激活准入、权限检查、在线所有权图、冷恢复和 child-first dispose。Agent loop 负责全部轮次排序与执行。没有任何可继续 subagent 拥有 Task、激活 FIFO 或 queued 激活状态。
 
@@ -46,9 +46,9 @@ inbox 接受消息前发生任何失败，操作都会在不返回任何 id 的�
 
 `SubagentProvider.start()` 与 `SubagentRun` 属于外部执行。本地 Activation 直接持有其 `AgentHandle`；两类执行共享管理器持有的容量、结算与 dispose。
 
-`ctx.subagents.sendMessage(sender, targetId, content, { signal })` 是唯一由模型编写的继续执行消息操作。确切在线 sender 授权向其直接 parent 或直接可继续 child 投递；冷恢复会在重建前检查直接 child 权限，每条路径还会在最终无 await 的 inbox 准入区间再次检查，因此在物化期间被注销或替换的 Agent 无法授权投递。服务从该 sender 推导持久化 `agent-message` 来源信息。面向模型的 `send_message` 工具只保留 `agent_id` 和 `message`，并使用固定 Steer 调度。start 与 send 都返回已接受的 `MessageId`，两者都不报告管理器如何物化 Activation。
+`ctx.subagents.sendMessage(sender, targetId, content, { signal })` 是唯一由模型编写的继续执行消息操作。确切在线 sender 授权向其直接 parent 或直接可继续 child 投递；冷恢复会在重建前检查直接 child 权限，每条路径还会在最终无 await 的 inbox 准入区间再次检查，因此在物化期间被注销或替换的 Agent 无法授权投递。服务从该 sender 推导持久化 `agent-message` 来源信息。面向模型的 `send_message` 工具只保留 `agent_id` 和 `message`，并使用固定 Steer 调度。本地 start 返回包含已接受 `MessageId` 的 activation 回执；send 直接返回 `MessageId`。两者都不暴露物化过程是创建还是恢复 Agent。
 
-对于 start 和 follow-up，调用方 signal 只在 inbox 接受消息前持有查找、物化和准入。操作返回 `MessageId` 后，管理器会独立持有该激活；调用方之后的取消不会取消已接受的轮次，也不会 dispose child。
+对于 start 和 follow-up，调用方 signal 只在 inbox 接受消息前持有查找、物化和准入。inbox 接受消息后，管理器会独立持有该激活；调用方之后的取消不会取消已接受的轮次，也不会 dispose child。
 
 ### 持久化会话与在线激活
 
@@ -91,7 +91,7 @@ Agent inbox 是唯一队列。Agent 消息使用 Steer；人类提示词选择 Q
 
 路由只取决于激活的驻留状态：
 
-| 激活状态 | `followup` |
+| 激活状态 | 唤醒消息投递 |
 |---|---|
 | `running` | 在同一激活中排队 |
 | `waiting` | 唤醒同一激活 |
@@ -145,7 +145,7 @@ activation 回执无需 Jobs 即可暴露 `result` 与 `dispose()`。调用方 s
 
 本地可继续控制与外部执行共享 activation 所有权。只有本地 child 支持后续消息与冷恢复。
 
-它不新增 host-user 继续执行、subagent steering 操作、持久化邮箱、跨进程 lease、中断 inbox 工作的自动回放、团队权限、工作流权限、公开驻留查询、以及运行时缓存；后来的[当前轮次中断](../../../../packages/subagent/subagent/README.zh.md)在此生命周期之上补充了唯一的公开停止操作。现有委派深度策略保持不变。可选的 child 到 parent 报告是后续消费该生命周期的功能，不属于基础可继续能力。
+人工 Queue/Steer 投递和[当前轮次中断](../../../../packages/subagent/subagent/README.zh.md)使用此生命周期；回执释放会停止这次确切 activation 及其所属后代。持久化邮箱、跨进程 lease、中断 inbox 工作的自动回放、团队权限、工作流权限、公开驻留查询和运行时缓存仍不属于此能力。委派深度策略和相邻 Agent 消息授权各自由其原有组件管理。
 
 ## 曾考虑的替代方案
 

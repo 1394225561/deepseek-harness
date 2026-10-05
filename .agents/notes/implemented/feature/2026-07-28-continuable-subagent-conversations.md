@@ -4,7 +4,7 @@ Status: implemented
 
 English | [中文](2026-07-28-continuable-subagent-conversations.zh.md)
 
-This record replaces the Task-backed continuation manager from [Continuable background subagents](../../archived/feature/2026-07-21-continuable-background-subagents.md). It retains the single `ctx.subagents` service from [Merge subagent control into the subagent service](../../archived/simplification/2026-07-26-merge-subagent-control-service.md) and the intent-named `followup` operation from [Intent-named subagent continuation operations](../../archived/simplification/2026-07-27-intent-named-subagent-continuation-operations.md).
+This record replaces the Task-backed continuation manager from [Continuable background subagents](../../archived/feature/2026-07-21-continuable-background-subagents.md). It retains the single `ctx.subagents` service from [Merge subagent control into the subagent service](../../archived/simplification/2026-07-26-merge-subagent-control-service.md).
 
 ## Problem
 
@@ -30,7 +30,7 @@ persisted Session
        -> zero or more owned child Activations
 ```
 
-An Activation is one residency epoch for a reconstructed child Agent. It may execute multiple FIFO turns and remain resident while waiting for descendants. It is not a request, result, cancellation, or Task boundary.
+An Activation is one residency epoch for a reconstructed child Agent. It may execute multiple FIFO turns and remain resident while waiting for descendants. Its receipt owns the result and cancellation of that exact residency; it does not assign a separate result or Task to each accepted message.
 
 The continuation manager owns activation admission, authority checks, the live ownership graph, cold resume, and child-first disposal. The Agent loop owns all turn ordering and execution. No continuable subagent has a Task, an Activation FIFO, or queued Activation state.
 
@@ -46,9 +46,9 @@ Cold resume does not dispatch through a subagent provider. The continuation mana
 
 `SubagentProvider.start()` and `SubagentRun` belong to external execution. A local Activation directly owns its `AgentHandle`; both kinds share manager-owned capacity, settlement, and disposal.
 
-`ctx.subagents.sendMessage(sender, targetId, content, { signal })` is the sole model-authored continuation-message operation. The exact live sender authorizes delivery to its direct parent or direct continuable child; cold resume checks direct-child authority before reconstruction and every path checks again in the final no-await inbox-admission span, so an Agent unregistered or replaced during materialization cannot authorize delivery. The service derives a durable `agent-message` source from that sender. The model-facing `send_message` tool keeps only `agent_id` and `message` and uses fixed Steer scheduling. Both start and send return the accepted `MessageId`, and neither reports how the manager materialized the Activation.
+`ctx.subagents.sendMessage(sender, targetId, content, { signal })` is the sole model-authored continuation-message operation. The exact live sender authorizes delivery to its direct parent or direct continuable child; cold resume checks direct-child authority before reconstruction and every path checks again in the final no-await inbox-admission span, so an Agent unregistered or replaced during materialization cannot authorize delivery. The service derives a durable `agent-message` source from that sender. The model-facing `send_message` tool keeps only `agent_id` and `message` and uses fixed Steer scheduling. Local start returns an activation receipt containing the accepted `MessageId`; send returns the `MessageId` directly. Neither exposes whether materialization created or resumed the Agent.
 
-For start and follow-up, the caller signal owns lookup, materialization, and admission only until inbox acceptance. After the operation returns its `MessageId`, the manager owns the Activation independently; later caller cancellation does not cancel the accepted turn or dispose the child.
+For start and follow-up, the caller signal owns lookup, materialization, and admission only until inbox acceptance. After inbox acceptance, the manager owns the Activation independently; later caller cancellation does not cancel the accepted turn or dispose the child.
 
 ### Durable Session and live Activation
 
@@ -91,7 +91,7 @@ The Agent inbox is the only queue. Agent messages use Steer; human prompts choos
 
 Routing depends only on Activation residency:
 
-| Activation state | `followup` |
+| Activation state | Waking message delivery |
 |---|---|
 | `running` | enqueue in the same Activation |
 | `waiting` | wake the same Activation |
@@ -145,7 +145,7 @@ Session and descriptor persistence survive restart. Activation state, Agent inbo
 
 Local continuable control and external execution share activation ownership. Only local children support later messages and cold resume.
 
-It adds no host-user continuation, subagent steering operation, durable mailbox, cross-process lease, automatic replay of interrupted inbox work, team authority, workflow authority, public residency query, or runtime cache; the later [current-turn interrupt](../../../../packages/subagent/subagent/README.md) added the one public stop operation on top of this lifecycle. Existing delegation-depth policy remains unchanged. Optional child-to-parent reporting is a later consumer of this lifecycle rather than part of the base continuable capability.
+Human Queue/Steer delivery and [current-turn interruption](../../../../packages/subagent/subagent/README.md) use this lifecycle; receipt disposal stops its exact activation and owned descendants. Durable mailboxes, cross-process leases, automatic replay of interrupted inbox work, team authority, workflow authority, public residency queries, and runtime caches remain outside this capability. Delegation-depth policy and adjacent-Agent message authorization retain their own owners.
 
 ## Alternatives considered
 

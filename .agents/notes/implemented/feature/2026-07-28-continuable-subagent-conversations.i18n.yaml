@@ -3,17 +3,17 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-07-28-continuable-subagent-conversations.md
 /agent-note-continuable-subagents:
-  en: 14c7d31032237174
-  zh: ac2666670a0ca5ab
+  en: 110c0660aacfa3e4
+  zh: cf405fad1c5834f7
 /agent-note-continuable-subagents/problem:
   en: a72071eeedb77402
   zh: 818d16ce429fd610
 /agent-note-continuable-subagents/decision:
-  en: 7b6ca1c49431a00e
-  zh: 9a787738e4e44294
+  en: 3420195435e02a8f
+  zh: 6156eedb3c23d360
 /agent-note-continuable-subagents/decision/materialization-and-public-operations:
-  en: 273293771f94e100
-  zh: 56083272bd859b3a
+  en: c3a83ff748a02143
+  zh: 468bf62c8ddabf70
 /agent-note-continuable-subagents/decision/durable-session-and-live-activation:
   en: 5c96c0343564c64a
   zh: 85686e022d870cc7
@@ -21,8 +21,8 @@
   en: 5b84e6825247850c
   zh: 18d43381aa3e8b05
 /agent-note-continuable-subagents/decision/one-inbox-and-follow-up-delivery:
-  en: 6913b04db3567f96
-  zh: 6f794664984a852f
+  en: 388934f4c4e50f65
+  zh: 545a66157a4c46c4
 /agent-note-continuable-subagents/decision/child-ownership:
   en: b6b62a4c083562b6
   zh: 86d02714e997942d
@@ -39,8 +39,8 @@
   en: 0bbc18843aa04ad3
   zh: d56fab1d12a28a96
 /agent-note-continuable-subagents/decision/scope:
-  en: 5843667c1b1726e9
-  zh: d7be585c0c5b3eb9
+  en: bb3e8b2f8054e075
+  zh: 15c126d51031fcb3
 /agent-note-continuable-subagents/alternatives-considered:
   en: d786fd413fabe0f5
   zh: c5d66f5b880d9758

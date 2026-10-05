@@ -127,7 +127,7 @@ interface SubagentStartRequest {
 
 ## 本地子代理与 activation
 
-本地子代理拥有持久 Session，最多有一个在线 activation。Manager 预留身份和容量，通过后端准备子代理，并管理输入准入、冷恢复以及先子后父的释放顺序。结果可以先于资源释放就绪；调用方等待 dispose 完成清理。结构化结果提交会关闭该 activation 的输入；之后的冷恢复不会继承输出 schema。
+本地子代理拥有持久 Session，最多有一个在线 activation。Manager 预留身份和容量，通过后端准备子代理，并管理输入准入、冷恢复以及先子后父的释放顺序。activation 结果在资源释放和完成通知之后结算。释放操作单独报告清理失败，不会覆盖已捕获的结果。结构化结果提交会关闭该 activation 的输入；之后的冷恢复不会继承输出 schema。
 
 ```ts type-equiv
 /**

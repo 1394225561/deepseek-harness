@@ -127,7 +127,7 @@ interface SubagentStartRequest {
 
 ## Local children and activations
 
-A local child has a durable Session and at most one live activation. The manager reserves identity and capacity, prepares the child through its backend, and owns input admission, cold resume, and child-first disposal. A result can settle before resources are released; callers await dispose for cleanup. Structured capture closes input for that activation; a later cold resume does not inherit the output schema.
+A local child has a durable Session and at most one live activation. The manager reserves identity and capacity, prepares the child through its backend, and owns input admission, cold resume, and child-first disposal. The activation result settles after resource release and completion notification. Disposal reports cleanup failure separately without replacing a captured result. Structured capture closes input for that activation; a later cold resume does not inherit the output schema.
 
 ```ts type-equiv
 /**
