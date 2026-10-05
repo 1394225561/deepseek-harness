@@ -2089,12 +2089,14 @@ describe('on-demand Official bundles', () => {
     expect(actions.update).toHaveBeenCalledWith(name)
   })
 
-  it('distinguishes unreadable installed files and offers the existing update action to repair them', () => {
-    renderTab({ packages: [{ ...catalog(), installed: true, removable: true, error: { code: 'operation-error', diagnostic: 'Unreadable package files' } }] })
+  it.each([undefined, `${name}@1.0.0`])('retains dependency source=%s beside unavailable status and the update action', (source) => {
+    renderTab({ packages: [{ ...catalog(), ...source === undefined ? {} : { source }, installed: true, removable: true, error: { code: 'operation-error', diagnostic: 'Unreadable package files' } }] })
     expect(screen.getByText(en.statusMissingFiles)).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: en.openDetail.replace('{name}', title) }))
     const detail = document.querySelector('[data-plugin-detail]') as HTMLElement
     expect(within(detail).queryByText(en.statusNotInstalled)).toBeNull()
+    if (source !== undefined) expect(within(detail).getByText(source).tagName).toBe('CODE')
+    expect(within(detail).queryAllByText(en.statusMissingFiles)).not.toEqual([])
     expect(within(detail).getByRole('button', { name: en.updateLabel.replace('{name}', title) })).toBeTruthy()
   })
 

@@ -1,6 +1,6 @@
 /** Offline Official catalog ownership, completeness, and freshness checks. */
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -103,5 +103,24 @@ describe('Official bundle catalog generation', () => {
     expect(readFileSync(join(root, output), 'utf8')).toBe(before)
     syncOfficialBundleCatalog(root, false)
     expect(readFileSync(join(root, output), 'utf8')).toContain('Changed')
+  })
+
+  it('does not rewrite an already current catalog during explicit generation', () => {
+    const root = fixture()
+    syncOfficialBundleCatalog(root, false)
+    const path = join(root, output)
+    const timestamp = new Date('2000-01-01T00:00:00Z')
+    utimesSync(path, timestamp, timestamp)
+    const before = statSync(path).mtimeMs
+    syncOfficialBundleCatalog(root, false)
+    expect(statSync(path).mtimeMs).toBe(before)
+    expect(() => { syncOfficialBundleCatalog(root, true) }).not.toThrow()
+  })
+
+  it('rejects a missing generated catalog without recreating it during freshness checking', () => {
+    const root = fixture()
+    rmSync(join(root, output))
+    expect(() => { syncOfficialBundleCatalog(root, true) }).toThrow('is stale')
+    expect(existsSync(join(root, output))).toBe(false)
   })
 })

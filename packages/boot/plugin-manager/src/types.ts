@@ -49,12 +49,12 @@ export interface BundleRowInfo {
   entryId?: PluginEntryId
 }
 
-/** One installed or installation-provided bundle. */
+/** One shipped, profile-installed, or discoverable on-demand bundle. */
 export interface BundleInfo {
   name: string
-  /** Listed in the installation's Official catalog, independent of installation and selection. */
+  /** Project-maintained shipped optional bundle or on-demand catalog entry, independent of installation and selection. */
   official: boolean
-  /** Where a readable package is available; a missing package can still have a profile dependency declaration. */
+  /** Readable package location; on-demand catalog entries exclude undeclared transitive copies, and declared files may be missing. */
   availability: 'installation' | 'profile' | 'missing'
   /** Exact host-version target offered for an on-demand catalog entry. */
   installTarget?: { spec: string; version: string }

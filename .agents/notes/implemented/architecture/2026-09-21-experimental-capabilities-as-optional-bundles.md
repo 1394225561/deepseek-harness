@@ -16,6 +16,8 @@ An optional bundle's dependencies are downloaded with every `dsh` installation. 
 
 Bundles add scoped rows with the [profile patch operation](../../../../packages/boot/app-boot/README.md): `preset` names a declaration row, and the ordinary patch operates on its child list. Full Web presets receive the optional model tools; minimal retains its current shell and working-directory tools. Search, Ralph, and terminals supply their own isolated services. Search opens one in-memory index on demand per retained preset revision; the Host search policy stays unchanged. Badge skills and title providers act on the Host. Existing Agents retain their preset generation, and later user patch layers retain precedence. Title replacement waits for disposal of the previous provider.
 
+Claude Code and Codex install on demand through the separate `ON_DEMAND_BUNDLES` catalog; the [on-demand native-bundle decision](2026-10-05-official-on-demand-bundles.md) owns the cost, version, and offline-discovery trade-offs.
+
 ## Alternatives considered
 
 **Ship every provider as an optional bundle.** Composes and displays correctly, but grows every install by provider runtimes for a capability most installations never switch on; voice input's `sherpa-onnx-node` is the one accepted precedent.

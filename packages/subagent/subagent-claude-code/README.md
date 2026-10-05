@@ -58,17 +58,18 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 <a id="exposing-the-tool"></a>
 ### Exposing the tool
 
-The bundle adds `optional-tool-subagent-claude-code` to each full preset through scoped profile patches. The minimal preset and host tool catalog remain unchanged. For a custom profile without these preset targets, keep the package dependency and compose the provider and tool directly:
+The bundle adds `optional-tool-subagent-claude-code` to each full preset through scoped profile patches. The minimal preset and host tool catalog remain unchanged. For a profile without these preset targets that uses the shared base services, follow the [recovery steps](../../../docs/upgrade-guide/v0.2.1-alpha.1/native-subagent-bundle-tools/guide.md#recovery) to keep the dependency and deselect its bundle layer, then add this insertion to the profile's `cordis.patch.yml`:
 
 ```yaml
-- id: subagent-claude-code
-  name: '@deepseek-ai/dsh-subagent-claude-code'
-- id: tool-subagent-claude
-  name: '@deepseek-ai/dsh-tool-subagent'
-  config:
-    provider: claude-code
-    toolName: subagent_claude_code
-    maxDepth: provider-managed
+- insert:
+    - id: subagent-claude-code
+      name: '@deepseek-ai/dsh-subagent-claude-code'
+    - id: tool-subagent-claude
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: claude-code
+        toolName: subagent_claude_code
+        maxDepth: provider-managed
 ```
 
 The tool returns a child id after accepting the task and sends its result to the parent Agent on completion. Each external activation executes once and accepts no follow-up input or resume.

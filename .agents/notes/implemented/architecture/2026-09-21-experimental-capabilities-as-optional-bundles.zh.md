@@ -16,6 +16,8 @@ Web 插件页只提供两个可选 bundle：Agent Teams 与语音输入。Auto r
 
 Bundle 通过 [profile patch 操作](../../../../packages/boot/app-boot/README.zh.md)添加作用域行：`preset` 指定声明行，普通 patch 对其子列表生效。完整 Web 预设获得可选模型工具；minimal 保持当前的 shell 与工作目录工具。搜索、Ralph 与终端提供自己的隔离服务。搜索在每个保留的预设修订中按需打开一个内存索引；Host 搜索策略保持不变。徽章技能与标题提供方作用于 Host。已有 Agent 保留其预设代际，后续用户 patch 层继续优先。标题替换等待前一个提供方完成清理。
 
+Claude Code 与 Codex 通过独立的 `ON_DEMAND_BUNDLES` 目录按需安装，其成本、版本与离线发现取舍由[按需原生 bundle 决策](2026-10-05-official-on-demand-bundles.zh.md)管理。
+
 ## 考虑过的替代方案
 
 **把所有提供方都做成可选 bundle。** 组合与展示都正确，但会为多数安装从不启用的能力把提供方运行时塞进每次安装；语音输入的 `sherpa-onnx-node` 是唯一被接受的先例。
