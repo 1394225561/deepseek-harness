@@ -12,7 +12,7 @@ import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import { admitEncodedImages, type EncodedImageAttachment, type ImageAttachmentRef } from '@deepseek-ai/dsh-attachment'
 import { createUserMessage, ReasoningEffortId, type ContentBlock, type LlmRuntime } from '@deepseek-ai/dsh-llm'
 import { carrierKeyOf, type Scoped } from '@deepseek-ai/dsh-scope'
-import type { SessionId } from '@deepseek-ai/dsh-session'
+import type { SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import type SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import type { SubagentRunEndInfo } from '@deepseek-ai/dsh-subagent'
 import * as LlmDeepSeek from '@deepseek-ai/dsh-llm-deepseek-api-key'
@@ -31,6 +31,8 @@ import type {
 
 interface SessionRecord {
   handle: AgentHandle
+  /** Latest live failure not superseded by a subsequently committed terminal. */
+  failure: { readonly error: unknown; readonly atOffset: SessionLogOffset } | undefined
 }
 
 function encodedImage(block: SessionPromptParams['contentBlocks'][number]): block is SdkEncodedImageBlock {
@@ -94,8 +96,18 @@ export class HarnessSdkJsonRpcServer {
   ) {
     const serverOptions = this.options
     this.disposers.push(ctx.on('session/event', (session, event) => {
+      const record = this.sessions.get(session.id)
+      if (event.type === 'turn/end' && record?.handle.agent.session === session
+        && record.failure !== undefined && event.seq >= record.failure.atOffset) {
+        record.failure = undefined
+      }
       const payload: SessionEventNotification = { sessionId: String(session.id), event }
       this.transport.notify('session.event', payload)
+    }))
+    this.disposers.push(ctx.on('agent/error', ({ agent, error }) => {
+      const record = this.sessions.get(agent.session.id)
+      if (record?.handle.agent !== agent) return
+      record.failure = { error, atOffset: agent.session.seq }
     }))
     this.disposers.push(ctx.on('agent/status', ({ agent, status }) => {
       this.transport.notify('session.status', { sessionId: String(agent.session.id), status })
@@ -198,6 +210,7 @@ export class HarnessSdkJsonRpcServer {
   /**
    * Wait for an existing owned Agent and its managed descendants to finish.
    * The response follows all Session notifications emitted during the wait.
+   * Rejects a live Agent failure that has no subsequent durable terminal.
    * @param params - the SDK-owned session to observe without creating one.
    * @returns an empty result after the root stays idle across the descendant check.
    */
@@ -213,7 +226,10 @@ export class HarnessSdkJsonRpcServer {
       const idleSeq = agent.session.seq
       const children = await subagents?.waitForChildren(agent)
       this.assertLiveAgent(rec, params.sessionId)
-      if (!children && agent.status === 'idle' && agent.session.seq === idleSeq) return {}
+      if (!children && agent.status === 'idle' && agent.session.seq === idleSeq) {
+        if (rec.failure !== undefined) throw rec.failure.error
+        return {}
+      }
     }
   }
 
@@ -316,7 +332,7 @@ export class HarnessSdkJsonRpcServer {
         ...this.maxTokens === undefined ? {} : { maxTokens: this.maxTokens },
       },
     })
-    const rec: SessionRecord = { handle }
+    const rec: SessionRecord = { handle, failure: undefined }
     this.sessions.set(sessionId, rec)
     return rec
   }

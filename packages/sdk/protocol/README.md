@@ -48,7 +48,7 @@ Both wire ends share one method set: four client-to-server requests and four ser
 
 `HarnessSdkRequestMap` and `HarnessSdkNotificationMap` index these shapes by method name; the package root exports them together with the transport.
 
-`session/wait` accepts `{ sessionId }` for an existing SDK-owned session and returns `{}` after the root stays idle with no managed descendants. Unknown ids are rejected. Notifications committed during the wait precede its response on the same transport; raw `session.status` transitions retain their whole-agent meaning.
+`session/wait` accepts `{ sessionId }` for an existing SDK-owned session and returns `{}` after the root stays idle with no managed descendants. Unknown ids and live Agent failures without a newer committed terminal are rejected. Notifications committed during the wait precede its response on the same transport; raw `session.status` transitions retain their whole-agent meaning.
 
 ### Payload semantics
 

@@ -48,7 +48,7 @@ kind: "package-library"
 
 `HarnessSdkRequestMap` 与 `HarnessSdkNotificationMap` 按方法名索引这些结构；包根与传输一起导出它们。
 
-`session/wait` 接受已有 SDK 会话的 `{ sessionId }`，在根 Agent 持续空闲且没有受管理后代时返回 `{}`。未知 id 会被拒绝。等待期间提交的通知在同一传输上先于响应到达；原始 `session.status` 转换仍表示整个 Agent 的状态。
+`session/wait` 接受已有 SDK 会话的 `{ sessionId }`，在根 Agent 持续空闲且没有受管理后代时返回 `{}`。未知 id，以及没有后续终止事件记录的 Agent 运行时错误，都会使请求失败。等待期间提交的通知在同一传输上先于响应到达；原始 `session.status` 转换仍表示整个 Agent 的状态。
 
 ### 载荷语义
 

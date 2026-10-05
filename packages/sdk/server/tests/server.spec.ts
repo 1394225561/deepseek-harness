@@ -1246,10 +1246,14 @@ describe('HarnessSdkJsonRpcServer', () => {
 
   it('continues teardown after a subscription disposer fails', async () => {
     let subscription = 0
+    const disposed: number[] = []
     const listenerFailure = new Error('listener teardown failed')
     const on = vi.fn(() => {
-      subscription += 1
-      return subscription === 1 ? () => { throw listenerFailure } : () => undefined
+      const id = ++subscription
+      return () => {
+        disposed.push(id)
+        if (id === subscription) throw listenerFailure
+      }
     })
     const ctx = {
       on,
@@ -1259,6 +1263,6 @@ describe('HarnessSdkJsonRpcServer', () => {
     const server = new HarnessSdkJsonRpcServer(ctx, new FakeTransport())
 
     await expect(server.shutdown()).rejects.toBe(listenerFailure)
-    expect(on).toHaveBeenCalledTimes(4)
+    expect(disposed.toSorted()).toEqual(Array.from({ length: subscription }, (_, index) => index + 1))
   })
 })
