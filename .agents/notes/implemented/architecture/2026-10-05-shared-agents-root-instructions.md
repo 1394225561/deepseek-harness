@@ -10,7 +10,7 @@ DSH loads one user-global instruction file, `$DSH_HOME/AGENTS.md`. People who ru
 
 ## Decision
 
-The user-global instruction scope has two ordered roots: `$DSH_HOME/AGENTS.md` first, then `<agentsHome>/AGENTS.md`, where `agentsHome` resolves as explicit config, `$DSH_AGENTS_HOME`, then `~/.agents`. `resolveAgentsHome` and `agentsHomeDisplay` in `dsh-home-paths` own that resolution for both `dsh-agent-instructions` and `dsh-skill-filesystem`, so the shared root has one resolver whose tilde expansion and blank-environment handling match the harness home.
+The user-global instruction scope has two ordered roots: `$DSH_HOME/AGENTS.md` first, then `<agentsHome>/AGENTS.md`. The instruction loader resolves the harness home from `$DSH_HOME` or `~/.dsh`, and `agentsHome` from `$DSH_AGENTS_HOME` or `~/.agents`. `resolveAgentsHome` and `agentsHomeDisplay` in `dsh-home-paths` own that resolution for both `dsh-agent-instructions` and `dsh-skill-filesystem`, so the shared root has one resolver whose tilde expansion and blank-environment handling match the harness home.
 
 The two files are candidates of one candidate group. They deduplicate by trimmed content, so identical copies render once from the harness home, and an unobservable candidate preserves the group's last-good state. A candidate dropped as a duplicate keeps being reconciled, so deleting or changing the retained candidate promotes it; only a byte-budget omission leaves a baseline candidate unprobed. The harness-home file keeps the `user-global` scope key that earlier sessions recorded; the shared file carries `agents-global`, and reconciliation probes both roots on resume, so an external edit, a removal, or a newly created file appears as a change notice instead of a new baseline.
 
@@ -32,6 +32,6 @@ A user-global scope directory is an internal reconciliation key, so it stays out
 
 - Shared instructions load without a copy or symlink, and the symlinked layout still renders once, from the harness home.
 - A session that started before this change receives one transition when the shared file exists with content that differs from the harness-home file.
-- `agentsHome` is an accepted `dsh-agent-instructions` field. The instruction loader and the skill provider configure their same-named roots independently, so repointing one does not move the other.
+- `dsh-agent-instructions` exposes no `dshHome` or `agentsHome` config field; its two roots are process policy. `dsh-skill-filesystem` retains its explicit home fields, which select that provider's own skill roots.
 - The two user-global files share one fate on probe failure: the group preserves its last-good state together, because one digest decides which member renders.
 - `packages/context/agent-instructions/tests/agent-instructions.spec.ts` pins the two-root order, content deduplication, duplicate promotion after the retained candidate changes or disappears, the global delta wording, the `replace` and `remove` transitions, `$DSH_AGENTS_HOME` resolution, the `~/.agents` display label, and the escaped project directory name.

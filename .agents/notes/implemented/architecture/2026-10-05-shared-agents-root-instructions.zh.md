@@ -10,7 +10,7 @@ DSH 只加载一个用户全局指令文件：`$DSH_HOME/AGENTS.md`。同时使�
 
 ## 决策
 
-用户全局指令 scope 有两个有序根目录：先是 `$DSH_HOME/AGENTS.md`，然后是 `<agentsHome>/AGENTS.md`，其中 `agentsHome` 的解析顺序为显式配置、`$DSH_AGENTS_HOME`、`~/.agents`。`dsh-home-paths` 中的 `resolveAgentsHome` 与 `agentsHomeDisplay` 为 `dsh-agent-instructions` 和 `dsh-skill-filesystem` 共同负责该解析，因此共享根目录只有一个解析器，其波浪号展开与空白环境变量处理都与 harness home 一致。
+用户全局指令 scope 有两个有序根目录：先是 `$DSH_HOME/AGENTS.md`，然后是 `<agentsHome>/AGENTS.md`。指令加载器从 `$DSH_HOME` 或 `~/.dsh` 解析 harness home，从 `$DSH_AGENTS_HOME` 或 `~/.agents` 解析 `agentsHome`。`dsh-home-paths` 中的 `resolveAgentsHome` 与 `agentsHomeDisplay` 为 `dsh-agent-instructions` 和 `dsh-skill-filesystem` 共同负责该解析，因此共享根目录只有一个解析器，其波浪号展开与空白环境变量处理都与 harness home 一致。
 
 这两个文件是同一个候选组中的候选：按去除首尾空白后的内容去重，完全相同的副本只从 harness home 渲染一次，候选不可观测时保留该组最后一次成功状态。作为重复项被丢弃的候选仍参与对账，因此保留的候选被删除或改变时它会被提升为可见；只有字节预算省略会让基线候选不再被探测。harness home 文件保留更早会话记录过的 `user-global` scope key；共享文件使用 `agents-global`。对账在恢复会话时会探测两个根目录，因此外部编辑、移除或新建文件都会表现为变更通知，而不会重新生成基线。
 
@@ -32,6 +32,6 @@ DSH 只加载一个用户全局指令文件：`$DSH_HOME/AGENTS.md`。同时使�
 
 - 共享指令无需复制或 symlink 即可加载；symlink 布局仍然只从 harness home 渲染一次。
 - 在此变更之前启动的会话，若共享文件存在且内容与 harness home 文件不同，会收到一次变更通知。
-- `agentsHome` 成为 `dsh-agent-instructions` 支持的字段。指令加载器与 skill 提供方各自配置同名根目录，重新指向其中一个不会移动另一个。
+- `dsh-agent-instructions` 不暴露 `dshHome` 或 `agentsHome` 配置字段；它的两个根目录属于进程策略。`dsh-skill-filesystem` 保留显式 home 字段，用于选择该提供方自身的 skill 根目录。
 - 探测失败时两个用户全局文件共享同一命运：整个组一起保留最后一次成功状态，因为决定哪个成员渲染的是同一个 digest。
 - `packages/context/agent-instructions/tests/agent-instructions.spec.ts` 固定了两个根目录的顺序、内容去重、保留候选改变或消失后的重复项提升、全局增量措辞、`replace` 与 `remove` 变更、`$DSH_AGENTS_HOME` 解析、`~/.agents` 显示标签，以及转义后的项目目录名。
