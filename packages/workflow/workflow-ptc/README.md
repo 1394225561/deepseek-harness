@@ -68,7 +68,7 @@ The workflow requests `timeoutMs: null` from PTC. Its initial VM slice still has
 <details>
 <summary>Implementation internals — click to expand</summary>
 
-The workflow engine owns orchestration; the PTC provider owns process launch, OS confinement, framed transport and managed process cleanup. Local children remain in the parent subagent catalog after completion, independently of caller-owned result collection; workflow runs add no parent completion notice.
+The workflow engine owns orchestration; the PTC provider owns process launch, OS confinement, framed transport and managed process cleanup. Local children remain in the parent subagent catalog after completion, independently of caller-owned result collection; workflow runs add no parent completion notice. Local workflow children use the continuable catalog mode and accept messages while resident; cold continuation requires Session persistence and query, so an ephemeral child returns `NOT_RESUMABLE` after disposal.
 
 ### Design concept
 
