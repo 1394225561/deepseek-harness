@@ -2445,7 +2445,7 @@ describe('continuable review regressions', () => {
         flushing.resolve(undefined)
         await releaseFlush.promise
       }
-      await flush(session)
+      return flush(session)
     })
     const failure = new Error('capture failed')
     const result = started.result.catch((error: unknown) => error)
