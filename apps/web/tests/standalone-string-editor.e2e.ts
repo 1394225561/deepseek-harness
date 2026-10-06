@@ -1,11 +1,10 @@
-/** An optional bundle reaches the generated PTC SDK through real profile selection and a persisted Session. */
+/** A standalone tool in a custom scoped patch reaches the PTC SDK and a persisted Session. */
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { chromium, type Browser, type Page } from 'playwright'
 import { afterAll, beforeAll, describe, expect, it, onTestFailed } from 'vitest'
 import type {} from '@deepseek-ai/dsh-tools'
-import type {} from '@deepseek-ai/dsh-plugin-manager'
 import {
   assertFinalWorkspaceSnapshot, assertFixtureInventory, captureExpandedTurnProcessAria, compareOrRefreshGolden,
   fixtureUserPrompts, launchWebScaffold, recordFixture, selectedSessionFixture, watchConsole, webSnapshotMode, type WebScaffold,
@@ -14,10 +13,9 @@ import { connectFreshWorkspace, newEnglishPage, saveFailureShot } from './suppor
 
 const DIR = fileURLToPath(new URL('../../../snapshots/web/optional-string-editor', import.meta.url))
 const FIXTURE = join(DIR, 'session.v4.jsonl')
-const BUNDLE = '@deepseek-ai/dsh-string-editor'
 const MODE = webSnapshotMode()
 
-describe('web snapshot: optional string editor through PTC', () => {
+describe('web snapshot: standalone string editor through PTC', () => {
   let scaffold: WebScaffold
   let browser: Browser
   let page: Page
@@ -26,20 +24,16 @@ describe('web snapshot: optional string editor through PTC', () => {
   beforeAll(async () => {
     scaffold = await launchWebScaffold({
       developerTools: true,
-      extraOverlayPath: fileURLToPath(new URL('./pin-browse-picker.overlay.yml', import.meta.url)),
+      extraOverlayPath: [
+        fileURLToPath(new URL('./pin-browse-picker.overlay.yml', import.meta.url)),
+        fileURLToPath(new URL('./standalone-string-editor.overlay.yml', import.meta.url)),
+      ],
       profile: { packages: [] },
       compareReplaySession: true,
       ...(MODE === 'record' ? {} : { replayFixture: FIXTURE }),
     })
-    expect((await scaffold.ctx.pluginManager.listBundles()).find(bundle => bundle.name === BUNDLE))
-      .toMatchObject({ enabled: false, optional: true })
     expect((await scaffold.ctx.agentPresets.compositionInventory()).find(preset => preset.id === 'ptc')?.rows
-      .some(row => row.moduleName === '@deepseek-ai/dsh-tool-str-replace-editor')).toBe(false)
-    expect(await scaffold.ctx.pluginManager.setBundleEnabled(BUNDLE, true))
-      .toMatchObject({ application: 'applied', changed: true })
-    const active = (await scaffold.ctx.pluginManager.listBundles()).find(bundle => bundle.name === BUNDLE)
-    expect(active?.rows.find(row => row.preset === 'preset-ptc'))
-      .toMatchObject({ composition: { enabled: true, fiberPhase: 'active' } })
+      .some(row => row.moduleName === '@deepseek-ai/dsh-tool-str-replace-editor')).toBe(true)
     browser = await chromium.launch()
     page = await newEnglishPage(browser)
     tripwire = watchConsole(page)
@@ -55,7 +49,7 @@ describe('web snapshot: optional string editor through PTC', () => {
     try { await browser?.close() } finally { await scaffold?.close() }
   })
 
-  it('executes the newly selected SDK tool, persists its subcall, and verifies the created file', async () => {
+  it('executes the explicitly composed SDK tool, persists its subcall, and verifies the created file', async () => {
     onTestFailed(() => saveFailureShot(page, 'optional-string-editor'))
     const prompts = fixtureUserPrompts(await readFile(await selectedSessionFixture(FIXTURE), 'utf8'))
     expect(prompts).toHaveLength(1)
@@ -65,7 +59,7 @@ describe('web snapshot: optional string editor through PTC', () => {
     await input.press('Enter')
     const sessionId = await settled
     const agent = scaffold.ctx.agents.get(sessionId)
-    if (agent === undefined) throw new Error('Optional editor Session has no live Agent')
+    if (agent === undefined) throw new Error('Standalone editor Session has no live Agent')
     expect(scaffold.ctx.agentPresets.composedPreset(agent.ctx)).toBe('ptc')
     expect(agent.session.requestHeader()?.tools?.map(tool => tool.name)).toEqual(['run_code'])
     const system = agent.session.deriveMessages().filter(message => message.role === 'system')
@@ -76,7 +70,7 @@ describe('web snapshot: optional string editor through PTC', () => {
     expect(events.filter(event => event.type === 'tool/ptc-dispatch').map(event => event.data))
       .toMatchObject([{ name: 'str_replace_editor', arguments: { command: 'create' }, isError: false }])
     const cwd = agent.session.header.cwd
-    if (cwd === undefined) throw new Error('Optional editor Session has no working directory')
+    if (cwd === undefined) throw new Error('Standalone editor Session has no working directory')
     expect(await readFile(join(cwd, 'edited.txt'), 'utf8')).toBe('PTC_EDITOR_OK\n')
     await assertFinalWorkspaceSnapshot(DIR, cwd)
     await expect.poll(() => page.getByText('DONE', { exact: true }).count()).toBeGreaterThanOrEqual(1)

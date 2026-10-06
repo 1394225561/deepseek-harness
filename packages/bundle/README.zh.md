@@ -22,9 +22,6 @@ kind: "package-group"
 
 | 包 | 职责 | ctx key |
 |---|---|---|
-| [`session-search`](session-search/README.zh.md) | 完整 Web 预设的可选会话搜索 | — |
-| [`string-editor`](string-editor/README.zh.md) | 完整 Web 预设的可选字符串替换编辑 | — |
-| [`tmux-location`](tmux-location/README.zh.md) | 完整 Web 预设的可选 tmux 位置上下文 | — |
 | [`base`](base/README.zh.md) | 基于 base 的 profile 共享核心 | —（仅 patch） |
 | [`acp-app`](acp-app/README.zh.md) | 基于 base、仅用于自动化的 ACP stdio 应用 | 挂载 ACP bridge |
 | [`web-app`](web-app/README.zh.md) | 基于 base 的浏览器应用层 | 挂载多条 Web 配置行 |

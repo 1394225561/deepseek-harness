@@ -25,9 +25,7 @@ import { textResponse, toolCallResponse } from '../../../packages/core/agent-loo
 const root = fileURLToPath(new URL('../../..', import.meta.url))
 const installAnchor = join(root, 'apps/cli/package.json')
 const bundles = {
-  search: '@deepseek-ai/dsh-session-search',
-  editor: '@deepseek-ai/dsh-string-editor',
-  tmux: '@deepseek-ai/dsh-tmux-location',
+  search: '@deepseek-ai/dsh-experimental-session-search',
   ralph: '@deepseek-ai/dsh-experimental-ralph-bundle',
   terminal: '@deepseek-ai/dsh-experimental-terminal-bundle',
   badge: '@deepseek-ai/dsh-experimental-badge-skill-bundle',
@@ -165,7 +163,6 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
   }
 
   const names = (owner?: Agent) => ctx.tools.schemas(owner).map(tool => tool.name).sort()
-  const transcript = (owner: Agent) => JSON.stringify(owner.session.deriveMessages())
   const toolResult = (owner: Agent, callId: string) => owner.session.deriveMessages()
     .flatMap(message => message.role === 'tool' && message.toolCallId === callId ? message.content : [])
     .flatMap(block => block.type === 'text' ? [block.text] : []).join('\n')
@@ -179,53 +176,25 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
     expect((await ctx.skills.list({ cwd: workspace, scope: standard.agent })).some(skill => skill.name === 'dsh-badge')).toBe(false)
   })
 
-  it('preserves existing Agent generations across editor off/on/off and resumes with the current preset', async () => {
-    const old = await agent()
-    await select(bundles.editor, true)
-    const enabled = await agent()
-    expect(names(old.agent)).not.toContain('str_replace_editor')
-    const first = join(workspace, 'editor-enabled.txt')
-    await turn(enabled.agent, 'Create the requested file with the string editor.', [
-      toolCallResponse('editor-on', 'str_replace_editor', { command: 'create', path: first, file_text: 'EDITOR_ENABLED' }), textResponse('EDITOR_DONE'),
-    ])
-    expect(await readFile(first, 'utf8')).toBe('EDITOR_ENABLED')
-    expect(transcript(enabled.agent)).toContain('EDITOR_DONE')
-    await select(bundles.editor, false)
-    const after = await agent()
-    expect(names(after.agent)).not.toContain('str_replace_editor')
-    const retained = join(workspace, 'editor-retained.txt')
-    await turn(enabled.agent, 'Use the retained editor to create the second file.', [
-      toolCallResponse('editor-retained', 'str_replace_editor', { command: 'create', path: retained, file_text: 'RETAINED_EDITOR' }), textResponse('RETAINED_DONE'),
-    ])
-    expect(await readFile(retained, 'utf8')).toBe('RETAINED_EDITOR')
-    const sessionId = enabled.agent.session.id
-    await enabled.dispose()
-    handles.delete(enabled)
-    const resumed = await ctx.agents.resume({ resumeSessionId: sessionId, setup: scoped => ctx.agentPresets.mount(scoped, 'standard').then(() => undefined) })
-    handles.add(resumed)
-    expect(names(resumed.agent)).not.toContain('str_replace_editor')
-  })
-
-  it('generates and executes the PTC SDK for a selected editor bundle', async () => {
-    await select(bundles.editor, true)
+  it('generates and executes the PTC SDK for the selected search bundle', async () => {
+    await select(bundles.search, true)
     const coded = await agent('ptc')
     const native = await agent('cordis')
     const minimal = await agent('minimal')
-    const target = join(workspace, 'ptc-editor.txt')
     const assembly = await ctx.systemPrompt.assemble({ scope: coded.agent })
     expect(assembly.tools.map(tool => tool.name)).toEqual(['run_code'])
-    expect(assembly.sections.find(section => section.name === 'tools:sdk')?.text).toContain('str_replace_editor')
-    expect(names(native.agent)).toContain('str_replace_editor')
+    expect(assembly.sections.find(section => section.name === 'tools:sdk')?.text).toContain('session_trace')
+    expect(names(native.agent)).toContain('session_search')
     expect(names(minimal.agent)).toEqual([process.platform === 'win32' ? 'pwsh' : 'bash', 'working_directory'])
-    await turn(coded.agent, 'Create the file with the editor through run_code.', [
-      toolCallResponse('ptc-editor', 'run_code', {
-        code: `console.log(await tools.str_replace_editor(${JSON.stringify({ command: 'create', path: target, file_text: 'PTC_EDITOR_OK' })}));`,
-        description: 'Create the optional editor file',
-      }), textResponse('PTC_EDITOR_DONE'),
+    await turn(coded.agent, 'Read this session lineage through run_code.', [
+      toolCallResponse('ptc-search', 'run_code', {
+        code: 'console.log(await tools.session_trace({}));',
+        description: 'Read the current session lineage',
+      }), textResponse('PTC_SEARCH_DONE'),
     ])
-    expect(await readFile(target, 'utf8')).toBe('PTC_EDITOR_OK')
-    expect(coded.agent.session.snapshotEvents().some(event => event.type === 'tool/ptc-dispatch' && event.data.name === 'str_replace_editor')).toBe(true)
-    await select(bundles.editor, false)
+    expect(toolResult(coded.agent, 'ptc-search')).toContain(coded.agent.session.id)
+    expect(coded.agent.session.snapshotEvents().some(event => event.type === 'tool/ptc-dispatch' && event.data.name === 'session_trace')).toBe(true)
+    await select(bundles.search, false)
   })
 
   it('searches persisted conversation content only through the selected search bundle', async () => {
@@ -241,6 +210,7 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
     const foreign = await agent('standard', otherWorkspace)
     await turn(foreign.agent, 'Keep OPTIONAL_SEARCH_MARKER in the other workspace.', [textResponse('Other marker recorded.')])
     await select(bundles.search, true)
+    expect(names(live.agent)).not.toContain('session_search')
     const searcher = await agent()
     await turn(searcher.agent, 'Find the previous marker in session history.', [
       toolCallResponse('search-history', 'session_search', { query: 'OPTIONAL_SEARCH_MARKER' }), textResponse('SEARCH_DONE'),
@@ -255,6 +225,12 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
       toolCallResponse('search-retained', 'session_search', { query: 'OPTIONAL_SEARCH_MARKER' }), textResponse('RETAINED_SEARCH_DONE'),
     ])
     expect(toolResult(searcher.agent, 'search-retained')).toContain(seedId)
+    const sessionId = searcher.agent.session.id
+    await searcher.dispose()
+    handles.delete(searcher)
+    const reopened = await ctx.agents.resume({ resumeSessionId: sessionId, setup: scoped => ctx.agentPresets.mount(scoped, 'standard').then(() => undefined) })
+    handles.add(reopened)
+    expect(names(reopened.agent)).not.toContain('session_search')
   })
 
   it('loads the actual badge asset only while its bundle is selected', async () => {
@@ -322,18 +298,6 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
     expect(names((await agent()).agent)).not.toContain('ralph')
   })
 
-  it('runs the selected tmux context plugin without inventing a location outside tmux', async () => {
-    await select(bundles.tmux, true)
-    expect((await ctx.agentPresets.readDocument('standard')).content).toContain('@deepseek-ai/dsh-tmux-context')
-    expect((await ctx.agentPresets.readDocument('minimal')).content).not.toContain('@deepseek-ai/dsh-tmux-context')
-    const owner = await agent()
-    await turn(owner.agent, 'Reply from this ordinary GUI process.', [textResponse('TMUX_UNAVAILABLE')])
-    expect(owner.agent.session.snapshotEvents().some(event => event.type === 'user/message' && event.data.source.kind === 'tmux-context')).toBe(false)
-    expect(transcript(owner.agent)).toContain('TMUX_UNAVAILABLE')
-    await select(bundles.tmux, false)
-    expect((await ctx.agentPresets.readDocument('standard')).content).not.toContain('@deepseek-ai/dsh-tmux-context')
-  })
-
   it('switches title cadence off/on/off through the live manager', async () => {
     const titleRequests = (owner: Agent) => owner.session.snapshotEvents().filter(event => event.type === 'session/title-llm-request')
     const first = await agent()
@@ -359,28 +323,27 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
     expect(titleRequests(restored.agent)[0]?.data.titleProvider).toBe('session-title-first-prompt-llm')
   })
 
-  it('composes all seven bundles while leaving minimal and host tools unchanged', async () => {
+  it('composes all five bundles while leaving minimal and host tools unchanged', async () => {
     for (const name of Object.values(bundles)) await select(name, true)
     let coded: Agent | undefined
     for (const preset of ['standard', 'cordis', 'ptc']) {
       const owner = await agent(preset)
-      expect(names(owner.agent)).toEqual(expect.arrayContaining(['str_replace_editor', 'session_search', 'terminal_open', 'ralph']))
+      expect(names(owner.agent)).toEqual(expect.arrayContaining(['session_search', 'terminal_open', 'ralph']))
       if (preset === 'ptc') coded = owner.agent
     }
     if (coded === undefined) throw new Error('the PTC Agent was not created')
-    const target = join(workspace, 'combined-bundles.txt')
-    await turn(coded, 'Create the file and load the badge through one program.', [
+    await turn(coded, 'Read this session lineage and load the badge through one program.', [
       toolCallResponse('combined-program', 'run_code', {
-        code: `await tools.str_replace_editor(${JSON.stringify({ command: 'create', path: target, file_text: 'COMBINED_BUNDLES_OK' })}); console.log(await tools.skill({ name: 'dsh-badge' }));`,
-        description: 'Use the optional editor and badge together',
+        code: 'console.log(await tools.session_trace({})); console.log(await tools.skill({ name: "dsh-badge" }));',
+        description: 'Use optional session search and badge together',
       }), textResponse('COMBINED_DONE'),
     ])
-    expect(await readFile(target, 'utf8')).toBe('COMBINED_BUNDLES_OK')
+    expect(toolResult(coded, 'combined-program')).toContain(coded.session.id)
     expect(toolResult(coded, 'combined-program')).toContain('dsh-badge')
     const minimal = await agent('minimal')
     expect(names(minimal.agent)).toEqual([process.platform === 'win32' ? 'pwsh' : 'bash', 'working_directory'])
     expect(names()).toEqual(['working_directory'])
     for (const name of [...Object.values(bundles)].reverse()) await select(name, false)
-    expect(names((await agent()).agent)).not.toContain('str_replace_editor')
+    expect(names((await agent()).agent)).not.toContain('session_search')
   })
 })

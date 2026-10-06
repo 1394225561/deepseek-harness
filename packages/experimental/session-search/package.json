@@ -1,6 +1,6 @@
 {
-  "name": "@deepseek-ai/dsh-tmux-location",
-  "description": "Let agents read the current tmux pane and layout when available.",
+  "name": "@deepseek-ai/dsh-experimental-session-search",
+  "description": "Give Agents tools to search and read earlier sessions from the current workspace.",
   "version": "0.2.1-alpha.1",
   "icon": "./icon.svg",
   "publishConfig": {
@@ -9,7 +9,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
-    "directory": "packages/bundle/tmux-location"
+    "directory": "packages/experimental/session-search"
   },
   "type": "module",
   "main": "lib/index.js",
@@ -38,7 +38,8 @@
     }
   },
   "dependencies": {
-    "@deepseek-ai/dsh-tmux-context": "workspace:*"
+    "@deepseek-ai/dsh-session-query-sqlite": "workspace:*",
+    "@deepseek-ai/dsh-tool-session-query": "workspace:*"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

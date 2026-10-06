@@ -53,7 +53,7 @@
     "tests/question-composer.e2e.ts",
     "tests/approval-composer.e2e.ts",
     "tests/ptc-escalation.e2e.ts",
-    "tests/optional-string-editor.e2e.ts",
+    "tests/standalone-string-editor.e2e.ts",
     "tests/plan-control-row.e2e.ts",
     "tests/plan-review.e2e.ts",
     "tests/steering.e2e.ts",

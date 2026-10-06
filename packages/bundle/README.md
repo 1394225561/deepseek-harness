@@ -22,9 +22,6 @@ This group maps the installable patch layers used by `dsh --profile`. Each packa
 
 | Package | Role | ctx key |
 |---|---|---|
-| [`session-search`](session-search/README.md) | Optional session search in full Web presets | — |
-| [`string-editor`](string-editor/README.md) | Optional string-replacement editing in full Web presets | — |
-| [`tmux-location`](tmux-location/README.md) | Optional tmux location context in full Web presets | — |
 | [`base`](base/README.md) | Shared core for base-backed profiles | — (patch only) |
 | [`acp-app`](acp-app/README.md) | Automation-only ACP stdio application over base | mounts the ACP bridge |
 | [`web-app`](web-app/README.md) | Browser application layer over base | mounts Web rows |

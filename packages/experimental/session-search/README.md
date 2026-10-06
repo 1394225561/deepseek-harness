@@ -3,13 +3,13 @@ description: "Give Agents tools to search and read earlier sessions from the cur
 kind: "package-bundle"
 ---
 
-# @deepseek-ai/dsh-session-search
+# @deepseek-ai/dsh-experimental-session-search
 
 English | [中文](README.zh.md)
 
 ## Summary
 
-Give Agents five read-only tools to search earlier sessions in standard, cordis, and ptc. The content index opens on the first search and is shared by Agents using the same preset revision. The bundle ships switched off in Web and Desktop. Select it in Plugins to enable it.
+Give Agents five experimental read-only tools to search earlier sessions in standard, cordis, and ptc. The content index opens on the first search and is shared by Agents using the same preset revision. The bundle ships switched off in Web and Desktop. Select it in Plugins to enable it.
 
 ## Table of Contents
 
@@ -50,14 +50,14 @@ Each preset revision owns an isolated `sessionQuery` provider with a lazy `:memo
 <a id="further-exploration"></a>
 ## Further Exploration
 
-[Capability implementation](../../session-query/tool-session-query/README.md)
+[Capability implementation](../tool-session-query/README.md)
 
 -----
 
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through the [capability implementation](../../session-query/tool-session-query/README.md), which owns model context and results.
+Indirectly, through the [capability implementation](../tool-session-query/README.md), which owns model context and results.
 
 #### KV Cache effect
 

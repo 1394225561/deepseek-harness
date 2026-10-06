@@ -31,9 +31,7 @@ function bundle(name: string): { dir: string; patches: ReturnType<typeof loadOve
 }
 
 const lightweight = [
-  '@deepseek-ai/dsh-session-search',
-  '@deepseek-ai/dsh-string-editor',
-  '@deepseek-ai/dsh-tmux-location',
+  '@deepseek-ai/dsh-experimental-session-search',
   '@deepseek-ai/dsh-experimental-ralph-bundle',
   '@deepseek-ai/dsh-experimental-terminal-bundle',
   '@deepseek-ai/dsh-experimental-badge-skill-bundle',
@@ -166,7 +164,7 @@ describe('optional bundles', () => {
     }
   })
 
-  it('ships all seven lightweight bundles without selecting them in a default template', () => {
+  it('ships all five lightweight bundles without selecting them in a default template', () => {
     const defaults = Object.values(PROFILE_TEMPLATES).flatMap(template => template.bundles)
     for (const name of lightweight) {
       expect(OPTIONAL_BUNDLES).toContain(name)
@@ -199,7 +197,7 @@ describe('optional bundles', () => {
       const roots = presetRows(composed, id)
       const names = flattenRows(roots).map(row => row.name)
       for (const name of [
-        '@deepseek-ai/dsh-tool-session-query', '@deepseek-ai/dsh-tool-str-replace-editor', '@deepseek-ai/dsh-tmux-context',
+        '@deepseek-ai/dsh-tool-session-query',
         '@deepseek-ai/dsh-tool-ralph', '@deepseek-ai/dsh-tool-terminal',
       ]) expect(names).toContain(name)
       expect(roots.find(row => row.id === 'optional-ralph')?.isolate).toEqual({ workflowEngine: true })

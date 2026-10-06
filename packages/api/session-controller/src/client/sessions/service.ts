@@ -40,7 +40,7 @@ export interface SessionSummary {
   /**
    * New Session presentation and reuse eligibility, derived from the Host
    * summary, `sessionListMetadata`, and client acceptance/running observations.
-   * New Session reuses a blank one targeting the same workspace. Filtering
+   * Workspace reconnection may reuse a blank in the same workspace. Filtering
    * stays with the consumer: the store carries every row, while the Workspace
    * browser shows only the selected blank entry.
    */
