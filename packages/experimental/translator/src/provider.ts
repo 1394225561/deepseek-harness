@@ -4,6 +4,20 @@ import { assertNever } from '@deepseek-ai/dsh-util-values'
 import type { Config } from './index.ts'
 import type { TranslationProvider, TranslationSpec } from './types.ts'
 import { TranslationError } from './error.ts'
+import { createHash } from 'node:crypto'
+
+/**
+ * Identify anonymous request semantics without provider-specific language normalization.
+ * @param provider - explicitly resolved endpoint route.
+ * @param config - deployment endpoints; raw endpoint values are excluded from stored recipes.
+ * @returns protocol revision and effective endpoint fingerprint for durable result reuse.
+ */
+export function anonymousRecipe(provider: TranslationProvider, config: Config): string {
+  const url = new URL(provider === 'google' ? config.googleEndpoint : config.bingEndpoint)
+  const owned = provider === 'google' ? ['client', 'sl', 'tl', 'dt', 'q'] : ['from', 'to', 'isEnterpriseClient']
+  for (const key of owned) url.searchParams.delete(key)
+  return JSON.stringify([provider === 'google' ? 'google-form-v1' : 'bing-edge-v1', createHash('sha256').update(url.href).digest('hex')])
+}
 
 function language(tag: string, provider: TranslationProvider): string {
   const lower = tag.toLowerCase()

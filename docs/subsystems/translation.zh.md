@@ -2,19 +2,31 @@
 
 [English](translation.md) | 中文
 
-实验性 [translator](../../packages/experimental/translator/README.zh.md) 通过免登录 Google 或 Bing 浏览器端点翻译文本。它独立于 Agent 和 Session 运行；消费者负责展示、调度与保留结果。
+实验性 [translator](../../packages/experimental/translator/README.zh.md) 通过免登录 Google 或 Bing 浏览器端点翻译文本。消费者负责展示、调度及 Session 激活；绑定 Session 的请求通过已激活 Session 的写入器保留可复用结果。
 
 ## 请求与结果
 
-`TranslationProvider` 选择 `google` 或 `bing`。`TranslationRequest` 提供 `text`、`targetLanguage` 及可选的 `sourceLanguage` 和 `provider`。`resolve()` 将显式路由写入 `TranslationSpec`：配置的默认 Provider 为 Bing，省略源语言时自动检测。常见中文 locale 标签映射为所选 Provider 的语言代码。`translate()` 返回所选 Provider 翻译后的纯文本。
+`TranslationProvider` 选择 `google` 或 `bing`。`TranslationRequest` 提供 `text`、`targetLanguage` 及可选的 `sourceLanguage`、`provider` 与带品牌类型的 `sessionId`。`resolve()` 将显式路由写入 `TranslationSpec`：配置的默认 Provider 为 Bing，省略源语言时自动检测。常见中文 locale 标签映射为所选 Provider 的语言代码。`translate()` 返回所选 Provider 翻译后的纯文本。
 
 服务公开配置的 `maxTextChars`，单位为 UTF-16 code unit。消费者先拆分超长输入，再请求翻译。每次调用限制响应字节数，并将响应体读取计入超时。调用者取消和服务卸载都会中止已接收的请求；卸载等待这些请求完成。
 
 ## 失败与数据处理
 
-`TranslationError` 的 `TranslationErrorCode` 区分文本超限、HTTP 失败、无效响应、响应超限、服务自身超时与请求失败。Provider 错误信息省略提交的文本与响应体。失败时不选择其他 Provider。响应作为外部 JSON 校验，重定向被拒绝。
+`TranslationError` 的 `TranslationErrorCode` 区分文本超限、HTTP 失败、无效响应、响应超限、服务自身超时与请求失败。`TRANSLATION_SESSION_REQUIRED` 拒绝缺失的持久化后端或 Session，`TRANSLATION_SESSION_INACTIVE` 在调用 Provider 前拒绝未激活且缓存未命中的 Session，`TRANSLATION_STORAGE_ERROR` 拒绝无效保存记录或持久化失败。Provider 错误信息省略提交的文本与响应体。失败时不选择其他 Provider。响应作为外部 JSON 校验，重定向被拒绝。
 
 Google 在 form POST 请求体中接收原文，Bing 在 JSON POST 请求体中接收原文。两者都是远端服务。免登录端点不保证开发者 API 的可用性或免费额度。区域连通性须在用户网络上验证。
+
+## 持久化翻译
+
+绑定 Session 的调用对所有 Provider 使用 `plugin:translator/request` 与 `plugin:translator/result`。请求保留精确原文、语言标签、所选 Provider 和翻译规则标识，成功结果引用请求序号。可选请求 metadata 保存 Provider 专有细节，不改变记录类型。translator 在外部派发前完成请求检查点，在返回前完成结果检查点。只读缓存查找先于 Provider 调用，且不要求 Session 已激活；失败或未完成尝试不提供可复用译文。新记录使用已激活 Session 的现有写入器。translator 不打开写句柄，也不激活 Session。翻译记录保留原始事件与模型输入。不指定 Session 的调用保持无状态。未来格式迁移对实验性记录的保留为尽力而为。
+
+## 思考内容展示
+
+[可选 Bundle](../../packages/experimental/cot-translation-bundle/README.zh.md) 将 translator 与 [GUI 消费者](../../packages/experimental/client-ui-cot-translation/README.zh.md) 组合。其 `cotTranslation` Remote 为经过身份验证的浏览器调用提供服务。Session 未激活且没有已保存结果时，Host 等待 Session controller 的正常激活，再重试一次。激活保留正常的 preset 钩子、恢复标记和中断轮次修复；取消会结束调用者的等待并阻止随后调用翻译，不取消共享激活。Bundle 设置选择翻译服务及目标语言；`auto` 跟随当前界面语言。
+
+`CotTranslationPreferences` 包含已接受的翻译服务和目标语言。`CotTranslationSnapshot` 将这些偏好与 translator 当前的 `maxTextChars` 一起返回。浏览器在注册翻译控件前读取此 Host 快照，本地设置存储不可用时也如此。接受的设置更新及重新连接会刷新这两项值；请求长度限制变化时，展开内容的请求被取消并重新分片。
+
+Session 作用域的 `conversation.chat.reasoning-body` chain 接收原始 `text` 和 `running` 标志。没有 contribution 接管时，Chat 渲染原始 Markdown。启用后，GUI 只在展开后翻译完整段落和流式长段落中达到请求长度的前缀，并从当前 Session 恢复已完成结果；本地缓存只优化当前展开区域。未完成的末尾片段保留原文。原文始终可访问。关闭展开内容、切换 Provider 或语言、卸载插件都会取消未完成调用并忽略迟到的结果。Provider 失败时保留原文，必须显式重试；译文从不替换原始 Session 事件或模型输入。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -23,6 +35,33 @@ Google 在 form POST 请求体中接收原文，Bing 在 JSON POST 请求体中�
 ## Cordis API
 
 Generated from source by `scripts/gen-cordis-catalog.ts` (verified fresh by `pnpm run verify-cordis-catalog` in doc-sync; regenerate with `pnpm run gen-cordis-catalog`) — the language sides differ only in locale-specific paired document paths. Signature blocks use a `ts cordis-catalog` fence and keep the original source JSDoc; dispatch modes are defined in the [primer](../cordis-primer.zh.md#dispatch-modes), and the framework-inherited `ctx` API lives in [cordis-api/inherited.md](../cordis-api/inherited.md).
+
+<a id="ctxcottranslation--cottranslationcontroller"></a>
+
+### `ctx.cotTranslation` — `CotTranslationController`
+
+Optional reasoning translation delegates Session-bound storage to the translator.
+
+```ts cordis-catalog
+/**
+ * Read accepted translation preferences and the current request limit without sending text.
+ * @param signal - browser query cancellation or Remote contribution withdrawal.
+ * @returns authoritative preferences and maximum UTF-16 text length per request.
+ */
+@Remote limits(signal: AbortSignal): CotTranslationSnapshot
+
+/**
+ * Translate one displayed fragment through the reader's selected provider.
+ * @param request - original text and Session identity supplied by the Client; provider and explicit
+ * target language match accepted preferences, while auto uses the browser locale.
+ * @param signal - browser cancellation or Remote contribution withdrawal.
+ * @returns translated text; an uncached inactive Session joins ordinary GUI activation before retry.
+ * Failures omit the source and provider response. Cancellation stops this caller's wait, not shared activation.
+ */
+@Remote async translate(request: TranslationRequest, signal: AbortSignal): Promise<string>
+```
+
+Source: [`packages/experimental/client-ui-cot-translation/src/index.ts`](../../packages/experimental/client-ui-cot-translation/src/index.ts)
 
 <a id="ctxtranslator--translator"></a>
 
@@ -42,7 +81,9 @@ resolve(request: TranslationRequest): TranslationSpec
  * Translate one resolved specification; the selected provider receives its text.
  * @param spec - complete routing and language choices from `resolve()`.
  * @param signal - optional caller cancellation, combined with service disposal.
- * @returns translated plain text; rejects provider/limit failures and preserves cancellation reasons.
+ * @returns translated plain text, durably retained before return when a Session is supplied.
+ * An uncached supplied Session must be active; otherwise rejects with `TRANSLATION_SESSION_INACTIVE` before dispatch.
+ * Rejects provider/storage/limit failures and preserves cancellation reasons.
  */
 async translate(spec: TranslationSpec, signal?: AbortSignal): Promise<string>
 ```

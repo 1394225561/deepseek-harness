@@ -1,16 +1,18 @@
-/** Transient text translation through configurable anonymous Google and Bing endpoints. */
+/** Anonymous text translation with optional durable provider-independent Session results. */
 import { Context, Service } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type { TranslationProvider, TranslationRequest, TranslationSpec } from './types.ts'
 import { TranslationError } from './error.ts'
-import { translateText } from './provider.ts'
+import { anonymousRecipe, translateText } from './provider.ts'
+import { TranslationStorage } from './storage.ts'
+import { addAbortListener } from 'node:events'
 
 export type * from './types.ts'
 export { TranslationError } from './error.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Experimental transient text translator. */
+    /** Experimental text translator with optional durable Session reuse. */
     translator: Translator
   }
 }
@@ -51,10 +53,12 @@ export default class Translator extends Service {
   })
 
   private readonly lifetime = new AbortController()
-  private readonly pending = new Set<Promise<string>>()
+  private readonly pending = new Set<Promise<void>>()
+  private readonly storage: TranslationStorage
 
   constructor(ctx: Context, private readonly config: Config) {
     super(ctx, 'translator')
+    this.storage = new TranslationStorage(ctx)
     ctx.effect(() => async () => {
       this.lifetime.abort(new Error('Translator service disposed'))
       await Promise.allSettled(this.pending)
@@ -73,23 +77,45 @@ export default class Translator extends Service {
     this.lifetime.signal.throwIfAborted()
     this.assertTextLimit(request.text)
     return { text: request.text, targetLanguage: request.targetLanguage,
-      sourceLanguage: request.sourceLanguage ?? 'auto', provider: request.provider ?? this.config.provider }
+      sourceLanguage: request.sourceLanguage ?? 'auto', provider: request.provider ?? this.config.provider,
+      ...request.sessionId === undefined ? {} : { sessionId: request.sessionId } }
   }
 
   /**
    * Translate one resolved specification; the selected provider receives its text.
    * @param spec - complete routing and language choices from `resolve()`.
    * @param signal - optional caller cancellation, combined with service disposal.
-   * @returns translated plain text; rejects provider/limit failures and preserves cancellation reasons.
+   * @returns translated plain text, durably retained before return when a Session is supplied.
+   * An uncached supplied Session must be active; otherwise rejects with `TRANSLATION_SESSION_INACTIVE` before dispatch.
+   * Rejects provider/storage/limit failures and preserves cancellation reasons.
    */
   async translate(spec: TranslationSpec, signal?: AbortSignal): Promise<string> {
     this.lifetime.signal.throwIfAborted()
     this.assertTextLimit(spec.text)
     const combined = signal === undefined ? this.lifetime.signal : AbortSignal.any([signal, this.lifetime.signal])
     combined.throwIfAborted()
-    const task = translateText(spec, this.config, combined)
-    this.pending.add(task)
-    return task.finally(() => { this.pending.delete(task) })
+    const identity = { provider: spec.provider, text: spec.text, sourceLanguage: spec.sourceLanguage,
+      targetLanguage: spec.targetLanguage, recipe: anonymousRecipe(spec.provider, this.config) }
+    const task = spec.sessionId === undefined ? translateText(spec, this.config, combined)
+      : this.storage.run(spec.sessionId, identity, combined, async (log) => {
+        const requestSeq = await log.request(identity)
+        combined.throwIfAborted()
+        const text = await translateText(spec, this.config, combined)
+        combined.throwIfAborted()
+        await log.result(requestSeq, text)
+        return text
+      })
+    const settled = task.then(() => {}, () => {})
+    this.pending.add(settled)
+    void settled.then(() => { this.pending.delete(settled) })
+    return await new Promise<string>((resolve, reject) => {
+      const listener = addAbortListener(combined, () => {
+        // Preserve the caller's arbitrary abort reason while accepted work remains owned until settlement.
+        // oxlint-disable-next-line typescript/prefer-promise-reject-errors
+        reject(combined.reason)
+      })
+      void task.then(resolve, reject).finally(() => { listener[Symbol.dispose]() })
+    })
   }
 
   private assertTextLimit(text: string): void {

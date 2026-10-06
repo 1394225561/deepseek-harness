@@ -108,11 +108,19 @@ const GROUP_ORDER = [
 
 const SERVICE_ROLES: ServiceRole[] = [
   {
+    key: 'cotTranslation',
+    pkg: 'experimental-client-ui-cot-translation',
+    title: 'Reasoning translation Remote',
+    mode: 'service',
+    note: 'Serves reasoning translations, reuses saved results, and joins ordinary Session activation for uncached inactive Sessions.',
+  },
+  {
     key: 'translator',
     pkg: 'experimental-translator',
     title: 'Anonymous text translation',
     mode: 'service',
-    note: 'Resolves Google or Bing requests and bounds provider calls independently of Sessions.',
+    consumers: ['experimental-client-ui-cot-translation'],
+    note: 'Resolves Google or Bing requests and retains shared experimental records through the active Session writer.',
   },
   {
     key: 'hmr',
