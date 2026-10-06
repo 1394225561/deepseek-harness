@@ -75,7 +75,7 @@ export interface SnapshotSessionReference {
   source: string
 }
 
-/** Migration coverage or recorded behavior that requires immutable replay input. */
+/** Historical format or retired capability one retained scenario permanently exercises. */
 export type SnapshotSessionFormatCoverage =
   | 'multi-hop'
   | 'packed-row'
@@ -83,13 +83,12 @@ export type SnapshotSessionFormatCoverage =
   | 'shipped-profile'
   | 'adjacent-migration'
   | 'retired-tools'
-  | 'recorded-behavior'
 
 /** Explicit historical generation retained by an owning scenario. */
 export interface SnapshotSessionFormatManifest {
   /** Selected fixture generation; absent manifest metadata tracks the current writer. */
   readonly version: number
-  /** Migration, retired-tool, or recorded-response behavior that requires this immutable fixture. */
+  /** Migration or retired-tool behavior that requires this immutable fixture. */
   readonly coverage: readonly SnapshotSessionFormatCoverage[]
 }
 
@@ -155,7 +154,6 @@ const SESSION_FORMAT_COVERAGE = new Set<SnapshotSessionFormatCoverage>([
   'shipped-profile',
   'adjacent-migration',
   'retired-tools',
-  'recorded-behavior',
 ])
 const NAME_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 

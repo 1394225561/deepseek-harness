@@ -1006,7 +1006,8 @@ export class ToolRuntime extends Service {
         yield ctx.systemPrompt.section(this.sdkSection())
       }
     }.bind(this), 'tools.presentAs()')
-    return dispose // oxlint-disable-line typescript/no-misused-promises -- preserve the exact Cordis-owned disposer
+    // oxlint-disable-next-line typescript/no-misused-promises -- synchronous composite teardown
+    return dispose
   }
 
   /**

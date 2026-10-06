@@ -115,6 +115,7 @@ SNAPSHOT_WORKFLOW_SCRIPT = (
     "return { reply }"
 )
 ADVANCED_SNAPSHOT_ROOT = Path(__file__).resolve().parent / "snapshots" / "python-sdk-single-exe"
+ADVANCED_SNAPSHOT_DIRECTORY = ADVANCED_SNAPSHOT_ROOT / "advanced"
 ADVANCED_SNAPSHOT_FILENAMES = (
     "result.json", "session.v4.jsonl", "session.1.v4.jsonl", "session.2.v4.jsonl",
 )
@@ -133,13 +134,13 @@ DYNAMIC_TOOLS_SNAPSHOT_DIRECTORY = (
 )
 DYNAMIC_TOOLS_SNAPSHOT_FILENAMES = ("tool-history.json",)
 RESTART_SNAPSHOT_DIRECTORY = (
-    Path(__file__).resolve().parent / "snapshots" / "python-sdk-single-exe" / "restart-native"
+    Path(__file__).resolve().parent / "snapshots" / "python-sdk-single-exe" / "restart"
 )
 RESTART_SNAPSHOT_FILENAMES = (
     "result.json", "requests.json", "session.1.v4.jsonl", "session.2.v4.jsonl",
 )
 RECOVERY_SNAPSHOT_DIRECTORY = (
-    Path(__file__).resolve().parent / "snapshots" / "python-sdk-single-exe" / "scheduler-recovery-native"
+    Path(__file__).resolve().parent / "snapshots" / "python-sdk-single-exe" / "scheduler-recovery"
 )
 RECOVERY_SNAPSHOT_FILENAMES = ("result.json", "requests.json", "session.v4.jsonl")
 MCP_SERVER_SCRIPT = """\
@@ -1642,7 +1643,7 @@ def smoke_sdk_snapshot_mode(
 
         files = build_snapshot_files(result, logs, child_ids, root)
         compare_snapshot_files(
-            files, update_snapshots, ADVANCED_SNAPSHOT_ROOT / f"advanced-{mode}",
+            files, update_snapshots, ADVANCED_SNAPSHOT_DIRECTORY if mode == "native" else ADVANCED_SNAPSHOT_ROOT / "advanced-ptc",
             ADVANCED_SNAPSHOT_FILENAMES if mode == "native" else ("result.json", "session.v4.jsonl"),
             native_writer_output=True,
         )

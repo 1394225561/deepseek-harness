@@ -3,9 +3,6 @@ scenario: tool-error-details
 profile: sdk
 composition: default
 recording: authored
-sessionFormat:
-  version: 4
-  coverage: [recorded-behavior]
 header:
   class: native-then-ptc
   pin: true

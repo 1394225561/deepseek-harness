@@ -643,19 +643,10 @@ def test_native_writer_comparison_rejects_mixed_expected_role_generations(tmp_pa
         SMOKE["compare_snapshot_files"](fresh, False, tmp_path, tuple(golden), native_writer_output=True)
 
 
-@pytest.mark.parametrize(("scenario", "filenames"), [
-    ("advanced", SMOKE["ADVANCED_SNAPSHOT_FILENAMES"]),
-    ("advanced-native", SMOKE["ADVANCED_SNAPSHOT_FILENAMES"]),
-    ("advanced-ptc", ("result.json", "session.v4.jsonl")),
-    ("restart", SMOKE["RESTART_SNAPSHOT_FILENAMES"]),
-    ("restart-native", SMOKE["RESTART_SNAPSHOT_FILENAMES"]),
-    ("scheduler-recovery", SMOKE["RECOVERY_SNAPSHOT_FILENAMES"]),
-    ("scheduler-recovery-native", SMOKE["RECOVERY_SNAPSHOT_FILENAMES"]),
-])
-def test_committed_python_native_goldens_compare_current_output_without_rewriting(
-    scenario: str, filenames: tuple[str, ...],
-) -> None:
-    directory = ROOT / "scripts" / "snapshots" / "python-sdk-single-exe" / scenario
+@pytest.mark.parametrize("scenario", ["ADVANCED", "RESTART"])
+def test_committed_python_native_goldens_compare_current_output_without_rewriting(scenario: str) -> None:
+    directory = SMOKE[f"{scenario}_SNAPSHOT_DIRECTORY"]
+    filenames = SMOKE[f"{scenario}_SNAPSHOT_FILENAMES"]
     before = {path.name: path.read_bytes() for path in directory.iterdir() if path.is_file()}
     selected = SMOKE["selected_snapshot_session_files"](directory)
     first = next(iter(selected.values()))

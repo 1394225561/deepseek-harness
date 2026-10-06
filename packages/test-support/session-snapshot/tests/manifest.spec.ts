@@ -24,18 +24,6 @@ describe('snapshot manifest', () => {
     })
   })
 
-  it.each(['retired-tools', 'recorded-behavior'])(
-    'keeps %s inputs immutable in record and refresh', (coverage) => {
-      const manifest = parseSnapshotManifest([
-        'version: 1', 'profile: headless', 'sessionFormat:', '  version: 4',
-        `  coverage: [${coverage}]`, '',
-      ].join('\n'))
-      expect(manifest.sessionFormat?.coverage).toEqual([coverage])
-      expect(writesCurrentSessionFixtures(manifest, 'record')).toBe(false)
-      expect(writesCurrentSessionFixtures(manifest, 'refresh')).toBe(false)
-    },
-  )
-
   it('keeps explicitly retained generations read-only while current fixtures track writer output', () => {
     const current = parseSnapshotManifest('version: 1\nprofile: headless\n')
     const borrower = parseSnapshotManifest([

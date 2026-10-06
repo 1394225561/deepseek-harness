@@ -22,4 +22,4 @@ Each agent selects `native` or `ptc`. Native presentation exposes visible capabi
 
 An agent cannot alternate between direct end-tool calls and `run_code` through one mixed presentation. Reintroduction requires a concrete need for that behavior and evidence that it warrants the additional interface.
 
-Tests for shared policy, cancellation, nested context, and multimodal results use native or PTC setups. Historical Session records retain their original bytes and remain readable. The removal changes accepted configuration, not the plugin-author registration API or the guarded execution pipeline.
+Tests for shared policy, cancellation, nested context, and multimodal results use native or PTC setups. Older Session generations and explicitly retained recordings keep their original bytes and remain readable. The removal changes accepted configuration, not the plugin-author registration API or the guarded execution pipeline.

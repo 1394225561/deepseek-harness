@@ -3,11 +3,9 @@ scenario: advanced-toolchain
 profile: headless
 composition: advanced-toolchain
 recording: authored
-sessionFormat:
-  version: 4
-  coverage: [recorded-behavior]
 header:
   class: native-ptc-native
   pin: true
   changes: 2
   promptChanges: 2
+  childSystemPrompts: [1, 2]

@@ -28,7 +28,6 @@ import {
   normalizedSystemPrompts,
   normalizedToolSchemas,
   parseSnapshotManifest,
-  parseSystemPromptSnapshot,
   parseToolSchemasSnapshot,
   redactSessionSnapshotIds,
   refreshFixtureReplacements,
@@ -238,20 +237,6 @@ async function primaryFixtureFile(dir: string): Promise<string> {
   const content = await readFile(join(dir, primary), 'utf8')
   assertSessionFixtureVersion(primary, content)
   return primary
-}
-
-/** Read the header owner from its current writer oracle when its replay input is retained. */
-async function headerPinFixture(scenario: HeadlessScenario): Promise<string> {
-  if (scenario.manifest.sessionFormat === undefined) {
-    return readFile(join(scenario.dir, await primaryFixtureFile(scenario.dir)), 'utf8')
-  }
-  const filename = writerSnapshotName(0)
-  const content = await readFile(join(scenario.dir, filename), 'utf8')
-  const version = sessionHeaderVersion(content, `${scenario.name}/${filename}`)
-  if (version !== SESSION_FORMAT_VERSION) {
-    throw new Error(`${scenario.name}: retained header pin requires a current v${SESSION_FORMAT_VERSION} writer oracle, received v${version}`)
-  }
-  return content
 }
 
 async function writeSessionFixtures(
@@ -894,7 +879,7 @@ async function verifyProviderCwdResume(
 
 async function verifyHeaders(scenario: HeadlessScenario, actualLogs: readonly SessionLog[], ctx: NormalizeContext): Promise<void> {
   const pin = pinOf(scenario)
-  const fixture = await headerPinFixture(pin)
+  const fixture = await readFile(join(pin.dir, await primaryFixtureFile(pin.dir)), 'utf8')
   const pinned = normalizedHeaders(fixture, fixtureContext(fixture))
   const changes = pin.manifest.header.changes ?? 0
   expect(pinned, `${scenario.name}: pin header count`).toHaveLength(1 + changes)
@@ -905,7 +890,6 @@ async function verifyHeaders(scenario: HeadlessScenario, actualLogs: readonly Se
     throw new Error(`${scenario.name}: header sidecar source is not a headless scenario`)
   }
   const prompt = await readFile(join(promptOwner.dir, 'system-prompt.expected.md'), 'utf8')
-  const childPrompt = parseSystemPromptSnapshot(prompt).initial
   const schemas = parseToolSchemasSnapshot(await readFile(join(schemaOwner.dir, 'tool-schemas.expected.json'), 'utf8'))
   const schemaSets = [schemas.initial, ...schemas.changes]
   expect(schemaSets, `${scenario.name}: pin tool-schema count`).toHaveLength(pinned.length)
@@ -942,18 +926,17 @@ async function verifyHeaders(scenario: HeadlessScenario, actualLogs: readonly Se
       expect(
         formatSystemPromptSnapshot(prompts[0] as string, prompts.slice(1)),
         `${scenario.name}: system prompts`,
-      ).toBe(childPrompts.get(logIndex) ?? (logIndex === 0 ? prompt : childPrompt))
+      ).toBe(childPrompts.get(logIndex) ?? prompt)
     }
   }
 }
 
 describe('headless recorded-session snapshots', () => {
-  it('gives every composition and header class exactly one current-writer pin', async () => {
+  it('gives every composition and header class exactly one current-writer pin', () => {
     for (const scenario of scenarios) {
       expect(ownerOf(scenario), `${scenario.name}: composition owner`).toBeDefined()
-      expect(pinOf(scenario), `${scenario.name}: header pin`).toBeDefined()
+      expect(pinOf(scenario).manifest.sessionFormat, `${scenario.name}: current-writer header pin`).toBeUndefined()
     }
-    for (const pin of headerPins.values()) await headerPinFixture(pin)
   })
 
   it('recognizes the supported OS-assigned listener forms', () => {
@@ -1169,13 +1152,6 @@ describe('headless recorded-session snapshots', () => {
       ].map(record => JSON.stringify(record)).join('\n')
       const retained = '{"type":"session","version":1}\n'
       await writeFile(join(directory, 'session.v1.jsonl'), retained)
-
-      await expect(headerPinFixture(scenario)).rejects.toMatchObject({ code: 'ENOENT' })
-      const writerPath = join(directory, writerSnapshotName(0))
-      await writeFile(writerPath, retained)
-      await expect(headerPinFixture(scenario)).rejects.toThrow('retained header pin requires a current')
-      await writeFile(writerPath, content)
-      expect(await headerPinFixture(scenario)).toBe(content)
 
       await writeHeaderSidecars(
         scenario,

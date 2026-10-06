@@ -22,7 +22,7 @@ export interface SnapshotCorpusGenerationSummary {
 }
 
 const RETAINED_BASELINE_VERSION = 3
-const MAX_RETAINED_ROLES = 17
+const MAX_RETAINED_ROLES = 11
 const REQUIRED_V0_COVERAGE = new Set([
   'multi-hop',
   'packed-row',
@@ -71,14 +71,13 @@ export function assertSnapshotCorpusPolicy(
         `${scenario.key}: selected Session generation v${mismatched} does not match expected v${expectedVersion}`,
       )
     }
-    const nonMigration = scenario.retained.coverage.length === 1
-      && (scenario.retained.coverage[0] === 'retired-tools' || scenario.retained.coverage[0] === 'recorded-behavior')
+    const retiredTools = scenario.retained.coverage.length === 1 && scenario.retained.coverage[0] === 'retired-tools'
     if (!Number.isSafeInteger(scenario.retained.version)
       || scenario.retained.version < 0 || scenario.retained.version > SESSION_FORMAT_VERSION
-      || (scenario.retained.version === SESSION_FORMAT_VERSION && !nonMigration)) {
-      throw new Error(`${scenario.key}: retained Session format must precede current v${SESSION_FORMAT_VERSION} unless it pins retired tools or recorded behavior at that version`)
+      || (scenario.retained.version === SESSION_FORMAT_VERSION && !retiredTools)) {
+      throw new Error(`${scenario.key}: retained Session format must precede current v${SESSION_FORMAT_VERSION} unless it pins retired tools at that version`)
     }
-    const allowedCoverage = nonMigration ? new Set(['retired-tools', 'recorded-behavior']) : scenario.retained.version === 0
+    const allowedCoverage = retiredTools ? new Set(['retired-tools']) : scenario.retained.version === 0
       ? REQUIRED_V0_COVERAGE
       : REQUIRED_ADJACENT_COVERAGE
     if (scenario.retained.coverage.some(item => !allowedCoverage.has(item))) {
