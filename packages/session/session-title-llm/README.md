@@ -33,7 +33,7 @@ A provider plugin calls `registerSessionTitleLlmProvider(ctx, config, id, automa
 
 ### Route and failure contract
 
-`provider` and `model` overrides are optional but must be supplied together as non-empty strings. Without that pair, the helper uses the exact provider/model route captured from the current session's logged `request/header`, so an explicit refresh before any route exists needs overrides. The helper measures the final JSON-framed user prompt against `maxInputBytes` before logging or dispatch instead of truncating it, and rechecks timeout and caller cancellation while consuming the stream and after it completes, so a late successful result cannot be accepted even if an interceptor or adapter ignores abort. Malformed or empty output, tool calls, and non-stop finish reasons reject; the session-title service decides whether that rejection is an automatic warning or an explicit caller failure.
+`provider` and `model` overrides are optional but must be supplied together as non-empty strings. Without that pair, the helper uses the exact provider/model route captured from the current session's logged `request/header`, so an explicit refresh before any route exists needs overrides. The helper measures the final JSON-framed user prompt against `maxInputBytes` before logging or dispatch instead of truncating it, and rechecks timeout and caller cancellation while consuming the stream and after it completes, so a late successful result cannot be accepted even if an interceptor or adapter ignores abort. Malformed or empty output, tool calls, and non-stop finish reasons reject; the session-title service decides whether that rejection is an automatic warning or an explicit caller failure. The accepted title is the first non-empty line of the model's text output, with one emphasis pair removed when it wraps that whole line, so commentary a model writes after the title cannot become the title. The dispatched output cap is the smaller of `maxOutputTokens` and the cap the session's current main request recorded; a session whose header records no cap leaves `maxOutputTokens` in force.
 
 ### Configuration
 
@@ -46,7 +46,7 @@ Every field is required except the paired route override; there are no library d
 | `targetWords` | required | Target word count for non-CJK titles |
 | `targetCjkCharacters` | required | Target character count for Chinese, Japanese, or Korean titles |
 | `maxInputBytes` | required | UTF-8 byte ceiling for the final JSON-framed user prompt |
-| `maxOutputTokens` | required | Auxiliary generation token cap |
+| `maxOutputTokens` | required | Auxiliary generation token cap, never above the cap the session's current request recorded |
 | `timeoutMs` | required | End-to-end deadline within the runtime timer limit |
 | `provider`, `model` | optional | Explicit route; both or neither |
 
@@ -98,7 +98,7 @@ Read these pages when the generation policy is not enough. They move from the se
 
 #### What the model sees
 
-The title model receives a fixed system instruction to return one concise unadorned title in the input language, including the configured word and CJK-character targets. Its one user message contains a JSON array of the exact selected human messages and their seqs.
+The title model receives a fixed system instruction to return one concise unadorned title in the input language, including the configured word and CJK-character targets and a short title instead of an explanation when the messages give little to name. Its one user message contains a JSON array of the exact selected human messages and their seqs.
 
 #### Token effect
 
