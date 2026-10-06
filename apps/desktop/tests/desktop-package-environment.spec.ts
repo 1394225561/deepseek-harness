@@ -139,6 +139,14 @@ describe('Desktop local packaging configuration', () => {
     }).not.toThrow()
   })
 
+  it('accepts unsigned macOS configuration without Apple or updater credentials but still requires application policy', () => {
+    const local = { ...POLICY, DSH_DESKTOP_APP_ID: RELEASE.DSH_DESKTOP_APP_ID }
+    expect(() => { validateDesktopPackageEnvironment(local, MACOS, { unsigned: true }) }).not.toThrow()
+    expect(() => { validateDesktopPackageEnvironment({ DSH_DESKTOP_APP_ID: local.DSH_DESKTOP_APP_ID }, MACOS, { unsigned: true }) })
+      .toThrow('DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN')
+    expect(() => { validateDesktopPackageEnvironment(RELEASE, MACOS) }).toThrow('DSH_DESKTOP_MACOS_SIGNING_IDENTITY')
+  })
+
   it('accepts one local npm registry mirror and rejects other registry forms', () => {
     const release = { ...POLICY, DSH_DESKTOP_APP_ID: RELEASE.DSH_DESKTOP_APP_ID }
     expect(() => {
