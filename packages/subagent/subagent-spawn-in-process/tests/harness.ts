@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from '../../subagent/tests/working-directory-fixture.ts'
 import { join } from 'node:path'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { Context } from '@deepseek-ai/cordis'
@@ -27,6 +28,7 @@ export async function spawnHarness(workdir: string): Promise<Context> {
   // delegation nudge lives in the e2e's user prompt and the subagent tool's
   // own description.
   await mountAgentLoopTestDependencies(ctx, {
+    workingDirectory: true,
     systemPrompt: { personaPrefix: 'You are a coding agent. Report only when the requested work is done.' },
   })
   await ctx.plugin(AgentLoop, { agents: [] })
@@ -36,6 +38,7 @@ export async function spawnHarness(workdir: string): Promise<Context> {
   await ctx.plugin(LocalBashExecutor, { cwd: workdir, timeoutMs: 30_000 })
   await ctx.plugin(ToolBash)
   await ctx.plugin(JsonlSessionPersistence, { root: join(workdir, '.sessions') })
+  await mountWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(Spawn, { providerName: 'spawn' })
   // The model-facing subagent tool, bound to the spawn backend.

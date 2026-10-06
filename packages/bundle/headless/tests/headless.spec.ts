@@ -18,7 +18,7 @@ import SessionStore from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import type { Session, SessionId, UserMessage } from '@deepseek-ai/dsh-session'
 import { SessionQueryError } from '@deepseek-ai/dsh-session-query'
-import { createInboxStub } from '@deepseek-ai/dsh-agent-loop-testkit'
+import { createInboxStub, provideWorkingDirectoryFixture } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { apply, Config } from '../src/index.ts'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import { internals } from '../src/runner-internals.ts'
@@ -128,6 +128,7 @@ async function bench(script: Script, options: BenchOptions = {}): Promise<{
   run(): Promise<{ code: number; out: string; err: string; order: string[] }>
 }> {
   const ctx = new Context()
+  provideWorkingDirectoryFixture(ctx)
   if (options.filesystemCwd !== undefined) {
     const cwd = options.filesystemCwd
     ctx.provide('fs', {

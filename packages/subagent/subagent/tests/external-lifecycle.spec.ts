@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from './working-directory-fixture.ts'
 /** External activation admission and resource ownership across parent lifetimes. */
 
 import { describe, expect, it, vi } from 'vitest'
@@ -14,6 +15,7 @@ const complete: SubagentResult = { output: [], stopReason: 'completed' }
 async function setup(start: (request: SubagentStartRequest) => Promise<SubagentRun>, delivery: 'caller' | 'parent' = 'caller') {
   const ctx = new Context()
   await ctx.plugin(SessionProjectionRegistry)
+  await mountWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   const parent = await externalTestParent(ctx)
   ctx.subagents.registerProvider({

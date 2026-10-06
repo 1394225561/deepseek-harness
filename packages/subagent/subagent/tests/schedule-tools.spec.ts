@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from './working-directory-fixture.ts'
 /**
  * A preset-mounted Schedule tool reaches a delegated child, and the Host
  * Schedule service refuses the child's own Session because the Session
@@ -46,7 +47,7 @@ async function setupScheduleHost(): Promise<{ ctx: Context; parent: Agent; dispa
   ctx.baseUrl = pathToFileURL(FIXTURES).href + '/'
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
-  await mountAgentLoopTestDependencies(ctx)
+  await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
   await ctx.plugin(JsonlSessionPersistence, { root })
   await ctx.plugin(Storage)
   const pool = new MemoryMediaPool()
@@ -65,6 +66,7 @@ async function setupScheduleHost(): Promise<{ ctx: Context; parent: Agent; dispa
   ctx.provide('sessionController', { resolveAgent: dispatched } as never)
   await ctx.plugin(ScheduleService)
   await ctx.plugin(AgentLoop, { agents: [] })
+  await mountWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(Spawn, { providerName: 'spawn' })
   await ctx.plugin(AgentPresets, { default: 'coding' })

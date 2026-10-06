@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from './working-directory-fixture.ts'
 /** Host completion races around idle local children with preserved input. */
 import { setImmediate } from 'node:timers/promises'
 import { describe, expect, it, vi } from 'vitest'
@@ -22,6 +23,7 @@ async function setup() {
   const pending: Promise<unknown>[] = []
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
+  await mountWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   ctx.llm.registerAdapter(['mock'], new MockAdapter(Array.from({ length: 12 }, () => textResponse('answer'))))
   ctx.subagents.registerProvider({

@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from '../../../subagent/subagent/tests/working-directory-fixture.ts'
 import { createUserMessage, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { ContextFormed } from '@deepseek-ai/dsh-llm'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -35,6 +36,7 @@ function messageText(harness: BridgeHarness): string {
 }
 
 async function installDelegationTool(ctx: BridgeHarness['ctx']): Promise<() => boolean> {
+  await mountWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   ctx.subagents.registerProvider({
     name: 'local-test', capabilities: NO_START_CAPABILITIES, inheritsParentContext: false,

@@ -1,3 +1,4 @@
+import { provideWorkingDirectoryFixture } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import { PtcRuntime } from '@deepseek-ai/dsh-ptc-runtime'
@@ -33,6 +34,7 @@ async function setup(execute?: (bindings: HostBindings, spec: PtcRunSpec) => Pro
   await ctx.plugin(AgentRegistry)
   await ctx.plugin(SessionProjections)
   await ctx.plugin(SandboxPolicy, { mode: 'read-only' })
+  provideWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   ctx.subagents.registerProvider({
     name: 'stub',
@@ -57,6 +59,38 @@ async function setup(execute?: (bindings: HostBindings, spec: PtcRunSpec) => Pro
 }
 
 describe('workflow host callback validation', () => {
+  it('retains its selected directory for the process and later children when the parent moves', async () => {
+    const entered = Promise.withResolvers<undefined>()
+    const release = Promise.withResolvers<undefined>()
+    let launched: PtcRunSpec | undefined
+    const { ctx, start, parent } = await setup(async (bindings, spec) => {
+      launched = spec
+      entered.resolve(undefined)
+      await release.promise
+      await bindings.startChild!({ prompt: 'child' })
+      return completed
+    })
+    const initial = `${process.cwd()}/selected`
+    const ensureDirectory = vi.spyOn(ctx.workingDirectory, 'ensure').mockResolvedValue(initial)
+    const childStart = vi.spyOn(ctx.subagents, 'startActivation')
+    const run = start()
+    try {
+      await entered.promise
+      ensureDirectory.mockResolvedValue(`${process.cwd()}/later`)
+      release.resolve(undefined)
+      expect((await run.result).stopReason).toBe('completed')
+      expect(launched?.cwd).toBe(initial)
+      expect(launched?.sandboxPolicy?.workspaceRoot).toBe(parent.session.header.cwd)
+      expect(childStart).toHaveBeenCalledOnce()
+      const selected = childStart.mock.calls[0]![0]
+      expect(selected.provider).toBe('stub')
+      expect(selected.request.cwd).toBe(initial)
+      expect(ensureDirectory).toHaveBeenCalledOnce()
+    } finally {
+      release.resolve(undefined)
+      await run.dispose()
+    }
+  })
   it.each([
     ['startChild', null, 'requires an object'],
     ['startChild', [], 'requires an object'],
@@ -137,9 +171,14 @@ describe('workflow runtime outcomes', () => {
       expect(activation).toHaveBeenCalledOnce()
       const { signal, ...delegation } = activation.mock.calls[0]![0]
       expect(signal).toBeInstanceOf(AbortSignal)
-      expect(delegation).toEqual({
+      const { parent: delegatedParent, ...request } = delegation.request
+      expect(delegatedParent).toBe(parent)
+      expect({ ...delegation, request }).toEqual({
         provider: 'stub', label: 'host-test child 1', delivery: 'caller',
-        request: { prompt: [{ type: 'text', text: 'answer' }], parent, outputSchema: schema, agentOptions: { model: 'selected' } },
+        request: {
+          cwd: ctx.workingDirectory.get(parent.session),
+          prompt: [{ type: 'text', text: 'answer' }], outputSchema: schema, agentOptions: { model: 'selected' },
+        },
       })
       released.resolve(undefined)
       await expect(run.result).resolves.toMatchObject({ stopReason: 'completed' })

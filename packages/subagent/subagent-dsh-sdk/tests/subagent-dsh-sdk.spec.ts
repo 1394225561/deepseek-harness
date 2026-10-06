@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from '../../subagent/tests/working-directory-fixture.ts'
 /**
  * Keyless integration tests for the SDK subagent backend. Each spawns a REAL
  * subprocess — the SDK client package's scripted fake runtime — and drives it
@@ -68,7 +69,7 @@ afterEach(() => {
   runInternals.createHarness = defaultCreateHarness
 })
 
-/** A parent Agent stub. The SDK backend reads exactly one thing off it: the session header's cwd (the workspace its child inherits). */
+/** Parent identity and immutable origin supplied to the activation fixture. */
 const fakeParent = { id: 'parent', session: { header: { cwd: process.cwd() } } } as unknown as Agent
 
 function request(text = 'p', signal = new AbortController().signal, agentOptions?: AgentOptions) {
@@ -85,6 +86,7 @@ function request(text = 'p', signal = new AbortController().signal, agentOptions
 async function setup(fakeEnv: Record<string, string> = {}, config: Partial<sdk.Config> = {}) {
   const ctx = new Context()
   await ctx.plugin(SessionProjectionRegistry)
+  await mountWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   // The Config type models the post-validation shape, so the default registry
   // name is stated here; the Loader-composition fixture omits providerName and
@@ -694,9 +696,32 @@ describe('dsh-subagent-dsh-sdk provider', () => {
       label: 'p',
       prompt: [{ type: 'text' as const, text: 'p' }],
       parent,
+      cwd: process.cwd(),
       signal: controller.signal,
     }))).rejects.toThrow('aborted before the SDK child started')
     await ctx.fiber.dispose()
+  })
+
+  it('rejects a child directory removed after resolution without starting a runtime', async () => {
+    const cwd = mkdtempSync(join(tmpdir(), 'subagent-dsh-sdk-removed-cwd-'))
+    const ctx = await setup()
+    const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
+    try {
+      const resolved = {
+        ...request(),
+        cwd,
+
+      }
+      rmSync(cwd, { recursive: true })
+      expect(() => ctx.subagents.getProvider('dsh-sdk')!.start!(resolved))
+        .toThrow(expectedFailure('stage: initialize; category: configuration'))
+      expect(createdHarnessOptions).toEqual([])
+      expect(warn).toHaveBeenCalledWith('subagent-dsh-sdk "dsh-sdk": child start failed: %o', expect.any(Error))
+    } finally {
+      warn.mockRestore()
+      await ctx.fiber.dispose()
+      rmSync(cwd, { recursive: true, force: true })
+    }
   })
 
   it('rejects after reaping when the child dies before the handshake', async () => {
@@ -813,6 +838,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
   it('registers under the configured provider name and unregisters on fiber dispose (HMR safety)', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     const fiber = await ctx.plugin(sdk, {
       providerName: 'sdk-hmr',
@@ -840,6 +866,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
   it('rejects non-positive timing bounds at load', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     const base = { providerName: 'sdk', profile: 'sdk', patches: [], dshHome: process.cwd(), provider: 'p', model: 'm', env: {} }
     await expect(ctx.plugin(sdk, { ...base, shutdownTimeoutMs: 0 })).rejects.toThrow('shutdownTimeoutMs must be a positive finite number')
@@ -850,6 +877,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
 
   it('requires an explicit absolute Harness home for nested dsh runtimes', async () => {
     const ctx = new Context()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await expect(ctx.plugin(sdk, {
       providerName: 'sdk',
@@ -869,6 +897,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
     { field: 'patches[0]', override: { patches: ['./missing-child-patch.yml'] } },
   ])('rejects an invalid $field at load', async ({ field, override }) => {
     const ctx = new Context()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await expect(ctx.plugin(sdk, {
       providerName: 'sdk',
@@ -888,6 +917,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
     async (maxTokens) => {
       const ctx = new Context()
       await ctx.plugin(SessionProjectionRegistry)
+      await mountWorkingDirectoryFixture(ctx)
       await ctx.plugin(SubagentRuntime)
       await expect(ctx.plugin(sdk, {
         providerName: 'sdk',
@@ -908,6 +938,7 @@ describe('dsh-subagent-dsh-sdk provider', () => {
     async (maxTokens) => {
       const ctx = new Context()
       await ctx.plugin(SessionProjectionRegistry)
+      await mountWorkingDirectoryFixture(ctx)
       await ctx.plugin(SubagentRuntime)
       expect(() => { sdk.apply(ctx, {
         providerName: 'sdk',
@@ -926,31 +957,15 @@ describe('dsh-subagent-dsh-sdk provider', () => {
     },
   )
 
-  it('rejects an empty config cwd at load', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SessionProjectionRegistry)
-    await ctx.plugin(SubagentRuntime)
-    await expect(ctx.plugin(sdk, {
-      providerName: 'sdk',
-      profile: 'sdk',
-      patches: [],
-      dshHome: process.cwd(),
-      cwd: '',
-      provider: 'p',
-      model: 'm',
-      env: {},
-    })).rejects.toThrow('config cwd must not be empty')
-    await ctx.fiber.dispose()
-  })
-
-  it('uses a validated config cwd override instead of the parent session cwd', async () => {
+  it('uses an explicit child directory while preserving the parent origin', async () => {
     const tmp = mkdtempSync(join(tmpdir(), 'subagent-dsh-sdk-cwd-'))
     try {
-      const ctx = await setup({ FAKE_ECHO_CWD: '1', FAKE_TEXT: 'done' }, { cwd: tmp })
-      const run = await startExternalActivation(ctx, 'dsh-sdk', request())
+      const ctx = await setup({ FAKE_ECHO_CWD: '1', FAKE_TEXT: 'done' })
+      const run = await startExternalActivation(ctx, 'dsh-sdk', { ...request(), cwd: tmp })
       const result = await run.result
       const { realpathSync } = await import('node:fs')
       expect(text(result.output)).toContain(`cwd=${realpathSync(tmp)}`)
+      expect(createdHarnessOptions.at(-1)?.cwd).toBe(process.cwd())
       await run.dispose()
       await ctx.fiber.dispose()
     } finally {
@@ -958,15 +973,12 @@ describe('dsh-subagent-dsh-sdk provider', () => {
     }
   })
 
-  it('fails loud when neither config cwd nor parent session cwd exists', async () => {
+  it('uses the runtime directory when the parent has no origin', async () => {
     const ctx = await setup()
     const parent = { id: 'parent', session: { header: {} } } as unknown as Agent
-    await expect(startExternalActivation(ctx, 'dsh-sdk', {
-      label: 'p', prompt: [{ type: 'text' as const, text: 'p' }], parent, signal: new AbortController().signal,
-    }))
-      .rejects.toThrow(
-        `subagent-dsh-sdk: ${expectedFailure('stage: initialize; category: configuration')}`,
-      )
+    const run = await startExternalActivation(ctx, 'dsh-sdk', { ...request(), parent })
+    expect((await run.result).stopReason).toBe('completed')
+    await run.dispose()
     await ctx.fiber.dispose()
   })
 

@@ -229,6 +229,10 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
             : ' The completion notice includes its final answer. This backend does not accept follow-up messages.')
           + choiceDescription,
         parameters: {
+          cwd: {
+            type: 'string',
+            description: 'Initial child working directory. Relative paths use your current directory; omitted inherits it. Later directory changes in either agent are independent.',
+          },
           description: {
             type: 'string',
             required: true,
@@ -318,6 +322,7 @@ export function apply(ctx: Context, config: Config, session?: Session): void {
           exec.signal.throwIfAborted()
           const maxDepth = runtimeCtx.subagents.resolveMaxDepth(config.maxDepth)
           const request = {
+            ...args.cwd === undefined ? {} : { cwd: args.cwd },
             prompt: [{ type: 'text', text: args.prompt }] as ContentBlock[],
             parent,
             ...requestedChildAgentOptions !== undefined ? { agentOptions: requestedChildAgentOptions } : {},

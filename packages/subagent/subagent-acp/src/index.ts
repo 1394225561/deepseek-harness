@@ -1,8 +1,8 @@
 /**
  * Out-of-process ACP subagent backend. Each child has its own process, session, model, and
  * tools, so it shares no Cordis context and advertises no parent-enforced start capabilities;
- * the ONE thing it reads off `request.parent` is the session's workspace cwd (see
- * {@link resolveChildCwd}). This plugin uses named exports only; a default would hide its
+ * the subagent service supplies the captured child working directory. This plugin uses
+ * named exports only; a default would hide its
  * loader metadata (see `docs/postmortem/0001-acp-default-export-drops-inject.md`).
  * @module @deepseek-ai/dsh-subagent-acp
  */
@@ -10,11 +10,11 @@
 import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import type {
+  ResolvedSubagentStartRequest,
   SubagentCapabilities,
   SubagentProvider,
-  SubagentStartRequest,
 } from '@deepseek-ai/dsh-subagent'
-import { resolveChildCwd, validateConfiguredCwd } from '@deepseek-ai/dsh-subagent'
+import { assertUsableCwd } from '@deepseek-ai/dsh-subagent'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { acpConfigurationFailure, type AcpRunSpec, DEFAULT_DISPOSE_EOF_GRACE_MS, DEFAULT_DISPOSE_GRACE_MS, type PermissionPolicy, startAcpRun } from './run.ts'
 
@@ -29,14 +29,6 @@ export interface Config {
   command: string
   /** Arguments passed to {@link command}. */
   args: string[]
-  /**
-   * Working directory override for the child process and its ACP session.
-   * Must be non-empty; a relative path resolves against the harness launch
-   * directory at load, and the result must be an existing directory. When
-   * omitted, each child inherits its delegating parent session's cwd — and
-   * starting one from a parent session that has no cwd fails.
-   */
-  cwd?: string
   /**
    * How to auto-answer the child's `session/request_permission` prompts:
    * `reject` (default — decline every prompt) or `allow` (approve via the first
@@ -65,7 +57,6 @@ export const Config: z<Config> = z.object({
   providerName: z.string().default('acp'),
   command: z.string().required(),
   args: z.array(z.string()).default([]),
-  cwd: z.string(),
   permission: z.union(['allow', 'reject'] as const).default('reject'),
   env: z.dict(z.string()).default({}),
   disposeEofGraceMs: z.number().default(DEFAULT_DISPOSE_EOF_GRACE_MS),
@@ -79,8 +70,7 @@ function assertPositiveFinite(name: string, value: number): void {
   }
 }
 
-/** The shape after schemastery applied the defaults (cwd has none). */
-type ResolvedConfig = Required<Omit<Config, 'cwd'>> & Pick<Config, 'cwd'>
+type ResolvedConfig = Required<Config>
 
 /**
  * The ACP provider. Advertises NO start-time capabilities: an out-of-process
@@ -100,13 +90,13 @@ class AcpProvider implements SubagentProvider {
 
   constructor(readonly name: string, private readonly ctx: Context, private readonly config: ResolvedConfig) {}
 
-  start(request: SubagentStartRequest) {
+  start(request: ResolvedSubagentStartRequest) {
     if (request.signal.aborted) {
       throw new Error('subagent request was aborted before the ACP child started')
     }
     let cwd: string
     try {
-      cwd = resolveChildCwd('subagent-acp', this.config.cwd, request.parent.session.header.cwd)
+      cwd = assertUsableCwd('subagent-acp', 'child cwd', request.cwd)
     } catch (error: unknown) {
       const failure = acpConfigurationFailure(error)
       this.ctx.logger.warn(`subagent-acp "${this.name}": child start failed: %o`, error)
@@ -136,9 +126,5 @@ export function apply(ctx: Context, config: Config): void {
   const resolved = config as ResolvedConfig
   assertPositiveFinite('disposeEofGraceMs', resolved.disposeEofGraceMs)
   assertPositiveFinite('disposeGraceMs', resolved.disposeGraceMs)
-  const configuredCwd = validateConfiguredCwd('subagent-acp', resolved.cwd)
-  const validated: ResolvedConfig = configuredCwd === undefined
-    ? resolved
-    : { ...resolved, cwd: configuredCwd }
-  ctx.subagents.registerProvider(new AcpProvider(validated.providerName, ctx, validated))
+  ctx.subagents.registerProvider(new AcpProvider(resolved.providerName, ctx, resolved))
 }

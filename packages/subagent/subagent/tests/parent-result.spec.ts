@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from './working-directory-fixture.ts'
 /** Parent result delivery independent of a local child's messaging tool. */
 
 import { expect, it } from 'vitest'
@@ -16,6 +17,7 @@ it.each(['absent', 'filtered', 'unused'] as const)('returns the closing answer w
   await mountLocalActivations(ctx)
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
+  await mountWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(Spawn, { providerName: 'spawn' })
   if (availability !== 'absent') await ctx.plugin(Control)
@@ -47,6 +49,7 @@ it('delivers structured output to the parent when the child has send_message', a
   await mountLocalActivations(ctx)
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
+  await mountWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(Spawn, { providerName: 'spawn' })
   await ctx.plugin(Control)

@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from '../../subagent/tests/working-directory-fixture.ts'
 import { randomUUID } from 'node:crypto'
 import { startExternalActivation, externalTestParent } from '../../subagent/tests/external-activation-helpers.ts'
 import { readFileSync } from 'node:fs'
@@ -418,6 +419,7 @@ describe('task admission and package contracts', () => {
     const ctx = new Context()
     try {
       await ctx.plugin(SessionProjectionRegistry)
+      await mountWorkingDirectoryFixture(ctx)
       await ctx.plugin(SubagentRuntime)
       await ctx.plugin(LocalSubprocessRuntime)
       await ctx.plugin(claudeCode, {})
@@ -427,7 +429,8 @@ describe('task admission and package contracts', () => {
       const provider = ctx.subagents.getProvider('claude-code')!
       await expect(Promise.resolve().then(async () => provider.start!({
         ...request(undefined, controller.signal),
-        parent: await externalTestParent(ctx, resolve('missing-parent-' + randomUUID())),
+        parent: await externalTestParent(ctx),
+        cwd: resolve('missing-parent-' + randomUUID()),
       }))).rejects.toThrow(cancelled
         ? 'request was aborted before SDK startup'
         : 'stage: query-start; category: unknown')
@@ -438,6 +441,7 @@ describe('task admission and package contracts', () => {
   it('registers the default descriptor, validates config, and unregisters on HMR', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
     const fiber = await ctx.plugin(claudeCode, {})
@@ -470,6 +474,7 @@ describe('task admission and package contracts', () => {
   it('keeps named instances, runs, and HMR ownership isolated', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
     const safeChild = fakeChild()
@@ -568,6 +573,7 @@ describe('task admission and package contracts', () => {
   it('rejects duplicate provider names without replacing the first instance', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
     const firstFiber = await ctx.plugin(claudeCode, {
@@ -606,6 +612,7 @@ describe('task admission and package contracts', () => {
   it('resolves the safe permission default when apply is called directly', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
     const child = fakeChild()
@@ -630,6 +637,7 @@ describe('task admission and package contracts', () => {
   it('starts through the registered provider with its resolved config and diagnostics', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
     const child = fakeChild()
@@ -649,17 +657,6 @@ describe('task admission and package contracts', () => {
       permissionMode: 'auto',
       disposeGraceMs: 29,
     })
-
-    await expect(startExternalActivation(ctx, 'claude-diagnostic', {
-      ...request(),
-      parent: {
-        id: 'parent-without-cwd',
-        session: { header: {} },
-      } as unknown as Agent,
-    })).rejects.toThrow(
-      'subagent-claude-code: no working directory for the child — delegate from a parent session that has one',
-    )
-    expect(queryMock).not.toHaveBeenCalled()
 
     vi.stubEnv('PATH', '/host/bin')
     queryMock.mockImplementationOnce(() => {

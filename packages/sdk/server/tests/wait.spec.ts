@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from '../../../subagent/subagent/tests/working-directory-fixture.ts'
 /** SDK task completion retains live failures that have no durable terminal outcome. */
 import { Context } from '@deepseek-ai/cordis'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -18,6 +19,7 @@ async function setup(beforeServer?: (ctx: Context) => void) {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
+  await mountWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(JsonlSessionPersistence, { root })
   ctx.llm.registerAdapter(['mock'], new MockAdapter(Array.from({ length: 5 }, () => textResponse('answer'))))

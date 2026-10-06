@@ -134,14 +134,15 @@ export interface SubagentCapabilities {
  * policy separately.
  */
 export interface SubagentStartRequest {
+  /** Initial child directory; relative paths resolve against the parent's current directory. Omitted inherits that directory at start. */
+  readonly cwd?: string
   /** Optional short display label persisted with a session-backed child. */
   readonly label?: string
   /** Content delivered as the child's user message. */
   readonly prompt: ContentBlock[]
   /**
-   * The spawning agent. In-process providers derive workspace, lineage, and
-   * delegation depth from its durable session state. ACP reads only its cwd,
-   * and only when no deployment `cwd` override is configured.
+   * The spawning agent. Its effective directory supplies the default cwd;
+   * in-process children retain its origin, lineage, and delegation depth.
    */
   readonly parent: Agent
   /**
@@ -191,6 +192,12 @@ export interface SubagentStartRequest {
   readonly persona?: string
 }
 
+/** Provider-facing request with an absolute directory selected before startup. */
+export interface ResolvedSubagentStartRequest extends SubagentStartRequest {
+  /** Absolute child directory captured from the parent or explicit request. */
+  readonly cwd: string
+}
+
 /**
  * What the continuation manager asks a provider for while materializing one
  * continuable child's FIRST activation. The manager has already reserved the
@@ -199,6 +206,8 @@ export interface SubagentStartRequest {
  * history.
  */
 export interface ContinuableCreateRequest {
+  /** Absolute initial directory captured before provider preparation. */
+  readonly cwd: string
   /** The reserved durable child session id, for provider diagnostics. */
   readonly sessionId: SessionId
   /** The delegating parent agent whose history a seeding provider reads. */
@@ -338,7 +347,7 @@ export interface SubagentProvider {
    * the returned run. Distinct starts may overlap; cancellation, failure,
    * result settlement, and disposal remain independent for each run.
    */
-  start?(request: SubagentStartRequest): Promise<SubagentRun>
+  start?(request: ResolvedSubagentStartRequest): Promise<SubagentRun>
   /**
    * OPTIONAL (continuable-creation capability): contribute the detached
    * creation inputs that distinguish this provider's continuable children —

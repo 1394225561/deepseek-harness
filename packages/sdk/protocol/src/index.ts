@@ -23,6 +23,9 @@ export type {
   SessionPromptParams,
   SessionPromptResult,
   SessionWaitParams,
+  SessionWorkingDirectoryParams,
+  SessionWorkingDirectorySetParams,
+  SessionWorkingDirectoryResult,
   SubagentFinishedNotification,
   SubagentStartedNotification,
 } from './types.ts'

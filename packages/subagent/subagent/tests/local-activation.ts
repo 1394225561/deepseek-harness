@@ -1,4 +1,5 @@
 /** Local backend fixtures over the production activation lifecycle. */
+import { mountWorkingDirectoryFixture } from './working-directory-fixture.ts'
 import { randomUUID } from 'node:crypto'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -13,6 +14,7 @@ import { onTestFinished } from 'vitest'
  * @param ctx - test runtime that owns the local child sessions.
  */
 export async function mountLocalActivations(ctx: Context): Promise<void> {
+  await mountWorkingDirectoryFixture(ctx)
   const root = await mkdtemp(join(tmpdir(), 'dsh-local-activation-'))
   onTestFinished(async () => {
     await ctx.fiber.dispose()

@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from '../../subagent/tests/working-directory-fixture.ts'
 import { randomUUID } from 'node:crypto'
 import { startExternalActivation, externalTestParent } from '../../subagent/tests/external-activation-helpers.ts'
 import { readFileSync } from 'node:fs'
@@ -430,6 +431,7 @@ describe('task admission and package contracts', () => {
   it('registers the default descriptor, validates config, and unregisters on HMR', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
     const fiber = await ctx.plugin(codex, {})
@@ -460,6 +462,7 @@ describe('task admission and package contracts', () => {
   it('keeps named instances, runs, and HMR ownership isolated', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
     const safeChild = fakeChild()
@@ -563,6 +566,7 @@ describe('task admission and package contracts', () => {
   it('rejects duplicate provider names without replacing the first instance', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
     const firstFiber = await ctx.plugin(codex, {
@@ -599,6 +603,7 @@ describe('task admission and package contracts', () => {
   it('resolves the safe permission default when apply is called directly', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
     const child = fakeChild()
@@ -691,32 +696,11 @@ describe('task admission and package contracts', () => {
     wire.close()
   })
 
-  it('requires a parent session cwd without suggesting unsupported config', async () => {
-    const ctx = new Context()
-    await ctx.plugin(SessionProjectionRegistry)
-    await ctx.plugin(SubagentRuntime)
-    await ctx.plugin(LocalSubprocessRuntime)
-    const spawn = vi.spyOn(ctx.subprocess, 'spawn')
-    await ctx.plugin(codex, {})
-
-    await expect(startExternalActivation(ctx, 'codex', {
-      prompt: [{ type: 'text', text: 'task' }],
-      parent: {
-        id: 'parent-without-cwd',
-        session: { header: {} },
-      } as unknown as Agent,
-      signal: new AbortController().signal,
-    })).rejects.toThrow(
-      'subagent-codex: no working directory for the child — delegate from a parent session that has one',
-    )
-    expect(spawn).not.toHaveBeenCalled()
-    await ctx.fiber.dispose()
-  })
-
   it.each([false, true])('rejects a missing parent directory before spawning (cancelled: %s)', async (cancelled) => {
     const ctx = new Context()
     try {
       await ctx.plugin(SessionProjectionRegistry)
+      await mountWorkingDirectoryFixture(ctx)
       await ctx.plugin(SubagentRuntime)
       await ctx.plugin(LocalSubprocessRuntime)
       await ctx.plugin(codex, {})
@@ -726,7 +710,8 @@ describe('task admission and package contracts', () => {
       const provider = ctx.subagents.getProvider('codex')!
       await expect(Promise.resolve().then(async () => provider.start!({
         ...request(undefined, controller.signal),
-        parent: await externalTestParent(ctx, resolve('missing-parent-' + randomUUID())),
+        parent: await externalTestParent(ctx),
+        cwd: resolve('missing-parent-' + randomUUID()),
       }))).rejects.toThrow(cancelled
         ? 'request was aborted before app-server startup'
         : 'stage: initialize; category: unknown')
@@ -2141,6 +2126,7 @@ describe('run lifecycle and quiescence', () => {
   it('uses the registered provider config and logs flattened errors', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(LocalSubprocessRuntime)
     const child = fakeChild()

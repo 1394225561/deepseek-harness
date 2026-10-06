@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from './working-directory-fixture.ts'
 /** External execution ownership, result delivery, and process cleanup. */
 
 import { describe, expect, it, vi } from 'vitest'
@@ -17,6 +18,7 @@ const capabilities: SubagentCapabilities = {
 async function setup(start: (request: SubagentStartRequest) => Promise<SubagentRun>) {
   const ctx = new Context()
   await ctx.plugin(SessionProjectionRegistry)
+  await mountWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   const parent = await externalTestParent(ctx)
   await ctx.plugin(TestSessionQuery)

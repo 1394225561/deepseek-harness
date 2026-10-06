@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from './working-directory-fixture.ts'
 import { describe, expect, expectTypeOf, it, onTestFinished, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import { type Agent } from '@deepseek-ai/dsh-agent'
@@ -77,6 +78,7 @@ async function service(withAgents = true): Promise<{ ctx: Context; subagents: Su
   } else {
     await ctx.plugin(SessionProjectionRegistry)
   }
+  await mountWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   const subagents = ctx.subagents
   contexts.set(subagents, ctx)
@@ -104,6 +106,7 @@ describe('SubagentRuntime', () => {
   it('releases its catalog projection binding with the service fiber', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionProjectionRegistry)
+    await mountWorkingDirectoryFixture(ctx)
     const fiber = await ctx.plugin(SubagentRuntime)
     const parent = Session.create(SessionId('catalog-parent'))
     parent.append('subagent/catalog', {
@@ -165,6 +168,7 @@ describe('SubagentRuntime', () => {
 
     expect(provider.lastRequest).toEqual({
       ...request,
+      cwd: process.cwd(),
       label: 'one-shot',
       parent: provider.lastRequest!.parent,
       signal: provider.lastRequest!.signal,

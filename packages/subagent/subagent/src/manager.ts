@@ -7,6 +7,8 @@
  */
 
 import { randomUUID } from 'node:crypto'
+import { isAbsolute, resolve } from 'node:path'
+import type {} from '@deepseek-ai/dsh-working-directory'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent, AgentOptions, CreateAgentOptions } from '@deepseek-ai/dsh-agent'
 import { brandString } from '@deepseek-ai/dsh-brand'
@@ -33,7 +35,7 @@ import type { ActivationObserver } from './lifecycle.ts'
 import type {
   ContinuableCreateRequest, ContinuableCreateSpec, SubagentInterruptAuthority,
   SubagentActivationSpec, SubagentActivation, SubagentStartRequest, SubagentRun,
-  SubagentSendMessageOptions, SubagentResult,
+  SubagentSendMessageOptions, SubagentResult, ResolvedSubagentStartRequest,
 } from './types.ts'
 import { attachStructuredRuntime } from './structured.ts'
 import type { StructuredAttachment } from './structured.ts'
@@ -56,7 +58,7 @@ type ChildDeliveryOptions =
 
 /** Package-private hooks supplied by the owning service. */
 interface SubagentHost {
-  startExternal(name: string, request: SubagentStartRequest): Promise<SubagentRun>
+  startExternal(name: string, request: ResolvedSubagentStartRequest): Promise<SubagentRun>
   /** Resolve one provider's detached continuable-creation contribution. */
   prepareContinuable(name: string, request: ContinuableCreateRequest): Promise<ContinuableCreateSpec>
   /** Build the lifecycle observer for one Activation residency epoch. */
@@ -82,6 +84,8 @@ type MaterializeInputs = MaterializeBase & (
      * so a resume never re-captures the parent's policy.
      */
     create?: {
+      /** Absolute initial directory captured before provider preparation. */
+      cwd: string
       seed: readonly SessionEvent[] | undefined
       meta: NonNullable<CreateAgentOptions['meta']>
       /** Exact parent-log prefix length inside {@link seed}. */
@@ -406,8 +410,10 @@ export class SubagentManager {
     // but the service is also callable outside a turn.
     const releaseHold = this.holdOwnership(parent, childId)
     try {
+      const cwd = await this.resolveDirectory(request, spec.signal)
       const prepared = await this.host.prepareContinuable(spec.provider, {
         sessionId: childId,
+        cwd,
         parent,
         signal: spec.signal,
       })
@@ -436,6 +442,7 @@ export class SubagentManager {
           provider: spec.provider,
           parent,
           create: {
+            cwd,
             seed,
             meta: childSessionMeta(parent, childDepth, prepared.seed !== undefined),
             inheritedEventCount,
@@ -482,6 +489,7 @@ export class SubagentManager {
     const releaseHold = this.holdOwnership(parent, pendingId)
     let activation: Activation | undefined
     try {
+      const cwd = await this.resolveDirectory(spec.request, spec.signal)
       activation = await this.materialize({
         kind: 'external',
         childId: pendingId,
@@ -490,7 +498,7 @@ export class SubagentManager {
         signal: spec.signal,
         delivery: spec.delivery,
         start: signal => this.host.startExternal(spec.provider, {
-          ...spec.request, label: spec.label, signal,
+          ...spec.request, cwd, label: spec.label, signal,
         }),
       })
       this.assertAdmitting(parent)
@@ -513,6 +521,15 @@ export class SubagentManager {
     } finally {
       releaseHold()
     }
+  }
+
+  /** Capture the explicit or inherited directory while the parent still owns startup. */
+  private async resolveDirectory(request: Pick<SubagentStartRequest, 'parent' | 'cwd'>, signal: AbortSignal): Promise<string> {
+    const cwd = request.cwd !== undefined && isAbsolute(request.cwd)
+      ? request.cwd
+      : resolve(await this.ctx.workingDirectory.ensure(request.parent, signal), request.cwd ?? '.')
+    signal.throwIfAborted()
+    return cwd
   }
 
   /**
@@ -862,12 +879,15 @@ export class SubagentManager {
     } else {
       const { create } = inputs
       let structured: StructuredAttachment | undefined
-      const setup = (childCtx: Context, child: Agent): void => {
+      const setup = async (childCtx: Context, child: Agent): Promise<void> => {
         // Only fresh creation appends the descriptor and delegated policy after
         // the inherited marker; a cold resume replays those persisted events.
         if (create !== undefined) {
           child.session.append('subagent/descriptor', create.descriptor)
           appendDelegatedPolicyOverrides(child.session, create.delegatedPolicies)
+          const workingDirectory = childCtx.get('workingDirectory')
+          if (workingDirectory === undefined) throw new Error('local subagents require the working-directory service')
+          await workingDirectory.set(child, create.cwd, inputs.signal)
         }
         applyChildComposition(childCtx, parent, inputs.composition)
         if (inputs.outputSchema !== undefined) {

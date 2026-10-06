@@ -31,6 +31,7 @@ import type { Volatile } from '@deepseek-ai/cordis'
 
 import { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
+import type {} from '@deepseek-ai/dsh-working-directory'
 import type {} from '@deepseek-ai/dsh-attachment'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import type { Scoped } from '@deepseek-ai/dsh-scope'
@@ -92,6 +93,7 @@ export type {
   SubagentRun,
   SubagentSendMessageOptions,
   SubagentStartRequest,
+  ResolvedSubagentStartRequest,
   SubagentStopReason,
   SubagentStopReasonMap,
 } from './types.ts'
@@ -192,6 +194,7 @@ export class SubagentRuntime extends TypertRemoteService {
     maxDepth: z.number().step(1).min(0).max(Number.MAX_SAFE_INTEGER).default(1).volatile(),
     maxActiveSubagents: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER).default(8).volatile(),
   })
+  static inject = ['workingDirectory']
   private providers = new Map<string, SubagentProvider>()
   private manager: SubagentManager | undefined
   /**

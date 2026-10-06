@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from '../../../subagent/subagent/tests/working-directory-fixture.ts'
 /** SDK shutdown releases managed descendants before their root Agents leave the registry. */
 
 import { Context } from '@deepseek-ai/cordis'
@@ -14,6 +15,7 @@ async function setup() {
   const ctx = new Context()
   await mountAgentLoopTestDependencies(ctx)
   await ctx.plugin(AgentLoop, { agents: [] })
+  await mountWorkingDirectoryFixture(ctx)
   await ctx.plugin(SubagentRuntime)
   ctx.llm.registerAdapter(['mock'], new MockAdapter(Array.from({ length: 6 }, () => textResponse('answer'))))
   ctx.subagents.registerProvider({

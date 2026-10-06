@@ -1,3 +1,4 @@
+import { mountWorkingDirectoryFixture } from '../../subagent/tests/working-directory-fixture.ts'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -73,11 +74,33 @@ describe('dsh-tool-subagent', () => {
     expect(text(result)).toMatch(/^started subagent /)
   })
 
+  it('resolves an explicit child directory without changing the parent directory', async () => {
+    let childCwd: string | undefined
+    const ctx = await setup({ provider: 'mock' }, {
+      onStart: (request) => { childCwd = request.cwd },
+    })
+    const parent = modelSelectionSetupAgent(ctx)
+    const parentCwd = ctx.workingDirectory.get(parent.session)
+    try {
+      const result = await callSubagent(ctx, {
+        description: 'inspect packages',
+        prompt: 'list the packages',
+        cwd: 'packages',
+      }, { agent: parent })
+      expect(result.isError).toBe(false)
+      expect(childCwd).toBe(path.resolve(parentCwd, 'packages'))
+      expect(ctx.workingDirectory.get(parent.session)).toBe(parentCwd)
+    } finally {
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('exposes only task inputs without scheduling controls', async () => {
     const ctx = await setup({ provider: 'mock' })
     const schema = ctx.tools.schemas().find(s => s.name === 'subagent')
     const props = (schema!.parameters as { properties?: Record<string, unknown> }).properties ?? {}
     expect(Object.keys(props).sort()).toEqual([
+      'cwd',
       'description',
       'prompt',
     ])
@@ -127,6 +150,7 @@ describe('dsh-tool-subagent', () => {
     // each bound to a different provider — the tool registry rejects duplicate
     // names, so a configurable name is what makes this work.
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await mock.mountScriptedProvider(ctx, { name: 'spawn', reply: 'from spawn' })
     await mock.mountScriptedProvider(ctx, { name: 'acp', reply: 'from acp' })
@@ -285,6 +309,7 @@ describe('dsh-tool-subagent', () => {
     // bypasses schemastery — the same pattern acp-agent uses for its defaults.
     let seen: { agentOptions?: unknown } | undefined
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     ctx.subagents.registerProvider({
       name: 'bare',
@@ -317,6 +342,7 @@ describe('dsh-tool-subagent', () => {
 
   it('registers when the provider appears LATER — no load-order requirement (Loader starts siblings concurrently)', async () => {
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     // Tool first: no provider yet — the tool must be absent, not broken.
     // Direct apply (schema bypass): also covers the waiting-note's default
@@ -332,6 +358,7 @@ describe('dsh-tool-subagent', () => {
 
   it('keeps continuable guidance empty while its provider is absent', async () => {
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     tool.apply(ctx, {
       provider: 'later-continuable',
@@ -345,6 +372,7 @@ describe('dsh-tool-subagent', () => {
 
   it('shares delegation guidance across visible tools as providers and plugin fibers change', async () => {
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     const forkTool = await ctx.plugin(tool, { provider: 'fork', toolName: 'subagent_fork' })
     const spawnTool = await ctx.plugin(tool, { provider: 'spawn' })
@@ -401,6 +429,7 @@ describe('dsh-tool-subagent', () => {
 
   it('mirrors the provider lifecycle: gone on backend dispose, re-derived wording on re-registration', async () => {
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     const backend = await mock.mountScriptedProvider(ctx, { name: 'mock' }) // fresh conversation (descriptor: false)
     await ctx.plugin(tool, { provider: 'mock' })
@@ -418,6 +447,7 @@ describe('dsh-tool-subagent', () => {
 
   it('the tool PLUGIN fiber owns its lifecycle listeners: disposal unmounts, and a disposed fiber never zombie-mounts', async () => {
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
 
     // Arm 1: a mounted tool and its prompt section die with the plugin fiber;
@@ -451,6 +481,7 @@ describe('dsh-tool-subagent', () => {
 
   it('ignores lifecycle events for OTHER providers', async () => {
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await mock.mountScriptedProvider(ctx, { name: 'mock' })
     await ctx.plugin(tool, { provider: 'mock' })
@@ -487,6 +518,7 @@ describe('dsh-tool-subagent', () => {
   it('skips provider startup for an already-aborted signal', async () => {
     const sawAborted = vi.fn()
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     ctx.subagents.registerProvider({
       name: 'spy',
@@ -547,6 +579,7 @@ describe('dsh-tool-subagent', () => {
   it('passes persona/toolFilter/maxDepth config through to the start request', async () => {
     let seen: { persona?: string; toolFilter?: unknown; maxDepth?: number } | undefined
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     ctx.subagents.registerProvider({
       name: 'capture2',
@@ -601,6 +634,7 @@ describe('dsh-tool-subagent', () => {
   it('a partial toolFilter (deny only) does not materialize an empty allow-list (deny-all trap)', async () => {
     let seen: { toolFilter?: { readonly allow?: readonly string[]; readonly deny?: readonly string[] } } | undefined
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     ctx.subagents.registerProvider({
       name: 'capture3',
@@ -628,6 +662,7 @@ describe('dsh-tool-subagent', () => {
     // start request.
     let seen: { agentOptions?: unknown } | undefined
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     ctx.subagents.registerProvider({
       name: 'capture4',
@@ -650,6 +685,7 @@ describe('dsh-tool-subagent', () => {
 
   it('an explicit empty toolFilter fails at plugin load, not at first delegation', async () => {
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     ctx.subagents.registerProvider({
       name: 'p',
@@ -679,6 +715,7 @@ describe('dsh-tool-subagent local activation', () => {
     await mountAgentLoopTestDependencies(ctx)
     await ctx.plugin(JsonlSessionPersistence, { root })
     await ctx.plugin(AgentLoop, { agents: [] })
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     await ctx.plugin(SubagentSpawn, { providerName: 'spawn' })
     await ctx.plugin(tool, { provider: 'spawn' })
@@ -816,6 +853,7 @@ describe('depth budget configuration', () => {
   async function captureSetup(config: Omit<tool.Config, 'provider'> = {}) {
     const requests: SubagentStartRequest[] = []
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     ctx.subagents.registerProvider({
       name: 'capture',
@@ -851,6 +889,7 @@ describe('depth budget configuration', () => {
 
   it('rejects a numeric maxDepth on a provider without the depthLimit capability at mount', async () => {
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     ctx.subagents.registerProvider({
       name: 'no-depth',
@@ -865,6 +904,7 @@ describe('depth budget configuration', () => {
   it("'provider-managed' omits the cap so a capability-less provider mounts and starts", async () => {
     const requests: SubagentStartRequest[] = []
     const ctx = await projectedContext()
+    await mountWorkingDirectoryFixture(ctx)
     await ctx.plugin(SubagentRuntime)
     ctx.subagents.registerProvider({
       name: 'external',

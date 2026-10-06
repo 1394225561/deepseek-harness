@@ -51,7 +51,7 @@ Out of the box, every profile built on this core provides: a DeepSeek model conn
 
 Both `subagent` and `subagent_fork` create managed children and return a child id immediately. Use `send_message` to steer active children or continue their conversations after completion. [Delegation-tool behavior](../../subagent/tool-subagent/README.md) describes result delivery and backend capabilities.
 
-Default file editing uses `read`, `write`, and `edit`. The `str_replace_editor` tool remains available as an explicit opt-in. To add it to a base-backed profile, put this entry in the profile, home, or invocation patch:
+The built-in `working_directory` tool changes the directory for subsequent operations while existing processes and write permissions remain independent. Current directory information appears in user context. Default file editing uses `read`, `write`, and `edit`. The `str_replace_editor` tool remains available as an explicit opt-in. To add it to a base-backed profile, put this entry in the profile, home, or invocation patch:
 
 ```yaml
 - insert:
