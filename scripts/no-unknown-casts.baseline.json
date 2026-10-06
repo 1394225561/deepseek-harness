@@ -1583,10 +1583,10 @@
     "09a269bed9b7eb21c5d84c1826987ceed50b4d193728e8cd1d01015088762f08": 1,
     "4cb55fef1f53567526f153fbdf22f46c3e83bb3f6be77d5b42baddbae0b07344": 1
   },
-  "packages/session-query/tool-session-query/tests/sqlite-integration.spec.ts": {
+  "packages/experimental/tool-session-query/tests/sqlite-integration.spec.ts": {
     "a66cea6887fa5e33f4d504a7899fcb4b99d79958f6aed01288af1ad6ff557298": 1
   },
-  "packages/session-query/tool-session-query/tests/tool-session-query.spec.ts": {
+  "packages/experimental/tool-session-query/tests/tool-session-query.spec.ts": {
     "0ec8a91117e78ae941807094fc63035e115a3e02412917e632be4f34dbfddc62": 1,
     "6370792878103b8fe2963dfeb036963572c1da2bb6dd7fcc10681be1c866b490": 1,
     "a66cea6887fa5e33f4d504a7899fcb4b99d79958f6aed01288af1ad6ff557298": 1

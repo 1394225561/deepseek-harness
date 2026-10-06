@@ -36,6 +36,7 @@ Promotion requires a named product role, documented public behavior and limitati
 
 | Package | Role | ctx key |
 |---|---|---|
+| [`tool-session-query`](tool-session-query/README.md) | Workspace-authorized model session search, trace, and event reads | — |
 | [`hook-protocol`](hook-protocol/README.md) | Hook bridge wire types and durable events | — |
 | [`hooks-claude-code`](hooks-claude-code/README.md) | Claude Code hook bridge | — |
 | [`hooks-codex`](hooks-codex/README.md) | Codex hook bridge | — |
