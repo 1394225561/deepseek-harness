@@ -29,7 +29,7 @@ kind: "package-bundle"
 
 ### 安装 Bundle
 
-官方条目可离线显示。启用时，普通 bundle 安装器会按当前 DSH 版本安装此包并选择其配置层。此层注册提供方，并为 `standard`、`cordis` 和 `ptc` 添加 `subagent_codex`；实际委派前不会启动原生进程。安装器提示需要重启时，请重启应用。
+官方条目可离线显示。启用时，普通 bundle 安装器会安装[当前 DSH 安装对应的目标](../../boot/plugin-manager/README.zh.md#use-this-package)并选择其配置层。此层注册提供方，并为 `standard`、`cordis` 和 `ptc` 添加 `subagent_codex`；实际委派前不会启动原生进程。安装器提示需要重启时，请重启应用。
 
 关闭只会取消选择配置层，保留已安装的包。移除是独立的包操作。新智能体和随后重新打开的会话使用所选工具组合；正在运行的智能体保留已有组合。
 

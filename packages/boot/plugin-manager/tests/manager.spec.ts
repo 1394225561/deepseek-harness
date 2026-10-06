@@ -30,15 +30,21 @@ let restoreGitCommandLineConfig: () => void
 beforeAll(() => { restoreGitCommandLineConfig = isolateGitCommandLineConfig() })
 afterAll(() => { restoreGitCommandLineConfig() })
 
-async function fixture(reload: 'live' | 'startup' = 'live', overlay = false, prepare?: (ctx: Context) => void, config: Config = {}, packageManager?: ProfileContext['packageManager'], prepareFiles?: (dir: string) => void) {
+async function fixture(reload: 'live' | 'startup' = 'live', overlay = false, prepare?: (ctx: Context) => void, config: Config = {}, packageManager?: ProfileContext['packageManager'], prepareFiles?: (dir: string) => void, sourceInstallation = false) {
   const temporaryHome = mkdtempSync(join(tmpdir(), 'plugin-manager-'))
   let owner: Context | undefined
   onTestFinished(async () => { await owner?.fiber.dispose(); rmSync(temporaryHome, { recursive: true, force: true }) })
   // pnpm resolves workspace roots through native realpath, including Windows 8.3 aliases.
   const home = await realpath(temporaryHome)
   const dir = join(home, 'profiles', 'test')
-  const anchor = join(home, 'package.json')
-  writeFileSync(anchor, '{"name":"installation","dependencies":{}}\n')
+  const anchor = sourceInstallation ? join(home, 'apps', 'cli', 'package.json') : join(home, 'package.json')
+  if (sourceInstallation) {
+    mkdirSync(join(home, 'apps', 'cli'), { recursive: true })
+    writeFileSync(join(home, 'package.json'), '{"name":"@deepseek-ai/dsh-root"}')
+  }
+  writeFileSync(anchor, JSON.stringify(sourceInstallation
+    ? { name: '@deepseek-ai/dsh', dependencies: { '@deepseek-ai/dsh-app-boot': 'workspace:*' } }
+    : { name: 'installation', dependencies: {} }))
   initProfile(dir, ['core', 'extra'])
   const bundle = (name: string, rows: unknown[], packageRoot = dir) => {
     const path = join(packageRoot, 'node_modules', name)
@@ -1602,4 +1608,56 @@ it('keeps a broken installation-carried catalog entry visible with offline metad
     official: true, availability: 'missing', enabled: false, installed: false, optional: false, removable: false,
     meta: entry.meta, installTarget: { version: getDshRuntimeVersion() }, error: { code: 'operation-error' },
   })
+})
+
+
+it('offers checkout links beside stale registry and other-checkout dependencies at the same version', async () => {
+  const { manager, dir, bundle, profile } = await fixture('live', false, undefined, {}, undefined, undefined, true)
+  const name = OFFICIAL_ON_DEMAND_CATALOG[0]!.packageName
+  const version = getDshRuntimeVersion()
+  const source = join(profile.home, 'packages', 'native', 'provider')
+  mkdirSync(join(source, 'lib'), { recursive: true })
+  writeFileSync(join(source, 'package.json'), JSON.stringify({ name, version, main: './lib/index.js', dsh: { bundle: { patch: './cordis.patch.yml' } } }))
+  writeFileSync(join(source, 'lib', 'index.js'), 'export function apply() {}\n')
+  writeFileSync(join(source, 'cordis.patch.yml'), '[]\n')
+  bundle(name, [], profile.home)
+  const installedManifest = join(profile.home, 'node_modules', name, 'package.json')
+  writeFileSync(installedManifest, JSON.stringify({ ...JSON.parse(readFileSync(installedManifest, 'utf8')), version }))
+  const target = { spec: `link:${source}`, version }
+  expect((await manager.listBundles()).find(item => item.name === name)).toMatchObject({ availability: 'missing', installTarget: target })
+  for (const spec of [version, 'link:../other-checkout/native', `link:${source}`]) {
+    const manifest = readProfileManifest('test', dir)
+    manifest.dependencies = { ...manifest.dependencies, [name]: spec }
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+    const listed = (await manager.listBundles()).find(item => item.name === name)
+    expect(listed).toMatchObject({ version, official: true, availability: 'profile', installTarget: target })
+    expect(listed?.source === listed?.installTarget?.spec).toBe(spec === `link:${source}`)
+  }
+})
+
+it.each(['absent', 'bundle', 'not-bundle', 'unreadable'])('keeps a missing source bundle visible when its installed copy is %s', async (state) => {
+  const { manager, dir, bundle, profile } = await fixture('live', false, undefined, {}, undefined, undefined, true)
+  const name = OFFICIAL_ON_DEMAND_CATALOG[0]!.packageName
+  if (state !== 'absent') {
+    bundle(name, [], profile.home)
+    const manifest = readProfileManifest('test', dir)
+    manifest.dependencies = { ...manifest.dependencies, [name]: '1.0.0' }
+    writeFileSync(join(dir, 'package.json'), JSON.stringify(manifest))
+    const file = join(profile.home, 'node_modules', name, 'package.json')
+    if (state === 'not-bundle') writeFileSync(file, JSON.stringify({ name, version: '1.0.0' }))
+    if (state === 'unreadable') writeFileSync(file, '{')
+  }
+  expect((await manager.listBundles()).find(item => item.name === name)).toMatchObject({
+    official: true, error: { code: 'operation-error' },
+  })
+  expect((await manager.listBundles()).find(item => item.name === name)?.error?.diagnostic).toContain('restore the checkout')
+  expect((await manager.listBundles()).find(item => item.name === name)?.installTarget).toBeUndefined()
+})
+
+it('recognizes a repeated local link install without a dependency-spec change', async () => {
+  const { manager, dir } = await fixture()
+  const install = vi.spyOn(operations, 'runProfilePnpm').mockResolvedValue({ exitCode: 0, output: '', truncated: false, logPath: join(dir, 'pnpm.log') })
+  onTestFinished(() => { install.mockRestore() })
+  expect(await manager.installBundle(`link:${join(dir, 'node_modules', 'extra')}`, { enabled: false }))
+    .toMatchObject({ changed: false, application: 'restart-required', bundle: 'extra', enabled: false })
 })

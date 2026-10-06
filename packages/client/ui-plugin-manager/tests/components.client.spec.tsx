@@ -2100,6 +2100,37 @@ describe('on-demand Official bundles', () => {
     expect(within(detail).getByRole('button', { name: en.updateLabel.replace('{name}', title) })).toBeTruthy()
   })
 
+  it.each([
+    ['link:/current-checkout/codex', `${name}@2.0.0`, true],
+    ['link:/current-checkout/codex', 'link:/other-checkout/codex', true],
+    ['link:/current-checkout/codex', 'link:/current-checkout/codex', false],
+    [`${name}@2.0.0`, 'link:/current-checkout/codex', true],
+    [`${name}@2.0.0`, `${name}@^2.0.0`, false],
+    [`${name}@2.0.0`, undefined, false],
+  ] as const)('offers source replacement from %s with recorded source %s: %s', (spec, source, expected) => {
+    const entry: PackageView = { ...catalog(), installed: true, availability: 'profile', removable: true, version: '2.0.0',
+      installTarget: { spec, version: '2.0.0' }, ...source === undefined ? {} : { source } }
+    renderTab({ packages: [entry] })
+    expect(screen.queryByText(en.statusUpdateAvailable) !== null).toBe(expected)
+    fireEvent.click(screen.getByRole('button', { name: en.openDetail.replace('{name}', title) }))
+    const detail = document.querySelector('[data-plugin-detail]') as HTMLElement
+    expect(within(detail).getByText(en.sourceTargetSpec)).toBeTruthy()
+    expect(within(detail).getAllByText(spec).every(element => element.tagName === 'CODE')).toBe(true)
+    expect(within(detail).queryByRole('button', { name: en.updateLabel.replace('{name}', title) }) !== null).toBe(expected)
+  })
+
+  it('allows Off while an enabled source bundle has no usable installation target', () => {
+    const { installTarget: _target, ...entry } = catalog()
+    const { actions, set } = renderTab({ packages: [{ ...entry, enabled: true,
+      error: { code: 'operation-error', diagnostic: 'Source package is not built' } }] })
+    const toggle = screen.getByRole('switch', { name: en.enableToggle.replace('{name}', title) })
+    expect(toggle.hasAttribute('disabled')).toBe(false)
+    fireEvent.click(toggle)
+    expect(actions.setEnabled).toHaveBeenCalledWith(name, false)
+    set({ packages: [{ ...entry, error: { code: 'operation-error', diagnostic: 'Source package is not built' } }] })
+    expect(screen.getByRole('switch', { name: en.enableToggle.replace('{name}', title) }).hasAttribute('disabled')).toBe(true)
+  })
+
   it('does not present an absent catalog package as built in or as an empty loaded component list', () => {
     renderTab({ packages: [catalog()] })
     fireEvent.click(screen.getByRole('button', { name: en.openDetail.replace('{name}', title) }))

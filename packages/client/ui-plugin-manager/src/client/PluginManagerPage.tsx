@@ -331,10 +331,16 @@ function SourceSection({ pkg, t }: { readonly pkg: PackageView; readonly t: Tran
             </div>
           )}
         {pkg.installTarget === undefined ? null : (
-          <div>
-            <dt>{t('sourceTargetVersion')}</dt>
-            <dd>{pkg.installTarget.version}</dd>
-          </div>
+          <>
+            <div>
+              <dt>{t('sourceTargetSpec')}</dt>
+              <dd><code>{pkg.installTarget.spec}</code></dd>
+            </div>
+            <div>
+              <dt>{t('sourceTargetVersion')}</dt>
+              <dd>{pkg.installTarget.version}</dd>
+            </div>
+          </>
         )}
       </dl>
     </section>
@@ -451,7 +457,10 @@ function DetailTop({ crumbLabel, crumbText, onBack, icon, actions }: {
 }
 
 function updateAvailable(pkg: PackageView): boolean {
-  return pkg.installed && pkg.availability !== 'installation' && pkg.installTarget !== undefined && pkg.version !== pkg.installTarget.version
+  const target = pkg.installTarget
+  if (!pkg.installed || pkg.availability === 'installation' || target === undefined) return false
+  return pkg.version !== target.version
+    || ((target.spec.startsWith('link:') || pkg.source?.startsWith('link:') === true) && pkg.source !== target.spec)
 }
 
 /** One package as a card that opens its page: its name, its one-liner, its tags, and its bundle switch. */

@@ -29,7 +29,7 @@ Enable **Codex subagent** in the Web or Desktop Plugins page when a task needs a
 
 ### Installing the Bundle
 
-The Official entry is visible offline. Enabling it installs this package at the running DSH version through the ordinary bundle installer and selects its profile layer. The layer registers the provider and adds `subagent_codex` to `standard`, `cordis`, and `ptc`; it starts no native process until delegation. Restart when the installer reports that one is required.
+The Official entry is visible offline. Enabling it installs the [target for the running DSH installation](../../boot/plugin-manager/README.md#use-this-package) through the ordinary bundle installer and selects its profile layer. The layer registers the provider and adds `subagent_codex` to `standard`, `cordis`, and `ptc`; it starts no native process until delegation. Restart when the installer reports that one is required.
 
 Switching Off deselects the layer and leaves the package installed. Remove is a separate package operation. New Agents and subsequently reopened Sessions use the selected tool composition; live Agents retain their existing composition.
 

@@ -886,10 +886,11 @@ export class PluginManagerController {
     }
     this.abortInspect()
     const registry = this.registryMemory.getSnapshot() ?? OFFICIAL_REGISTRY
+    const local = target.spec.startsWith('link:')
     const subject: InstallSubject = {
-      status: 'accepted', kind: 'registry', name: pkg.name, version: target.version, bundle: true,
+      status: 'accepted', kind: local ? 'path' : 'registry', name: pkg.name, version: target.version, bundle: true,
       spec: target.spec, registry: registry.kind === 'custom' ? registry.url : registry.registry,
-      selection: enabled, saveExact: true,
+      selection: enabled, ...local ? {} : { saveExact: true },
     }
     this.patch({ install: { ...IDLE_INSTALL, open: true, spec: subject.spec, registry, subject } })
     const read: RegistryRead = { choice: registry }
