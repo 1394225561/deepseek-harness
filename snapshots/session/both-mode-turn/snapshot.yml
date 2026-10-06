@@ -1,8 +1,12 @@
 version: 1
+# Historical recording identity; the current composition uses PTC only.
 scenario: both-mode-turn
 profile: headless
 composition: both
 recording: live
+sessionFormat:
+  version: 4
+  coverage: [recorded-behavior]
 header:
   class: both
   pin: true

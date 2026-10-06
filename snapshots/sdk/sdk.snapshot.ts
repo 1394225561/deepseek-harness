@@ -792,7 +792,8 @@ async function verifyHeaders(
 ): Promise<void> {
   const pin = headerPin(scenario)
   const [pinFixturePath] = await fixtureFiles(pin)
-  const pinFixture = await readFile(pinFixturePath as string, 'utf8')
+  const pinFixture = await readFile(pin.manifest.sessionFormat === undefined
+    ? pinFixturePath as string : join(pin.dir, writerSnapshotName(0)), 'utf8')
   const firstLine = pinFixture.split('\n').find(line => line.trim() !== '') ?? '{}'
   const pinHeader = JSON.parse(firstLine) as JsonObject
   const pinned = normalizedHeaders(pinFixture, {
@@ -873,8 +874,9 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
       const scenarioDir = scenario.dir
       const retained = scenario.manifest.sessionFormat !== undefined
       const notificationsExpectedPath = join(scenarioDir, retained ? 'notifications.current.expected.jsonl' : 'notifications.expected.jsonl')
-      const resultExpectedPath = join(scenarioDir, 'result.expected.json')
+      const resultExpectedPath = join(scenarioDir, retained ? 'result.current.expected.json' : 'result.expected.json')
       const hasWireGoldens = existsSync(notificationsExpectedPath) || existsSync(resultExpectedPath)
+        || retained && existsSync(join(scenarioDir, 'result.expected.json'))
       const assertions = SDK_ASSERTIONS[scenario.name] ?? {}
       const writesSessionFixtures = writesCurrentSessionFixtures(scenario.manifest, sessionWriteMode)
 
@@ -977,6 +979,12 @@ describe('TypeScript SDK snapshots over the jsonrpc runtime', () => {
       }
       if (scenario.name === 'tool-error-details') {
         const events = results.flatMap(result => result.events)
+        const headers = events.filter(event => event.type === 'request/header')
+          .map(event => (event.data.header as { tools: { name: string }[] }).tools.map(tool => tool.name))
+        expect(headers).toHaveLength(2)
+        expect(headers[0]).toContain('bash')
+        expect(headers[0]).not.toContain('run_code')
+        expect(headers[1]).toEqual(['run_code'])
         const errors = events.filter(event => event.type === 'tool/result' || event.type === 'tool/ptc-dispatch')
           .map(event => event.data['error']).filter(error => error !== undefined)
         expect(errors).toEqual(Array.from({ length: 2 }, () => ({

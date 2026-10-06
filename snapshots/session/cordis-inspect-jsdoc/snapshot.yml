@@ -3,6 +3,9 @@ scenario: cordis-inspect-jsdoc
 profile: headless
 composition: advanced
 recording: authored
+sessionFormat:
+  version: 4
+  coverage: [recorded-behavior]
 header:
   class: advanced
   pin: true

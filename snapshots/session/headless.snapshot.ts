@@ -28,6 +28,7 @@ import {
   normalizedSystemPrompts,
   normalizedToolSchemas,
   parseSnapshotManifest,
+  parseSystemPromptSnapshot,
   parseToolSchemasSnapshot,
   redactSessionSnapshotIds,
   refreshFixtureReplacements,
@@ -237,6 +238,20 @@ async function primaryFixtureFile(dir: string): Promise<string> {
   const content = await readFile(join(dir, primary), 'utf8')
   assertSessionFixtureVersion(primary, content)
   return primary
+}
+
+/** Read the header owner from its current writer oracle when its replay input is retained. */
+async function headerPinFixture(scenario: HeadlessScenario): Promise<string> {
+  if (scenario.manifest.sessionFormat === undefined) {
+    return readFile(join(scenario.dir, await primaryFixtureFile(scenario.dir)), 'utf8')
+  }
+  const filename = writerSnapshotName(0)
+  const content = await readFile(join(scenario.dir, filename), 'utf8')
+  const version = sessionHeaderVersion(content, `${scenario.name}/${filename}`)
+  if (version !== SESSION_FORMAT_VERSION) {
+    throw new Error(`${scenario.name}: retained header pin requires a current v${SESSION_FORMAT_VERSION} writer oracle, received v${version}`)
+  }
+  return content
 }
 
 async function writeSessionFixtures(
@@ -652,6 +667,42 @@ async function verifySessionQuerySpill(log: string, spillRoot: string, locatorRo
   expect(full).toContain('session_event_search')
 }
 
+/** Preserve successful native, program, direct-child, and workflow execution in one flow. */
+function verifyAdvancedToolchain(logs: readonly SessionLog[]): void {
+  expect(logs).toHaveLength(3)
+  const events = parseSessionLog(logs[0]!.content)
+  const calls = events.flatMap(event => event.type === 'tool/call' ? [event.data.name] : [])
+  expect(calls).toEqual(['cordis_inspect_list', 'run_code', 'subagent', 'workflow', 'cordis_inspect_list'])
+  const results = events.flatMap(event => event.type === 'tool/result' ? [event.data.message] : [])
+  expect(results).toHaveLength(5)
+  expect(results.every(result => result.isError === false)).toBe(true)
+  const dispatches = events.flatMap(event => event.type === 'tool/ptc-dispatch' ? [event.data] : [])
+  expect(dispatches).toEqual([expect.objectContaining({ name: 'cordis_inspect_list', isError: false })])
+  const textOf = (index: number) => results[index]!.content
+    .flatMap(block => block.type === 'text' ? [block.text] : []).join('')
+  expect(JSON.parse(textOf(1))).toEqual(['Service', 'Event', 'Config', 'Tool'])
+  expect(textOf(2)).toBe(`started subagent ${logs[1]!.header.id}`)
+  const completions = events.flatMap(event => event.type === 'user/message'
+    && event.data.source.kind === 'subagent-settled' ? [{
+      sender: event.data.source.senderSessionId,
+      text: event.data.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('\n'),
+    }] : [])
+  expect(completions).toHaveLength(1)
+  expect(completions[0]?.sender).toBe(logs[1]!.header.id)
+  expect(completions[0]?.text).toContain('DIRECT_CHILD_OK')
+  expect(textOf(3)).toContain('WORKFLOW_CHILD_OK')
+  expect(finalTextFromSession(logs[1]!.content)).toBe('DIRECT_CHILD_OK')
+  expect(finalTextFromSession(logs[2]!.content)).toBe('WORKFLOW_CHILD_OK')
+  const headers = events.flatMap(event => event.type === 'request/header' ? [event.data.header] : [])
+  expect(headers).toHaveLength(3)
+  expect(headers[1]!.tools?.map(tool => tool.name)).toEqual(['run_code'])
+  for (const header of [headers[0]!, headers[2]!]) {
+    const names = header.tools?.map(tool => tool.name) ?? []
+    expect(names).toEqual(expect.arrayContaining(['cordis_inspect_list', 'subagent', 'workflow']))
+    expect(names).not.toContain('run_code')
+  }
+}
+
 /** Require real resource results and literal instructions before recording or replay succeeds. */
 function verifyMcpResources(log: string, ptc: boolean): void {
   const events = parseSessionLog(log)
@@ -843,7 +894,7 @@ async function verifyProviderCwdResume(
 
 async function verifyHeaders(scenario: HeadlessScenario, actualLogs: readonly SessionLog[], ctx: NormalizeContext): Promise<void> {
   const pin = pinOf(scenario)
-  const fixture = await readFile(join(pin.dir, await primaryFixtureFile(pin.dir)), 'utf8')
+  const fixture = await headerPinFixture(pin)
   const pinned = normalizedHeaders(fixture, fixtureContext(fixture))
   const changes = pin.manifest.header.changes ?? 0
   expect(pinned, `${scenario.name}: pin header count`).toHaveLength(1 + changes)
@@ -854,6 +905,7 @@ async function verifyHeaders(scenario: HeadlessScenario, actualLogs: readonly Se
     throw new Error(`${scenario.name}: header sidecar source is not a headless scenario`)
   }
   const prompt = await readFile(join(promptOwner.dir, 'system-prompt.expected.md'), 'utf8')
+  const childPrompt = parseSystemPromptSnapshot(prompt).initial
   const schemas = parseToolSchemasSnapshot(await readFile(join(schemaOwner.dir, 'tool-schemas.expected.json'), 'utf8'))
   const schemaSets = [schemas.initial, ...schemas.changes]
   expect(schemaSets, `${scenario.name}: pin tool-schema count`).toHaveLength(pinned.length)
@@ -890,17 +942,18 @@ async function verifyHeaders(scenario: HeadlessScenario, actualLogs: readonly Se
       expect(
         formatSystemPromptSnapshot(prompts[0] as string, prompts.slice(1)),
         `${scenario.name}: system prompts`,
-      ).toBe(childPrompts.get(logIndex) ?? prompt)
+      ).toBe(childPrompts.get(logIndex) ?? (logIndex === 0 ? prompt : childPrompt))
     }
   }
 }
 
 describe('headless recorded-session snapshots', () => {
-  it('gives every composition and header class exactly one current-writer pin', () => {
+  it('gives every composition and header class exactly one current-writer pin', async () => {
     for (const scenario of scenarios) {
       expect(ownerOf(scenario), `${scenario.name}: composition owner`).toBeDefined()
-      expect(pinOf(scenario).manifest.sessionFormat, `${scenario.name}: current-writer header pin`).toBeUndefined()
+      expect(pinOf(scenario), `${scenario.name}: header pin`).toBeDefined()
     }
+    for (const pin of headerPins.values()) await headerPinFixture(pin)
   })
 
   it('recognizes the supported OS-assigned listener forms', () => {
@@ -1117,6 +1170,13 @@ describe('headless recorded-session snapshots', () => {
       const retained = '{"type":"session","version":1}\n'
       await writeFile(join(directory, 'session.v1.jsonl'), retained)
 
+      await expect(headerPinFixture(scenario)).rejects.toMatchObject({ code: 'ENOENT' })
+      const writerPath = join(directory, writerSnapshotName(0))
+      await writeFile(writerPath, retained)
+      await expect(headerPinFixture(scenario)).rejects.toThrow('retained header pin requires a current')
+      await writeFile(writerPath, content)
+      expect(await headerPinFixture(scenario)).toBe(content)
+
       await writeHeaderSidecars(
         scenario,
         [{ content, header }],
@@ -1283,6 +1343,7 @@ describe('headless recorded-session snapshots', () => {
               expect(saved).toContain('id: demo')
               expect(saved).toContain('disabled: false')
             }
+            if (scenario.name === 'advanced-toolchain') verifyAdvancedToolchain(actualLogs)
             if (scenario.name === 'session-query-spill') {
               await verifySessionQuerySpill(actualLogs[0]!.content, spillRoot, locatorRoot)
             }

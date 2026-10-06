@@ -1,7 +1,13 @@
 version: 1
 scenario: tool-error-details
 profile: sdk
-composition: both
+composition: default
 recording: authored
+sessionFormat:
+  version: 4
+  coverage: [recorded-behavior]
 header:
-  class: both
+  class: native-then-ptc
+  pin: true
+  changes: 1
+  promptChanges: 1

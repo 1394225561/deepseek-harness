@@ -1109,7 +1109,8 @@ class GuidancePtcRuntime extends PtcRuntime {
 }
 
 describe('scope-aware PTC guidance', () => {
-  it.each(['ptc', 'both'] as const)('uses capability visibility in %s mode', async (mode) => {
+  it('uses capability visibility in PTC mode', async () => {
+    const mode = 'ptc'
     const ctx = new Context()
     provideWorkingDirectoryFixture(ctx)
     await ctx.plugin(SystemPrompt)

@@ -669,7 +669,7 @@ function errorInfo(error: unknown): ToolErrorInfo | undefined {
 }
 
 /** How the registry presents its tools to the model (see {@link Config.mode}). */
-export type ToolPresentationMode = 'native' | 'ptc' | 'both'
+export type ToolPresentationMode = 'native' | 'ptc'
 
 /** Plugin config: how the registered tools are presented to the model. */
 export interface Config {
@@ -677,9 +677,9 @@ export interface Config {
    * Model presentation. `native` (default) sends every visible schema; `ptc`
    * sends only `run_code` plus a generated SDK prompt and collapses the
    * executor to the same surface (a model-direct call may only name
-   * `run_code`; `run_code` SDK sub-dispatches keep every visible tool); `both`
-   * sends both forms. PTC mode requires a `ctx.ptcRuntime` whose `language`
-   * has a registered SDK renderer (TypeScript or Python) and fail prompt
+   * `run_code`; `run_code` SDK sub-dispatches keep every visible tool).
+   * PTC mode requires a `ctx.ptcRuntime` whose `language`
+   * has a registered SDK renderer (TypeScript or Python) and fails prompt
    * assembly when it is absent or has no renderer. Under `ptc`, native names
    * in `toolOrder` are invalid.
    */
@@ -809,7 +809,7 @@ export class ToolRuntime extends Service {
   static inject = ['systemPrompt']
 
   static Config: z<Config> = z.object({
-    mode: z.union(['native', 'ptc', 'both'] as const).default('native'),
+    mode: z.union(['native', 'ptc'] as const).default('native'),
     maxParallelSubCalls: z.natural().min(1).default(10),
   })
 
@@ -871,7 +871,7 @@ export class ToolRuntime extends Service {
    * the deployment is inconsistent. Its order places the rule before that
    * guidance rather than after it.
    *
-   * `both` renders empty: native calls do execute there, so the rule is false.
+   * Native scopes render no instruction.
    * @returns the section registration.
    */
   private collapseSection(): PromptSection {
@@ -1006,8 +1006,7 @@ export class ToolRuntime extends Service {
         yield ctx.systemPrompt.section(this.sdkSection())
       }
     }.bind(this), 'tools.presentAs()')
-    // oxlint-disable-next-line typescript/no-misused-promises -- synchronous composite teardown
-    return dispose
+    return dispose // oxlint-disable-line typescript/no-misused-promises -- preserve the exact Cordis-owned disposer
   }
 
   /**
@@ -1028,13 +1027,10 @@ export class ToolRuntime extends Service {
     // language with no SDK renderer.
     this.requirePtcRuntime(mode)
     const schemas = [...view.visible.values()].map(definition => this.schemaOf(definition, false))
-    if (mode === 'ptc') {
-      return {
-        schemas: schemas.filter(schema => schema.name === RUN_CODE_NAME),
-        knownNames: [RUN_CODE_NAME],
-      }
+    return {
+      schemas: schemas.filter(schema => schema.name === RUN_CODE_NAME),
+      knownNames: [RUN_CODE_NAME],
     }
-    return { schemas, knownNames: [...view.knownNames, RUN_CODE_NAME] }
   }
 
   /**
