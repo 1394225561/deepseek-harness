@@ -4,7 +4,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { cleanup, renderHook, waitFor } from '@testing-library/react'
 import { languageForPath as sharedLanguageForPath, readLangHintForPath } from '@deepseek-ai/dsh-util-code-language'
 import { CODE_HIGHLIGHT_EXTENSIONS, languageForPath, useCodeHighlighter } from '../src/code-highlighting.ts'
-import { grammarForHint, supportsHighlighting } from '../src/markdown/highlight.ts'
+import {
+  StreamingHighlightSession, grammarForHint, highlightLines, highlightToHtml, supportsHighlighting,
+} from '../src/markdown/highlight.ts'
 
 afterEach(cleanup)
 
@@ -101,5 +103,16 @@ describe('code highlighting', () => {
       await waitFor(() => { expect(hook.result.current).not.toBe(initial) })
     }
     expect(hook.result.current('sample')).not.toBeUndefined()
+  })
+
+  it('leaves an overlong line as one uncolored run while its neighbors still highlight', () => {
+    const literal = `const table = "${'ab'.repeat(500)}"`
+    const code = ['const before = 1', literal, 'const after = 2'].join('\n')
+    const lines = highlightLines(code, 'javascript')
+    expect(lines?.map(line => line.length > 1)).toEqual([true, false, true])
+    expect(lines?.[1]).toEqual([{ text: literal, style: { color: '' } }])
+    expect(new StreamingHighlightSession().update(code, 'javascript')?.[1]).toEqual([{ text: literal, style: { color: '' } }])
+    const html = highlightToHtml(code, 'javascript')
+    expect(html).toContain(`<span class="line"><span>${literal}</span></span>`)
   })
 })

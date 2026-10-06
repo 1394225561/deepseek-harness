@@ -275,6 +275,14 @@ const regexEngine = createJavaScriptRegexEngine({
   }),
 })
 
+/**
+ * Lines at least this many UTF-16 units long render as one uncolored token.
+ * TextMate scanning cost grows superlinearly with line length (a 20,000-unit
+ * string literal blocks the main thread for seconds), and minified or
+ * generated lines are where that length occurs.
+ */
+const TOKENIZE_MAX_LINE_LENGTH = 1000
+
 let singleton: HighlighterCore | undefined
 
 /** Representative paths through every boot grammar, compiled before user content is timed. */
@@ -386,7 +394,9 @@ export function highlightToHtml(code: string, lang: string | undefined): string 
   const resolved = grammarForHint(lang)
   if (resolved === undefined) return undefined
   if (!ensureGrammar(resolved)) return undefined
-  return highlighter().codeToHtml(code, { lang: resolved, theme: 'css-variables' })
+  return highlighter().codeToHtml(code, {
+    lang: resolved, theme: 'css-variables', tokenizeMaxLineLength: TOKENIZE_MAX_LINE_LENGTH,
+  })
 }
 
 /**
@@ -492,6 +502,7 @@ export class StreamingHighlightSession {
     return highlighter().codeToTokensBase(text, {
       lang: resolved,
       theme: 'css-variables',
+      tokenizeMaxLineLength: TOKENIZE_MAX_LINE_LENGTH,
       ...(this.state === undefined ? {} : { grammarState: this.state }),
     })
   }
@@ -586,7 +597,9 @@ export function highlightLines(code: string, lang: string | undefined): Highligh
   const resolved = grammarForHint(lang)
   if (resolved === undefined) return undefined
   if (!ensureGrammar(resolved)) return undefined
-  const { tokens } = highlighter().codeToTokens(code, { lang: resolved, theme: 'css-variables' })
+  const { tokens } = highlighter().codeToTokens(code, {
+    lang: resolved, theme: 'css-variables', tokenizeMaxLineLength: TOKENIZE_MAX_LINE_LENGTH,
+  })
   // shiki tokenizes `a\nb` into two lines; a trailing newline (`a\n`) adds a
   // third, empty line the caller's own line array does not carry. Drop that
   // one terminator line so the two structures stay in step. The explicit
