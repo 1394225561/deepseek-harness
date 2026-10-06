@@ -58,7 +58,7 @@ The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-a
 <a id="exposing-the-tool"></a>
 ### Exposing the tool
 
-The bundle adds `optional-tool-subagent-claude-code` to each full preset through scoped profile patches. The minimal preset and host tool catalog remain unchanged. For a profile without these preset targets that uses the shared base services, follow the [recovery steps](../../../docs/upgrade-guide/v0.2.1-alpha.1/native-subagent-bundle-tools/guide.md#recovery) to keep the dependency and deselect its bundle layer, then add this insertion to the profile's `cordis.patch.yml`:
+The bundle adds `tool-subagent-claude-code` to each full preset through scoped profile patches. Later user patches can configure or disable that row; a complete preset replacement keeps its own child list. Avoid declaring the same model-facing tool twice. The minimal preset and host tool catalog remain unchanged. For a profile without these preset targets, keep the package installed without selecting its bundle layer, then mount the provider and tool explicitly in `cordis.patch.yml`:
 
 ```yaml
 - insert:

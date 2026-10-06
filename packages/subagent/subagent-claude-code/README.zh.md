@@ -58,7 +58,7 @@ kind: "package-bundle"
 <a id="exposing-the-tool"></a>
 ### 暴露工具
 
-Bundle 通过作用于预设的配置补丁为每个完整预设添加 `optional-tool-subagent-claude-code`。minimal 预设和 Host 工具目录保持不变。对于不包含这些预设目标、但使用共享 base 服务的 profile，先按[恢复步骤](../../../docs/upgrade-guide/v0.2.1-alpha.1/native-subagent-bundle-tools/guide.zh.md#recovery)保留依赖并取消选择 bundle 层，再把以下插入操作加入该 profile 的 `cordis.patch.yml`：
+Bundle 通过作用于预设的配置补丁为每个完整预设添加 `tool-subagent-claude-code`。后续用户补丁可以配置或禁用该行；完整的预设替换保留自己的子列表。不要重复声明同一个面向模型的工具。minimal 预设和 Host 工具目录保持不变。对于不包含这些预设目标的 profile，保留已安装的包但不选择其 bundle 层，然后在 `cordis.patch.yml` 中显式挂载提供方和工具：
 
 ```yaml
 - insert:

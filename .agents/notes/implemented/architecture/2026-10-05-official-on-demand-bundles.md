@@ -16,7 +16,7 @@ Selection uses the ordinary third-party bundle installer, profile dependency, sc
 
 Every Official package remains in the DSH release family. Packed DSH dependencies, optional dependencies, and peers use the exact family version. Publication prerequisites place catalog packages before the DSH package advertising them without adding their runtimes to DSH production dependencies. Catalog verification rejects missing metadata, unsupported membership, and stale generated content.
 
-The [shipped optional-bundle policy](../process/2026-09-15-shipped-optional-bundles.md) still owns lightweight installation-provided bundles. The [optional-composition decision](2026-09-21-experimental-capabilities-as-optional-bundles.md) owns shared patch and preset-generation behavior. Native bundles require the full Web preset targets; custom profiles mount their providers and tools explicitly.
+The [shipped optional-bundle policy](../process/2026-09-15-shipped-optional-bundles.md) still owns lightweight installation-provided bundles. The [optional-composition decision](2026-09-21-experimental-capabilities-as-optional-bundles.md) owns shared patch and preset-generation behavior. Native bundles require the full Web preset targets; custom profiles mount their providers and tools explicitly. The [identity compatibility decision](2026-10-06-web-desktop-plugin-identity-compatibility.md) owns retained names, selectors, and deferred naming cleanup.
 
 ## Alternatives considered
 
