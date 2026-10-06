@@ -388,7 +388,10 @@ describe('web e2e: agent-preset selection', () => {
     const createdBody = await created.json() as { result: { value: { sessionId: SessionId; agentPreset: string } } }
     expect(createdBody).toMatchObject({ result: { ok: true, value: { agentPreset: 'standard' } } })
     const freshSessionId = createdBody.result.value.sessionId
+    const freshConversation = page.locator(`[data-conversation-session="${freshSessionId}"]`)
+    await freshConversation.waitFor()
     await page.reload()
+    await freshConversation.waitFor()
     await page.getByRole('button', { name: 'Standard mode', exact: true }).waitFor()
 
     await openSettings(page, 'en')
