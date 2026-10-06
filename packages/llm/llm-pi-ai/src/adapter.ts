@@ -215,6 +215,7 @@ function reasoningInfo(
         id: ReasoningEffortId(level),
         name: `${level.charAt(0).toUpperCase()}${level.slice(1)}`,
       })),
+      /* v8 ignore next -- a reasoning route always declares at least one level, and the runtime rejects an empty list. */
       ...floor === undefined ? {} : { floorEffort: ReasoningEffortId(floor) },
       ...defaultLevel === undefined ? {} : { defaultEffort: ReasoningEffortId(defaultLevel) },
     },
