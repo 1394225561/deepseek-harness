@@ -51,6 +51,7 @@ export { REGION_BEGIN, REGION_END }
  */
 export const SERVICE_PAGE: Record<string, string> = {
   translator: 'translation.md',
+  cotTranslation: 'translation.md',
   speechToText: 'voice-input.md',
   speechController: 'voice-input.md',
   otel: 'otel.md',
@@ -673,6 +674,8 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   TranslationProvider: 'translation.md',
   TranslationRequest: 'translation.md',
   TranslationSpec: 'translation.md',
+  CotTranslationPreferences: 'translation.md',
+  CotTranslationSnapshot: 'translation.md',
   TranslationError: 'translation.md',
   TranslationErrorCode: 'translation.md',
   SpeechSpec: 'voice-input.md',
