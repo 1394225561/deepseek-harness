@@ -77,6 +77,7 @@ describe('release families', () => {
       '@deepseek-ai/dsh-experimental-speech-to-text',
       '@deepseek-ai/dsh-experimental-tool-agent-team',
       '@deepseek-ai/dsh-tool-ralph',
+      '@deepseek-ai/dsh-tool-session-query',
       '@deepseek-ai/dsh-tool-terminal',
       '@deepseek-ai/dsh-experimental-tool-worktree',
       '@deepseek-ai/dsh-experimental-translator',
