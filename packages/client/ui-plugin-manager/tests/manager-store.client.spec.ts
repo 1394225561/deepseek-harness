@@ -1959,3 +1959,44 @@ it('ignores a stale update target and prevents a disposed tab from beginning an 
   face.setEnabled(CATALOG.name, true)
   expect(plugins.installBundle).not.toHaveBeenCalled()
 })
+
+
+it('installs a source Official entry as a local path through the ordinary installer', async () => {
+  const spec = 'link:/development/dsh/packages/subagent/subagent-codex'
+  const entry = { ...CATALOG, installTarget: { spec, version: '2.0.0' } }
+  const { controller, plugins, face, state } = bench({ listBundles: vi.fn().mockResolvedValue(ok([entry])) })
+  await controller.load()
+  face.setEnabled(entry.name, true)
+  await vi.waitFor(() => { expect(state().install.phase).toBe('done') })
+  expect(plugins.inspect).not.toHaveBeenCalled()
+  expect(plugins.installBundle).toHaveBeenCalledWith(spec, {
+    enabled: true, requestId: state().install.requestId, registry: null,
+  })
+  expect(state().install.subject).toMatchObject({ kind: 'path', spec, selection: true })
+  expect(state().install.subject?.saveExact).toBeUndefined()
+})
+
+it.each([true, false])('replaces a same-version registry package with its source link and preserves enabled=%s', async (enabled) => {
+  const spec = 'link:/development/dsh/packages/subagent/subagent-codex'
+  const entry: BundleInfo = { ...CATALOG, installTarget: { spec, version: '2.0.0' }, availability: 'profile',
+    installed: true, version: '2.0.0', source: `${CATALOG.name}@2.0.0`, enabled, removable: true }
+  const { controller, plugins, face, state } = bench({ listBundles: vi.fn().mockResolvedValue(ok([entry])),
+    installBundle: vi.fn().mockResolvedValue(ok({ ...APPLIED, bundle: CATALOG.name, application: 'restart-required' })),
+  })
+  await controller.load()
+  face.update(entry.name)
+  await vi.waitFor(() => { expect(state().install.phase).toBe('done') })
+  expect(plugins.installBundle).toHaveBeenCalledWith(spec, { enabled, requestId: state().install.requestId, registry: null })
+  expect(state().install.subject).toMatchObject({ kind: 'path', spec, selection: enabled })
+  expect(state().install.restartRequired).toBe(true)
+})
+
+it('deselects a source bundle whose target is unavailable without starting installation', async () => {
+  const entry: BundleInfo = { ...CATALOG, installTarget: undefined, enabled: true,
+    error: { code: 'operation-error', diagnostic: 'Source package is not built' } }
+  const { controller, plugins, face } = bench({ listBundles: vi.fn().mockResolvedValue(ok([entry])) })
+  await controller.load()
+  face.setEnabled(entry.name, false)
+  await vi.waitFor(() => { expect(plugins.setBundleEnabled).toHaveBeenCalledWith(entry.name, false) })
+  expect(plugins.installBundle).not.toHaveBeenCalled()
+})

@@ -17,7 +17,7 @@ Delegation follows the shared managed-activation API: the tool returns a child I
 
 ## Migration
 
-1. Keep existing package dependencies, selected bundle names, provider configuration, and authentication. To adopt an unselected provider, enable it in Plugins → Official; the ordinary installer offers the exact running DSH version. Off only deselects, and Remove remains separate.
+1. Preserve selected bundle names, provider configuration, and authentication. Existing provider-only packages need **Update** in Plugins → Official to receive the tool-contributing bundle; restart when requested. To adopt a new provider, enable its card. [Installation targets](../../../../packages/boot/plugin-manager/README.md#use-this-package) follow the published DSH version or source checkout; equal version strings do not make an older registry package equivalent to a development link. Off only deselects; Remove remains separate.
 2. Configure the familiar tool row ID with a scoped patch. Configuration overrides still replace the complete configuration. For example, this keeps Codex disabled in standard while other full presets use their selected composition:
 
    ```yaml
@@ -27,6 +27,6 @@ Delegation follows the shared managed-activation API: the tool returns a child I
    ```
 
 3. If an additional manual row registers the same tool in a preset, remove that redundant row or disable the bundle's contribution explicitly. A copied complete preset can retain its existing tool declarations and disabled state. Verify the effective tool catalog in a new Session; minimal keeps its current shell and working-directory tools.
-4. Plugin clients receive required `BundleInfo.official` and `BundleInfo.availability` fields; detail-slot `PluginPackageRef` receives them too. `official` identifies project maintenance, `availability` reports `installation`, `profile`, or `missing`, and `installed` still means a profile dependency declaration. Detail-slot readers that only display existing fields need no changes; constructors and exact validators must include the new fields. Optional `installTarget` identifies the offered exact package version.
+4. Plugin clients receive required `BundleInfo.official` and `BundleInfo.availability` fields; detail-slot `PluginPackageRef` receives them too. `official` identifies project maintenance, `availability` reports `installation`, `profile`, or `missing`, and `installed` still means a profile dependency declaration. Detail-slot readers that only display existing fields need no changes; constructors and exact validators must include the new fields. Optional `installTarget` identifies the offered version and registry or local-link spec.
 
 **Other profiles.** Headless, SDK, ACP, and custom profiles without the three full preset targets are outside this compatibility scope. Selecting these bundle layers fails for missing preset targets and can retain the saved selection; there is no automatic rollback. Such profiles can keep the installed provider package without selecting its bundle and explicitly compose provider/tool rows using the [Codex](../../../../packages/subagent/subagent-codex/README.md#exposing-the-tool) or [Claude Code](../../../../packages/subagent/subagent-claude-code/README.md#exposing-the-tool) example.

@@ -56,7 +56,7 @@ export interface BundleInfo {
   official: boolean
   /** Readable package location; on-demand catalog entries exclude undeclared transitive copies, and declared files may be missing. */
   availability: 'installation' | 'profile' | 'missing'
-  /** Exact host-version target offered for an on-demand catalog entry. */
+  /** Exact released Host version or same-checkout development link offered for an on-demand catalog entry. */
   installTarget?: { spec: string; version: string }
   version?: string
   /** Local display text with available translations or literal fallbacks, or a metadata diagnostic. */

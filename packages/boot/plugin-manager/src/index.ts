@@ -23,6 +23,7 @@ import type {} from '@deepseek-ai/dsh-hmr'
 import type { ProfileContext, ProfileManifest } from '@deepseek-ai/dsh-app-boot'
 import { bundleManifest, readProfileRegistry, registryArguments, runProfilePnpm, saveManifest, viewProfilePackage } from './operations.ts'
 import { classifyInstallFailure } from './install-failure.ts'
+import { officialBundleInstallTarget } from './official-install-target.ts'
 import { dependencySpec, InvalidInstallSpecError, parseInstallSpec, type ParsedInstallSpec } from './install-spec.ts'
 import { attributeFailure, normalizeRegistry, NPMMIRROR_REGISTRY, registryPlan } from './registry.ts'
 import { writePluginEnabled } from './patch.ts'
@@ -300,11 +301,17 @@ export class PluginManager extends TypertRemoteService {
       const shipped = Object.hasOwn(installation.dependencies ?? {}, name)
       const offered = catalog.get(name)
       const official = optional || offered !== undefined
-      const target = offered === undefined ? {} : { installTarget: { spec: `${name}@${runtimeVersion}`, version: runtimeVersion } }
+      let target: Pick<BundleInfo, 'installTarget'> = {}
+      let targetError: ManagementError | undefined
+      if (offered !== undefined) {
+        try { target = { installTarget: officialBundleInstallTarget(name, this.profile.installAnchor, runtimeVersion) } }
+        catch (error) { targetError = managementError(error) }
+      }
       const catalogMeta = offered === undefined ? {} : { meta: offered.meta }
       if (offered !== undefined && !installed && !shipped) {
         bundles.push({ name, official, availability: 'missing', ...catalogMeta, ...target, enabled, installed, optional,
-          removable: enabled, rows: [], overrides: [], ...enabled ? { error: { code: 'not-bundle' } } : {} })
+          removable: enabled, rows: [], overrides: [],
+          ...targetError !== undefined ? { error: targetError } : enabled ? { error: { code: 'not-bundle' } } : {} })
         continue
       }
       // Installation-owned copies remain protected even if a profile also declares their names.
@@ -321,7 +328,7 @@ export class PluginManager extends TypertRemoteService {
         if (info === undefined) {
           if (enabled || offered !== undefined) bundles.push({ name, official, availability, ...catalogMeta, ...target,
             ...sourceOf(), enabled, installed, optional, removable: removable && readOnlyReason === undefined,
-            ...(readOnlyReason === undefined ? {} : { readOnlyReason }), error: { code: 'not-bundle' }, rows: [], overrides: [] })
+            ...(readOnlyReason === undefined ? {} : { readOnlyReason }), error: targetError ?? { code: 'not-bundle' }, rows: [], overrides: [] })
           continue
         }
         version = info.version
@@ -334,12 +341,14 @@ export class PluginManager extends TypertRemoteService {
           ...meta === undefined ? {} : { meta },
           ...sourceOf(info.name), enabled, installed, optional, removable: removable && readOnlyReason === undefined,
           ...(readOnlyReason === undefined ? {} : { readOnlyReason }),
-          ...this.declaredRows(name, info, inventory, definitions) })
+          ...this.declaredRows(name, info, inventory, definitions),
+          ...targetError === undefined ? {} : { error: targetError } })
       } catch (error) {
         if (enabled || installed || optional || offered !== undefined) {
           bundles.push({ name, official, availability, ...catalogMeta, ...target, ...(version === undefined ? {} : { version }),
             ...sourceOf(), enabled, installed, optional, removable: removable && readOnlyReason === undefined,
-            ...(readOnlyReason === undefined ? {} : { readOnlyReason }), error: managementError(error), rows: [], overrides: [] })
+            ...(readOnlyReason === undefined ? {} : { readOnlyReason }),
+            error: targetError ?? managementError(error), rows: [], overrides: [] })
         }
       }
     }
@@ -569,7 +578,11 @@ export class PluginManager extends TypertRemoteService {
         const after = readProfileManifest('dsh', this.profile.dir).dependencies ?? {}
         const installed = Object.keys(after).filter(name => before[name] !== after[name])
         // Registry retries can retain the saved range after a partial installation.
-        if (installed.length === 0) installed.push(...Object.keys(after).filter(name => spec === name || spec.startsWith(`${name}@`)))
+        if (installed.length === 0) {
+          const parsed = parsedForRegistry(spec)
+          const localName = parsed.kind === 'path' ? readProfileManifest('dsh', parsed.path).name : undefined
+          installed.push(...Object.keys(after).filter(name => name === localName || spec === name || spec.startsWith(`${name}@`)))
+        }
         const target = installed[0]
         if (installed.length !== 1 || target === undefined) throw new ManagementFailure('ambiguous-install')
         name = target
