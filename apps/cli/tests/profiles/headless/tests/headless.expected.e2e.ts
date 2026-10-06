@@ -621,6 +621,7 @@ describe('headless stream-json snapshots', () => {
       expect(server.paths).toEqual(['/v1/messages', '/v1/messages'])
       const agentRequest = server.requests.find(request => request.max_tokens === 256_000)
       const titleRequest = server.requests.find(isTitleRequest)
+      expect(titleRequest?.max_tokens).toBe(TITLE_MAX_TOKENS)
       expect(agentRequest?.output_config).toEqual({ effort: 'low' })
       expect(titleRequest).toBeDefined()
       const header = (parseJsonl(result.stdout)
@@ -715,7 +716,9 @@ describe('headless stream-json snapshots', () => {
       const agentRequest = server.requests.find(request => !isTitleRequest(request))
       const titleRequest = server.requests.find(isTitleRequest)
       expect(agentRequest).not.toHaveProperty('max_completion_tokens')
-      expect(titleRequest).toBeDefined()
+      // The route override caps this session's requests at 1024, so the title
+      // request dispatches below the base bundle's 4096 ceiling.
+      expect(titleRequest?.max_tokens).toBe(1_024)
       const header = (parseJsonl(result.stdout)
         .map(record => record.event)
         .find((event): event is JsonObject => (

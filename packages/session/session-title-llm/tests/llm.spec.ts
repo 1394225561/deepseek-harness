@@ -329,6 +329,8 @@ describe('generateSessionTitleWithLlm', () => {
       [['\n  *Greeting*  \n'], 'Greeting'],
       [['**a** and **b**\nnote'], '**a** and **b**'],
       [['Use **bold** for emphasis'], 'Use **bold** for emphasis'],
+      [['Fix *args* handling'], 'Fix *args* handling'],
+      [['*args'], '*args'],
       [['****'], '****'],
     ]
     for (const [deltas, title] of cases) {
