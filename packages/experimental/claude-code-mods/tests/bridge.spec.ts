@@ -4,7 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { join, resolve } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import { Context, type Fiber } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -1077,6 +1077,13 @@ describe('the band above the prompt', () => {
         await ctx.plugin(LocalSubprocessRuntime)
       },
     })
+    // Windows does not provide the POSIX sleep executable; other subprocesses run normally.
+    const spawn = h.ctx.subprocess.spawn.bind(h.ctx.subprocess)
+    const withoutSleep = vi.spyOn(h.ctx.subprocess, 'spawn').mockImplementation((spec) => {
+      if (spec.argv[0] === 'sleep') throw new Error('spawn sleep ENOENT')
+      return spawn(spec)
+    })
+    onTestFinished(() => { withoutSleep.mockRestore() })
     h.ctx.tools.register(echoTool('bash', ran))
     const agent = await h.agent()
     const mods = h.ctx.claudeCodeMods
@@ -1104,6 +1111,7 @@ describe('the band above the prompt', () => {
     expect(cancelId).toBeDefined()
     await mods.pressBand(agent, drawn.generation, cancelId ?? '')
     await holding
+    expect(h.warn).not.toHaveBeenCalledWith(expect.stringMatching(/tool.call hook skipped/))
     expect(ran).toEqual([])
     expect(toolResult(agent)?.text).toMatch(/Blast Radius held this command: the user pressed Cancel/)
     await waitFor(() => !JSON.stringify(seen.at(-1)).includes('Cancel'))
