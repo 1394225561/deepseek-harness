@@ -295,6 +295,9 @@ importers:
       '@deepseek-ai/dsh-experimental-ralph-bundle':
         specifier: workspace:*
         version: link:../../packages/experimental/ralph-bundle
+      '@deepseek-ai/dsh-experimental-session-search':
+        specifier: workspace:*
+        version: link:../../packages/experimental/session-search
       '@deepseek-ai/dsh-experimental-session-titles-bundle':
         specifier: workspace:*
         version: link:../../packages/experimental/session-titles-bundle
@@ -370,9 +373,6 @@ importers:
       '@deepseek-ai/dsh-session-reference':
         specifier: workspace:*
         version: link:../../packages/context/session-reference
-      '@deepseek-ai/dsh-session-search':
-        specifier: workspace:*
-        version: link:../../packages/bundle/session-search
       '@deepseek-ai/dsh-skill':
         specifier: workspace:*
         version: link:../../packages/skill/skill
@@ -382,9 +382,6 @@ importers:
       '@deepseek-ai/dsh-skill-office':
         specifier: workspace:*
         version: link:../../packages/skill/skill-office
-      '@deepseek-ai/dsh-string-editor':
-        specifier: workspace:*
-        version: link:../../packages/bundle/string-editor
       '@deepseek-ai/dsh-terminal':
         specifier: workspace:*
         version: link:../../packages/terminal/terminal
@@ -397,9 +394,6 @@ importers:
       '@deepseek-ai/dsh-tmux-context':
         specifier: workspace:*
         version: link:../../packages/context/tmux-context
-      '@deepseek-ai/dsh-tmux-location':
-        specifier: workspace:*
-        version: link:../../packages/bundle/tmux-location
       '@deepseek-ai/dsh-token-meter':
         specifier: workspace:*
         version: link:../../packages/llm/token-meter
@@ -2494,39 +2488,6 @@ importers:
       '@deepseek-ai/dsh-working-directory':
         specifier: workspace:*
         version: link:../../session/working-directory
-    devDependencies:
-      '@deepseek-ai/cordis':
-        specifier: workspace:~
-        version: link:../../../vendor/cordis
-
-  packages/bundle/session-search:
-    dependencies:
-      '@deepseek-ai/dsh-session-query-sqlite':
-        specifier: workspace:*
-        version: link:../../session-query/session-query-sqlite
-      '@deepseek-ai/dsh-tool-session-query':
-        specifier: workspace:*
-        version: link:../../session-query/tool-session-query
-    devDependencies:
-      '@deepseek-ai/cordis':
-        specifier: workspace:~
-        version: link:../../../vendor/cordis
-
-  packages/bundle/string-editor:
-    dependencies:
-      '@deepseek-ai/dsh-tool-str-replace-editor':
-        specifier: workspace:*
-        version: link:../../fs/tool-str-replace-editor
-    devDependencies:
-      '@deepseek-ai/cordis':
-        specifier: workspace:~
-        version: link:../../../vendor/cordis
-
-  packages/bundle/tmux-location:
-    dependencies:
-      '@deepseek-ai/dsh-tmux-context':
-        specifier: workspace:*
-        version: link:../../context/tmux-context
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: workspace:~
@@ -8672,6 +8633,19 @@ importers:
       react-dom:
         specifier: ^18.2.0
         version: 18.3.1(react@18.3.1)
+
+  packages/experimental/session-search:
+    dependencies:
+      '@deepseek-ai/dsh-session-query-sqlite':
+        specifier: workspace:*
+        version: link:../../session-query/session-query-sqlite
+      '@deepseek-ai/dsh-tool-session-query':
+        specifier: workspace:*
+        version: link:../tool-session-query
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: workspace:~
+        version: link:../../../vendor/cordis
 
   packages/experimental/session-title-all-prompts-llm:
     dependencies:

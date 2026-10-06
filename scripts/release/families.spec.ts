@@ -73,6 +73,7 @@ describe('release families', () => {
       '@deepseek-ai/dsh-experimental-ptc-runtime-python',
       '@deepseek-ai/dsh-experimental-ralph-bundle',
       '@deepseek-ai/dsh-experimental-session-inspector',
+      '@deepseek-ai/dsh-experimental-session-search',
       '@deepseek-ai/dsh-session-title-all-prompts-llm',
       '@deepseek-ai/dsh-experimental-session-titles-bundle',
       '@deepseek-ai/dsh-skill-badge',

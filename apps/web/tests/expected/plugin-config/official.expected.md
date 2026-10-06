@@ -6,7 +6,7 @@
   - button "添加插件"
   - button "选择添加插件方式"
 - heading "官方" [level=3]
-- text: "17"
+- text: "15"
 - list:
   - listitem:
     - button "查看 智能体团队": 智能体团队
@@ -33,6 +33,10 @@
     - text: 实验性 使用新智能体执行用户明确要求的循环工作。
     - switch "启用 Ralph 循环"
   - listitem:
+    - button "查看 会话搜索": 会话搜索
+    - text: 实验性 为智能体提供搜索和读取当前工作区历史会话的工具。
+    - switch "启用 会话搜索"
+  - listitem:
     - button "查看 随对话更新的标题": 随对话更新的标题
     - text: 实验性 在收到新的用户提示时更新会话标题。
     - switch "启用 随对话更新的标题"
@@ -48,18 +52,6 @@
     - button "查看 语音输入": 语音输入
     - text: 实验性 在本机使用 SenseVoice 转写录音，首次使用需安装依赖。
     - switch "启用 语音输入"
-  - listitem:
-    - button "查看 会话搜索": 会话搜索
-    - text: 为智能体提供搜索和读取当前工作区历史会话的工具。
-    - switch "启用 会话搜索"
-  - listitem:
-    - button "查看 字符串编辑器": 字符串编辑器
-    - text: 使用 str_replace_editor 工具编辑文件。
-    - switch "启用 字符串编辑器"
-  - listitem:
-    - button "查看 tmux 位置": tmux 位置
-    - text: 在可用时让智能体读取当前 tmux 窗格和布局。
-    - switch "启用 tmux 位置"
   - listitem:
     - button "查看 终端": 终端
     - text: 限制每条命令最多能跑多久、最多输出多少内容。

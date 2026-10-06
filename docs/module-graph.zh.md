@@ -140,9 +140,6 @@ flowchart TD
     pkg_headless["headless"]
     pkg_sdk_app["sdk-app"]
     pkg_sdk_minimal["sdk-minimal"]
-    pkg_session_search["session-search"]
-    pkg_string_editor["string-editor"]
-    pkg_tmux_location["tmux-location"]
     pkg_web_app["web-app"]
   end
   subgraph group_client["packages/client"]
@@ -265,6 +262,7 @@ flowchart TD
     pkg_experimental_ptc_runtime_python["experimental-ptc-runtime-python"]
     pkg_experimental_ralph_bundle["experimental-ralph-bundle"]
     pkg_experimental_session_inspector["experimental-session-inspector"]
+    pkg_experimental_session_search["experimental-session-search"]
     pkg_experimental_session_titles_bundle["experimental-session-titles-bundle"]
     pkg_experimental_speech_to_text["experimental-speech-to-text"]
     pkg_experimental_speech_to_text_sensevoice["experimental-speech-to-text-sensevoice"]
@@ -1463,9 +1461,6 @@ flowchart TD
 | [`base`](../packages/bundle/base) | `bundle` | — |
 | [`sdk-app`](../packages/bundle/sdk-app) | `bundle` | — |
 | [`sdk-minimal`](../packages/bundle/sdk-minimal) | `bundle` | — |
-| [`session-search`](../packages/bundle/session-search) | `bundle` | — |
-| [`string-editor`](../packages/bundle/string-editor) | `bundle` | — |
-| [`tmux-location`](../packages/bundle/tmux-location) | `bundle` | — |
 | [`client-file-upload`](../packages/client/file-upload) | `client` | — |
 | [`client-hmr`](../packages/client/hmr) | `client` | — |
 | [`client-locale`](../packages/client/locale) | `client` | — |
@@ -1536,6 +1531,7 @@ flowchart TD
 | [`experimental-inspector-profile`](../packages/experimental/inspector-profile) | `experimental` | — |
 | [`experimental-ralph-bundle`](../packages/experimental/ralph-bundle) | `experimental` | — |
 | [`experimental-session-inspector`](../packages/experimental/session-inspector) | `experimental` | — |
+| [`experimental-session-search`](../packages/experimental/session-search) | `experimental` | — |
 | [`experimental-session-titles-bundle`](../packages/experimental/session-titles-bundle) | `experimental` | — |
 | [`experimental-terminal-bundle`](../packages/experimental/terminal-bundle) | `experimental` | — |
 | [`experimental-voice-input-bundle`](../packages/experimental/voice-input-bundle) | `experimental` | — |
