@@ -3,7 +3,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import clsx from 'clsx'
 import {
   IconApiOutlineRegular, IconChevronDownOutlineRegular, IconChevronUpOutlineRegular, IconInspectOutlineRegular,
-  TerminalBlock, TextShimmer,
+  CommandText, TerminalBlock, TextShimmer,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ToolCallViewProps } from '../../contract/slots.ts'
@@ -135,7 +135,9 @@ export const BashRow = memo(function BashRow({ toolName, block, sessionId, useSe
                 {body !== null && (
                   <div className={css.ioSection}>
                     <span className={css.ioLabel}>{t('row.input')}</span>
-                    <span className={clsx(css.ioText, background && css.commandInput)} tabIndex={background ? 0 : undefined}>{body}</span>
+                    {background
+                      ? <CommandText className={css.commandInput} text={body} label={t('row.commandArguments')} />
+                      : <span className={css.ioText}>{body}</span>}
                   </div>
                 )}
                 {body !== null && model.output !== null && (

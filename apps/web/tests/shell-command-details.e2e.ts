@@ -8,7 +8,7 @@ import {
   seedSession, watchConsole, webSnapshotMode,
 } from './scaffold.ts'
 import { expandOwningTurnProcess, newEnglishPage } from './support.ts'
-import { expectSelectableCommandText } from './terminal-command-browser.ts'
+import { expectCommandFocusAfterResize, expectSelectableCommandText } from './terminal-command-browser.ts'
 
 const COMMAND = 'node ./scripts/start-worker.mjs --workspace=/tmp/diagnostics/long-workspace-name-for-background-command-details --log-level=debug --trace-tag=background-shell-full-command-selection --include=worker,lifecycle,transport,subscriptions --output=/tmp/diagnostics/background-worker.log'
 const ARGS = { command: COMMAND, description: 'Start the diagnostic worker', run_in_background: true }
@@ -76,7 +76,7 @@ it('expands a background Bash launch to selectable arguments and its original ac
       expect(await row.getAttribute('aria-expanded')).toBe('false')
       await row.click()
       const card = row.locator('..')
-      const input = card.locator('[class*="commandInput"]')
+      const input = card.locator('[data-command-text]')
       await input.waitFor()
       expect(await input.textContent()).toBe(JSON.stringify(ARGS, null, 2))
       expect(await card.getByText(OUTPUT, { exact: true }).count()).toBe(1)
@@ -88,7 +88,8 @@ it('expands a background Bash launch to selectable arguments and its original ac
         for (const width of ['', '380px']) {
           await card.evaluate((element, value) => { element.style.width = value }, width)
           await input.scrollIntoViewIfNeeded()
-          await expectSelectableCommandText(page, input, COMMAND)
+          await expectSelectableCommandText(page, input, COMMAND, 'Command arguments')
+          await expectCommandFocusAfterResize(card, input)
         }
         await card.evaluate((element) => { element.style.width = '' })
       }

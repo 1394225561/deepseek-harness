@@ -119,7 +119,7 @@ it.each(['https://registry.npmjs.org/', MIRROR])('selects the fastest responding
       await dialog.getByText('第 1 次 · 中国大陆镜像源', { exact: true }).waitFor()
       await dialog.getByText('第 2 次 · npm 官方源', { exact: true }).waitFor()
       await expectSelectableTerminalCommand(page, dialog.locator('[data-terminal]').first(),
-        `pnpm add mirrored-package --registry=${MIRROR}`, 380)
+        `pnpm add mirrored-package --registry=${MIRROR}`, 380, '命令第 1 行')
       expect(JSON.parse(await readFile(manifestPath, 'utf8'))).toMatchObject({ dependencies: { 'mirrored-package': '2.0.0' } })
       const installed = (await captureStableAria(page, '[role="dialog"]', scaffold.workspaceCwd))
         .split(process.execPath).join('{{node}}')

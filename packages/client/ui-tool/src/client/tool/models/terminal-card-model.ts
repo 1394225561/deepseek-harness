@@ -17,6 +17,7 @@ import { recordedAbsolutePath } from './recorded-path.ts'
  */
 export function terminalBlockLabels(t: TranslateNS<'conversation'>): TerminalBlockLabels {
   return {
+    commandLine: line => t('terminal.commandLine', { n: line }),
     signal: signal => t('terminal.signal', { signal }),
     exitCode: code => t('terminal.exitCode', { code }),
     noExitCode: t('terminal.noExitCode'),
