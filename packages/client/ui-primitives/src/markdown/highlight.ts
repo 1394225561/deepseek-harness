@@ -277,9 +277,11 @@ const regexEngine = createJavaScriptRegexEngine({
 
 /**
  * Lines at least this many UTF-16 units long render as one uncolored token.
- * TextMate scanning cost grows superlinearly with line length (a 20,000-unit
- * string literal blocks the main thread for seconds), and minified or
- * generated lines are where that length occurs.
+ * With the JavaScript regex engine, scanning one JavaScript string-literal
+ * line costs about 70 ms at 1,000 units, 300 ms at 2,000, 600 ms at 5,000 and
+ * 2.5 s at 10,000, so this cap keeps one line within a few frames. A skipped
+ * line leaves the grammar state unchanged: a multi-line construct that opens
+ * or closes on it colors the following lines as if the line were absent.
  */
 const TOKENIZE_MAX_LINE_LENGTH = 1000
 
