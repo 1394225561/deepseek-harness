@@ -3,7 +3,7 @@
  * process-group cancellation, and timeout machinery. The bridge supplies the
  * trusted stdin payload and dialect environment, then this module decodes the
  * captured outcome.
- * @module @deepseek-ai/dsh-experimental-hook-protocol/runner
+ * @module @deepseek-ai/dsh-hook-protocol/runner
  */
 
 import type { ShellExecutor } from '@deepseek-ai/dsh-shell'

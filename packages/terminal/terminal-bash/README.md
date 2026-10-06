@@ -43,7 +43,7 @@ Mount the terminal service, a subprocess provider, the sandbox and policy servic
 - name: '@deepseek-ai/dsh-sandbox-local'
 - name: '@deepseek-ai/dsh-sandbox-policy'
 - name: '@deepseek-ai/dsh-terminal-bash'
-- name: '@deepseek-ai/dsh-experimental-tool-terminal'
+- name: '@deepseek-ai/dsh-tool-terminal'
 ```
 
 `danger-full-access` starts the shell directly. Confined modes require a same-world `ctx.sandbox` provider: without one, the spawn fails before the shell starts. Confinement preparation receives the opening signal; cancellation prevents terminal allocation even if the provider returns later.
@@ -135,7 +135,7 @@ Read these pages when the package-level contract is not enough. They move from t
 
 #### What the model sees
 
-This package registers no prompt or tool. Through `@deepseek-ai/dsh-experimental-tool-terminal` or another PTY consumer, the model may receive bounded startup output, send deltas, scrollback pages, readiness reasons, and cleanup errors.
+This package registers no prompt or tool. Through `@deepseek-ai/dsh-tool-terminal` or another PTY consumer, the model may receive bounded startup output, send deltas, scrollback pages, readiness reasons, and cleanup errors.
 
 #### Token effect
 

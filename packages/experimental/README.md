@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-Install and compose experimental capabilities explicitly, without a product-support commitment. Packages publish under `@deepseek-ai/dsh-experimental-*`; private packages require an entry in the [publication policy](../../scripts/experimental-package-policy.ts). The [optional-bundle rule](../../.agents/notes/implemented/architecture/2026-09-21-experimental-capabilities-as-optional-bundles.md) determines which capabilities ship switched off with the installation for explicit selection in the GUI plugin manager’s Official group.
+Install and compose experimental capabilities explicitly, without a product-support commitment. Package naming and publication follow the [experimental package policy](../../scripts/experimental-package-policy.ts). The [optional-bundle rule](../../.agents/notes/implemented/architecture/2026-09-21-experimental-capabilities-as-optional-bundles.md) determines which capabilities ship switched off with the installation for explicit selection in the GUI plugin manager’s Official group.
 
 ## Table of Contents
 
@@ -27,7 +27,7 @@ Install and compose experimental capabilities explicitly, without a product-supp
 
 **Optional** means a user explicitly selects the capability. **Official** means the project maintains and lists the package in the Plugins page. Neither describes maturity; publication, default installation, and GUI visibility do not determine maturity either. Product packages outside this group have maintained product roles, while their public APIs still follow the repository's pre-stable policy.
 
-Promotion requires a named product role, documented public behavior and limitations, current consumers, release contents, and test evidence. Move the package to its product group, remove `experimental-` from its npm name, and update every consumer together. The [subtree rules](AGENTS.md) govern dependency isolation and publication.
+Promotion requires a named product role, documented public behavior and limitations, current consumers, release contents, and test evidence. Move the package to its product group, apply that group's naming rules, and update affected consumers together. The [subtree rules](AGENTS.md) govern dependency isolation and publication.
 
 -----
 

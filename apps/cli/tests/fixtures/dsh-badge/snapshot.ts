@@ -14,8 +14,8 @@ const basePatchPath = fileURLToPath(new URL('../../../../../packages/bundle/base
 // The fixture owns the optional provider; the base bundle has no dependency on it.
 const overlays = loadOverlayPatches('dsh-badge-snapshot', overlayPath).map(patch => patch.insert === undefined ? patch : {
   ...patch,
-  insert: patch.insert.map(row => row.name === '@deepseek-ai/dsh-experimental-skill-badge'
-    ? { ...row, name: import.meta.resolve('@deepseek-ai/dsh-experimental-skill-badge') }
+  insert: patch.insert.map(row => row.name === '@deepseek-ai/dsh-skill-badge'
+    ? { ...row, name: import.meta.resolve('@deepseek-ai/dsh-skill-badge') }
     : row),
 })
 const ctx = await boot('dsh-badge-snapshot', rootConfigPath, [

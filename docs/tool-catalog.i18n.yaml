@@ -136,28 +136,28 @@
   zh: c6ce31ff2c195520
 /tool-schema-catalog/deepseek-ai-dsh-tool-fs-search/grep:
   en: 6e1f7da62cc9a35b
-  zh: ee7f3081887f8067
+  zh: 594817b0befeea86
 /tool-schema-catalog/deepseek-ai-dsh-tool-terminal:
   en: 77501c1b592b6a88
   zh: 77501c1b592b6a88
 /tool-schema-catalog/deepseek-ai-dsh-tool-terminal/terminal-close:
-  en: 6d6e428c866ac6c1
-  zh: 8033539fcdcb6e7b
+  en: 4da73ab1c95aadc6
+  zh: 998471bc4f5af00a
 /tool-schema-catalog/deepseek-ai-dsh-tool-terminal/terminal-list:
-  en: ae7d5bce32142aa5
-  zh: e956a650a5bf294b
+  en: 4cde2b1d38f93e04
+  zh: 2c93f43d54ec9da2
 /tool-schema-catalog/deepseek-ai-dsh-tool-terminal/terminal-open:
-  en: c542bd7f7e872441
-  zh: 14731de81780b518
+  en: 7051c20587ae426d
+  zh: 39a6aad70d643fbc
 /tool-schema-catalog/deepseek-ai-dsh-tool-terminal/terminal-read:
-  en: 6a7491d2436e4404
-  zh: 772ff408ec0a67e3
+  en: 833b47cca9b00b9d
+  zh: 24b3db5b48f0446a
 /tool-schema-catalog/deepseek-ai-dsh-tool-terminal/terminal-send:
-  en: e24ca8735dd59adb
-  zh: 24f7140a0aed0968
+  en: 60a8805611533884
+  zh: 50e4ac6e7f7b9b0a
 /tool-schema-catalog/deepseek-ai-dsh-tool-terminal/terminal-signal:
-  en: 36a7f502acf00049
-  zh: 00b4567b534eb7b2
+  en: 0191964f5be70426
+  zh: 501c2769633a2a0b
 /tool-schema-catalog/deepseek-ai-dsh-tool-goal:
   en: 74fff3741e7c13de
   zh: 74fff3741e7c13de
@@ -190,13 +190,13 @@
   zh: 32982123b1f0e5bc
 /tool-schema-catalog/deepseek-ai-dsh-tool-lsp/lsp:
   en: 877f1dc0f69e2038
-  zh: 2fa570020f87919c
+  zh: 5dda8001fb614315
 /tool-schema-catalog/deepseek-ai-dsh-tool-ralph:
   en: 45bd083870e2c92d
   zh: 45bd083870e2c92d
 /tool-schema-catalog/deepseek-ai-dsh-tool-ralph/ralph:
-  en: a14c562ee26ddfd8
-  zh: caa6d1acf95a8199
+  en: e97552156225cf10
+  zh: 9ea32b8485e950ec
 /tool-schema-catalog/deepseek-ai-dsh-tool-skill:
   en: 927a5ac0974b7642
   zh: 927a5ac0974b7642

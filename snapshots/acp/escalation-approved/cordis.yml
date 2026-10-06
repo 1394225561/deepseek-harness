@@ -71,12 +71,12 @@
 
 - insert:
     - id: hooks-claude-code
-      name: '@deepseek-ai/dsh-experimental-hooks-claude-code'
+      name: '@deepseek-ai/dsh-hooks-claude-code'
       config:
         configPath: ./hooks.json
 
     - id: hooks-codex
-      name: '@deepseek-ai/dsh-experimental-hooks-codex'
+      name: '@deepseek-ai/dsh-hooks-codex'
       config:
         configPath: ./codex-hooks.json
 

@@ -208,10 +208,10 @@
     "verify-product-use": "tsx scripts/verify-product-use.ts"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-experimental-hooks-claude-code": "workspace:*",
-    "@deepseek-ai/dsh-experimental-hooks-codex": "workspace:*",
-    "@deepseek-ai/dsh-experimental-tool-ralph": "workspace:*",
-    "@deepseek-ai/dsh-experimental-tool-terminal": "workspace:*",
+    "@deepseek-ai/dsh-hooks-claude-code": "workspace:*",
+    "@deepseek-ai/dsh-hooks-codex": "workspace:*",
+    "@deepseek-ai/dsh-tool-ralph": "workspace:*",
+    "@deepseek-ai/dsh-tool-terminal": "workspace:*",
     "@deepseek-ai/dsh-agent": "workspace:*",
     "@deepseek-ai/dsh-browser-use": "workspace:*",
     "@deepseek-ai/dsh-experimental-browser-use-runtime": "workspace:*",

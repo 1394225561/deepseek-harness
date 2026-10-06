@@ -3,13 +3,13 @@ description: "The shared hook rules behind the Claude Code and Codex bridges —
 kind: "package-library"
 ---
 
-# @deepseek-ai/dsh-experimental-hook-protocol
+# @deepseek-ai/dsh-hook-protocol
 
 English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-experimental-hook-protocol` makes both bridges handle your hooks identically: it defines what a hook can do and what happens when it runs. You never install or configure it yourself — choose `dsh-experimental-hooks-claude-code` or `dsh-experimental-hooks-codex`, point it at your existing `hooks.json`, and these rules apply to your hooks. Through either bridge, a hook can block a prompt or tool call with a message the model sees, attach extra context to the conversation, or ask the run to stop. Only command hooks run; `http`, `mcp_tool`, `prompt`, and `agent` handlers are skipped with a warning.
+`dsh-hook-protocol` makes both bridges handle your hooks identically: it defines what a hook can do and what happens when it runs. You never install or configure it yourself — choose `dsh-hooks-claude-code` or `dsh-hooks-codex`, point it at your existing `hooks.json`, and these rules apply to your hooks. Through either bridge, a hook can block a prompt or tool call with a message the model sees, attach extra context to the conversation, or ask the run to stop. Only command hooks run; `http`, `mcp_tool`, `prompt`, and `agent` handlers are skipped with a warning.
 
 ## Table of Contents
 
@@ -25,11 +25,11 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-You don't install or configure this package directly — mounting `dsh-experimental-hooks-claude-code` or `dsh-experimental-hooks-codex` applies these rules to your existing `hooks.json` hooks. Use this page to learn what a hook can do and what happens when it runs; the two bridge pages list which events each dialect supports.
+You don't install or configure this package directly — mounting `dsh-hooks-claude-code` or `dsh-hooks-codex` applies these rules to your existing `hooks.json` hooks. Use this page to learn what a hook can do and what happens when it runs; the two bridge pages list which events each dialect supports.
 
 ### When to choose it
 
-Choose `dsh-experimental-hooks-claude-code` or `dsh-experimental-hooks-codex` when you have existing Claude Code or Codex hooks and want them to keep working during agent runs. You never choose this package directly. Avoid the whole group for bespoke behavior with no reference-tool equivalent: a native Cordis plugin has the full harness API with no hook protocol in between.
+Choose `dsh-hooks-claude-code` or `dsh-hooks-codex` when you have existing Claude Code or Codex hooks and want them to keep working during agent runs. You never choose this package directly. Avoid the whole group for bespoke behavior with no reference-tool equivalent: a native Cordis plugin has the full harness API with no hook protocol in between.
 
 ### What a hook can do
 
@@ -112,7 +112,7 @@ Read these pages when the package-level contract is not enough. They move from t
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through `dsh-experimental-hooks-claude-code` and `dsh-experimental-hooks-codex`, which are the only consumers that render decoded hook output into model context.
+Indirectly, through `dsh-hooks-claude-code` and `dsh-hooks-codex`, which are the only consumers that render decoded hook output into model context.
 
 #### KV Cache effect
 

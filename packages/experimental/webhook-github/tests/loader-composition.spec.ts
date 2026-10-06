@@ -30,7 +30,7 @@ describe('real Loader composition', () => {
       '  config:',
       "    host: '127.0.0.1'",
       '    port: 0',
-      "- name: '@deepseek-ai/dsh-experimental-webhook-github'",
+      "- name: '@deepseek-ai/dsh-webhook-github'",
       '  config:',
       '    source: loader',
       '    path: /github',
@@ -56,7 +56,7 @@ describe('real Loader composition', () => {
     const modules = new Map<string, unknown>([
       ['fixture-dependencies', dependencies],
       ['@deepseek-ai/dsh-host-webserver', WebServer],
-      ['@deepseek-ai/dsh-experimental-webhook-github', GitHubAdapter],
+      ['@deepseek-ai/dsh-webhook-github', GitHubAdapter],
     ])
     context.loader.internal = {
       version: 'v2',

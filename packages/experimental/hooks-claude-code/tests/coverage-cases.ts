@@ -15,7 +15,7 @@ import { LocalBashExecutor } from '@deepseek-ai/dsh-bash-local'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
 import { scopeTarget } from '@deepseek-ai/dsh-scope'
 import SubagentRuntime, { SubagentRunId } from '@deepseek-ai/dsh-subagent'
-import * as HooksClaude from '@deepseek-ai/dsh-experimental-hooks-claude-code'
+import * as HooksClaude from '@deepseek-ai/dsh-hooks-claude-code'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 
 declare module '@deepseek-ai/dsh-llm' {

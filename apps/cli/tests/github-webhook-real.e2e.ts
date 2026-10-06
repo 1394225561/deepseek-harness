@@ -362,7 +362,7 @@ describe.skipIf(!process.env.DEEPSEEK_API_KEY)('GitHub webhook through the real 
     initProfile(profile, PROFILE_TEMPLATES.web!.bundles)
     const manifestPath = join(profile, 'package.json')
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as { dependencies: Record<string, string> }
-    for (const name of ['@deepseek-ai/dsh-experimental-webhook', '@deepseek-ai/dsh-experimental-webhook-github']) {
+    for (const name of ['@deepseek-ai/dsh-webhook', '@deepseek-ai/dsh-webhook-github']) {
       const directory = dirname(fileURLToPath(import.meta.resolve(`${name}/package.json`)))
       const link = join(profile, 'node_modules', name)
       await mkdir(dirname(link), { recursive: true })

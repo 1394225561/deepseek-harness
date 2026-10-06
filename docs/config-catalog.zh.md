@@ -1452,7 +1452,7 @@ export interface HmrConfig extends ChokidarOptions {
 ## `@deepseek-ai/dsh-hooks-claude-code`
 
 - `inject`: `shell` · `sessionProjections` · `workingDirectory`
-- `source`: [`packages/hooks/hooks-claude-code/src/index.ts:51`](../packages/hooks/hooks-claude-code/src/index.ts)
+- `source`: [`packages/experimental/hooks-claude-code/src/index.ts:51`](../packages/experimental/hooks-claude-code/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: where the CC hook config lives + substitution roots. */
@@ -1491,7 +1491,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-hooks-codex`
 
 - `inject`: `shell` · `sessionProjections` · `workingDirectory`
-- `source`: [`packages/hooks/hooks-codex/src/index.ts:50`](../packages/hooks/hooks-codex/src/index.ts)
+- `source`: [`packages/experimental/hooks-codex/src/index.ts:50`](../packages/experimental/hooks-codex/src/index.ts)
 
 ```ts config-catalog
 /** Plugin config: where the Codex hooks.json lives + the model name for payloads. */
@@ -2899,7 +2899,7 @@ export interface Config {
 
 - `inject`: `sessionTitle` · `llm` · `sessions`
 - `refs`: [`SessionTitleLlmConfig`](../packages/session/session-title-llm/src/index.ts)
-- `source`: [`packages/session/session-title-all-prompts-llm/src/index.ts:15`](../packages/session/session-title-all-prompts-llm/src/index.ts)
+- `source`: [`packages/experimental/session-title-all-prompts-llm/src/index.ts:15`](../packages/experimental/session-title-all-prompts-llm/src/index.ts)
 
 ```ts config-catalog
 /** Required LLM policy; this plugin adds no defaults. */
@@ -3829,7 +3829,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-tool-ralph`
 
 - `inject`: `tools` · `workflowEngine` · `subagents` · `systemPrompt`
-- `source`: [`packages/workflow/tool-ralph/src/index.ts:21`](../packages/workflow/tool-ralph/src/index.ts)
+- `source`: [`packages/experimental/tool-ralph/src/index.ts:21`](../packages/experimental/tool-ralph/src/index.ts)
 
 ```ts config-catalog
 /** Deployment policy for the fixed Ralph workflow. */
@@ -3966,7 +3966,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-tool-terminal`
 
 - `inject`: `terminals` · `tools` · `systemPrompt` · `workingDirectory`
-- `source`: [`packages/terminal/tool-terminal/src/index.ts:38`](../packages/terminal/tool-terminal/src/index.ts)
+- `source`: [`packages/experimental/tool-terminal/src/index.ts:38`](../packages/experimental/tool-terminal/src/index.ts)
 
 ```ts config-catalog
 /** Model-facing terminal tool configuration. */
@@ -4338,7 +4338,7 @@ export interface Config {
 ## `@deepseek-ai/dsh-webhook-github`
 
 - `inject`: `webServer` · `webhookRuntime` · `credentials`
-- `source`: [`packages/webhook/webhook-github/src/index.ts:17`](../packages/webhook/webhook-github/src/index.ts)
+- `source`: [`packages/experimental/webhook-github/src/index.ts:17`](../packages/experimental/webhook-github/src/index.ts)
 
 ```ts config-catalog
 /** Required GitHub ingress configuration. */
@@ -4521,7 +4521,7 @@ export interface Config {
 | `@deepseek-ai/dsh-session-stats` | `sessionProjections` | [`packages/session/session-stats/src/index.ts`](../packages/session/session-stats/src/index.ts) |
 | `@deepseek-ai/dsh-session-turn-outline` | `sessionProjections` | [`packages/session/session-turn-outline/src/index.ts`](../packages/session/session-turn-outline/src/index.ts) |
 | `@deepseek-ai/dsh-settings` | `configEditor` · `profileContext` | [`packages/settings/settings/src/index.ts`](../packages/settings/settings/src/index.ts) |
-| `@deepseek-ai/dsh-skill-badge` | `skills` | [`packages/skill/skill-badge/src/index.ts`](../packages/skill/skill-badge/src/index.ts) |
+| `@deepseek-ai/dsh-skill-badge` | `skills` | [`packages/experimental/skill-badge/src/index.ts`](../packages/experimental/skill-badge/src/index.ts) |
 | `@deepseek-ai/dsh-storage` | — | [`packages/storage/storage/src/index.ts`](../packages/storage/storage/src/index.ts) |
 | `@deepseek-ai/dsh-subprocess-local` | — | [`packages/subprocess/subprocess-local/src/index.ts`](../packages/subprocess/subprocess-local/src/index.ts) |
 | `@deepseek-ai/dsh-subprocess-ssh` | `ssh` | [`packages/ssh/subprocess-ssh/src/index.ts`](../packages/ssh/subprocess-ssh/src/index.ts) |
@@ -4532,7 +4532,7 @@ export interface Config {
 | `@deepseek-ai/dsh-tool-subagent-control` | `tools` · `subagents` | [`packages/subagent/tool-subagent-control/src/index.ts`](../packages/subagent/tool-subagent-control/src/index.ts) |
 | `@deepseek-ai/dsh-tool-working-directory` | `tools` · `workingDirectory` | [`packages/session/tool-working-directory/src/index.ts`](../packages/session/tool-working-directory/src/index.ts) |
 | `@deepseek-ai/dsh-user-questions` | — | [`packages/interaction/user-questions/src/index.ts`](../packages/interaction/user-questions/src/index.ts) |
-| `@deepseek-ai/dsh-webhook` | `agents` · `agentDefaultModel` · `agentPresets` · `permissionPresets` · `sessionTitle` · `workspaceRegistry` | [`packages/webhook/webhook/src/index.ts`](../packages/webhook/webhook/src/index.ts) |
+| `@deepseek-ai/dsh-webhook` | `agents` · `agentDefaultModel` · `agentPresets` · `permissionPresets` · `sessionTitle` · `workspaceRegistry` | [`packages/experimental/webhook/src/index.ts`](../packages/experimental/webhook/src/index.ts) |
 | `@deepseek-ai/dsh-workspace` | `storageDomain` · `sessionPersistence` | [`packages/workspace/workspace/src/index.ts`](../packages/workspace/workspace/src/index.ts) |
 <!-- END GENERATED config-catalog:no-config -->
 
@@ -4591,7 +4591,7 @@ export interface Config {
 | `@deepseek-ai/dsh-experimental-webworker-packer` | — | [`packages/experimental/webworker-packer/src/index.ts`](../packages/experimental/webworker-packer/src/index.ts) |
 | `@deepseek-ai/dsh-experimental-webworker-runtime` | — | [`packages/experimental/webworker-runtime/src/index.ts`](../packages/experimental/webworker-runtime/src/index.ts) |
 | `@deepseek-ai/dsh-home-paths` | — | [`packages/util/home-paths/src/index.ts`](../packages/util/home-paths/src/index.ts) |
-| `@deepseek-ai/dsh-hook-protocol` | — | [`packages/hooks/hook-protocol/src/index.ts`](../packages/hooks/hook-protocol/src/index.ts) |
+| `@deepseek-ai/dsh-hook-protocol` | — | [`packages/experimental/hook-protocol/src/index.ts`](../packages/experimental/hook-protocol/src/index.ts) |
 | `@deepseek-ai/dsh-http-proxy` | — | [`packages/util/http-proxy/src/index.ts`](../packages/util/http-proxy/src/index.ts) |
 | `@deepseek-ai/dsh-launch-environment` | — | [`packages/util/launch-environment/src/index.ts`](../packages/util/launch-environment/src/index.ts) |
 | `@deepseek-ai/dsh-lazy-require` | — | [`packages/util/lazy-require/src/index.ts`](../packages/util/lazy-require/src/index.ts) |

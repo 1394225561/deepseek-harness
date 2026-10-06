@@ -9,7 +9,7 @@ kind: "package-group"
 
 ## 概述
 
-实验性能力可按需安装和组合，但不提供产品支持承诺。各包以 `@deepseek-ai/dsh-experimental-*` 名称发布；私有包必须列入[发布策略](../../scripts/experimental-package-policy.ts)。[可选组合规则](../../.agents/notes/implemented/architecture/2026-09-21-experimental-capabilities-as-optional-bundles.zh.md)决定哪些能力以默认关闭状态随安装提供，并在 GUI 插件管理器的官方分组显式启用。
+实验性能力可按需安装和组合，但不提供产品支持承诺。包命名和发布遵循[实验包策略](../../scripts/experimental-package-policy.ts)。[可选组合规则](../../.agents/notes/implemented/architecture/2026-09-21-experimental-capabilities-as-optional-bundles.zh.md)决定哪些能力以默认关闭状态随安装提供，并在 GUI 插件管理器的官方分组显式启用。
 
 ## 目录
 
@@ -27,7 +27,7 @@ kind: "package-group"
 
 **可选**表示用户显式选择该能力。**官方**表示项目维护并在插件页列出该包。两者均不表示成熟度；发布、默认安装和界面可见性也不决定成熟度。组外产品包承担维护职责，其公开 API 仍遵循仓库的预稳定政策。
 
-晋升需要明确的产品职责、公开行为与限制、当前消费者、发布内容以及测试证据。晋升时将包移入对应产品组，去掉 npm 名称中的 `experimental-`，并同时更新所有消费者。[子树规则](AGENTS.md)规定依赖隔离和发布要求。
+晋升需要明确的产品职责、公开行为与限制、当前消费者、发布内容以及测试证据。晋升时将包移入对应产品组，应用该组的命名规则，并同时更新受影响的消费者。[子树规则](AGENTS.md)规定依赖隔离和发布要求。
 
 -----
 

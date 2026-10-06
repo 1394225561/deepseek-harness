@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import { EXPERIMENTAL_PACKAGE_NAME_EXCEPTIONS } from './experimental-package-policy.ts'
 import { verifyDefaultProductIsolation } from './verify-default-product-isolation.ts'
 import { writeFixtureFile as write } from './fixture-file.ts'
 
@@ -47,6 +48,32 @@ afterEach(() => {
 })
 
 describe('default product isolation', () => {
+  describe.each(Object.entries(EXPERIMENTAL_PACKAGE_NAME_EXCEPTIONS))('retained experimental identity %s', (directory, name) => {
+    it.each(['direct dependency', 'transitive dependency', 'npm alias', 'value import', 'subpath import', 'profile row', 'preset row'])(
+      'rejects default product use through a %s', (route) => {
+        const root = fixture()
+        write(root, `${directory}/package.json`, { name })
+        if (route === 'direct dependency') manifest(root, 'apps/cli/package.json', { dependencies: { [name]: 'workspace:*' } })
+        if (route === 'transitive dependency') manifest(root, 'packages/core/core/package.json', { dependencies: { [name]: 'workspace:*' } })
+        if (route === 'npm alias') manifest(root, 'packages/core/core/package.json', { dependencies: { alias: `npm:${name}@1.0.0` } })
+        if (route === 'value import') write(root, 'apps/cli/src/bin.ts', `import '${name}'\n`)
+        if (route === 'subpath import') write(root, 'apps/cli/src/bin.ts', `import '${name}/feature'\n`)
+        if (route === 'profile row') write(root, patch, [{ insert: [{ name }] }])
+        if (route === 'preset row') write(root, preset, [{ insert: [{ name: '@deepseek-ai/dsh-agent-preset', config: { id: 'standard', plugins: [{ name }] } }] }])
+        expect(verifyDefaultProductIsolation(root).failures).toEqual(expect.arrayContaining([
+          expect.stringMatching(new RegExp(`${name}.*default product must not include experimental packages`)),
+        ]))
+      },
+    )
+
+    it('allows a type-only reference without promoting it to runtime use', () => {
+      const root = fixture()
+      write(root, `${directory}/package.json`, { name })
+      write(root, 'apps/cli/src/bin.ts', `import type { Options } from '${name}'\nexport type { Options }\n`)
+      expect(verifyDefaultProductIsolation(root).failures).toEqual([])
+    })
+  })
+
   it.each(['@deepseek-ai/libreoffice-kit'])(
     'accepts independently published %s but rejects unknown workspace packages', (name) => {
       const root = fixture()

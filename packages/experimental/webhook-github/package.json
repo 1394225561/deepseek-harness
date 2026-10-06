@@ -1,5 +1,5 @@
 {
-  "name": "@deepseek-ai/dsh-experimental-webhook-github",
+  "name": "@deepseek-ai/dsh-webhook-github",
   "description": "Signed GitHub HTTP webhook adapter for the DeepSeek Harness webhook runtime",
   "version": "0.2.1-alpha.1",
   "publishConfig": {
@@ -39,7 +39,7 @@
     "@deepseek-ai/dsh-credentials": "workspace:*",
     "@deepseek-ai/dsh-host-webserver": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",
-    "@deepseek-ai/dsh-experimental-webhook": "workspace:*"
+    "@deepseek-ai/dsh-webhook": "workspace:*"
   },
   "dependencies": {
     "@deepseek-ai/dsh-util-values": "workspace:*",
@@ -53,6 +53,6 @@
     "@deepseek-ai/dsh-credentials": "workspace:*",
     "@deepseek-ai/dsh-host-webserver": "workspace:*",
     "@deepseek-ai/dsh-session": "workspace:*",
-    "@deepseek-ai/dsh-experimental-webhook": "workspace:*"
+    "@deepseek-ai/dsh-webhook": "workspace:*"
   }
 }

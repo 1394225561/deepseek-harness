@@ -46,7 +46,7 @@
 
 - insert:
     - id: tool-ralph
-      name: '@deepseek-ai/dsh-experimental-tool-ralph'
+      name: '@deepseek-ai/dsh-tool-ralph'
       config:
         subagentProvider: spawn
         maxRounds: 64

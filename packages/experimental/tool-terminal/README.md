@@ -3,13 +3,13 @@ description: "Six model-facing persistent terminal tools with owner isolation, b
 kind: "package-reference"
 ---
 
-# @deepseek-ai/dsh-experimental-tool-terminal
+# @deepseek-ai/dsh-tool-terminal
 
 English | [中文](README.zh.md)
 
 ## Summary
 
-Use `dsh-experimental-tool-terminal` when an agent needs persistent terminal state or interactive input across calls. It can open, send to, read, signal, close, and list terminal sessions while preventing one agent from operating another agent's sessions. Sends may wait for bounded foreground output or return a background job id for later collection or interruption. `maxResultBytes` caps each result, which remains in session history until compaction. The model is guided to prefer one-shot tools for bounded work.
+Use `dsh-tool-terminal` when an agent needs persistent terminal state or interactive input across calls. It can open, send to, read, signal, close, and list terminal sessions while preventing one agent from operating another agent's sessions. Sends may wait for bounded foreground output or return a background job id for later collection or interruption. `maxResultBytes` caps each result, which remains in session history until compaction. The model is guided to prefer one-shot tools for bounded work.
 
 ## Table of Contents
 
@@ -45,7 +45,7 @@ Enable these tools when the composition mounts a terminal backend and the model 
 ```yaml
 - name: '@deepseek-ai/dsh-terminal'
 - name: '@deepseek-ai/dsh-terminal-bash'
-- name: '@deepseek-ai/dsh-experimental-tool-terminal'
+- name: '@deepseek-ai/dsh-tool-terminal'
 ```
 
 The tools need `ctx.terminals` — a backend must be mounted — and the system-prompt service for the guidance section. Background sends additionally require the jobs service and its model-facing controller (`@deepseek-ai/dsh-tool-jobs`).
@@ -57,7 +57,7 @@ The tools need `ctx.terminals` — a backend must be mounted — and the system-
 | `enableRunInBackground` | `true` | Expose and accept `run_in_background`; `false` removes the schema field and rejects the argument |
 | `maxResultBytes` | `262144` | UTF-8 cap (minimum `64`) for each complete terminal result after wait, session, pagination, truncation, and job-status metadata |
 
-The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-experimental-tool-terminal) and [tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-experimental-tool-terminal) are the exhaustive sources for config fields and schemas.
+The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-tool-terminal) and [tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-tool-terminal) are the exhaustive sources for config fields and schemas.
 
 ### Background sends
 
@@ -105,7 +105,7 @@ Foreground sends use terminal call and result cards; background sends and the ot
 
 Read these pages when the package-level contract is not enough. They move from the generated schemas to the service contract, the backend, and the background-job surface.
 
-- [Tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-experimental-tool-terminal) — the six generated schemas and result shapes.
+- [Tool catalog](../../../docs/tool-catalog.md#deepseek-aidsh-tool-terminal) — the six generated schemas and result shapes.
 - [Terminal subsystem reference](../../../docs/subsystems/terminal.md) — the service contract and shared types behind the tools.
 - [terminal service](../../terminal/terminal/README.md) — session operations, owner fencing, and cleanup semantics.
 - [terminal-bash backend](../../terminal/terminal-bash/README.md) — the shipped shell backend that provides sessions.
@@ -141,7 +141,7 @@ Prefix-stable while the registration scope and guidance text are unchanged.
 
 #### What the model sees
 
-The six generated schemas are listed in the [`dsh-experimental-tool-terminal` catalog section](../../../docs/tool-catalog.md#deepseek-aidsh-experimental-tool-terminal). Their fixed schema tokens are present whenever this plugin is active; agent-scoped tool filtering may hide them.
+The six generated schemas are listed in the [`dsh-tool-terminal` catalog section](../../../docs/tool-catalog.md#deepseek-aidsh-tool-terminal). Their fixed schema tokens are present whenever this plugin is active; agent-scoped tool filtering may hide them.
 
 #### Token effect
 

@@ -102,12 +102,12 @@
     "@deepseek-ai/dsh-experimental-tool-worktree": "workspace:*"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-experimental-skill-badge": "workspace:*",
-    "@deepseek-ai/dsh-experimental-webhook-github": "workspace:*",
-    "@deepseek-ai/dsh-experimental-webhook": "workspace:*",
-    "@deepseek-ai/dsh-experimental-tool-ralph": "workspace:*",
-    "@deepseek-ai/dsh-experimental-hooks-codex": "workspace:*",
-    "@deepseek-ai/dsh-experimental-hooks-claude-code": "workspace:*",
+    "@deepseek-ai/dsh-skill-badge": "workspace:*",
+    "@deepseek-ai/dsh-webhook-github": "workspace:*",
+    "@deepseek-ai/dsh-webhook": "workspace:*",
+    "@deepseek-ai/dsh-tool-ralph": "workspace:*",
+    "@deepseek-ai/dsh-hooks-codex": "workspace:*",
+    "@deepseek-ai/dsh-hooks-claude-code": "workspace:*",
     "@agentclientprotocol/sdk": "1.4.0",
     "@deepseek-ai/dsh-acp": "workspace:*",
     "@deepseek-ai/dsh-agent": "workspace:*",

@@ -4,8 +4,8 @@
  * matchers, snake_case payloads without a trailing newline, no hook environment
  * or command substitution, and no pre-tool approval or rewrite path; only
  * blocking decisions are honored. Shared execution and parsing live in
- * `dsh-experimental-hook-protocol`.
- * @module @deepseek-ai/dsh-experimental-hooks-codex
+ * `dsh-hook-protocol`.
+ * @module @deepseek-ai/dsh-hooks-codex
  */
 
 // Each dialect bridge keeps its complete dependency list visible at the entry
@@ -39,7 +39,7 @@ import {
   selectHookGroups,
   type HookOutput,
   type MergedHookOutcome,
-} from '@deepseek-ai/dsh-experimental-hook-protocol'
+} from '@deepseek-ai/dsh-hook-protocol'
 import { parseCodexConfig, type CodexHookConfig } from './config.ts'
 /* jscpd:ignore-end */
 

@@ -12,7 +12,7 @@ import TerminalSessionService, { TerminalSessionId } from '@deepseek-ai/dsh-term
 import type { TerminalBackend, TerminalBackendSession, TerminalSendOperation, TerminalSendRead, TerminalSendRequest, TerminalSessionStatus, TerminalSignal } from '@deepseek-ai/dsh-terminal'
 import LocalJobRegistry from '@deepseek-ai/dsh-jobs-local'
 import * as ToolJobs from '@deepseek-ai/dsh-tool-jobs'
-import * as ToolPty from '@deepseek-ai/dsh-experimental-tool-terminal'
+import * as ToolPty from '@deepseek-ai/dsh-tool-terminal'
 import { sendSource } from '../src/background.ts'
 
 async function fakeAgent(ctx: Context, rawId: string): Promise<Agent> {

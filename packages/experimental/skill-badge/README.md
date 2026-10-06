@@ -3,7 +3,7 @@ description: "The bundled 'powered by dsh' badge skill for users and maintainers
 kind: "package-reference"
 ---
 
-# @deepseek-ai/dsh-experimental-skill-badge
+# @deepseek-ai/dsh-skill-badge
 
 English | [中文](README.zh.md)
 
@@ -33,12 +33,12 @@ Choose this provider when content produced with DeepSeek Harness should carry of
 
 ### Enable the plugin
 
-Install `@deepseek-ai/dsh-experimental-skill-badge` into the profile and insert its plugin row. The default composition does not declare it.
+Install `@deepseek-ai/dsh-skill-badge` into the profile and insert its plugin row. The default composition does not declare it.
 
 ```yaml
 - insert:
     - id: skill-badge
-      name: '@deepseek-ai/dsh-experimental-skill-badge'
+      name: '@deepseek-ai/dsh-skill-badge'
 ```
 
 After enabling, `dsh-badge` appears in the available skills of the session catalog. The skill covers remote Markdown badges (Shields.io-based) and a packaged PNG badge asset for targets that cannot fetch remote images reliably.

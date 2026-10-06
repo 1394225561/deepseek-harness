@@ -13,7 +13,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { LocalBashExecutor } from '@deepseek-ai/dsh-bash-local'
 import LocalSubprocessRuntime from '@deepseek-ai/dsh-subprocess-local'
-import * as HooksCodex from '@deepseek-ai/dsh-experimental-hooks-codex'
+import * as HooksCodex from '@deepseek-ai/dsh-hooks-codex'
 import { MockAdapter, textResponse, toolCallResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
 
 declare module '@deepseek-ai/dsh-llm' {

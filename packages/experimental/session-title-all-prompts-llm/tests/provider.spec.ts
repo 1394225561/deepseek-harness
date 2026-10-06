@@ -6,7 +6,7 @@ import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
 import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import { turnBoundaryProjectionDefinition } from '@deepseek-ai/dsh-agent-loop'
 import SessionTitleService from '@deepseek-ai/dsh-session-title'
-import * as providerPlugin from '@deepseek-ai/dsh-experimental-session-title-all-prompts-llm'
+import * as providerPlugin from '@deepseek-ai/dsh-session-title-all-prompts-llm'
 
 class RecordingAdapter extends LlmAdapter {
   readonly requests: GenerateOptions[] = []

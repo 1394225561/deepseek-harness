@@ -24,7 +24,7 @@ harness 可以运行前台与后台命令、编辑文件和委派工作，但无
 |---|---|---|
 | `dsh-terminal` | `TerminalSessionService`、branded `TerminalSessionId`、后端注册表、按 owner 隔离的会话约定和结果类型 | `ctx.terminals` |
 | `dsh-terminal-bash` | 基于 `ctx.subprocess.spawnTerminal()` 的持久 shell 后端：就绪状态、有界终端缓冲、沙箱解析和感知 owner 的会话生命周期 | 在 `ctx.terminals` 上注册后端 |
-| `dsh-experimental-tool-terminal` | 6 个面向模型的工具、后台发送的 task 运行时集成、使用指引和 UI 渲染意图 | 注册到 `ctx.tools` |
+| `dsh-tool-terminal` | 6 个面向模型的工具、后台发送的 task 运行时集成、使用指引和 UI 渲染意图 | 注册到 `ctx.tools` |
 
 就绪判定仍属于 PTY 后端行为，不是第二条公共约定。终端进程提供方只提供基底事实，例如前台进程组，以及能否证明该组正在等待输入；`dsh-terminal-bash` 将这些事实与提示符和静默证据组合成统一的发送结果。
 
@@ -62,9 +62,9 @@ UI 渲染约定精确且不携带位置信息。`terminal_send` 只为前台发�
 
 `terminal_send({ sessionId, text, submit?, run_in_background? })` 将 `text` 视为 UTF-8 字节，并由工具实现在解析阶段把 `submit` 默认成 `true`。`submit` 为 true 时先写入文本，再写入平台 Enter 序列；为 false 时只写文本，使控制字符和 REPL 片段无需隐藏的内容启发式即可发送。取消会在向真实前台进程组发送信号前将排队输入标记为已取消，因此即使异步的写入前检查随后才结算，该输入也无法执行。被取消的发送会保留其预留，直至异步前台信号发送结算，因此后续发送不会成为该信号的目标。`enableRunInBackground` 默认为 true；设为 false 时，schema 中会移除 `run_in_background`，调用方即使强行把这个未声明参数传入执行流程，也会被拒绝。
 
-前台发送返回有界的渲染增量和两个独立事实：`waitReason`（`stdin_read | inferred_idle | timeout | session_exit`）与 `sessionStatus`（`running`，或携带退出码或信号的 `exited`）。`session_exit` 指 PTY 顶层 shell 进程退出，不指由 shell 消费状态的任意前台命令。timeout 从不意味着进程已经退出。`dsh-experimental-tool-terminal.maxResultBytes` 默认为 262144；低于 64 的值会被拒绝，以确保创建确认保留注册表签发的 id；每个单文本 UTF-8 结果在加入规范化的工具或流水线错误、等待、会话、分页、截断、通用 task 状态包装、策略拒绝或短路以及 post-execute 替换或阻断后，仍受该值限制；终端定义自有的末端 `finalizeContent` callback 会原样保留策略刻意返回的结构化多块内容。渲染器会为后缀预留空间并保持代码点边界，而不会把后端载荷上限当作面向模型结果的最终上限。
+前台发送返回有界的渲染增量和两个独立事实：`waitReason`（`stdin_read | inferred_idle | timeout | session_exit`）与 `sessionStatus`（`running`，或携带退出码或信号的 `exited`）。`session_exit` 指 PTY 顶层 shell 进程退出，不指由 shell 消费状态的任意前台命令。timeout 从不意味着进程已经退出。`dsh-tool-terminal.maxResultBytes` 默认为 262144；低于 64 的值会被拒绝，以确保创建确认保留注册表签发的 id；每个单文本 UTF-8 结果在加入规范化的工具或流水线错误、等待、会话、分页、截断、通用 task 状态包装、策略拒绝或短路以及 post-execute 替换或阻断后，仍受该值限制；终端定义自有的末端 `finalizeContent` callback 会原样保留策略刻意返回的结构化多块内容。渲染器会为后缀预留空间并保持代码点边界，而不会把后端载荷上限当作面向模型结果的最终上限。
 
-当 `run_in_background: true` 时，`dsh-experimental-tool-terminal` 在 `ctx.jobs` 上注册进行中的发送，并立即返回 `jobId`。生产方把 `maxResultBytes` 写入 task 快照，使 `job_output`、kill 返回的终态状态和完成通知在加上通用元数据后，仍对完整结果执行同一上限。`job_output(wait: true)` 负责等待、读取增量输出并记录最终结果；`job_kill` 会解析当前前台 PGID 并发送真正的 `SIGINT`，即使应用已禁用终端 `ISIG` 也同样如此，且后续升级仍只通过 PTY 后端拥有的 teardown 路径进行。若 task 对外接口不存在，后台模式必须在写入输入前失败。设计不新增 PTY 专用的 `sleep` 工具或通用唤醒 API。
+当 `run_in_background: true` 时，`dsh-tool-terminal` 在 `ctx.jobs` 上注册进行中的发送，并立即返回 `jobId`。生产方把 `maxResultBytes` 写入 task 快照，使 `job_output`、kill 返回的终态状态和完成通知在加上通用元数据后，仍对完整结果执行同一上限。`job_output(wait: true)` 负责等待、读取增量输出并记录最终结果；`job_kill` 会解析当前前台 PGID 并发送真正的 `SIGINT`，即使应用已禁用终端 `ISIG` 也同样如此，且后续升级仍只通过 PTY 后端拥有的 teardown 路径进行。若 task 对外接口不存在，后台模式必须在写入输入前失败。设计不新增 PTY 专用的 `sleep` 工具或通用唤醒 API。
 
 `terminal_read` 从最新保留行向后分页。后端同时对保留的 scrollback 和返回页载荷执行行数与 UTF-8 字节上限，因此单个超长行无法绕过后端上限；工具随后再限制包含分页与截断元数据的完整渲染页。`truncated` 用于区分保留数据丢失与普通 viewport 增量。
 
@@ -122,13 +122,13 @@ plugins:
       handoffGraceMs: 500
       timeoutMs: 30000
       disposeGraceMs: 3000
-  '@deepseek-ai/dsh-experimental-tool-terminal':
+  '@deepseek-ai/dsh-tool-terminal':
     config:
       enableRunInBackground: true
       maxResultBytes: 262144
 ```
 
-包提供简洁的工具指引，说明持久状态、owner 隔离、不确定的 idle 结果、清理，以及无需交互时优先使用现有一次性工具。已发布的基础示例不挂载 PTY：PTY 仅通过专用组合 opt-in，而 ACP（Agent Client Protocol）与 headless 快照 overlay 会对其进行验证。`dsh-experimental-tool-terminal` 实例一旦启用，6 个工具和 `run_in_background` 就会默认启用；部署可通过配置仅禁用后台参数。
+包提供简洁的工具指引，说明持久状态、owner 隔离、不确定的 idle 结果、清理，以及无需交互时优先使用现有一次性工具。已发布的基础示例不挂载 PTY：PTY 仅通过专用组合 opt-in，而 ACP（Agent Client Protocol）与 headless 快照 overlay 会对其进行验证。`dsh-tool-terminal` 实例一旦启用，6 个工具和 `run_in_background` 就会默认启用；部署可通过配置仅禁用后台参数。
 
 ### 推迟的工作
 

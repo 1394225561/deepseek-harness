@@ -43,7 +43,7 @@ kind: "package-reference"
 - name: '@deepseek-ai/dsh-sandbox-local'
 - name: '@deepseek-ai/dsh-sandbox-policy'
 - name: '@deepseek-ai/dsh-terminal-bash'
-- name: '@deepseek-ai/dsh-experimental-tool-terminal'
+- name: '@deepseek-ai/dsh-tool-terminal'
 ```
 
 `danger-full-access` 直接启动 shell。受限模式要求同一执行世界中存在 `ctx.sandbox` 提供方：缺少时，spawn 会在 shell 启动前失败。限制准备过程接收打开操作的取消信号；即使提供方稍后返回，取消仍会阻止终端分配。
@@ -135,7 +135,7 @@ Scrollback 和尚未读取的发送输出保留独立拥有的字符串，并增
 
 #### 模型看到什么
 
-此包不注册提示词或工具。模型通过 `@deepseek-ai/dsh-experimental-tool-terminal` 或其他 PTY 消费方可能收到有界的启动输出、发送增量、scrollback 页、就绪原因与清理错误。
+此包不注册提示词或工具。模型通过 `@deepseek-ai/dsh-tool-terminal` 或其他 PTY 消费方可能收到有界的启动输出、发送增量、scrollback 页、就绪原因与清理错误。
 
 #### Token 影响
 

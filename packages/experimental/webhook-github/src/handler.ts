@@ -9,7 +9,7 @@ import {
   WebhookDeliveryId,
   WebhookSourceId,
   type VerifiedWebhookDelivery,
-} from '@deepseek-ai/dsh-experimental-webhook'
+} from '@deepseek-ai/dsh-webhook'
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
 import { readBoundedUtf8Body, WebhookHttpError } from './body.ts'
 import type { GitHubJsonObject } from './types.ts'
