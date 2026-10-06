@@ -7,7 +7,7 @@ import type {} from '@deepseek-ai/dsh-settings'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
 import { TranslationError } from '@deepseek-ai/dsh-experimental-translator'
 import type { TranslationRequest, TranslationSpec } from '@deepseek-ai/dsh-experimental-translator/types'
-import { LANGUAGE_PREFERENCE_PATTERN } from './preferences.ts'
+import { LANGUAGE_PREFERENCE_PATTERN, PROVIDER_PREFERENCES } from './preferences.ts'
 import type { CotTranslationPreferences, CotTranslationSnapshot } from './types.ts'
 
 /** Live preferences presented on the bundle's Plugins page. */
@@ -29,7 +29,7 @@ declare module '@deepseek-ai/cordis' {
 export default class CotTranslationController extends TypertRemoteService {
   static inject = ['translator', 'typert', 'sessionController']
   static Config = z.object({
-    provider: z.union(['google', 'bing'] as const).default('bing').volatile(),
+    provider: z.union(PROVIDER_PREFERENCES).default('bing').volatile(),
     targetLanguage: z.string().pattern(LANGUAGE_PREFERENCE_PATTERN).default('auto').volatile(),
   })
 
@@ -41,13 +41,15 @@ export default class CotTranslationController extends TypertRemoteService {
   /**
    * Read accepted translation preferences and the current request limit without sending text.
    * @param signal - browser query cancellation or Remote contribution withdrawal.
-   * @returns authoritative preferences and maximum UTF-16 text length per request.
+   * @returns authoritative preferences, eligible routes, and maximum UTF-16 text length per request.
    */
   @Remote
-  limits(signal: AbortSignal): CotTranslationSnapshot {
+  async limits(signal: AbortSignal): Promise<CotTranslationSnapshot> {
+    signal.throwIfAborted()
+    const availableProviders = await this.ctx.translator.availableProviders(signal)
     signal.throwIfAborted()
     return { maxTextChars: this.ctx.translator.maxTextChars,
-      preferences: { provider: this.config.provider.get(), targetLanguage: this.config.targetLanguage.get() } }
+      preferences: { provider: this.config.provider.get(), targetLanguage: this.config.targetLanguage.get() }, availableProviders }
   }
 
   /**

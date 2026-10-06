@@ -2,7 +2,7 @@
 import { SettingsFormModel, settingsTextField, type SettingsFieldState, type SettingsFormActions,
   type SettingsFormScope, type SettingsFormShell } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { LANGUAGE_PREFERENCE_PATTERN, type CotTranslationPreferences } from '../preferences.ts'
+import { LANGUAGE_PREFERENCE_PATTERN, PROVIDER_PREFERENCES, type CotTranslationPreferences } from '../preferences.ts'
 
 /** Current drafts and the shared form status. */
 export interface TranslationFormState extends SettingsFormShell {
@@ -27,7 +27,7 @@ export class TranslationPreferencesForm {
       parse: (text) => {
         const provider = text.trim()
         return provider === '' ? { kind: 'clear' }
-          : provider === 'bing' || provider === 'google' ? { kind: 'set', value: provider } : undefined
+          : PROVIDER_PREFERENCES.some(choice => choice === provider) ? { kind: 'set', value: provider } : undefined
       },
     }, {
       ...settingsTextField('targetLanguage'),

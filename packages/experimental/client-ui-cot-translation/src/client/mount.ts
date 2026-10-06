@@ -29,7 +29,14 @@ async function registerUi(ctx: Context, lifetime: AbortController): Promise<void
     await Promise.allSettled([readTask, updating])
   }, 'cot-translation: metadata queries')
   const invalidate = (): void => { revision += 1; refresh() }
-  ctx.effect(() => ctx.remote.$on('settings/document-updated', invalidate))
+  ctx.effect(() => [
+    ctx.remote.$on('settings/document-updated', invalidate),
+    ctx.remote.$on('llm/adapters-updated', invalidate),
+    ctx.remote.$on('deepseek-account/session-expired', invalidate),
+    ctx.remote.$on('deepseek-account/model-sign-in-required', invalidate),
+    ctx.remote.$on('credentials/record-updated', invalidate),
+    ctx.remote.$on('credentials/reference-updated', invalidate),
+  ])
   ctx.on('connection/reset', invalidate)
   const read = async (): Promise<RemoteResult<CotTranslationSnapshot> | undefined> => {
     while (true) {
@@ -50,6 +57,7 @@ async function registerUi(ctx: Context, lifetime: AbortController): Promise<void
   if (!initial.ok) throw initial.error
   const preferences = createSnapshotStore(initial.value.preferences)
   const translationLimit = createSnapshotStore(initial.value.maxTextChars)
+  const availableProviders = createSnapshotStore(initial.value.availableProviders)
   acceptedRevision = lastReadRevision
   function refresh(): void {
     if (updating !== undefined || acceptedRevision < 0 || isDisposed()) return
@@ -59,6 +67,7 @@ async function registerUi(ctx: Context, lifetime: AbortController): Promise<void
         if (result?.ok) {
           preferences.set(result.value.preferences)
           translationLimit.set(result.value.maxTextChars)
+          availableProviders.set(result.value.availableProviders)
           acceptedRevision = lastReadRevision
         }
       } catch (_error) {
@@ -94,7 +103,11 @@ async function registerUi(ctx: Context, lifetime: AbortController): Promise<void
     inject: injected,
   }, TranslationBody))
   ctx.slots.inject('plugins.bundle.config', () => ctx.slots.register({
-    name: 'plugins.bundle.config', key: '@deepseek-ai/dsh-experimental-cot-translation-bundle', locale: NS, inject: () => form.inject(),
+    name: 'plugins.bundle.config', key: '@deepseek-ai/dsh-experimental-cot-translation-bundle', locale: NS,
+    inject: () => {
+      const face = form.inject()
+      return { ...face, hooks: { ...face.hooks, availableProviders }, refreshProviders: invalidate }
+    },
   }, TranslationSettings))
 }
 

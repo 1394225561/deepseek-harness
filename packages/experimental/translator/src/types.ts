@@ -2,7 +2,13 @@
 import type { SessionId, SessionSeq } from '@deepseek-ai/dsh-session/types'
 
 /** Anonymous browser endpoint selected for one translation. */
-export type TranslationProvider = 'google' | 'bing'
+export type AnonymousTranslationProvider = 'google' | 'bing'
+
+/** Explicit native DeepSeek credential route selected for paid translation. */
+export type PaidTranslationProvider = 'deepseek-account' | 'deepseek-official'
+
+/** Explicit anonymous endpoint or native paid model route. */
+export type TranslationProvider = AnonymousTranslationProvider | PaidTranslationProvider
 
 /** Text and provider-supported language tags supplied by a consumer. */
 export interface TranslationRequest {
@@ -18,19 +24,30 @@ export interface TranslationRequest {
   readonly sessionId?: SessionId
 }
 
-/** Fully resolved routing and language choices for one provider request. */
-export interface TranslationSpec {
+/** Fully resolved text and language choices shared by every provider. */
+interface TranslationSpecFields {
   /** Complete text submitted to the selected provider. */
   readonly text: string
   /** Destination language tag. */
   readonly targetLanguage: string
   /** Source language tag, or `auto` for automatic detection. */
   readonly sourceLanguage: string
-  /** Selected anonymous browser endpoint. */
-  readonly provider: TranslationProvider
   /** Existing Session for durable translation records. */
   readonly sessionId?: SessionId
 }
+
+/** Fully resolved anonymous endpoint request. */
+export interface AnonymousTranslationSpec extends TranslationSpecFields { readonly provider: AnonymousTranslationProvider }
+
+/** Fully resolved native request with its required durable Session identity. */
+export interface PaidTranslationSpec extends TranslationSpecFields {
+  readonly provider: PaidTranslationProvider
+  /** Existing durable Session; required before paid request admission. */
+  readonly sessionId: SessionId
+}
+
+/** Fully resolved routing and language choices for one provider request. */
+export type TranslationSpec = AnonymousTranslationSpec | PaidTranslationSpec
 
 /** Provider-independent identity of one reusable translation. */
 export interface TranslationIdentity {
@@ -73,3 +90,4 @@ declare module '@deepseek-ai/dsh-session/types' {
 export type TranslationErrorCode = 'TRANSLATION_TEXT_LIMIT' | 'TRANSLATION_HTTP_ERROR'
   | 'TRANSLATION_INVALID_RESPONSE' | 'TRANSLATION_RESPONSE_LIMIT' | 'TRANSLATION_REQUEST_FAILED' | 'TRANSLATION_TIMEOUT'
   | 'TRANSLATION_SESSION_REQUIRED' | 'TRANSLATION_SESSION_INACTIVE' | 'TRANSLATION_STORAGE_ERROR'
+  | 'TRANSLATION_UNAVAILABLE'

@@ -61,11 +61,11 @@ A saved result needs no activation. On an uncached inactive Session, the Host jo
 <a id="model-experience"></a>
 ## Model Experience
 
-Indirectly, through normal Session activation on uncached historical reasoning; the Session's preset owns startup hooks and any context they add.
+Indirectly, through optional independent paid Flash requests and normal Session activation on cache misses; the translator owns translation prompts, and the Session's preset owns startup context.
 
 #### KV Cache effect
 
-Translation records do not replace model input. Normal activation may append context or repair an interrupted turn, with the same cache effects as opening the conversation.
+Translation records do not replace model input. Normal activation may append context or repair an interrupted turn, with the same cache effects as opening the conversation. The [translator](../translator/README.md#model-experience) owns the independent paid query's token and cache effects.
 
 ## Known Limitations and Deferred Work
 

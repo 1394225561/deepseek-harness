@@ -796,10 +796,10 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'Optional reasoning translation delegates Session-bound storage to the translator.',
     methods: [
       {
-        signature: '@Remote limits(signal: AbortSignal): CotTranslationSnapshot',
+        signature: '@Remote async limits(signal: AbortSignal): Promise<CotTranslationSnapshot>',
         description: 'Read accepted translation preferences and the current request limit without sending text.',
         parameters: [{ name: 'signal', description: 'browser query cancellation or Remote contribution withdrawal.' }],
-        returns: 'authoritative preferences and maximum UTF-16 text length per request.',
+        returns: 'authoritative preferences, eligible routes, and maximum UTF-16 text length per request.',
       },
       {
         signature: '@Remote async translate(request: TranslationRequest, signal: AbortSignal): Promise<string>',
@@ -3371,6 +3371,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'One Host service with explicit routing, cancellation and quiescent unload.',
     methods: [
       {
+        signature: 'async availableProviders(signal?: AbortSignal): Promise<readonly TranslationProvider[]>',
+        description: 'Inspect eligible native routes without inference; saved results remain readable for unavailable routes.',
+        parameters: [{ name: 'signal', description: 'optional caller cancellation, combined with service disposal.' }],
+        returns: 'anonymous choices followed by eligible explicitly selected paid routes.',
+      },
+      {
         signature: 'resolve(request: TranslationRequest): TranslationSpec',
         description: 'Resolve provider and source-language defaults without sending text.',
         parameters: [{ name: 'request', description: 'consumer text, destination and optional routing choices.' }],
@@ -4635,6 +4641,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type AgentStatus = \'idle\' | \'running\';',
   },
   {
+    name: 'AnonymousTranslationProvider',
+    declaration: 'export type AnonymousTranslationProvider = \'google\' | \'bing\';',
+  },
+  {
+    name: 'AnonymousTranslationSpec',
+    declaration: 'export interface AnonymousTranslationSpec extends TranslationSpecFields {\n    readonly provider: AnonymousTranslationProvider;\n}',
+  },
+  {
     name: 'AnyHook',
     declaration: 'export type AnyHook = ModHook<unknown, unknown>;',
   },
@@ -5092,7 +5106,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'CotTranslationSnapshot',
-    declaration: 'export interface CotTranslationSnapshot {\n    maxTextChars: number;\n    preferences: CotTranslationPreferences;\n}',
+    declaration: 'export interface CotTranslationSnapshot {\n    maxTextChars: number;\n    preferences: CotTranslationPreferences;\n    availableProviders: readonly TranslationProvider[];\n}',
   },
   {
     name: 'CreateAgentOptions',
@@ -6097,6 +6111,14 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'PackageResult',
     declaration: 'export interface PackageResult {\n    exitCode: number;\n    output: string;\n    truncated: boolean;\n    logPath: string;\n    kind?: PluginInstallFailureKind;\n    timedOut?: boolean;\n    incompatible?: IncompatiblePlugin[];\n}',
+  },
+  {
+    name: 'PaidTranslationProvider',
+    declaration: 'export type PaidTranslationProvider = \'deepseek-account\' | \'deepseek-official\';',
+  },
+  {
+    name: 'PaidTranslationSpec',
+    declaration: 'export interface PaidTranslationSpec extends TranslationSpecFields {\n    readonly provider: PaidTranslationProvider;\n    readonly sessionId: SessionId;\n}',
   },
   {
     name: 'PaneOpenArgs',
@@ -8012,7 +8034,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'TranslationProvider',
-    declaration: 'export type TranslationProvider = \'google\' | \'bing\';',
+    declaration: 'export type TranslationProvider = AnonymousTranslationProvider | PaidTranslationProvider;',
   },
   {
     name: 'TranslationRequest',
@@ -8020,7 +8042,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'TranslationSpec',
-    declaration: 'export interface TranslationSpec {\n    readonly text: string;\n    readonly targetLanguage: string;\n    readonly sourceLanguage: string;\n    readonly provider: TranslationProvider;\n    readonly sessionId?: SessionId;\n}',
+    declaration: 'export type TranslationSpec = AnonymousTranslationSpec | PaidTranslationSpec;',
   },
   {
     name: 'TurnCompleteInput',

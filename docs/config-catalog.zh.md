@@ -1260,10 +1260,10 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-experimental-translator`
 
-- `source`: [`packages/experimental/translator/src/index.ts:21`](../packages/experimental/translator/src/index.ts)
+- `source`: [`packages/experimental/translator/src/index.ts:25`](../packages/experimental/translator/src/index.ts)
 
 ```ts config-catalog
-/** Routing and bounds for one anonymous provider request. */
+/** Routing and bounds for anonymous requests and independent native model translation. */
 export interface Config {
   /** Provider selected when a consumer omits it. */
   provider: TranslationProvider
@@ -1275,12 +1275,22 @@ export interface Config {
   timeoutMs: number
   /** Maximum UTF-16 code units per request; at least two to admit one supplementary-plane character. */
   maxTextChars: number
-  /** Maximum response body bytes before JSON parsing. */
+  /** Maximum anonymous JSON-body bytes or paid assembled UTF-8 translation bytes. */
   maxResponseBytes: number
+  /** Deadline for native admission and complete translation output, in milliseconds. */
+  deepseekTimeoutMs: number
+  /** Requested output-token cap for independent native Flash translation. */
+  deepseekMaxOutputTokens: number
 }
 
+/** Explicit anonymous endpoint or native paid model route. */
+export type TranslationProvider = AnonymousTranslationProvider | PaidTranslationProvider
+
 /** Anonymous browser endpoint selected for one translation. */
-export type TranslationProvider = 'google' | 'bing'
+export type AnonymousTranslationProvider = 'google' | 'bing'
+
+/** Explicit native DeepSeek credential route selected for paid translation. */
+export type PaidTranslationProvider = 'deepseek-account' | 'deepseek-official'
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-experimental-translator -->
 
