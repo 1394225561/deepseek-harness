@@ -6,7 +6,7 @@
   - button "添加插件"
   - button "选择添加插件方式"
 - heading "官方" [level=3]
-- text: "15"
+- text: "17"
 - list:
   - listitem:
     - button "查看 智能体团队": 智能体团队
@@ -52,6 +52,14 @@
     - button "查看 语音输入": 语音输入
     - text: 实验性 在本机使用 SenseVoice 转写录音，首次使用需安装依赖。
     - switch "启用 语音输入"
+  - listitem:
+    - button "查看 Claude Code 子智能体": Claude Code 子智能体
+    - text: 未安装 使用 Claude Code 原生认证和设置委派单个任务。
+    - switch "启用 Claude Code 子智能体"
+  - listitem:
+    - button "查看 Codex 子智能体": Codex 子智能体
+    - text: 未安装 使用 Codex 原生认证和设置委派单个任务。
+    - switch "启用 Codex 子智能体"
   - listitem:
     - button "查看 终端": 终端
     - text: 限制每条命令最多能跑多久、最多输出多少内容。
