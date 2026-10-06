@@ -17,6 +17,7 @@ import { newEnglishPage } from './support.ts'
 const FIXTURE = fileURLToPath(new URL('../../../snapshots/web/live-interactions/session.v3.jsonl', import.meta.url))
 const SESSION_ID = 'idle-submission-handoff'
 const TEXT = 'IDLE_SUBMISSION_HANDOFF Keep this message in the conversation.'
+const HANDOFF_TIMEOUT_MS = 30_000
 
 interface Delivery {
   readonly stream: string
@@ -91,7 +92,14 @@ class HistoryDeliveryGate {
 
 /** Match the scaffold's turn-completion budget for Host frames and browser rendering. */
 function poll<T>(read: () => T) {
-  return expect.poll(read, { timeout: 30_000 })
+  return expect.poll(read, { timeout: HANDOFF_TIMEOUT_MS })
+}
+
+/** The caller's await reports Turn failure; an earlier assertion may bypass that await. */
+function whenTurnSettled(scaffold: Awaited<ReturnType<typeof launchWebScaffold>>) {
+  const settled = scaffold.whenTurnSettled(HANDOFF_TIMEOUT_MS)
+  void settled.catch(() => undefined)
+  return settled
 }
 
 async function placement(page: Page, input = TEXT) {
@@ -118,10 +126,10 @@ it.skipIf(webSnapshotMode() === 'record').each(['inbox-first', 'transcript-first
     const releasePrompt = Promise.withResolvers<undefined>()
     const promptBlocked = Promise.withResolvers<undefined>()
     const gate = new HistoryDeliveryGate()
-    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
     try {
       await seedSession(scaffold, await readFile(FIXTURE, 'utf8'), SESSION_ID)
-      browser = await chromium.launch()
+      const browser = await chromium.launch()
+      onTestFinished(() => browser.close())
       const page = await newEnglishPage(browser)
       const tripwire = watchConsole(page)
       await gate.install(page)
@@ -138,7 +146,6 @@ it.skipIf(webSnapshotMode() === 'record').each(['inbox-first', 'transcript-first
         await route.continue()
       }, { times: 1 })
       const trace: Array<{ phase: string } & Awaited<ReturnType<typeof placement>>> = []
-      const settled = scaffold.whenTurnSettled()
       gate.holding = true
       const input = page.locator('[data-composer-input]').first()
       await input.fill(TEXT)
@@ -146,6 +153,7 @@ it.skipIf(webSnapshotMode() === 'record').each(['inbox-first', 'transcript-first
       await promptBlocked.promise
       await poll(() => placement(page)).toMatchObject({ echo: 1, dock: 0, durable: 0 })
       trace.push({ phase: 'optimistic', ...await placement(page) })
+      const settled = whenTurnSettled(scaffold)
       releasePrompt.resolve(undefined)
 
       if (order === 'transcript-first') {
@@ -192,7 +200,6 @@ it.skipIf(webSnapshotMode() === 'record').each(['inbox-first', 'transcript-first
     } finally {
       releasePrompt.resolve(undefined)
       gate.releaseAll()
-      await browser?.close()
     }
   },
 )
@@ -200,23 +207,21 @@ it.skipIf(webSnapshotMode() === 'record').each(['inbox-first', 'transcript-first
 it.skipIf(webSnapshotMode() === 'record').each(['ABC', 'ACB', 'BAC', 'BCA', 'CAB', 'CBA'])(
   'hands off three rapid submissions through all Turns in Host order %s', async (hostOrder) => {
     const root = await mkdtemp(join(tmpdir(), 'dsh-input-handoff-'))
+    onTestFinished(() => rm(root, { recursive: true, force: true }))
     const releases = new Map(['A', 'B', 'C'].map(id => [id, Promise.withResolvers<undefined>()]))
     const blocked = new Set<string>()
     const gate = new HistoryDeliveryGate()
-    let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined
-    let scaffold: Awaited<ReturnType<typeof launchWebScaffold>> | undefined
-    onTestFinished(async () => {
-      try { await scaffold?.close() } finally { await rm(root, { recursive: true, force: true }) }
-    })
     try {
       const fixture = await readFile(FIXTURE, 'utf8')
       const recorded = deriveReplayScript(parseSessionLog(fixture))
       expect(recorded).toHaveLength(1)
       const override = join(root, 'replay.override.json')
       await writeFile(override, JSON.stringify([recorded[0], recorded[0], recorded[0]]))
-      scaffold = await launchWebScaffold({ replayFixture: FIXTURE, replayOverride: override, compareReplaySession: false })
+      const scaffold = await launchWebScaffold({ replayFixture: FIXTURE, replayOverride: override, compareReplaySession: false })
+      onTestFinished(() => scaffold.close())
       await seedSession(scaffold, fixture, SESSION_ID)
-      browser = await chromium.launch()
+      const browser = await chromium.launch()
+      onTestFinished(() => browser.close())
       const page = await newEnglishPage(browser)
       const tripwire = watchConsole(page)
       await gate.install(page)
@@ -244,7 +249,7 @@ it.skipIf(webSnapshotMode() === 'record').each(['ABC', 'ACB', 'BAC', 'BCA', 'CAB
       }
       const entered: string[] = []
       for (const id of hostOrder) {
-        const settled = scaffold.whenTurnSettled()
+        const settled = whenTurnSettled(scaffold)
         releases.get(id)!.resolve(undefined)
         await poll(() => gate.turnStartDelivery()).toBeDefined()
         gate.releaseThrough(gate.turnStartDelivery()!)
@@ -276,7 +281,6 @@ it.skipIf(webSnapshotMode() === 'record').each(['ABC', 'ACB', 'BAC', 'BCA', 'CAB
     } finally {
       for (const release of releases.values()) release.resolve(undefined)
       gate.releaseAll()
-      await browser?.close()
     }
   },
 )
