@@ -44,7 +44,7 @@ export interface TerminalBlockLabels {
 }
 
 export interface TerminalBlockProps {
-  /** The command line, rendered verbatim after the prompt label. */
+  /** The command, rendered verbatim after the prompt label; long lines scroll horizontally unless the host enables wrapping. */
   command: string
   /** Working directory for the prompt label; absent renders a plain `$`. */
   cwd?: string | undefined
@@ -244,7 +244,7 @@ export function TerminalBlock({
               <span className={css.cwd}>
                 {index > 0 || cwd === undefined ? '$' : promptLabel(cwd, home)}
               </span>
-              <span className={css.command}>{line}</span>
+              <span className={css.command} tabIndex={0}>{line}</span>
             </div>
           ))}
         </div>

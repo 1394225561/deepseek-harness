@@ -77,6 +77,18 @@
   color: var(--dsw-alias-state-error-primary);
 }
 
+.commandInput {
+  white-space: pre;
+  overflow-x: auto;
+  user-select: text;
+  cursor: text;
+}
+
+.commandInput:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
+
 /* ToolRow's unified expand interaction, replicated per the registrant
    posture: pointer on the expandable row (the icon→chevron hover preview is
    the affordance, no row fill). */

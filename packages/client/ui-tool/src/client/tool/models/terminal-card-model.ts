@@ -211,6 +211,16 @@ function shellCall(name: string, args: Record<string, unknown>): ShellCall | nul
 }
 
 /**
+ * Identify a background shell launch whose result acknowledges a job, not its exit.
+ * @param block - Tool block at any call stage.
+ * @returns whether the call requests a background shell job.
+ */
+export function isBackgroundShellCall(block: ToolCallBlock): boolean {
+  const parsed = parsedToolCall(block)
+  return parsed !== null && shellCall(parsed.name, parsed.args)?.background === true
+}
+
+/**
  * Identify a settled root call from the persistent Bash or PowerShell tool.
  * Its result stays on the generic input/output path because the persistent
  * shell can report resets and partial output without one process exit status.

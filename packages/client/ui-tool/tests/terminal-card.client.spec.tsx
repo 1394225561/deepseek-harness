@@ -527,14 +527,53 @@ describe('BashRow terminal card', () => {
     expect(view.container.querySelectorAll('[class*="_ioText_"]')[1]?.textContent).toBe(output)
   })
 
-  it('a non-terminal bash call (background start) renders the summary row alone', () => {
+  it.each([undefined, 'dispatch-parent'])('expands a background launch and its acknowledgement without reporting a job exit (parent: %s)', (parentCallId) => {
+    const command = 'pnpm --filter @deepseek-ai/dsh-client-ui-tool run build --watch --verbose'
+    const args = { command, description: 'Wait', run_in_background: true }
+    const argsRaw = JSON.stringify(args)
+    const inspect = vi.fn()
+    const parent = parentCallId === undefined ? {} : { parentCallId }
+    const view = render(<BashRow {...rowProps(running({ argsRaw, ...parent }))} inspect={inspect} />)
+    const row = view.container.querySelector('[data-sample="bash"]')!
+    expect(view.getByText('Wait')).toBeTruthy()
+    expect(row.getAttribute('aria-expanded')).toBe('false')
+
+    fireEvent.keyDown(row, { key: 'Enter' })
+
+    expect(row.getAttribute('aria-expanded')).toBe('true')
+    expect(view.container.querySelector('[class*="_ioText_"]')?.textContent)
+      .toBe(JSON.stringify(args, null, 2))
+    expect(view.container.querySelector('[class*="_commandInput_"]')?.getAttribute('tabindex')).toBe('0')
+    expect(view.queryByText('输出')).toBeNull()
+    expect(view.container.querySelector('[data-terminal]')).toBeNull()
+
+    const acknowledgement = 'started background job job-1'
+    view.rerender(<BashRow {...rowProps(settled({
+      call: { name: 'bash', argsRaw }, ...parent,
+      content: [{ type: 'text', text: acknowledgement }],
+    }))} inspect={inspect} />)
+
+    expect(row.getAttribute('aria-expanded')).toBe('true')
+    expect(view.container.querySelector('[class*="_ioText_"]')?.textContent)
+      .toBe(JSON.stringify(args, null, 2))
+    expect(view.getByText(acknowledgement)).toBeTruthy()
+    expect(view.container.querySelector('[data-terminal], [data-state="done"]')).toBeNull()
+    fireEvent.click(view.getByRole('button', { name: t('row.inspect') }))
+    expect(inspect).toHaveBeenCalledOnce()
+
+    fireEvent.click(row)
+    expect(row.getAttribute('aria-expanded')).toBe('false')
+    expect(view.queryByText(acknowledgement)).toBeNull()
+  })
+
+  it('keeps a background result without a valid command collapsed', () => {
     const view = render(<BashRow {...rowProps(settled({
-      call: { name: 'bash', argsRaw: shellArgs({ command: 'sleep 30', description: 'Wait', run_in_background: true }) },
+      call: { name: 'bash', argsRaw: JSON.stringify({ description: 'Wait', run_in_background: true }) },
       content: [{ type: 'text', text: 'started background job job-1' }],
     }))} />)
     expect(view.getByText('Wait')).toBeTruthy()
-    expect(view.queryByText(/a\.ts/)).toBeNull()
     expect(view.container.querySelector('[data-sample="bash"]')?.getAttribute('role')).toBeNull()
+    expect(view.queryByText('started background job job-1')).toBeNull()
   })
 
   it('expands a generic execution error to its original args and full output', () => {
