@@ -1,6 +1,6 @@
 ---
 kind: upgrade-guide
-description: "Claude Code and Codex bundles add delegation tools to full Web presets and require those preset targets."
+description: "Claude Code and Codex bundles add delegation tools to full Web presets while retaining their package and row identities."
 ---
 
 # Native subagent bundles include preset tools
@@ -9,28 +9,24 @@ English | [中文](guide.zh.md)
 
 ## Change
 
-`@deepseek-ai/dsh-subagent-claude-code` and `@deepseek-ai/dsh-subagent-codex` bundle layers register their providers and add delegation tools to `preset-standard`, `preset-cordis`, and `preset-ptc`. Previously they registered only providers. Selecting these bundles now requires those preset rows; headless, SDK, and ACP profiles do not contain them. `dsh plugin add` selects a bundle automatically, and profile startup with missing targets reports `profile patch preset "preset-standard" is missing or not addressable`. The manager likewise reports activation failure and can retain the saved selection; recover below without automatic rollback.
+`@deepseek-ai/dsh-subagent-claude-code` and `@deepseek-ai/dsh-subagent-codex` keep their package names, bundle selections, provider row IDs, configuration, and native authentication. In Web and Desktop, a selected bundle now adds enabled delegation tools to `preset-standard`, `preset-cordis`, and `preset-ptc`; previously the bundle registered only its provider. Existing Agents retain their composition; new Agents and subsequently reopened Sessions receive the selected tools.
 
-The full Web presets omit their dormant `tool-subagent-claude-code` and `tool-subagent-codex` rows. The bundles contribute `optional-tool-subagent-claude-code` and `optional-tool-subagent-codex` instead. Provider configuration and native authentication are unchanged.
+The contributed rows retain `tool-subagent-claude-code` and `tool-subagent-codex`. Later user layers can override their configuration or disabled state, and a complete preset configuration replacement keeps its own child list. An override does not select an unselected bundle. Duplicate declarations of the same model-facing tool still fail.
 
-`pluginManager.listBundles()` now returns required `BundleInfo.official` and `BundleInfo.availability` fields. `official` identifies project-maintained shipped optional bundles and on-demand catalog entries; `availability` is `installation`, `profile`, or `missing`. `installed` still means a profile dependency declaration. Optional `installTarget` gives the host-selected exact spec and version. Client detail-slot `PluginPackageRef` also requires `official` and `availability`.
+Delegation follows the shared managed-activation API: the tool returns a child ID, and completion arrives as a logged notice to the parent Agent. Remove obsolete `backgroundMode` settings; `maxDepth: provider-managed` remains supported for these native providers.
 
 ## Migration
 
-1. For Web or Desktop, enable the desired provider in Plugins → Official. The ordinary installer selects the exact running DSH version. Remove manual rows that already register the same `subagent_claude_code` or `subagent_codex` tool before enabling the bundle.
-2. Remove profile patches targeting the former dormant row ids. Configure the new rows with a scoped `preset` patch, using the appropriate `optional-tool-subagent-*` id. A configuration override still replaces the complete row configuration.
-3. For headless, SDK, ACP, or other profiles without the three preset targets, retain the provider package in `$DSH_HOME/profiles/<name>/package.json` dependencies and remove its entry from `dsh.profile.bundles`. Mount the provider and desired generic delegation tool explicitly in that profile's `cordis.patch.yml`; the [Codex](../../../../packages/subagent/subagent-codex/README.md#exposing-the-tool) and [Claude Code](../../../../packages/subagent/subagent-claude-code/README.md#exposing-the-tool) examples show the rows. This preserves the provider-only installation workflow.
-4. Open a new Session with the intended preset and confirm its tool catalog includes the selected delegation tool. The minimal preset remains unchanged. Off deselects the bundle without uninstalling it; Remove remains a separate action.
-5. Update clients and fixtures that construct or validate `BundleInfo` or `PluginPackageRef` to include the new required fields. Use `official` for grouping and `availability` for package presence; `installed: false` alone no longer identifies an installation-carried bundle.
+1. Keep existing package dependencies, selected bundle names, provider configuration, and authentication. To adopt an unselected provider, enable it in Plugins → Official; the ordinary installer offers the exact running DSH version. Off only deselects, and Remove remains separate.
+2. Configure the familiar tool row ID with a scoped patch. Configuration overrides still replace the complete configuration. For example, this keeps Codex disabled in standard while other full presets use their selected composition:
 
-<a id="recovery"></a>
+   ```yaml
+   - preset: preset-standard
+     id: tool-subagent-codex
+     disabled: true
+   ```
 
-**Recover a profile without full presets**
+3. If an additional manual row registers the same tool in a preset, remove that redundant row or disable the bundle's contribution explicitly. A copied complete preset can retain its existing tool declarations and disabled state. Verify the effective tool catalog in a new Session; minimal keeps its current shell and working-directory tools.
+4. Plugin clients receive required `BundleInfo.official` and `BundleInfo.availability` fields; detail-slot `PluginPackageRef` receives them too. `official` identifies project maintenance, `availability` reports `installation`, `profile`, or `missing`, and `installed` still means a profile dependency declaration. Detail-slot readers that only display existing fields need no changes; constructors and exact validators must include the new fields. Optional `installTarget` identifies the offered exact package version.
 
-For a profile with the provider packages already installed, run this before its next launch; replace `headless` with the intended profile name. The command does not boot the profile. It deselects only these two bundle layers and preserves their packages and dependency versions:
-
-```sh
-dsh plugin --profile headless exec node -e 'const fs=require("node:fs");const p="package.json";const m=JSON.parse(fs.readFileSync(p,"utf8"));m.dsh.profile.bundles=m.dsh.profile.bundles.filter(n=>!["@deepseek-ai/dsh-subagent-codex","@deepseek-ai/dsh-subagent-claude-code"].includes(n));fs.writeFileSync(p,JSON.stringify(m,null,2)+"\n");'
-```
-
-Then add the desired provider README's “Exposing the tool” `insert` operation to that profile's `cordis.patch.yml`, and run `dsh --profile headless --dump-config` to check the effective composition. The shared base already provides Job services; do not insert them twice.
+**Other profiles.** Headless, SDK, ACP, and custom profiles without the three full preset targets are outside this compatibility scope. Selecting these bundle layers fails for missing preset targets and can retain the saved selection; there is no automatic rollback. Such profiles can keep the installed provider package without selecting its bundle and explicitly compose provider/tool rows using the [Codex](../../../../packages/subagent/subagent-codex/README.md#exposing-the-tool) or [Claude Code](../../../../packages/subagent/subagent-claude-code/README.md#exposing-the-tool) example.

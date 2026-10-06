@@ -16,7 +16,7 @@ Status: implemented
 
 所有 Official 包仍属于 DSH 发布家族。打包后的 DSH 依赖、可选依赖与 peer 均使用家族精确版本。发布前置关系要求先发布目录包，再发布宣传它们的 DSH 包，同时不把这些运行时加入 DSH 生产依赖。目录校验拒绝缺失的元信息、不受支持的成员和过期生成内容。
 
-[随附可选 bundle 策略](../process/2026-09-15-shipped-optional-bundles.zh.md)仍管理安装随附的轻量 bundle。[可选组合决策](2026-09-21-experimental-capabilities-as-optional-bundles.zh.md)管理共享 patch 与预设代际行为。原生 bundle 要求完整 Web 预设目标存在；自定义 profile 显式挂载提供方和工具。
+[随附可选 bundle 策略](../process/2026-09-15-shipped-optional-bundles.zh.md)仍管理安装随附的轻量 bundle。[可选组合决策](2026-09-21-experimental-capabilities-as-optional-bundles.zh.md)管理共享 patch 与预设代际行为。原生 bundle 要求完整 Web 预设目标存在；自定义 profile 显式挂载提供方和工具。[身份兼容决策](2026-10-06-web-desktop-plugin-identity-compatibility.zh.md)管理保留名称、选择器和暂缓的命名清理。
 
 ## 考虑过的替代方案
 

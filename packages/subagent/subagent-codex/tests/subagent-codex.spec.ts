@@ -410,8 +410,8 @@ describe('task admission and package contracts', () => {
       { insert: [{ id: 'subagent-codex', name: '@deepseek-ai/dsh-subagent-codex' }] },
       ...['standard', 'cordis', 'ptc'].map(preset => ({
         preset: `preset-${preset}`,
-        insert: [{ id: 'optional-tool-subagent-codex', name: '@deepseek-ai/dsh-tool-subagent', config: {
-          provider: 'codex', toolName: 'subagent_codex', backgroundMode: 'one-shot', maxDepth: 'provider-managed',
+        insert: [{ id: 'tool-subagent-codex', name: '@deepseek-ai/dsh-tool-subagent', config: {
+          provider: 'codex', toolName: 'subagent_codex', maxDepth: 'provider-managed',
         } }],
       })),
     ])

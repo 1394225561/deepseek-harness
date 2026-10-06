@@ -397,8 +397,8 @@ describe('task admission and package contracts', () => {
       { insert: [{ id: 'subagent-claude-code', name: '@deepseek-ai/dsh-subagent-claude-code' }] },
       ...['standard', 'cordis', 'ptc'].map(preset => ({
         preset: `preset-${preset}`,
-        insert: [{ id: 'optional-tool-subagent-claude-code', name: '@deepseek-ai/dsh-tool-subagent', config: {
-          provider: 'claude-code', toolName: 'subagent_claude_code', backgroundMode: 'one-shot', maxDepth: 'provider-managed',
+        insert: [{ id: 'tool-subagent-claude-code', name: '@deepseek-ai/dsh-tool-subagent', config: {
+          provider: 'claude-code', toolName: 'subagent_claude_code', maxDepth: 'provider-managed',
         } }],
       })),
     ])
