@@ -554,6 +554,12 @@ interface LlmModelReasoningInfo {
   /** Supported efforts in adapter-preferred display order. */
   efforts: readonly LlmReasoningEffortInfo[]
   /**
+   * The least effort this route accepts. A caller selects it when the request
+   * must not spend its output on reasoning. Absence means the adapter reports
+   * no selectable effort.
+   */
+  floorEffort?: ReasoningEffortId
+  /**
    * Adapter-configured default materialized into requests when callers omit
    * an effort. Absence preserves the provider's own default.
    */
@@ -638,15 +644,6 @@ interface GenerateOptions {
    * requests leave it unset.
    */
   purpose?: 'compaction' | 'session-title'
-  /**
-   * Dispatch with the least reasoning the routed model supports: `off` when
-   * the model offers it, otherwise its lowest declared level. An auxiliary
-   * caller sets this when reasoning would consume the output budget it
-   * reserved for a short visible result. The request's own effort and the
-   * profile default do not apply, and an effort the model does not support is
-   * not validated for such a request.
-   */
-  minimizeReasoning?: boolean
 }
 ```
 

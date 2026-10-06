@@ -169,26 +169,20 @@ function resolveReasoningLevel(
 }
 
 /**
- * The level one request dispatches with. A request asking to minimize reasoning
- * takes the model's lowest supported level, which is `off` whenever the model
- * can stop reasoning, because reasoning a model cannot switch off still counts
- * toward the output budget the caller reserved. That request deliberately
- * skips the requested-effort check, so a name the model does not support fails
- * an ordinary call rather than this one. Every other request validates the
- * requested or profile effort.
+ * The level one request dispatches with: the effort the caller selected, or
+ * the profile default. The adapter validates that choice and dispatches it; a
+ * caller that wants the least reasoning for a short result selects the floor
+ * effort the route reports.
  * @param model - the resolved model descriptor.
- * @param options - the request's reasoning preference and requested effort.
+ * @param options - the request's requested effort.
  * @param profile - the route profile carrying the default effort.
- * @returns the level to dispatch, or undefined to send none, which a
- *   minimized-reasoning request gets only for a model whose metadata leaves it
- *   no supported level.
+ * @returns the level to dispatch, or undefined to send none.
  */
 function requestReasoningLevel(
   model: Model<Api>,
   options: GenerateOptions,
   profile: ResolvedPiAiProviderProfile,
 ): ModelThinkingLevel | undefined {
-  if (options.minimizeReasoning === true) return getSupportedThinkingLevels(model)[0]
   return resolveReasoningLevel(model, options.reasoningEffort ?? profile.reasoning)
 }
 
@@ -214,12 +208,14 @@ function reasoningInfo(
 ): Pick<LlmResolvedModelInfo, 'reasoning'> | Record<string, never> {
   if (!model.reasoning) return {}
   const levels = getSupportedThinkingLevels(model)
+  const floor = levels[0]
   return {
     reasoning: {
       efforts: levels.map(level => ({
         id: ReasoningEffortId(level),
         name: `${level.charAt(0).toUpperCase()}${level.slice(1)}`,
       })),
+      ...floor === undefined ? {} : { floorEffort: ReasoningEffortId(floor) },
       ...defaultLevel === undefined ? {} : { defaultEffort: ReasoningEffortId(defaultLevel) },
     },
   }

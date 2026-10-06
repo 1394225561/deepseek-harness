@@ -14,7 +14,7 @@ declare module '@deepseek-ai/dsh-llm' {
   }
 }
 
-import type { FinishReason, GenerateOptions, Message } from '@deepseek-ai/dsh-llm'
+import type { FinishReason, GenerateOptions, Message, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { deadline, MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
 import { deepFreeze } from '@deepseek-ai/dsh-util-values'
 import type { SessionSeq } from '@deepseek-ai/dsh-session'
@@ -208,6 +208,25 @@ function titleMaxTokens(
   return materialized === undefined ? config.maxOutputTokens : Math.min(config.maxOutputTokens, materialized)
 }
 
+/**
+ * The least effort the routed model accepts, so a title request does not spend
+ * its output cap on reasoning. A route with no registered adapter cannot report
+ * model metadata, and a route that reports no selectable effort dispatches with
+ * none; both keep the adapter's own default in force.
+ * @param ctx - context exposing the registered LLM service.
+ * @param route - exact provider and model route of this title request.
+ * @param signal - cancellation covering the lookup.
+ * @returns the model's floor effort, or undefined when it reports none.
+ */
+async function titleReasoningEffort(
+  ctx: Context,
+  route: SessionTitleModelIdentity,
+  signal: AbortSignal,
+): Promise<ReasoningEffortId | undefined> {
+  if (!ctx.llm.listProviders().some(provider => provider.id === route.provider)) return undefined
+  return (await ctx.llm.resolveModelInfo(route.provider, route.model, signal)).reasoning?.floorEffort
+}
+
 /** Stable language-aware system instruction shared by both provider plugins. */
 function systemPrompt(config: ResolvedSessionTitleLlmConfig): string {
   return [
@@ -296,6 +315,7 @@ export async function generateSessionTitleWithLlm(
   const system = systemPrompt(config)
   using callDeadline = deadline(request.signal, config.timeoutMs, SESSION_TITLE_TIMEOUT_CODE)
   const maxTokens = titleMaxTokens(config, request)
+  const floorEffort = await titleReasoningEffort(ctx, route, callDeadline.signal)
   const options: GenerateOptions = deepFreeze({
     provider: route.provider,
     model: route.model,
@@ -304,7 +324,7 @@ export async function generateSessionTitleWithLlm(
     maxTokens,
     sessionId: request.session.id,
     purpose: 'session-title',
-    minimizeReasoning: true,
+    ...floorEffort === undefined ? {} : { reasoningEffort: floorEffort },
     signal: callDeadline.signal,
   })
   request.session.append('session/title-llm-request', {

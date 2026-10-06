@@ -849,10 +849,17 @@ export class LlmRuntime extends TypertRemoteService {
         'INVALID_MODEL_REASONING',
       )
     }
+    if (reasoning.floorEffort !== undefined && !seen.has(reasoning.floorEffort)) {
+      throw new LlmError(
+        `adapter returned an unknown floor reasoning effort for provider "${provider}" model "${model}"`,
+        'INVALID_MODEL_REASONING',
+      )
+    }
     return {
       ...info,
       reasoning: {
         efforts,
+        ...reasoning.floorEffort === undefined ? {} : { floorEffort: reasoning.floorEffort },
         ...reasoning.defaultEffort === undefined ? {} : { defaultEffort: reasoning.defaultEffort },
       },
     }

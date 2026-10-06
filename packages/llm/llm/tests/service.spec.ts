@@ -861,6 +861,7 @@ describe('LlmRuntime', () => {
     [{ efforts: [{ id: 'valid', name: 'Valid', description: 1 }] }, 'non-string description'],
     [{ efforts: [{ id: 'same', name: 'One' }, { id: 'same', name: 'Two' }] }, 'duplicate id'],
     [{ efforts: [{ id: 'valid', name: 'Valid' }], defaultEffort: 'other' }, 'unknown default'],
+    [{ efforts: [{ id: 'valid', name: 'Valid' }], floorEffort: 'other' }, 'unknown floor'],
   ] as const)('rejects invalid model reasoning metadata (%s: %s)', async (metadata, _label) => {
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)

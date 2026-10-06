@@ -788,7 +788,7 @@ describe('provider profile lifecycle', () => {
     expect(server.requests[0]).not.toHaveProperty('reasoning_effort')
   })
 
-  it('dispatches a minimized-reasoning request at the lowest level each model supports', async () => {
+  it('reports the floor effort and dispatches the level a caller selects', async () => {
     vi.stubEnv('PI_TEST_KEY', 'test-key')
     const server = await mockServer([
       { events: anthropicTextEvents },
@@ -813,18 +813,23 @@ describe('provider profile lifecycle', () => {
         },
       },
     })
-    const request = (model: string, minimizeReasoning?: true): Promise<unknown> => assemble(ctx, {
+    const request = (model: string, effort: string): Promise<unknown> => assemble(ctx, {
       provider: 'adaptive-gateway',
       model,
-      reasoningEffort: ReasoningEffortId('max'),
+      reasoningEffort: ReasoningEffortId(effort),
       maxTokens: 64,
       messages: [],
-      ...minimizeReasoning === undefined ? {} : { minimizeReasoning },
     })
 
-    await request('always-thinks')
-    await request('always-thinks', true)
-    await request('may-think', true)
+    // Each route names its own floor, so a caller can select the least reasoning.
+    await expect(ctx.llm.resolveModelInfo('adaptive-gateway', 'always-thinks'))
+      .resolves.toMatchObject({ reasoning: { floorEffort: ReasoningEffortId('low') } })
+    await expect(ctx.llm.resolveModelInfo('adaptive-gateway', 'may-think'))
+      .resolves.toMatchObject({ reasoning: { floorEffort: ReasoningEffortId('off') } })
+
+    await request('always-thinks', 'max')
+    await request('always-thinks', 'low')
+    await request('may-think', 'off')
 
     expect(server.requests[0]).toMatchObject({ thinking: { type: 'adaptive' }, output_config: { effort: 'max' } })
     expect(server.requests[1]).toMatchObject({

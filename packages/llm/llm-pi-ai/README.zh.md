@@ -102,7 +102,7 @@ profile 的 `models` 列表会替换而非扩展路由的已安装目录；每�
 
 `reasoningEfforts` 声明模型可选择的 thinking 等级：每个键都是选择器提供的等级，其值是分派时在协议中发送的拼写，因此 `max: ultra` 可以为拥有自有词汇的网关重命名等级。省略该字段时保留已安装目录条目的能力；`false` 声明非推理模型。对于 pi-ai 无法识别的端点，`compat` 开关重塑请求——哪个角色携带系统提示词、哪个字段限制输出、thinking 等级如何传递——可逐路由、逐模型配置。条目与已安装目录都没有尺寸的模型，会采用路由的 `defaultContextWindow` 与 `defaultMaxTokens` 回退值。
 
-携带 `GenerateOptions.minimizeReasoning` 的请求会以其模型支持的最低等级分派，不论请求或 profile 指定何种推理强度：模型提供 `off` 时使用 `off`，否则使用声明的最低等级。这类调用方把输出预算留给简短的可见结果，因此不把该预算花在推理上。`off` 的分派方式与手动选择 `off` 完全相同，因此以省略推理字段表达 `off` 的协议会沿用网关默认行为；这些等级下产生的推理 token 都计入该请求的输出上限。该请求不校验所请求的强度，因此模型不支持的名称会让普通调用失败，而不是该请求。
+确切模型元数据会公布 `reasoning.floorEffort`，即该路由接受的最低等级：模型能停止推理时为 `off`，否则为声明的最低等级。需要避免把输出花在推理上的调用方选择该强度，本适配器分派收到的强度。`off` 的分派方式与手动选择 `off` 完全相同，因此以省略推理字段表达 `off` 的协议会沿用网关默认行为；所选等级下产生的推理 token 都计入该请求的输出上限。
 
 对于自托管 Chat Completions 端点，`thinkingTokenBudgetField` 选择推理预算参数，`vllmPriority` 在服务端启用优先级调度时设置整数调度优先级。模板参数接受 `$var: thinking.budget`。`openai-responses` 网关可设置 `supportsMaxOutputTokens: false` 来省略 `max_output_tokens`；Azure 与 Codex 传输会忽略这个共享兼容字段。这些控制均需显式启用；目录拥有的 Anthropic effort 和回退能力不是可配置开关。
 

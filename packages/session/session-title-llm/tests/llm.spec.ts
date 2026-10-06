@@ -1,7 +1,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it, vi } from 'vitest'
-import LlmRuntime, { createUserMessage, ToolCallId, isAgentLoopRequest, LlmAdapter  } from '@deepseek-ai/dsh-llm'
-import type { FinishReason, GenerateOptions, StreamChunk } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createUserMessage, ToolCallId, isAgentLoopRequest, LlmAdapter, ReasoningEffortId  } from '@deepseek-ai/dsh-llm'
+import type { FinishReason, GenerateOptions, LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import { SessionTitleProviderId } from '@deepseek-ai/dsh-session-title'
 import type { SessionTitleProviderRequest } from '@deepseek-ai/dsh-session-title'
@@ -19,8 +19,27 @@ class RecordingAdapter extends LlmAdapter {
   constructor(
     private readonly script: readonly StreamChunk[],
     private readonly onDispatch?: () => void,
+    private readonly reasoningEfforts?: readonly string[],
   ) {
     super()
+  }
+
+  override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+    const efforts = this.reasoningEfforts
+    const floor = efforts?.[0]
+    return Promise.resolve({
+      provider,
+      id: model,
+      name: model,
+      ...efforts === undefined || floor === undefined
+        ? {}
+        : {
+          reasoning: {
+            efforts: efforts.map(id => ({ id: ReasoningEffortId(id), name: id })),
+            floorEffort: ReasoningEffortId(floor),
+          },
+        },
+    })
   }
 
   override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
@@ -116,20 +135,20 @@ function requestWithoutRoute(ctx: Context, signal = new AbortController().signal
   return { session: routed.session, messages: routed.messages, signal }
 }
 
-async function withScript(script: readonly StreamChunk[]): Promise<{
+async function withScript(script: readonly StreamChunk[], reasoningEfforts?: readonly string[]): Promise<{
   ctx: Context
   adapter: RecordingAdapter
 }> {
   const ctx = new Context()
   await ctx.plugin(SessionStore)
   await ctx.plugin(LlmRuntime)
-  const adapter = new RecordingAdapter(script)
+  const adapter = new RecordingAdapter(script, undefined, reasoningEfforts)
   ctx.llm.registerAdapter(['current-route'], adapter)
   return { ctx, adapter }
 }
 
 describe('generateSessionTitleWithLlm', () => {
-  it('uses the exact logged route, language targets, full framed input, and output token cap', async () => {
+  it('uses the exact logged route, language targets, framed input, cap, and floor effort', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
     await ctx.plugin(LlmRuntime)
@@ -138,7 +157,7 @@ describe('generateSessionTitleWithLlm', () => {
     const adapter = new RecordingAdapter(SCRIPT, () => {
       requestWasLoggedAtDispatch = providerRequest.session.snapshotEvents()
         .some(event => event.type === 'session/title-llm-request')
-    })
+    }, ['off', 'low', 'high', 'max'])
     ctx.llm.registerAdapter(['current-route'], adapter)
 
     const result = await generateSessionTitleWithLlm(
@@ -166,7 +185,7 @@ describe('generateSessionTitleWithLlm', () => {
       maxTokens: 32,
       sessionId: providerRequest.session.id,
       purpose: 'session-title',
-      minimizeReasoning: true,
+      reasoningEffort: ReasoningEffortId('off'),
     })
     expect(options.system).toContain('5 words')
     expect(options.system).toContain('10 CJK characters')
@@ -215,6 +234,45 @@ describe('generateSessionTitleWithLlm', () => {
     )).resolves.toMatchObject({ title: '五个字标题' })
 
     expect(adapter.requests[0]?.maxTokens).toBe(32)
+  })
+
+  it('sends no effort when the route has no registered adapter', async () => {
+    const ctx = new Context()
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(LlmRuntime)
+    const requests: GenerateOptions[] = []
+    // A composition can serve a route without a registered adapter, as the
+    // recorded replay lanes do; the lookup then reports no floor.
+    ctx.on('llm/stream', (options: GenerateOptions) => {
+      requests.push(options)
+      return (async function* (): AsyncIterable<StreamChunk> { yield * SCRIPT })()
+    })
+    const providerRequest = request(ctx)
+
+    await expect(generateSessionTitleWithLlm(
+      ctx,
+      resolveSessionTitleLlmConfig(CONFIG),
+      providerRequest,
+      providerRequest.messages,
+      TITLE_PROVIDER,
+    )).resolves.toMatchObject({ title: '五个字标题' })
+
+    expect(requests[0]).not.toHaveProperty('reasoningEffort')
+  })
+
+  it('sends no effort when the route reports no selectable level', async () => {
+    const { ctx, adapter } = await withScript(SCRIPT)
+    const providerRequest = request(ctx)
+
+    await expect(generateSessionTitleWithLlm(
+      ctx,
+      resolveSessionTitleLlmConfig(CONFIG),
+      providerRequest,
+      providerRequest.messages,
+      TITLE_PROVIDER,
+    )).resolves.toMatchObject({ title: '五个字标题' })
+
+    expect(adapter.requests[0]).not.toHaveProperty('reasoningEffort')
   })
 
   it('uses paired explicit overrides and bounds the final framed input before model dispatch', async () => {
