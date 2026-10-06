@@ -51,7 +51,6 @@ export function createElectronBuilderConfig(
   preparedRuntimeVersion = undefined,
 ) {
   const appId = resolveDesktopAppId(env)
-  const policy = resolveDesktopPolicyEnvironment(env)
   const targetPlatform = env.DSH_DESKTOP_TARGET_PLATFORM
   const resolvedPlatform = targetPlatform ?? hostPlatform
   const resolvedArch = env.DSH_DESKTOP_TARGET_ARCH ?? hostArch
@@ -61,6 +60,7 @@ export function createElectronBuilderConfig(
   const unsigned = env.DSH_DESKTOP_UNSIGNED === '1'
   const packagesMacOS = targetPlatform === 'darwin' || (targetPlatform === undefined && hostPlatform === 'darwin')
   const packagesWindows = resolvedPlatform === 'win32'
+  const policy = packagesMacOS && unsigned ? undefined : resolveDesktopPolicyEnvironment(env)
   if (resolvedPlatform === 'win32') installWindowsDirectoryInstaller()
   const macOSSigning = packagesMacOS && !unsigned ? resolveMacOSSigningEnvironment(env) : undefined
   if (packagesMacOS && !unsigned) resolveMacOSNotarizationEnvironment(env)
@@ -101,7 +101,7 @@ export function createElectronBuilderConfig(
     protocols: [{ name: 'DeepSeek Harness', schemes: ['dsh'] }],
     extraMetadata: {
       dshDesktopAppId: appId,
-      dshMandatoryUpdatePolicy: policy,
+      ...(policy === undefined ? {} : { dshMandatoryUpdatePolicy: policy }),
       ...buildVersion === productVersion ? {} : { version: buildVersion },
       ...packaged === undefined ? {} : { dshBuildCommit: packaged.commit, dshBuildDirty: packaged.dirty },
     },

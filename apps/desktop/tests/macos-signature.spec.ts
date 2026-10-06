@@ -133,8 +133,6 @@ describe('desktop macOS release signature', () => {
     const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
     const config = createElectronBuilderConfig({
       DSH_DESKTOP_APP_ID: RELEASE_ENVIRONMENT.DSH_DESKTOP_APP_ID,
-      DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: RELEASE_ENVIRONMENT.DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN,
-      DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: RELEASE_ENVIRONMENT.DSH_DESKTOP_MANDATORY_UPDATE_CONFIG,
       DSH_DESKTOP_UNSIGNED: '1',
     }, 'darwin', arch)
     expect(portablePath(config.directories.output)).toContain(`/targets/mac-${arch}/unsigned-artifacts`)
@@ -142,8 +140,16 @@ describe('desktop macOS release signature', () => {
     expect(config.mac).toMatchObject({ identity: '-', forceCodeSigning: false, notarize: false, target: ['dmg'] })
     expect(config.dmg).toMatchObject({ sign: false, writeUpdateInfo: false })
     expect(config.publish).toBeNull()
+    expect(config.extraMetadata).not.toHaveProperty('dshMandatoryUpdatePolicy')
     await expect(config.afterSign({ electronPlatformName: 'darwin' } as Parameters<typeof config.afterSign>[0])).resolves.toBeUndefined()
     expect(config.artifactBuildCompleted({ file: '/tmp/local-unsigned.dmg' })).toBeUndefined()
+  })
+
+  it('omits mandatory-update policy from local macOS builds even when release settings are supplied', async () => {
+    const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
+    const config = createElectronBuilderConfig({ ...RELEASE_ENVIRONMENT, DSH_DESKTOP_UNSIGNED: '1' }, 'darwin', 'arm64')
+    expect(config.extraMetadata).not.toHaveProperty('dshMandatoryUpdatePolicy')
+    expect(config.publish).toBeNull()
   })
 
   it('rejects malformed signing modes', async () => {
