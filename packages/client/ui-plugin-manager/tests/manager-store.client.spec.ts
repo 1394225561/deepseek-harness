@@ -1992,7 +1992,8 @@ it.each([true, false])('replaces a same-version registry package with its source
 })
 
 it('deselects a source bundle whose target is unavailable without starting installation', async () => {
-  const entry: BundleInfo = { ...CATALOG, installTarget: undefined, enabled: true,
+  const { installTarget: _target, ...withoutTarget } = CATALOG
+  const entry: BundleInfo = { ...withoutTarget, enabled: true,
     error: { code: 'operation-error', diagnostic: 'Source package is not built' } }
   const { controller, plugins, face } = bench({ listBundles: vi.fn().mockResolvedValue(ok([entry])) })
   await controller.load()
