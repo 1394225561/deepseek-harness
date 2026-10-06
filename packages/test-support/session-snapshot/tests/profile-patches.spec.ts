@@ -16,7 +16,7 @@ it('discovers relocated packages and relative modules in scoped and complete pre
   const targetDir = join(runDir, 'patches')
   mkdirSync(sourceDir)
   mkdirSync(targetDir, { recursive: true })
-  const packages = ['@deepseek-ai/dsh-experimental-tool-terminal', '@deepseek-ai/dsh-agent-preset']
+  const packages = ['@deepseek-ai/dsh-tool-terminal', '@deepseek-ai/dsh-agent-preset']
   for (const name of packages) {
     const packageDir = join(sourceDir, 'node_modules', name)
     mkdirSync(packageDir, { recursive: true })
@@ -31,7 +31,7 @@ it('discovers relocated packages and relative modules in scoped and complete pre
     '      group: true',
     '      config:',
     '        - id: relocated-terminal',
-    "          name: '@deepseek-ai/dsh-experimental-tool-terminal'",
+    "          name: '@deepseek-ai/dsh-tool-terminal'",
     '        - id: relative',
     '          name: ./relative.mjs',
     '          disabled: !!js process.platform === "win32"',
@@ -48,7 +48,7 @@ it('discovers relocated packages and relative modules in scoped and complete pre
     '              - id: child',
     '                name: ../child.mjs',
     '              - id: terminal',
-    "                name: '@deepseek-ai/dsh-experimental-tool-terminal'",
+    "                name: '@deepseek-ai/dsh-tool-terminal'",
     '- preset: preset-ptc',
     '  id: relative',
     '  disabled: true',

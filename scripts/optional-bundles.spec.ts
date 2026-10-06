@@ -200,7 +200,7 @@ describe('optional bundles', () => {
       const names = flattenRows(roots).map(row => row.name)
       for (const name of [
         '@deepseek-ai/dsh-tool-session-query', '@deepseek-ai/dsh-tool-str-replace-editor', '@deepseek-ai/dsh-tmux-context',
-        '@deepseek-ai/dsh-tool-ralph', '@deepseek-ai/dsh-experimental-tool-terminal',
+        '@deepseek-ai/dsh-tool-ralph', '@deepseek-ai/dsh-tool-terminal',
       ]) expect(names).toContain(name)
       expect(roots.find(row => row.id === 'optional-ralph')?.isolate).toEqual({ workflowEngine: true })
       expect(roots.find(row => row.id === 'optional-persistent-terminals')?.isolate).toEqual({ terminals: true })
@@ -214,7 +214,7 @@ describe('optional bundles', () => {
     expect(composed.find(row => row.id === 'session-query-sqlite')?.config).toEqual({ path: ':memory:', openAt: 'never' })
     expect(composed.find(row => row.id === 'session-title-llm')?.disabled).toBe(true)
     expect(composed.find(row => row.id === 'optional-session-title-all-prompts')?.name)
-      .toBe('@deepseek-ai/dsh-experimental-session-title-all-prompts-llm')
+      .toBe('@deepseek-ai/dsh-session-title-all-prompts-llm')
   })
 
   it('delivers the Schedule service and task page without a Host clock row', () => {

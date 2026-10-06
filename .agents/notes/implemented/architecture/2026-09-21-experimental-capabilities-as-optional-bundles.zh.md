@@ -14,7 +14,7 @@ Web 插件页只提供两个可选 bundle：Agent Teams 与语音输入。Auto r
 
 可选 bundle 的依赖随每次 `dsh` 安装下载。[思考过程翻译](2026-10-05-anonymous-reasoning-translation.zh.md)使用三个实验包，不增加第三方运行时依赖。因此准入需要考虑安装成本，以及开关能否在不增加配置表单的情况下提供可用组合。浏览器与电脑提供方仍使用显式组合，因为它们会增加较大的运行时或要求外部可执行文件。Stagehand 需要模型凭据；Python PTC 替换核心提供方，并与 TypeScript workflow 消费方冲突。演示性钩子、webhook 与模组不进入名单。[Session Inspector](../feature/2026-09-24-session-inspector.zh.md) 管理 Inspector 特有的激活行为。
 
-Bundle 通过 [profile patch 操作](../../../../packages/boot/app-boot/README.zh.md)添加作用域行：`preset` 指定声明行，普通 patch 对其子列表生效。完整 Web 预设获得可选模型工具；minimal 保持精确的平台 shell 目录。搜索、Ralph 与终端提供自己的隔离服务。搜索在每个保留的预设修订中按需打开一个内存索引；Host 搜索策略保持不变。徽章技能与标题提供方作用于 Host。已有 Agent 保留其预设代际，后续用户 patch 层继续优先。标题替换等待前一个提供方完成清理。
+Bundle 通过 [profile patch 操作](../../../../packages/boot/app-boot/README.zh.md)添加作用域行：`preset` 指定声明行，普通 patch 对其子列表生效。完整 Web 预设获得可选模型工具；minimal 保持当前的 shell 与工作目录工具。搜索、Ralph 与终端提供自己的隔离服务。搜索在每个保留的预设修订中按需打开一个内存索引；Host 搜索策略保持不变。徽章技能与标题提供方作用于 Host。已有 Agent 保留其预设代际，后续用户 patch 层继续优先。标题替换等待前一个提供方完成清理。
 
 ## 考虑过的替代方案
 

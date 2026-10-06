@@ -38,7 +38,7 @@
     }
   },
   "dependencies": {
-    "@deepseek-ai/dsh-experimental-session-title-all-prompts-llm": "workspace:*"
+    "@deepseek-ai/dsh-session-title-all-prompts-llm": "workspace:*"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

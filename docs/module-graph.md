@@ -138,6 +138,9 @@ flowchart TD
     pkg_headless["headless"]
     pkg_sdk_app["sdk-app"]
     pkg_sdk_minimal["sdk-minimal"]
+    pkg_session_search["session-search"]
+    pkg_string_editor["string-editor"]
+    pkg_tmux_location["tmux-location"]
     pkg_web_app["web-app"]
   end
   subgraph group_client["packages/client"]
@@ -242,6 +245,7 @@ flowchart TD
     pkg_experimental_agent_team_profile["experimental-agent-team-profile"]
     pkg_experimental_api_speech_to_text["experimental-api-speech-to-text"]
     pkg_experimental_auto_review["experimental-auto-review"]
+    pkg_experimental_badge_skill_bundle["experimental-badge-skill-bundle"]
     pkg_experimental_browser_use_chrome_devtools_mcp["experimental-browser-use-chrome-devtools-mcp"]
     pkg_experimental_browser_use_playwright_mcp["experimental-browser-use-playwright-mcp"]
     pkg_experimental_browser_use_runtime["experimental-browser-use-runtime"]
@@ -257,9 +261,12 @@ flowchart TD
     pkg_experimental_inspector["experimental-inspector"]
     pkg_experimental_inspector_profile["experimental-inspector-profile"]
     pkg_experimental_ptc_runtime_python["experimental-ptc-runtime-python"]
+    pkg_experimental_ralph_bundle["experimental-ralph-bundle"]
     pkg_experimental_session_inspector["experimental-session-inspector"]
+    pkg_experimental_session_titles_bundle["experimental-session-titles-bundle"]
     pkg_experimental_speech_to_text["experimental-speech-to-text"]
     pkg_experimental_speech_to_text_sensevoice["experimental-speech-to-text-sensevoice"]
+    pkg_experimental_terminal_bundle["experimental-terminal-bundle"]
     pkg_experimental_tool_agent_team["experimental-tool-agent-team"]
     pkg_experimental_tool_worktree["experimental-tool-worktree"]
     pkg_experimental_translator["experimental-translator"]
@@ -1154,6 +1161,7 @@ flowchart TD
   pkg_acp --> pkg_session_persistence
   pkg_acp --> pkg_token_meter
   pkg_acp --> pkg_user_approval
+  pkg_plugin_manager --> pkg_agent_preset_registry
   pkg_plugin_manager --> pkg_brand
   pkg_plugin_manager --> pkg_hmr
   pkg_plugin_manager --> pkg_host_plugin_inventory
@@ -1453,6 +1461,9 @@ flowchart TD
 | [`base`](../packages/bundle/base) | `bundle` | — |
 | [`sdk-app`](../packages/bundle/sdk-app) | `bundle` | — |
 | [`sdk-minimal`](../packages/bundle/sdk-minimal) | `bundle` | — |
+| [`session-search`](../packages/bundle/session-search) | `bundle` | — |
+| [`string-editor`](../packages/bundle/string-editor) | `bundle` | — |
+| [`tmux-location`](../packages/bundle/tmux-location) | `bundle` | — |
 | [`client-file-upload`](../packages/client/file-upload) | `client` | — |
 | [`client-hmr`](../packages/client/hmr) | `client` | — |
 | [`client-locale`](../packages/client/locale) | `client` | — |
@@ -1518,9 +1529,13 @@ flowchart TD
 | [`credentials`](../packages/credentials/credentials) | `credentials` | — |
 | [`office-to-pdf`](../packages/document/office-to-pdf) | `document` | — |
 | [`experimental-agent-team-profile`](../packages/experimental/agent-team-profile) | `experimental` | — |
+| [`experimental-badge-skill-bundle`](../packages/experimental/badge-skill-bundle) | `experimental` | — |
 | [`experimental-cot-translation-bundle`](../packages/experimental/cot-translation-bundle) | `experimental` | — |
 | [`experimental-inspector-profile`](../packages/experimental/inspector-profile) | `experimental` | — |
+| [`experimental-ralph-bundle`](../packages/experimental/ralph-bundle) | `experimental` | — |
 | [`experimental-session-inspector`](../packages/experimental/session-inspector) | `experimental` | — |
+| [`experimental-session-titles-bundle`](../packages/experimental/session-titles-bundle) | `experimental` | — |
+| [`experimental-terminal-bundle`](../packages/experimental/terminal-bundle) | `experimental` | — |
 | [`experimental-voice-input-bundle`](../packages/experimental/voice-input-bundle) | `experimental` | — |
 | [`experimental-webworker-packer`](../packages/experimental/webworker-packer) | `experimental` | — |
 | [`client-ui-cordis`](../packages/extensions/ui-cordis) | `extensions` | — |
@@ -1718,7 +1733,7 @@ flowchart TD
 | [`spill-policy`](../packages/spill/spill-policy) | `spill` | [`attachment`](../packages/attachment/attachment), [`fs`](../packages/fs/fs), [`llm`](../packages/llm/llm), [`output-retention`](../packages/util/output-retention), [`session`](../packages/core/session), [`spill`](../packages/spill/spill), [`token-meter`](../packages/llm/token-meter), [`tools`](../packages/core/tools) |
 | [`session-query-sqlite`](../packages/session-query/session-query-sqlite) | `session-query` | [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`session-query`](../packages/session-query/session-query) |
 | [`acp`](../packages/acp/acp) | `acp` | [`agent`](../packages/core/agent), [`attachment`](../packages/attachment/attachment), [`llm`](../packages/llm/llm), [`mcp-client`](../packages/mcp/mcp-client), [`session`](../packages/core/session), [`session-persistence`](../packages/session/session-persistence), [`token-meter`](../packages/llm/token-meter), [`user-approval`](../packages/interaction/user-approval) |
-| [`plugin-manager`](../packages/boot/plugin-manager) | `boot` | [`brand`](../packages/util/brand), [`hmr`](../packages/boot/hmr), [`host-plugin-inventory`](../packages/host/plugin-inventory), [`sandbox`](../packages/sandbox/sandbox), [`sandbox-policy`](../packages/sandbox/sandbox-policy), [`subprocess`](../packages/subprocess/subprocess), [`tools`](../packages/core/tools), [`typert-protocol`](../packages/typert/protocol), [`user-approval`](../packages/interaction/user-approval) |
+| [`plugin-manager`](../packages/boot/plugin-manager) | `boot` | [`agent-preset-registry`](../packages/preset/agent-preset-registry), [`brand`](../packages/util/brand), [`hmr`](../packages/boot/hmr), [`host-plugin-inventory`](../packages/host/plugin-inventory), [`sandbox`](../packages/sandbox/sandbox), [`sandbox-policy`](../packages/sandbox/sandbox-policy), [`subprocess`](../packages/subprocess/subprocess), [`tools`](../packages/core/tools), [`typert-protocol`](../packages/typert/protocol), [`user-approval`](../packages/interaction/user-approval) |
 | [`compaction-tool-result-pruner`](../packages/compaction/compaction-tool-result-pruner) | `compaction` | [`compaction`](../packages/compaction/compaction), [`llm`](../packages/llm/llm), [`session`](../packages/core/session), [`token-meter`](../packages/llm/token-meter) |
 | [`experimental-browser-use-runtime`](../packages/experimental/browser-use-runtime) | `experimental` | [`agent`](../packages/core/agent), [`browser-use`](../packages/browser-use/browser-use), [`mcp-client`](../packages/mcp/mcp-client), [`scope`](../packages/core/scope), [`system-prompt`](../packages/core/system-prompt), [`tools`](../packages/core/tools), [`working-directory`](../packages/session/working-directory) |
 | [`experimental-claude-code-mods`](../packages/experimental/claude-code-mods) | `experimental` | [`agent`](../packages/core/agent), [`commands`](../packages/interaction/commands), [`fs`](../packages/fs/fs), [`llm`](../packages/llm/llm), [`scope`](../packages/core/scope), [`session`](../packages/core/session), [`session-projection`](../packages/session/session-projection), [`storage-domain`](../packages/storage/storage-domain), [`subprocess`](../packages/subprocess/subprocess), [`token-meter`](../packages/llm/token-meter), [`tools`](../packages/core/tools), [`typert-protocol`](../packages/typert/protocol), [`user-questions`](../packages/interaction/user-questions), [`working-directory`](../packages/session/working-directory) |

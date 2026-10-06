@@ -38,7 +38,7 @@
     }
   },
   "dependencies": {
-    "@deepseek-ai/dsh-experimental-tool-terminal": "workspace:*",
+    "@deepseek-ai/dsh-tool-terminal": "workspace:*",
     "@deepseek-ai/dsh-terminal": "workspace:*",
     "@deepseek-ai/dsh-terminal-bash": "workspace:*"
   },

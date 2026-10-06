@@ -17,7 +17,7 @@
           config:
             shellDialect: pwsh
         - id: optional-tool-terminal
-          name: '@deepseek-ai/dsh-experimental-tool-terminal'
+          name: '@deepseek-ai/dsh-tool-terminal'
 
 - preset: preset-cordis
   insert:
@@ -38,7 +38,7 @@
           config:
             shellDialect: pwsh
         - id: optional-tool-terminal
-          name: '@deepseek-ai/dsh-experimental-tool-terminal'
+          name: '@deepseek-ai/dsh-tool-terminal'
 
 - preset: preset-ptc
   insert:
@@ -59,4 +59,4 @@
           config:
             shellDialect: pwsh
         - id: optional-tool-terminal
-          name: '@deepseek-ai/dsh-experimental-tool-terminal'
+          name: '@deepseek-ai/dsh-tool-terminal'
