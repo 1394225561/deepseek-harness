@@ -64,7 +64,7 @@ export interface SessionTitleLlmConfig {
   readonly targetCjkCharacters: number
   /** Maximum UTF-8 bytes in the final JSON-framed user prompt. */
   readonly maxInputBytes: number
-  /** Auxiliary generation output-token cap, never above the cap the session's current request recorded. */
+  /** Configured output-token ceiling; dispatch uses the smaller of this and the cap the session's header recorded. */
   readonly maxOutputTokens: number
   /** End-to-end auxiliary request deadline in milliseconds. */
   readonly timeoutMs: number
@@ -225,7 +225,10 @@ const EMPHASIS_WRAPPER = /^(?<marker>\*{1,3})(?<inner>\S(?:.*\S)?)\k<marker>$/u
 /**
  * Take the title from model output: the first non-empty line, without
  * asterisk emphasis that wraps that whole line. Models that disregard the
- * one-line instruction put the title first and commentary after it.
+ * one-line instruction put the title first and commentary after it. A line
+ * that is entirely `*` emphasis loses the marker pair even when the model
+ * meant it literally; the inner-marker check keeps emphasis inside a longer
+ * line, and the system instruction forbids Markdown.
  */
 function titleFromOutput(text: string): string {
   const line = text.split(/\r?\n/u).map(item => item.trim()).find(item => item.length > 0) ?? ''

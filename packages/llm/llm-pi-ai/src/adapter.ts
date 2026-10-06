@@ -171,8 +171,11 @@ function resolveReasoningLevel(
 /**
  * The level one request dispatches with. A `session-title` request takes the
  * model's lowest supported level, which is `off` whenever the model can stop
- * reasoning, because its small output cap must hold visible title text;
- * every other request validates the requested or profile effort.
+ * reasoning, because reasoning a model cannot switch off still counts toward
+ * the dispatch cap. That request deliberately skips the requested-effort
+ * check, so a name the model does not support fails the main call rather than
+ * the auxiliary one. Every other request validates the requested or profile
+ * effort.
  * @param model - the resolved model descriptor.
  * @param options - the request's purpose and requested effort.
  * @param profile - the route profile carrying the default effort.
