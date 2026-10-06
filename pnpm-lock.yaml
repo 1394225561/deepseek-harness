@@ -13460,6 +13460,9 @@ importers:
       '@deepseek-ai/dsh-brand':
         specifier: workspace:*
         version: link:../../util/brand
+      '@deepseek-ai/dsh-tool-subagent':
+        specifier: workspace:*
+        version: link:../tool-subagent
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -13518,9 +13521,6 @@ importers:
       '@deepseek-ai/dsh-tool-jobs':
         specifier: workspace:*
         version: link:../../jobs/tool-jobs
-      '@deepseek-ai/dsh-tool-subagent':
-        specifier: workspace:*
-        version: link:../tool-subagent
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools
@@ -13533,6 +13533,9 @@ importers:
       '@deepseek-ai/dsh-sdk-protocol':
         specifier: workspace:*
         version: link:../../sdk/protocol
+      '@deepseek-ai/dsh-tool-subagent':
+        specifier: workspace:*
+        version: link:../tool-subagent
       '@deepseek-ai/schemastery':
         specifier: link:../../../vendor/schemastery
         version: link:../../../vendor/schemastery
@@ -13585,9 +13588,6 @@ importers:
       '@deepseek-ai/dsh-tool-jobs':
         specifier: workspace:*
         version: link:../../jobs/tool-jobs
-      '@deepseek-ai/dsh-tool-subagent':
-        specifier: workspace:*
-        version: link:../tool-subagent
       '@deepseek-ai/dsh-tools':
         specifier: workspace:*
         version: link:../../core/tools
