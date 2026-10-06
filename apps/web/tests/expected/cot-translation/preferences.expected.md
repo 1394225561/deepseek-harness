@@ -1,5 +1,5 @@
 - button "返回插件列表": 插件列表
-- button "卸载 思考过程机器翻译": 卸载
+- button "卸载 思考过程机器翻译" [disabled]: 卸载
 - switch "启用 思考过程机器翻译" [checked]
 - heading "思考过程机器翻译" [level=3]
 - text: v0.2.1-alpha.1 实验性
