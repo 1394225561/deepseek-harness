@@ -173,8 +173,8 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
   it('keeps the default host and minimal tool catalogs while every optional bundle is off', async () => {
     const minimal = await agent('minimal')
     const standard = await agent()
-    expect(names()).toEqual([])
-    expect(names(minimal.agent)).toEqual([process.platform === 'win32' ? 'pwsh' : 'bash'])
+    expect(names()).toEqual(['working_directory'])
+    expect(names(minimal.agent)).toEqual([process.platform === 'win32' ? 'pwsh' : 'bash', 'working_directory'])
     for (const name of ['str_replace_editor', 'session_search', 'terminal_open', 'ralph']) expect(names(standard.agent)).not.toContain(name)
     expect((await ctx.skills.list({ cwd: workspace, scope: standard.agent })).some(skill => skill.name === 'dsh-badge')).toBe(false)
   })
@@ -216,7 +216,7 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
     expect(assembly.tools.map(tool => tool.name)).toEqual(['run_code'])
     expect(assembly.sections.find(section => section.name === 'tools:sdk')?.text).toContain('str_replace_editor')
     expect(names(native.agent)).toContain('str_replace_editor')
-    expect(names(minimal.agent)).toEqual([process.platform === 'win32' ? 'pwsh' : 'bash'])
+    expect(names(minimal.agent)).toEqual([process.platform === 'win32' ? 'pwsh' : 'bash', 'working_directory'])
     await turn(coded.agent, 'Create the file with the editor through run_code.', [
       toolCallResponse('ptc-editor', 'run_code', {
         code: `console.log(await tools.str_replace_editor(${JSON.stringify({ command: 'create', path: target, file_text: 'PTC_EDITOR_OK' })}));`,
@@ -272,7 +272,7 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
     expect(toolResult(owner.agent, 'badge-on')).toContain('dsh-badge.png')
     const minimal = await agent('minimal')
     expect((await ctx.skills.list({ cwd: workspace, scope: minimal.agent })).map(skill => skill.name)).toContain('dsh-badge')
-    expect(names(minimal.agent)).toEqual([process.platform === 'win32' ? 'pwsh' : 'bash'])
+    expect(names(minimal.agent)).toEqual([process.platform === 'win32' ? 'pwsh' : 'bash', 'working_directory'])
     await select(bundles.badge, false)
     expect((await load('badge-after')).isError).toBe(true)
   })
@@ -378,8 +378,8 @@ describe.skipIf(!existsSync(join(root, 'apps/cli/lib/bin.js')))('Official option
     expect(await readFile(target, 'utf8')).toBe('COMBINED_BUNDLES_OK')
     expect(toolResult(coded, 'combined-program')).toContain('dsh-badge')
     const minimal = await agent('minimal')
-    expect(names(minimal.agent)).toEqual([process.platform === 'win32' ? 'pwsh' : 'bash'])
-    expect(names()).toEqual([])
+    expect(names(minimal.agent)).toEqual([process.platform === 'win32' ? 'pwsh' : 'bash', 'working_directory'])
+    expect(names()).toEqual(['working_directory'])
     for (const name of [...Object.values(bundles)].reverse()) await select(name, false)
     expect(names((await agent()).agent)).not.toContain('str_replace_editor')
   })
