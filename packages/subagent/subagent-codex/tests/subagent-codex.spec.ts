@@ -359,7 +359,7 @@ function expectedFailureDiagnostic(
 }
 
 describe('task admission and package contracts', () => {
-  it('ships one independently installable provider-only Bundle patch', () => {
+  it('ships the provider with scoped delegation tools for all full Web presets', () => {
     const root = fileURLToPath(new URL('..', import.meta.url))
     const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
       dependencies?: Record<string, string>
@@ -406,14 +406,16 @@ describe('task admission and package contracts', () => {
     }
 
     const parsed = yaml.load(readFileSync(resolve(root, manifest.dsh!.bundle!.patch!), 'utf8'))
-    const rows = Array.isArray(parsed)
-      ? (parsed as Array<{ insert?: Array<{ id?: string; name?: string }> }>).flatMap(entry => entry.insert ?? [])
-      : []
-    expect(rows).toEqual([{
-      id: 'subagent-codex',
-      name: '@deepseek-ai/dsh-subagent-codex',
-    }])
-    expect(JSON.stringify(rows)).not.toContain('tool-subagent')
+    expect(parsed).toEqual([
+      { insert: [{ id: 'subagent-codex', name: '@deepseek-ai/dsh-subagent-codex' }] },
+      ...['standard', 'cordis', 'ptc'].map(preset => ({
+        preset: `preset-${preset}`,
+        insert: [{ id: 'tool-subagent-codex', name: '@deepseek-ai/dsh-tool-subagent', config: {
+          provider: 'codex', toolName: 'subagent_codex', maxDepth: 'provider-managed',
+        } }],
+      })),
+    ])
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-tool-subagent', 'workspace:*')
   })
 
   it('accepts one or more text blocks and rejects empty or non-text tasks', () => {

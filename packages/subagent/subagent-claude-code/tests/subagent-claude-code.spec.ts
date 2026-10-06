@@ -343,7 +343,7 @@ afterEach(() => {
 })
 
 describe('task admission and package contracts', () => {
-  it('ships one independently installable provider-only Bundle patch', () => {
+  it('ships the provider with scoped delegation tools for all full Web presets', () => {
     const root = fileURLToPath(new URL('..', import.meta.url))
     const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
       dependencies?: Record<string, string>
@@ -393,14 +393,16 @@ describe('task admission and package contracts', () => {
     }
 
     const parsed = yaml.load(readFileSync(resolve(root, manifest.dsh!.bundle!.patch!), 'utf8'))
-    const rows = Array.isArray(parsed)
-      ? (parsed as Array<{ insert?: Array<{ id?: string; name?: string }> }>).flatMap(entry => entry.insert ?? [])
-      : []
-    expect(rows).toEqual([{
-      id: 'subagent-claude-code',
-      name: '@deepseek-ai/dsh-subagent-claude-code',
-    }])
-    expect(JSON.stringify(rows)).not.toContain('tool-subagent')
+    expect(parsed).toEqual([
+      { insert: [{ id: 'subagent-claude-code', name: '@deepseek-ai/dsh-subagent-claude-code' }] },
+      ...['standard', 'cordis', 'ptc'].map(preset => ({
+        preset: `preset-${preset}`,
+        insert: [{ id: 'tool-subagent-claude-code', name: '@deepseek-ai/dsh-tool-subagent', config: {
+          provider: 'claude-code', toolName: 'subagent_claude_code', maxDepth: 'provider-managed',
+        } }],
+      })),
+    ])
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-tool-subagent', 'workspace:*')
   })
 
   it('preserves text sequences and rejects empty, blank, and non-text tasks', () => {

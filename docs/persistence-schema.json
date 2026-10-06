@@ -22223,7 +22223,7 @@
       "digest": "119abe2b9c0b2f46ecb31d82b9acba4d4b30e049f655e2475e8b4ae12d5a9e25",
       "names": [],
       "sources": [
-        "packages/hooks/hook-protocol/src/types.ts:19"
+        "packages/experimental/hook-protocol/src/types.ts:19"
       ]
     },
     {
@@ -23110,6 +23110,9 @@
         "packages/experimental/agent-team/src/types.ts#TeamId",
         "packages/experimental/agent-team/src/types.ts#TeamMessageId",
         "packages/experimental/agent-team/src/types.ts#TeamTaskId",
+        "packages/experimental/webhook/src/brand.ts#WebhookDeliveryId",
+        "packages/experimental/webhook/src/brand.ts#WebhookRuleId",
+        "packages/experimental/webhook/src/brand.ts#WebhookSourceId",
         "packages/feedback/message-feedback/src/types.ts#MessageFeedbackVersion",
         "packages/goal/goal/src/types.ts#GoalId",
         "packages/interaction/commands/src/brand.ts#CommandId",
@@ -23122,9 +23125,6 @@
         "packages/schedule/schedule/src/types.ts#ScheduleId",
         "packages/session/session-title/src/index.ts#SessionTitleProviderId",
         "packages/session/session-title/src/types.ts#SessionTitleProviderId",
-        "packages/webhook/webhook/src/brand.ts#WebhookDeliveryId",
-        "packages/webhook/webhook/src/brand.ts#WebhookRuleId",
-        "packages/webhook/webhook/src/brand.ts#WebhookSourceId",
         "packages/workflow/workflow/src/types.ts#WorkflowRunId"
       ],
       "sources": [
@@ -23135,6 +23135,9 @@
         "packages/experimental/agent-team/src/types.ts:20",
         "packages/experimental/agent-team/src/types.ts:32",
         "packages/experimental/agent-team/src/types.ts:8",
+        "packages/experimental/webhook/src/brand.ts:12",
+        "packages/experimental/webhook/src/brand.ts:6",
+        "packages/experimental/webhook/src/brand.ts:9",
         "packages/feedback/message-feedback/src/types.ts:14",
         "packages/goal/goal/src/types.ts:17",
         "packages/interaction/commands/src/brand.ts:31",
@@ -23147,9 +23150,6 @@
         "packages/schedule/schedule/src/types.ts:14",
         "packages/session/session-title/src/index.ts:42",
         "packages/session/session-title/src/types.ts:17",
-        "packages/webhook/webhook/src/brand.ts:12",
-        "packages/webhook/webhook/src/brand.ts:6",
-        "packages/webhook/webhook/src/brand.ts:9",
         "packages/workflow/workflow/src/types.ts:13"
       ]
     },
@@ -24068,7 +24068,7 @@
       "digest": "8ad45ad053b4d89f8865c17cc9ff3b8748e86045f3f0fb816269a34af2619141",
       "names": [],
       "sources": [
-        "packages/hooks/hook-protocol/src/types.ts:31"
+        "packages/experimental/hook-protocol/src/types.ts:31"
       ]
     },
     {
@@ -24333,7 +24333,7 @@
       "digest": "9edc162949abf93bd5ff049191b345454ba104f583937ce5580fb50f067d2b94",
       "names": [],
       "sources": [
-        "packages/webhook/webhook/src/types.ts:74"
+        "packages/experimental/webhook/src/types.ts:74"
       ]
     },
     {
@@ -24428,10 +24428,10 @@
     {
       "digest": "a6b41f5bede8094d7bf635be5d69b1bd7a25e006ca9cf9415bceb9322f1a7feb",
       "names": [
-        "packages/hooks/hook-protocol/src/types.ts#HookDialect"
+        "packages/experimental/hook-protocol/src/types.ts#HookDialect"
       ],
       "sources": [
-        "packages/hooks/hook-protocol/src/types.ts:48"
+        "packages/experimental/hook-protocol/src/types.ts:48"
       ]
     },
     {

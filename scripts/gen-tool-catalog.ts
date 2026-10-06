@@ -402,7 +402,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
   {
     pkg: '@deepseek-ai/dsh-tool-terminal',
     dir: 'tool-terminal',
-    source: 'packages/terminal/tool-terminal/src/index.ts',
+    source: 'packages/experimental/tool-terminal/src/index.ts',
     requires: ['ctx.workingDirectory', 'ctx.tools', 'ctx.terminals', 'ctx.systemPrompt', 'ctx.jobs at call time for run_in_background'],
     writes: ['tool/call', 'tool/result'],
     async mount(ctx) {
@@ -462,7 +462,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
   {
     pkg: '@deepseek-ai/dsh-tool-ralph',
     dir: 'tool-ralph',
-    source: 'packages/workflow/tool-ralph/src/index.ts',
+    source: 'packages/experimental/tool-ralph/src/index.ts',
     requires: ['ctx.tools', 'ctx.workflowEngine', 'ctx.subagents', 'ctx.systemPrompt', 'a calling Agent (exec.agent parents every fresh round)'],
     writes: ['tool/call', 'tool/result', 'workflow and child session events during execution'],
     async mount(ctx) {
@@ -493,7 +493,7 @@ const TOOL_PACKAGES: ToolPackage[] = [
   {
     pkg: '@deepseek-ai/dsh-tool-session-query',
     dir: 'tool-session-query',
-    source: 'packages/session-query/tool-session-query/src/index.ts',
+    source: 'packages/experimental/tool-session-query/src/index.ts',
     requires: ['ctx.tools', 'ctx.systemPrompt', 'ctx.sessionQuery', 'a calling Agent for workspace authority'],
     writes: ['tool/call', 'tool/result'],
     async mount(ctx) {

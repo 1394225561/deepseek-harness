@@ -204,9 +204,16 @@
     "mock:llm": "node --import tsx packages/test-support/llm-mock-server/src/bin.ts",
     "start:web": "node --import tsx/esm apps/cli/src/bin.ts web",
     "dev:web": "tsx scripts/dev-web.ts --poll",
-    "postinstall": "node scripts/install-lefthook.mjs"
+    "postinstall": "node scripts/install-lefthook.mjs",
+    "gen-official-bundle-catalog": "tsx scripts/gen-official-bundle-catalog.ts",
+    "verify-official-bundle-catalog": "tsx scripts/gen-official-bundle-catalog.ts --check",
+    "verify-product-use": "tsx scripts/verify-product-use.ts"
   },
   "devDependencies": {
+    "@deepseek-ai/dsh-hooks-claude-code": "workspace:*",
+    "@deepseek-ai/dsh-hooks-codex": "workspace:*",
+    "@deepseek-ai/dsh-tool-ralph": "workspace:*",
+    "@deepseek-ai/dsh-tool-terminal": "workspace:*",
     "@deepseek-ai/dsh-agent": "workspace:*",
     "@deepseek-ai/dsh-browser-use": "workspace:*",
     "@deepseek-ai/dsh-experimental-browser-use-runtime": "workspace:*",
