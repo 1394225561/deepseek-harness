@@ -38,7 +38,7 @@
     }
   },
   "dependencies": {
-    "@deepseek-ai/dsh-experimental-skill-badge": "workspace:*"
+    "@deepseek-ai/dsh-skill-badge": "workspace:*"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "workspace:~"

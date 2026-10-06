@@ -38,7 +38,7 @@
     }
   },
   "dependencies": {
-    "@deepseek-ai/dsh-experimental-tool-ralph": "workspace:*",
+    "@deepseek-ai/dsh-tool-ralph": "workspace:*",
     "@deepseek-ai/dsh-workflow-ptc": "workspace:*"
   },
   "peerDependencies": {

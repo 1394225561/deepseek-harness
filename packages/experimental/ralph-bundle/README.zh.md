@@ -37,7 +37,7 @@ kind: "package-bundle"
 <details>
 <summary>实现细节 — 点击展开</summary>
 
-[`cordis.patch.yml`](cordis.patch.yml) 通过 `preset: preset-standard`、`preset: preset-cordis` 和 `preset: preset-ptc` 贡献插件行。后续配置补丁可以覆盖这些设置。[配置组合器](../../boot/app-boot/README.zh.md) 负责补丁顺序和错误处理。
+[`cordis.patch.yml`](cordis.patch.yml) 通过 `preset: preset-standard`、`preset: preset-cordis` 和 `preset: preset-ptc`，在隔离的 `optional-ralph` 组中贡献 `tool-ralph`。后续作用域补丁可以替换该工具的配置或禁用它；单独的覆盖不会选中组合包。[配置组合器](../../boot/app-boot/README.zh.md) 负责补丁顺序和错误处理。
 
 </details>
 

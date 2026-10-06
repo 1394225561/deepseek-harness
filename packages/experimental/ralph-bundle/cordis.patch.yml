@@ -10,8 +10,8 @@
           name: '@deepseek-ai/dsh-workflow-ptc'
           config:
             provider: spawn
-        - id: optional-tool-ralph
-          name: '@deepseek-ai/dsh-experimental-tool-ralph'
+        - id: tool-ralph
+          name: '@deepseek-ai/dsh-tool-ralph'
           config:
             subagentProvider: spawn
             maxRounds: 64
@@ -28,8 +28,8 @@
           name: '@deepseek-ai/dsh-workflow-ptc'
           config:
             provider: spawn
-        - id: optional-tool-ralph
-          name: '@deepseek-ai/dsh-experimental-tool-ralph'
+        - id: tool-ralph
+          name: '@deepseek-ai/dsh-tool-ralph'
           config:
             subagentProvider: spawn
             maxRounds: 64
@@ -46,8 +46,8 @@
           name: '@deepseek-ai/dsh-workflow-ptc'
           config:
             provider: spawn
-        - id: optional-tool-ralph
-          name: '@deepseek-ai/dsh-experimental-tool-ralph'
+        - id: tool-ralph
+          name: '@deepseek-ai/dsh-tool-ralph'
           config:
             subagentProvider: spawn
             maxRounds: 64

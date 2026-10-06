@@ -37,7 +37,7 @@ The switch adds or removes a Host-wide skill provider for existing and new Agent
 <details>
 <summary>Implementation details — click to expand</summary>
 
-[`cordis.patch.yml`](cordis.patch.yml) contributes the provider on the host. Later profile patches can override its settings. The [profile composer](../../boot/app-boot/README.md) owns patch ordering and errors.
+[`cordis.patch.yml`](cordis.patch.yml) contributes the `skill-badge` provider row on the Host. Later root patches can disable that row; an override alone does not select the bundle. The [profile composer](../../boot/app-boot/README.md) owns patch ordering and errors.
 
 </details>
 

@@ -37,7 +37,7 @@ New Agents and subsequently reopened Sessions use the selected composition; live
 <details>
 <summary>Implementation details — click to expand</summary>
 
-[`cordis.patch.yml`](cordis.patch.yml) contributes rows through `preset: preset-standard`, `preset: preset-cordis`, and `preset: preset-ptc`. Later profile patches can override their settings. The [profile composer](../../boot/app-boot/README.md) owns patch ordering and errors.
+[`cordis.patch.yml`](cordis.patch.yml) contributes `tool-ralph` through `preset: preset-standard`, `preset: preset-cordis`, and `preset: preset-ptc`, inside the isolated `optional-ralph` group. Later scoped patches can replace the tool's configuration or disable it; an override alone does not select the bundle. The [profile composer](../../boot/app-boot/README.md) owns patch ordering and errors.
 
 </details>
 

@@ -1,14 +1,16 @@
 /** The delivered Web composition's Schedule rows, the optional bundles it ships switched off, and their display metadata. */
 
-import { globSync, readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { globSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished } from 'vitest'
 import type { EntryOptions } from '@deepseek-ai/cordis-plugin-loader'
 import { loadOverlayPatches } from '../packages/boot/app-boot/src/index.ts'
 import { readPluginMeta } from '../packages/boot/app-boot/src/package-meta.ts'
-import { OPTIONAL_BUNDLES, PROFILE_TEMPLATES, bundlePatchPaths, composeEntries } from '../packages/boot/app-boot/src/profile.ts'
+import { OPTIONAL_BUNDLES, PROFILE_TEMPLATES, bundlePatchPaths, composeEntries, initProfile, readProfileManifest } from '../packages/boot/app-boot/src/profile.ts'
 import type { DshBundleManifest } from '../packages/util/package-manifest/src/types.ts'
+import { createPluginProfile } from '../apps/desktop/src/project-manager.ts'
 
 const root = resolve(import.meta.dirname, '..')
 
@@ -47,6 +49,71 @@ function presetRows(entries: EntryOptions[], id: string): EntryOptions[] {
 function flattenRows(entries: EntryOptions[]): EntryOptions[] {
   return entries.flatMap(entry => [entry, ...entry.group && Array.isArray(entry.config) ? flattenRows(entry.config as EntryOptions[]) : []])
 }
+
+function profileLayers(surface: 'web' | 'desktop'): ReturnType<typeof loadOverlayPatches>[] {
+  const directory = mkdtempSync(join(tmpdir(), 'dsh-bundle-compatibility-'))
+  onTestFinished(() => { rmSync(directory, { recursive: true, force: true }) })
+  if (surface === 'desktop') createPluginProfile(directory)
+  else initProfile(directory, PROFILE_TEMPLATES.web!.bundles)
+  const names = readProfileManifest('test', directory).dsh?.profile?.bundles
+  if (names === undefined) throw new Error(`${surface} profile has no bundle list`)
+  return names.map(name => bundle(name).patches)
+}
+
+describe.each(['web', 'desktop'] as const)('%s optional bundle overrides', (surface) => {
+  const selectedNames = ['@deepseek-ai/dsh-experimental-badge-skill-bundle', '@deepseek-ai/dsh-experimental-ralph-bundle']
+
+  it('keeps established selectors for later configuration and disabled overrides', () => {
+    const shipped = profileLayers(surface)
+    const config = { subagentProvider: 'spawn', maxRounds: 3 }
+    const warnings: string[] = []
+    const entries = composeEntries([...shipped, ...selectedNames.map(name => bundle(name).patches), [
+      { id: 'skill-badge', disabled: true },
+      ...['preset-standard', 'preset-cordis', 'preset-ptc'].map(preset => ({ preset, id: 'tool-ralph', config, disabled: true })),
+    ]], warning => warnings.push(warning))
+    expect(warnings).toEqual([])
+    expect(entries.find(row => row.id === 'skill-badge')).toMatchObject({ name: '@deepseek-ai/dsh-skill-badge', disabled: true })
+    for (const preset of ['preset-standard', 'preset-cordis', 'preset-ptc']) {
+      const roots = presetRows(entries, preset)
+      expect(flattenRows(roots).find(row => row.id === 'tool-ralph'))
+        .toMatchObject({ name: '@deepseek-ai/dsh-tool-ralph', config, disabled: true })
+      expect(roots.find(row => row.id === 'optional-ralph')?.isolate).toEqual({ workflowEngine: true })
+    }
+  })
+
+  it('keeps a later complete preset replacement and its manually declared disabled tool', () => {
+    const shipped = profileLayers(surface)
+    const baseline = composeEntries(shipped)
+    const preset = baseline.find(row => row.id === 'preset-standard')!
+    const config = { ...preset.config as object, plugins: [...presetRows(baseline, 'preset-standard'), {
+      id: 'tool-ralph', name: '@deepseek-ai/dsh-tool-ralph', disabled: true,
+      config: { subagentProvider: 'spawn', maxRounds: 2 },
+    }] }
+    const warnings: string[] = []
+    const entries = composeEntries([...shipped, ...selectedNames.map(name => bundle(name).patches), [
+      { id: 'preset-standard', config },
+    ]], warning => warnings.push(warning))
+    expect(warnings).toEqual([])
+    expect(entries.find(row => row.id === 'preset-standard')?.config).toEqual(config)
+    expect(presetRows(entries, 'preset-standard').some(row => row.id === 'optional-ralph')).toBe(false)
+    const inherited = flattenRows(presetRows(entries, 'preset-cordis')).find(row => row.id === 'tool-ralph')
+    expect(inherited).toMatchObject({ name: '@deepseek-ai/dsh-tool-ralph' })
+    expect(inherited?.disabled).not.toBe(true)
+  })
+
+  it('does not select absent bundles through enable-only row overrides', () => {
+    const warnings: string[] = []
+    const entries = composeEntries([...profileLayers(surface), [
+      { id: 'skill-badge', disabled: false },
+      { preset: 'preset-standard', id: 'tool-ralph', disabled: false },
+    ]], warning => warnings.push(warning))
+    expect(warnings).toHaveLength(2)
+    expect(warnings.some(warning => warning.includes('skill-badge'))).toBe(true)
+    expect(warnings.some(warning => warning.includes('tool-ralph'))).toBe(true)
+    expect(entries.some(row => row.id === 'skill-badge')).toBe(false)
+    expect(flattenRows(presetRows(entries, 'preset-standard')).some(row => row.id === 'tool-ralph')).toBe(false)
+  })
+})
 
 describe('optional bundles', () => {
   const shipped = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'].map(name => bundle(name).patches)
@@ -117,7 +184,7 @@ describe('optional bundles', () => {
       expect(warnings).toEqual([])
       expect(presetRows(composed, 'preset-minimal')).toEqual(presetRows(baseline, 'preset-minimal'))
       const addedHost = composed.filter(row => !baseline.some(existing => existing.id === row.id))
-      expect(addedHost.every(row => ['optional-skill-badge', 'optional-session-title-all-prompts'].includes(row.id ?? ''))).toBe(true)
+      expect(addedHost.every(row => ['skill-badge', 'optional-session-title-all-prompts'].includes(row.id ?? ''))).toBe(true)
       for (const id of ['preset-standard', 'preset-cordis', 'preset-ptc']) {
         const rows = flattenRows(presetRows(composed, id))
         const ids = rows.map(row => row.id)
@@ -133,7 +200,7 @@ describe('optional bundles', () => {
       const names = flattenRows(roots).map(row => row.name)
       for (const name of [
         '@deepseek-ai/dsh-tool-session-query', '@deepseek-ai/dsh-tool-str-replace-editor', '@deepseek-ai/dsh-tmux-context',
-        '@deepseek-ai/dsh-experimental-tool-ralph', '@deepseek-ai/dsh-experimental-tool-terminal',
+        '@deepseek-ai/dsh-tool-ralph', '@deepseek-ai/dsh-experimental-tool-terminal',
       ]) expect(names).toContain(name)
       expect(roots.find(row => row.id === 'optional-ralph')?.isolate).toEqual({ workflowEngine: true })
       expect(roots.find(row => row.id === 'optional-persistent-terminals')?.isolate).toEqual({ terminals: true })
