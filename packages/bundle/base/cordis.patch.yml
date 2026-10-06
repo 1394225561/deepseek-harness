@@ -65,9 +65,10 @@
         targetWords: 5
         targetCjkCharacters: 10
         maxInputBytes: 4096
-        # Leaves room for reasoning a model cannot switch off, which counts
-        # as output even at the lowest level its adapter dispatches.
-        maxOutputTokens: 256
+        # A ceiling against runaway output, not a length target: the prompt
+        # keeps titles short, while reasoning a model cannot switch off also
+        # counts as output. Stays within common model output limits.
+        maxOutputTokens: 4096
         timeoutMs: 60000
 
     - id: user-questions
