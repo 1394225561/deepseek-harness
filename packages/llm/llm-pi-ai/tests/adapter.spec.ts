@@ -788,7 +788,7 @@ describe('provider profile lifecycle', () => {
     expect(server.requests[0]).not.toHaveProperty('reasoning_effort')
   })
 
-  it('dispatches session-title requests at the lowest level each model supports', async () => {
+  it('dispatches a minimized-reasoning request at the lowest level each model supports', async () => {
     vi.stubEnv('PI_TEST_KEY', 'test-key')
     const server = await mockServer([
       { events: anthropicTextEvents },
@@ -813,18 +813,18 @@ describe('provider profile lifecycle', () => {
         },
       },
     })
-    const request = (model: string, purpose?: 'session-title'): Promise<unknown> => assemble(ctx, {
+    const request = (model: string, minimizeReasoning?: true): Promise<unknown> => assemble(ctx, {
       provider: 'adaptive-gateway',
       model,
       reasoningEffort: ReasoningEffortId('max'),
       maxTokens: 64,
       messages: [],
-      ...purpose === undefined ? {} : { purpose },
+      ...minimizeReasoning === undefined ? {} : { minimizeReasoning },
     })
 
     await request('always-thinks')
-    await request('always-thinks', 'session-title')
-    await request('may-think', 'session-title')
+    await request('always-thinks', true)
+    await request('may-think', true)
 
     expect(server.requests[0]).toMatchObject({ thinking: { type: 'adaptive' }, output_config: { effort: 'max' } })
     expect(server.requests[1]).toMatchObject({

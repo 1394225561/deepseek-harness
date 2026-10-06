@@ -169,26 +169,26 @@ function resolveReasoningLevel(
 }
 
 /**
- * The level one request dispatches with. A `session-title` request takes the
- * model's lowest supported level, which is `off` whenever the model can stop
- * reasoning, because reasoning a model cannot switch off still counts toward
- * the dispatch cap. That request deliberately skips the requested-effort
- * check, so a name the model does not support fails the main call rather than
- * the auxiliary one. Every other request validates the requested or profile
- * effort.
+ * The level one request dispatches with. A request asking to minimize reasoning
+ * takes the model's lowest supported level, which is `off` whenever the model
+ * can stop reasoning, because reasoning a model cannot switch off still counts
+ * toward the output budget the caller reserved. That request deliberately
+ * skips the requested-effort check, so a name the model does not support fails
+ * an ordinary call rather than this one. Every other request validates the
+ * requested or profile effort.
  * @param model - the resolved model descriptor.
- * @param options - the request's purpose and requested effort.
+ * @param options - the request's reasoning preference and requested effort.
  * @param profile - the route profile carrying the default effort.
  * @returns the level to dispatch, or undefined to send none, which a
- *   `session-title` request gets only for a model whose metadata leaves it no
- *   supported level.
+ *   minimized-reasoning request gets only for a model whose metadata leaves it
+ *   no supported level.
  */
 function requestReasoningLevel(
   model: Model<Api>,
   options: GenerateOptions,
   profile: ResolvedPiAiProviderProfile,
 ): ModelThinkingLevel | undefined {
-  if (options.purpose === 'session-title') return getSupportedThinkingLevels(model)[0]
+  if (options.minimizeReasoning === true) return getSupportedThinkingLevels(model)[0]
   return resolveReasoningLevel(model, options.reasoningEffort ?? profile.reasoning)
 }
 

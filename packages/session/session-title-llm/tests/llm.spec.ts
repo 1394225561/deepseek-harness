@@ -166,6 +166,7 @@ describe('generateSessionTitleWithLlm', () => {
       maxTokens: 32,
       sessionId: providerRequest.session.id,
       purpose: 'session-title',
+      minimizeReasoning: true,
     })
     expect(options.system).toContain('5 words')
     expect(options.system).toContain('10 CJK characters')

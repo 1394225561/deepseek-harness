@@ -285,8 +285,8 @@ describe('Messages request conversion', () => {
     expect(request.output_config).toEqual(effort === 'off' ? undefined : { effort })
   })
 
-  it('disables thinking for titles, passes temperature with thinking and refuses unsupported effort', () => {
-    expect(body([user()], { purpose: 'session-title', temperature: 0 })).toMatchObject({ thinking: { type: 'disabled' }, temperature: 0 })
+  it('disables thinking for a minimized-reasoning request, passes temperature with thinking and refuses unsupported effort', () => {
+    expect(body([user()], { minimizeReasoning: true, temperature: 0 })).toMatchObject({ thinking: { type: 'disabled' }, temperature: 0 })
     expect(body([user()], { temperature: 0 })).toMatchObject({ thinking: { type: 'enabled' }, temperature: 0 })
     expect(() => body([user()], { reasoningEffort: ReasoningEffortId('medium') })).toThrow(/effort/)
     const disabled = resolveAdapterOptions({ thinking: 'disabled' })

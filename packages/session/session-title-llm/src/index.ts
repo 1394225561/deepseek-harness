@@ -304,6 +304,7 @@ export async function generateSessionTitleWithLlm(
     maxTokens,
     sessionId: request.session.id,
     purpose: 'session-title',
+    minimizeReasoning: true,
     signal: callDeadline.signal,
   })
   request.session.append('session/title-llm-request', {

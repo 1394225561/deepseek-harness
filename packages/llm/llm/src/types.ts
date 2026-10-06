@@ -546,10 +546,17 @@ export interface GenerateOptions {
   sessionId?: Branded<'SessionId'>
   /**
    * Provider-neutral classification for an auxiliary model call. Adapters may
-   * map the purpose to model-hidden transport metadata or purpose-specific
-   * generation policy. A `session-title` call caps output for one short visible
-   * title, so adapters dispatch it with the least reasoning the model supports.
-   * Ordinary conversation requests leave it unset.
+   * map the purpose to model-hidden transport metadata. Ordinary conversation
+   * requests leave it unset.
    */
   purpose?: 'compaction' | 'session-title'
+  /**
+   * Dispatch with the least reasoning the routed model supports: `off` when
+   * the model offers it, otherwise its lowest declared level. An auxiliary
+   * caller sets this when reasoning would consume the output budget it
+   * reserved for a short visible result. The request's own effort and the
+   * profile default do not apply, and an effort the model does not support is
+   * not validated for such a request.
+   */
+  minimizeReasoning?: boolean
 }
