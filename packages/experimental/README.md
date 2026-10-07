@@ -37,9 +37,9 @@ Promotion requires a named product role, documented public behavior and limitati
 | Package | Role | ctx key |
 |---|---|---|
 | [`tool-session-query`](tool-session-query/README.md) | Workspace-authorized model session search, trace, and event reads | — |
-| [`session-search`](session-search/README.md) | Optional experimental session search in full Web presets | — |
+| [`session-search`](session-search/README.md) | Optional experimental global session search tools | — |
 | [`ralph-bundle`](ralph-bundle/README.md) | Optional repeated delegation with an isolated workflow engine | — |
-| [`terminal-bundle`](terminal-bundle/README.md) | Optional persistent terminal tools for full Web presets | — |
+| [`terminal-bundle`](terminal-bundle/README.md) | Optional global persistent terminal tools | — |
 | [`badge-skill-bundle`](badge-skill-bundle/README.md) | Optional powered-by-dsh badge skill | — |
 | [`session-titles-bundle`](session-titles-bundle/README.md) | Optional titles following human prompts in a conversation | — |
 | [`hook-protocol`](hook-protocol/README.md) | Hook bridge wire types and durable events | — |

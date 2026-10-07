@@ -12,7 +12,7 @@ Status: implemented
 
 `ON_DEMAND_BUNDLES` 将 Claude Code 和 Codex bundle 纳入安装方维护的目录。目录内嵌包自身拥有的本地化元信息和图标，因此发现过程离线可用，无需解析或导入这两个包。Official 表示项目维护；可选交付与实验成熟度仍是独立属性。
 
-选择操作复用普通第三方 bundle 的安装器、profile 依赖、作用域 patch、兼容性判断、进度、取消、注册表回退和构建脚本审批。原生认证与配置仍由提供方拥有。
+选择操作复用普通第三方 bundle 的安装器、profile 依赖、Host 行 patch、兼容性判断、进度、取消、注册表回退和构建脚本审批。原生认证与配置仍由提供方拥有。
 
 当前运行的安装决定目标。已发布应用提供精确的 DSH 发布版本，并保存精确的注册表依赖版本。源码 Web 和开发 Desktop 提供指向当前 CLI 所在 checkout 的普通 `link:` 依赖，使用其中已准备好的工作区依赖和 peer。源码目标跟随实际安装位置，不由当前工作目录或预发布版本后缀决定；不完整的 checkout 不回退到注册表。开发 checkout 可以与内容不同的已发布代码共用版本字符串，因此替换已安装的注册表副本或其他 checkout 的链接时，同时比较来源和版本。替换需显式触发，保留选择状态，并报告是否需要重启；启动时不下载提供方。[插件管理器](../../../../packages/boot/plugin-manager/README.zh.md#use-this-package)拥有操作细节。
 

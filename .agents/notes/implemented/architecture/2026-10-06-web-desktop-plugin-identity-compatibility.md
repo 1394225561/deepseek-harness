@@ -12,9 +12,9 @@ Moving a capability into the experimental directory changes its ownership and su
 
 The moved packages retain the published names declared by the [experimental naming policy](../../../../scripts/experimental-package-policy.ts). That typed directory-to-name map is the sole maintained inventory of naming exceptions. Package manifests, consumers, installation checks, and bundler checks agree with it; a missing, moved, or duplicated exception is rejected. [Experimental status](../../../../packages/experimental/README.md#status) remains independent of spelling, Official discovery, and explicit selection.
 
-Existing badge, Ralph, and native delegation row IDs remain valid selectors inside their applicable Host or preset scope. New isolation groups and newly introduced capabilities retain their new IDs. Later user layers still replace configuration or disable rows, and a complete preset replacement remains authoritative. Selecting an optional bundle is still explicit: a patch targeting an absent row does not select its bundle.
+Existing badge, Ralph, and native delegation row IDs remain valid Host row selectors. New isolation groups and newly introduced capabilities retain their new IDs. Later user layers still replace configuration or disable rows. Selecting an optional bundle is still explicit: a patch targeting an absent row does not select its bundle.
 
-Compatibility protection covers Web and Desktop profiles, including existing native provider package identities, selections, configuration, and authentication. Headless, SDK, and ACP compositions may require changes. Native bundles use the ordinary shared patch operation and require the full preset targets; separate provider-only compatibility wrappers are unnecessary for the protected profiles. Public APIs remain pre-stable, and new output metadata stays required unless an actual consumer needs an accommodation.
+Compatibility protection covers Web and Desktop profiles, including existing native provider package identities, selections, configuration, and authentication. Native bundles insert ordinary Host rows, so Headless, SDK, and ACP compositions can select them too; separate provider-only compatibility wrappers are unnecessary. Public APIs remain pre-stable, and new output metadata stays required unless an actual consumer needs an accommodation.
 
 ## Deferred naming cleanup
 
