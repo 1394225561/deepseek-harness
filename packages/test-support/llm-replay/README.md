@@ -29,6 +29,8 @@ This package gives a keyless test a real agent with a fixed model transcript: mo
 
 ### Mounting it
 
+Prepared callers require the routed adapter mode. Configure `models[].floorReasoningEffort` together with `reasoningEfforts` to replay minimum-effort selection; display order alone does not establish the minimum.
+
 With `providers` configured, the plugin registers a replay-only adapter whose catalog is available to scenarios that exercise model discovery; without `providers`, it installs the catch-all `llm/stream` waterfall used by tests that do not need discovery:
 
 ```yaml

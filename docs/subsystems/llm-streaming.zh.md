@@ -560,9 +560,9 @@ interface LlmModelReasoningInfo {
   /** Supported efforts in adapter-preferred display order. */
   efforts: readonly LlmReasoningEffortInfo[]
   /**
-   * The least effort this route accepts. A caller selects it when the request
-   * must not spend its output on reasoning. Absence means the adapter reports
-   * no selectable effort.
+   * The least selectable effort this route accepts. Minimum-effort call
+   * preparation requires this field when reasoning controls are available.
+   * It does not guarantee that the provider disables reasoning.
    */
   floorEffort?: ReasoningEffortId
   /**
@@ -770,6 +770,24 @@ interface LlmCallConfig {
   temperature?: number
   maxTokens?: number
   stop?: string[]
+}
+```
+
+```ts type-equiv
+/** Exact effort or a request to select the route's least controllable reasoning. */
+type ReasoningSelection = ReasoningEffortId | { readonly select: 'minimum' }
+```
+
+```ts type-equiv
+/**
+ * Preparation input. Concrete call configs are accepted unchanged. A minimum
+ * selection uses the adapter's declared floor; selectable efforts without a
+ * declared floor reject. A route with no selectable reasoning leaves the
+ * effort unset. Minimum selection does not guarantee zero reasoning tokens.
+ */
+interface LlmCallRequest extends Omit<LlmCallConfig, 'reasoningEffort'> {
+  /** Omission uses the adapter default; an id requires that exact effort. */
+  reasoningEffort?: ReasoningSelection
 }
 ```
 
@@ -1066,11 +1084,14 @@ async resolveCallConfig(config: LlmCallConfig, signal?: AbortSignal): Promise<Ll
  * Resolve one call under its current adapter registration. The returned
  * one-shot handle keeps that registration across header logging and dispatch,
  * so HMR cannot combine one adapter's capability result with another adapter.
- * @param config - provider/model route and optional request controls.
+ * Minimum reasoning selects the adapter-declared floor, or leaves the effort
+ * unset when the route has no selectable reasoning. An undeclared floor for
+ * selectable efforts rejects with `UNSUPPORTED_REASONING_SELECTION`.
+ * @param request - provider/model route and concrete or intent-based controls.
  * @param signal - optional cancellation for adapter-owned capability lookup.
  * @returns a prepared config and its registration-bound stream entry point.
  */
-async prepareCall(config: LlmCallConfig, signal?: AbortSignal): Promise<PreparedLlmCall>
+async prepareCall(request: LlmCallRequest, signal?: AbortSignal): Promise<PreparedLlmCall>
 
 /**
  * Stream one model call as raw chunks (token-level deltas). Replay state is

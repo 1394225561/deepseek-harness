@@ -269,6 +269,8 @@ describe('headless stream-json snapshots', () => {
         if (actual === undefined) throw new Error('the headless profile did not persist its session')
         const context = contextFromLogs([actual.content])
         const session = normalizeSessionSnapshot(actual.content, context)
+        const titleRequest = parseJsonl(session).find(event => event.type === 'session/title-llm-request')
+        expect(titleRequest?.data).toMatchObject({ reasoningEffort: 'off', maxTokens: TITLE_MAX_TOKENS })
         if (refreshing) await writeFile(headlessSessionExpected, session)
         await expectSessionSnapshot(session, context, headlessSessionExpected)
         expect(session).toContain(task)
@@ -716,9 +718,7 @@ describe('headless stream-json snapshots', () => {
       const agentRequest = server.requests.find(request => !isTitleRequest(request))
       const titleRequest = server.requests.find(isTitleRequest)
       expect(agentRequest).not.toHaveProperty('max_completion_tokens')
-      // The route override caps this session's requests at 1024, so the title
-      // request dispatches below the base bundle's 4096 ceiling.
-      expect(titleRequest?.max_tokens).toBe(1_024)
+      expect(titleRequest?.max_tokens).toBe(TITLE_MAX_TOKENS)
       const header = (parseJsonl(result.stdout)
         .map(record => record.event)
         .find((event): event is JsonObject => (

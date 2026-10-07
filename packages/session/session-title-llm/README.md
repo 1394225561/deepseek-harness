@@ -33,7 +33,7 @@ A provider plugin calls `registerSessionTitleLlmProvider(ctx, config, id, automa
 
 ### Route and failure contract
 
-`provider` and `model` overrides are optional but must be supplied together as non-empty strings. Without that pair, the helper uses the exact provider/model route captured from the current session's logged `request/header`, so an explicit refresh before any route exists needs overrides. The helper measures the final JSON-framed user prompt against `maxInputBytes` before logging or dispatch instead of truncating it, and rechecks timeout and caller cancellation while consuming the stream and after it completes, so a late successful result cannot be accepted even if an interceptor or adapter ignores abort. Malformed or empty output, tool calls, and non-stop finish reasons reject; the session-title service decides whether that rejection is an automatic warning or an explicit caller failure. The accepted title is the first non-empty line of the model's text output, with one emphasis pair removed when it wraps that whole line, so commentary a model writes after the title cannot become the title. The dispatched output cap is the smaller of `maxOutputTokens` and the cap the session's latest folded `request/header` recorded; a session whose header records no cap leaves `maxOutputTokens` in force.
+`provider` and `model` overrides are optional but must be supplied together as non-empty strings. Without that pair, the helper uses the exact provider/model route captured from the current session's logged `request/header`, so an explicit refresh before any route exists needs overrides. The helper measures the final JSON-framed user prompt against `maxInputBytes` before logging or dispatch instead of truncating it, and rechecks timeout and caller cancellation while consuming the stream and after it completes, so a late successful result cannot be accepted even if an interceptor or adapter ignores abort. Malformed or empty output, tool calls, and non-stop finish reasons reject; the session-title service decides whether that rejection is an automatic warning or an explicit caller failure. The accepted title is the first non-empty line of the model's text output, with one emphasis pair removed when it wraps that whole line, so commentary a model writes after the title cannot become the title. The title request uses `maxOutputTokens` independently of the conversation's cap. Its route must have a registered adapter so preparation can resolve the request before it is recorded.
 
 ### Configuration
 
@@ -46,7 +46,7 @@ Every field is required except the paired route override; there are no library d
 | `targetWords` | required | Target word count for non-CJK titles |
 | `targetCjkCharacters` | required | Target character count for Chinese, Japanese, or Korean titles |
 | `maxInputBytes` | required | UTF-8 byte ceiling for the final JSON-framed user prompt |
-| `maxOutputTokens` | required | Output-token ceiling; dispatch uses the smaller of this and the cap the session header recorded |
+| `maxOutputTokens` | required | Title output-token cap, independent of conversation requests |
 | `timeoutMs` | required | End-to-end deadline within the runtime timer limit |
 | `provider`, `model` | optional | Explicit route; both or neither |
 
@@ -72,7 +72,7 @@ One shared policy so provider plugins cannot drift: config validation, route res
 
 ### Request flow
 
-A generation validates the config once at registration; each revision frames the selected messages as JSON, measures the framed prompt's UTF-8 bytes against `maxInputBytes`, resolves the route (the explicit pair or the logged `request/header`), reads the routed model's floor effort, appends a log-only `session/title-llm-request` event carrying the exact dispatchable request, then streams through `ctx.llm` under a composed timeout and cancellation deadline. The dispatched envelope carries `purpose: 'session-title'` for replay labeling and that floor effort when the route reports one, and deliberately lacks the agent loop's process-local request identity; a title request therefore does not spend its output ceiling on reasoning: the DeepSeek adapter disables thinking, and the pi-ai adapter dispatches the lowest level its model declares. Output assembles into text blocks only; tool calls, malformed or empty output, and non-stop finish reasons reject, and a later model failure leaves the request record intact.
+Each revision frames the selected messages as JSON and checks `maxInputBytes`. `ctx.llm.prepareCall()` resolves minimum reasoning under the selected route's captured adapter generation. The helper records the exact input, output cap, and resolved effort in `session/title-llm-request`, then dispatches through that prepared call under the shared deadline. `purpose: 'session-title'` supplies attribution only. The request has no agent-loop identity and does not enter conversation history. Generation failures preserve the request record.
 
 </details>
 
@@ -117,7 +117,7 @@ These limits define the accepted generation shapes. They are current package con
 
 - **Text output only** — the helper accepts text output and rejects tool calls; structured-output adapters and provider-specific prompt variants are not exposed.
 - **Whole-prompt byte ceiling** — it enforces a byte ceiling for the whole framed user prompt rather than clipping individual messages or applying a retention policy.
-- **Output ceiling follows the session header** — the dispatched cap is the smaller of `maxOutputTokens` and the cap the latest folded `request/header` recorded, which is the newest routed request rather than necessarily the request whose prompt is being titled. A deployment that caps main requests tightly also caps its titles, and a model that cannot stop reasoning then has that much less room for visible text; a title routed through an explicit `provider`/`model` override is bounded by the main route's cap instead of the override model's own.
+- **Minimum reasoning is capability-dependent** — routes with selectable efforts must declare their minimum. Routes without selectable reasoning leave effort unspecified; minimum selection does not guarantee zero reasoning tokens or a complete title within the output cap.
 
 <a id="dev-note"></a>
 ### Dev Note

@@ -29,6 +29,20 @@ export interface LlmCallConfig {
   stop?: string[]
 }
 
+/** Exact effort or a request to select the route's least controllable reasoning. */
+export type ReasoningSelection = ReasoningEffortId | { readonly select: 'minimum' }
+
+/**
+ * Preparation input. Concrete call configs are accepted unchanged. A minimum
+ * selection uses the adapter's declared floor; selectable efforts without a
+ * declared floor reject. A route with no selectable reasoning leaves the
+ * effort unset. Minimum selection does not guarantee zero reasoning tokens.
+ */
+export interface LlmCallRequest extends Omit<LlmCallConfig, 'reasoningEffort'> {
+  /** Omission uses the adapter default; an id requires that exact effort. */
+  reasoningEffort?: ReasoningSelection
+}
+
 /**
  * Effective config fields supplied by exact-model adapter resolution rather
  * than by the caller's request proposal.

@@ -201,10 +201,11 @@ describe('generateSessionTitleWithLlm', () => {
         system: options.system,
         messages: options.messages,
         maxTokens: 32,
+        reasoningEffort: ReasoningEffortId('off'),
       })
   })
 
-  it('bounds the dispatched output cap by a smaller cap the session request recorded', async () => {
+  it('keeps the title output cap independent of a smaller conversation cap', async () => {
     const { ctx, adapter } = await withScript(SCRIPT)
     const providerRequest = request(ctx, undefined, 8)
 
@@ -216,9 +217,9 @@ describe('generateSessionTitleWithLlm', () => {
       TITLE_PROVIDER,
     )).resolves.toMatchObject({ title: '五个字标题' })
 
-    expect(adapter.requests[0]?.maxTokens).toBe(8)
+    expect(adapter.requests[0]?.maxTokens).toBe(32)
     expect(providerRequest.session.snapshotEvents()
-      .findLast(event => event.type === 'session/title-llm-request')?.data.maxTokens).toBe(8)
+      .findLast(event => event.type === 'session/title-llm-request')?.data.maxTokens).toBe(32)
   })
 
   it('keeps the configured output cap when the session request recorded a larger one', async () => {
@@ -236,13 +237,11 @@ describe('generateSessionTitleWithLlm', () => {
     expect(adapter.requests[0]?.maxTokens).toBe(32)
   })
 
-  it('sends no effort when the route has no registered adapter', async () => {
+  it('rejects an unregistered route before recording or dispatching a title request', async () => {
     const ctx = new Context()
     await ctx.plugin(SessionStore)
     await ctx.plugin(LlmRuntime)
     const requests: GenerateOptions[] = []
-    // A composition can serve a route without a registered adapter, as the
-    // recorded replay lanes do; the lookup then reports no floor.
     ctx.on('llm/stream', (options: GenerateOptions) => {
       requests.push(options)
       return (async function* (): AsyncIterable<StreamChunk> { yield * SCRIPT })()
@@ -255,9 +254,10 @@ describe('generateSessionTitleWithLlm', () => {
       providerRequest,
       providerRequest.messages,
       TITLE_PROVIDER,
-    )).resolves.toMatchObject({ title: '五个字标题' })
+    )).rejects.toMatchObject({ code: 'NO_ADAPTER' })
 
-    expect(requests[0]).not.toHaveProperty('reasoningEffort')
+    expect(requests).toEqual([])
+    expect(providerRequest.session.snapshotEvents().some(event => event.type === 'session/title-llm-request')).toBe(false)
   })
 
   it('sends no effort when the route reports no selectable level', async () => {

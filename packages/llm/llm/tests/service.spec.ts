@@ -18,6 +18,7 @@ import LlmRuntime, {
   createUserMessage,
 } from '@deepseek-ai/dsh-llm'
 import type {
+  LlmCallConfig,
   LlmModelContext,
   LlmModelInfo,
   LlmModelReasoningInfo,
@@ -831,7 +832,7 @@ describe('LlmRuntime', () => {
     })
     const preparedDefault = await ctx.llm.prepareCall({ provider: 'route', model: 'model' })
     expect(preparedDefault.adapterDefaults).toEqual({ maxTokens: true })
-    const explicit = { provider: 'route', model: 'model', maxTokens: 8_192 }
+    const explicit: LlmCallConfig = { provider: 'route', model: 'model', maxTokens: 8_192 }
     await expect(ctx.llm.resolveCallConfig(explicit)).resolves.toBe(explicit)
     const preparedExplicit = await ctx.llm.prepareCall(explicit)
     expect(preparedExplicit.adapterDefaults).toEqual({})
@@ -1031,6 +1032,65 @@ describe('LlmRuntime', () => {
     })
   })
 
+  it.each([
+    [undefined, 'high', { reasoningEffort: true }],
+    [ReasoningEffortId('minimum'), 'minimum', {}],
+    [{ select: 'minimum' } as const, 'low', {}],
+  ])('prepares reasoning selection %s as a concrete effort', async (selection, expected, defaults) => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    const adapter = new class extends RecordingAdapter {
+      override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+        return Promise.resolve({
+          provider, id: model, name: model,
+          reasoning: {
+            efforts: ['high', 'minimum', 'low'].map(id => ({ id: ReasoningEffortId(id), name: id })),
+            floorEffort: ReasoningEffortId('low'),
+            defaultEffort: ReasoningEffortId('high'),
+          },
+        })
+      }
+    }(SCRIPT)
+    ctx.llm.registerAdapter(['route'], adapter)
+    const prepared = await ctx.llm.prepareCall({
+      provider: 'route', model: 'model',
+      ...selection === undefined ? {} : { reasoningEffort: selection },
+    })
+    expect(prepared.config.reasoningEffort).toBe(expected)
+    expect(prepared.adapterDefaults).toEqual(defaults)
+    await collect(prepared.stream({ ...prepared.config, messages: [] }))
+    expect(adapter.lastOptions?.reasoningEffort).toBe(expected)
+  })
+
+  it('leaves minimum reasoning unspecified when a route has no selectable efforts', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    const adapter = new RecordingAdapter(SCRIPT)
+    ctx.llm.registerAdapter(['route'], adapter)
+    const prepared = await ctx.llm.prepareCall({
+      provider: 'route', model: 'model', reasoningEffort: { select: 'minimum' },
+    })
+    expect(prepared.config).not.toHaveProperty('reasoningEffort')
+    expect(prepared.adapterDefaults).toEqual({})
+    await collect(prepared.stream({ ...prepared.config, messages: [] }))
+    expect(adapter.lastOptions).not.toHaveProperty('reasoningEffort')
+  })
+
+  it('rejects minimum selection when the advertised efforts declare no floor', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    ctx.llm.registerAdapter(['route'], new CatalogAdapter(
+      { id: 'route', name: 'Route' }, [], {},
+      { model: { efforts: [{ id: ReasoningEffortId('high'), name: 'High' }] } },
+    ))
+    await expect(ctx.llm.prepareCall({
+      provider: 'route', model: 'model', reasoningEffort: { select: 'minimum' },
+    })).rejects.toMatchObject({ code: 'UNSUPPORTED_REASONING_SELECTION' })
+    await expect(ctx.llm.prepareCall({
+      provider: 'route', model: 'model', reasoningEffort: ReasoningEffortId('low'),
+    })).rejects.toMatchObject({ code: 'UNSUPPORTED_REASONING_EFFORT' })
+  })
+
   it('reuses one exact-model lookup for prepared config and context metadata', async () => {
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
@@ -1082,7 +1142,13 @@ describe('LlmRuntime', () => {
       override prepareCall(provider: string, model: string) {
         const captured = generation
         return Promise.resolve({
-          model: { provider, id: model, name: model, inputModalities: ['text'] as const },
+          model: {
+            provider, id: model, name: model, inputModalities: ['text'] as const,
+            reasoning: {
+              efforts: [{ id: ReasoningEffortId(captured), name: captured }],
+              floorEffort: ReasoningEffortId(captured),
+            },
+          },
           stream: (options: GenerateOptions) => {
             dispatched = captured
             return super.stream(options)
@@ -1092,8 +1158,11 @@ describe('LlmRuntime', () => {
     }(SCRIPT)
     ctx.llm.registerAdapter(['route'], adapter)
 
-    const prepared = await ctx.llm.prepareCall({ provider: 'route', model: 'model' })
+    const prepared = await ctx.llm.prepareCall({
+      provider: 'route', model: 'model', reasoningEffort: { select: 'minimum' },
+    })
     generation = 'second'
+    expect(prepared.config.reasoningEffort).toBe('first')
     expect(prepared.inputModalities).toEqual(['text'])
     expect(Object.isFrozen(prepared.inputModalities)).toBe(true)
     await collect(prepared.stream({ ...prepared.config, messages: [] }))

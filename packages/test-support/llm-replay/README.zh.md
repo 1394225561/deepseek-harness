@@ -29,6 +29,8 @@ kind: "package-reference"
 
 ### 挂载它
 
+已准备调用要求使用路由适配器模式。将 `models[].floorReasoningEffort` 与 `reasoningEfforts` 一起配置，即可回放最低强度选择；仅凭显示顺序不能确定最低强度。
+
 配置 `providers` 后，插件会注册仅用于回放的适配器，其模型目录可供测试模型发现功能的场景使用；未配置 `providers` 时，它安装无需模型发现功能的测试所用的 catch-all `llm/stream` waterfall（瀑布式事件）：
 
 ```yaml

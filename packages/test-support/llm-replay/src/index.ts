@@ -98,6 +98,8 @@ export interface ReplayModelConfig {
   imageRequestTokens?: number
   /** Optional reasoning-effort ids the replay route accepts, in display order. */
   reasoningEfforts?: string[]
+  /** Optional least selectable effort; must appear in {@link reasoningEfforts}. */
+  floorReasoningEffort?: string
   /**
    * Optional effort materialized when callers omit one; must appear in
    * {@link reasoningEfforts} or call resolution rejects the route.
@@ -932,6 +934,9 @@ class ReplayAdapter extends LlmAdapter {
         : {
           reasoning: {
             efforts: configuredModel.reasoningEfforts.map(id => ({ id: ReasoningEffortId(id), name: id })),
+            ...configuredModel.floorReasoningEffort === undefined
+              ? {}
+              : { floorEffort: ReasoningEffortId(configuredModel.floorReasoningEffort) },
             ...configuredModel.defaultReasoningEffort === undefined
               ? {}
               : { defaultEffort: ReasoningEffortId(configuredModel.defaultReasoningEffort) },

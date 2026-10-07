@@ -9,8 +9,8 @@
   en: 1387c4505dde2faf
   zh: 48570fa1c13d6910
 /session-persistence-event-catalog/persistence-type-fingerprints:
-  en: 8497b2c45ef6b896
-  zh: 1c5acbc898958ea9
+  en: d8542cb8987022e0
+  zh: 38e135021cb21f20
 /session-persistence-event-catalog/event-envelope:
   en: 7ebb1a2e0dd1f916
   zh: 8946f415dda5c1b8
@@ -177,8 +177,8 @@
   en: 6c6a27578dff5828
   zh: 9a5add2bc0df2d0a
 /session-persistence-event-catalog/events/session/session-title-llm-request-log-only:
-  en: 201b220320c466ab
-  zh: 2823df91f681793d
+  en: 5eb108772a8498c9
+  zh: 1fbc45e377084bae
 /session-persistence-event-catalog/events/session-log-deepseek:
   en: 7b827672c80aecdd
   zh: 7b827672c80aecdd
@@ -1065,8 +1065,8 @@
   en: aa3a91341bf04b9e
   zh: d767b45d45846333
 /session-persistence-event-catalog/resolved-persistence-types/llmcallconfigadapterdefaults:
-  en: 5cdc7289f276f93e
-  zh: 11b399ac1a145e9c
+  en: 3ccf327c8a9aa240
+  zh: 5148542d981b1ae3
 /session-persistence-event-catalog/resolved-persistence-types/llmfailure:
   en: a18d2091f7e64726
   zh: 550fc25036bd096e
@@ -1155,11 +1155,11 @@
   en: 9a54c4478ad3b620
   zh: 02c4c1fd7e252770
 /session-persistence-event-catalog/resolved-persistence-types/sessiontitleeventdata:
-  en: 5c4a679ff9d5564d
-  zh: 31cc6885c7f74f61
+  en: 4ff17eae0b30056d
+  zh: 6642afbaa87da3ab
 /session-persistence-event-catalog/resolved-persistence-types/sessiontitlellmrequesteventdata:
-  en: 37bbd04fbfc802e7
-  zh: 37c001a2d8cae514
+  en: 390c1daad2342ce8
+  zh: 07ce68854dce8ea4
 /session-persistence-event-catalog/resolved-persistence-types/sessiontitlemodelidentity:
   en: 9531468264499498
   zh: 9da23c0ad2776563
@@ -1986,11 +1986,11 @@
   en: acf7e21e4d21ebff
   zh: fb83a853634d204a
 /session-persistence-event-catalog/resolved-persistence-types/type-session-title:
-  en: 1e7d458c2d04c067
-  zh: d68876f6130194cb
+  en: 203f5661ca1850b1
+  zh: b3d9ec1019188df4
 /session-persistence-event-catalog/resolved-persistence-types/type-session-title-llm-request:
-  en: 0ddaf7b3bb8ec5c7
-  zh: 82eb798c41b17372
+  en: 246920f06c3a2175
+  zh: 56deee3b86499174
 /session-persistence-event-catalog/resolved-persistence-types/type-step-end:
   en: 7fc233c4a569dae2
   zh: bc2b3fed4a397c00

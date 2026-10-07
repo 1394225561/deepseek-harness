@@ -44,6 +44,8 @@ export interface SessionTitleLlmRequestEventData {
   readonly messages: Message[]
   /** Exact auxiliary output-token cap. */
   readonly maxTokens: number
+  /** Resolved reasoning effort when recorded; older requests can omit it. */
+  readonly reasoningEffort?: ReasoningEffortId
 }
 
 declare module '@deepseek-ai/dsh-session/types' {
@@ -64,7 +66,7 @@ export interface SessionTitleLlmConfig {
   readonly targetCjkCharacters: number
   /** Maximum UTF-8 bytes in the final JSON-framed user prompt. */
   readonly maxInputBytes: number
-  /** Configured output-token ceiling; dispatch uses the smaller of this and the cap the session's header recorded. */
+  /** Output-token cap for the title request, independent of conversation requests. */
   readonly maxOutputTokens: number
   /** End-to-end auxiliary request deadline in milliseconds. */
   readonly timeoutMs: number
@@ -191,42 +193,6 @@ function resolveRoute(
   return request.route
 }
 
-/**
- * Bound the configured output cap by the cap the session's current main
- * request materialized, so a route the deployment capped below the configured
- * value is never asked for more. A session whose header records no cap leaves
- * the configured cap unchanged.
- * @param config - validated model-provider policy.
- * @param request - service-owned session of this title request.
- * @returns the smaller of the configured cap and the logged request cap.
- */
-function titleMaxTokens(
-  config: ResolvedSessionTitleLlmConfig,
-  request: SessionTitleProviderRequest,
-): number {
-  const materialized = request.session.requestHeader()?.config.maxTokens
-  return materialized === undefined ? config.maxOutputTokens : Math.min(config.maxOutputTokens, materialized)
-}
-
-/**
- * The least effort the routed model accepts, so a title request does not spend
- * its output cap on reasoning. A route with no registered adapter cannot report
- * model metadata, and a route that reports no selectable effort dispatches with
- * none; both keep the adapter's own default in force.
- * @param ctx - context exposing the registered LLM service.
- * @param route - exact provider and model route of this title request.
- * @param signal - cancellation covering the lookup.
- * @returns the model's floor effort, or undefined when it reports none.
- */
-async function titleReasoningEffort(
-  ctx: Context,
-  route: SessionTitleModelIdentity,
-  signal: AbortSignal,
-): Promise<ReasoningEffortId | undefined> {
-  if (!ctx.llm.listProviders().some(provider => provider.id === route.provider)) return undefined
-  return (await ctx.llm.resolveModelInfo(route.provider, route.model, signal)).reasoning?.floorEffort
-}
-
 /** Stable language-aware system instruction shared by both provider plugins. */
 function systemPrompt(config: ResolvedSessionTitleLlmConfig): string {
   return [
@@ -314,17 +280,18 @@ export async function generateSessionTitleWithLlm(
   })]
   const system = systemPrompt(config)
   using callDeadline = deadline(request.signal, config.timeoutMs, SESSION_TITLE_TIMEOUT_CODE)
-  const maxTokens = titleMaxTokens(config, request)
-  const floorEffort = await titleReasoningEffort(ctx, route, callDeadline.signal)
+  const maxTokens = config.maxOutputTokens
+  const call = await ctx.llm.prepareCall({
+    ...route,
+    maxTokens,
+    reasoningEffort: { select: 'minimum' },
+  }, callDeadline.signal)
   const options: GenerateOptions = deepFreeze({
-    provider: route.provider,
-    model: route.model,
+    ...call.config,
     messages,
     system,
-    maxTokens,
     sessionId: request.session.id,
     purpose: 'session-title',
-    ...floorEffort === undefined ? {} : { reasoningEffort: floorEffort },
     signal: callDeadline.signal,
   })
   request.session.append('session/title-llm-request', {
@@ -334,10 +301,11 @@ export async function generateSessionTitleWithLlm(
     system,
     messages,
     maxTokens,
+    ...call.config.reasoningEffort === undefined ? {} : { reasoningEffort: call.config.reasoningEffort },
   })
   callDeadline.signal.throwIfAborted()
   const assembler = new BlockAssembler()
-  for await (const chunk of ctx.llm.stream(options)) {
+  for await (const chunk of call.stream(options)) {
     callDeadline.signal.throwIfAborted()
     assembler.push(chunk)
   }

@@ -60,6 +60,8 @@ After a successful mount, `ctx.llm.listProviders()` reports the registered route
 
 `GenerateOptions.messages` accepts durable `Message` values and request-only `RequestUserInput` values. Request-only inputs carry user-role content with no `id` or `source`; Session writes and Agent delivery still require durable messages. Callers keep auxiliary inputs unchanged until the stream settles. A caller that records its exact request, such as session-title generation, must use durable messages.
 
+`prepareCall(request, signal)` accepts existing `LlmCallConfig` values and `reasoningEffort: { select: 'minimum' }`. It returns a frozen concrete configuration for recording and dispatch. An exact effort id is validated unchanged; omission uses the route default. Minimum selection uses the declared `floorEffort`, rejects selectable efforts without a floor, and leaves effort unspecified on routes without reasoning controls. It does not guarantee zero reasoning tokens. Preparation requires a registered adapter and rejects before streaming when resolution fails.
+
 ### What you can do
 
 - **Stream one model call** — `ctx.llm.stream(options)` yields raw chunks (token-level deltas) for any registered provider and model; consumers assemble them with `BlockAssembler`.

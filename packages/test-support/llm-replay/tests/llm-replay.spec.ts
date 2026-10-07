@@ -1414,6 +1414,7 @@ describe('installLlmReplay (through the real LlmRuntime)', () => {
               inputModalities: ['text', 'image'],
               defaultMaxTokens: 64_000,
               reasoningEfforts: ['off', 'max'],
+              floorReasoningEffort: 'off',
               defaultReasoningEffort: 'max',
               systemPromptUpdate: 'in-history',
               toolUpdate: 'addition-only',
@@ -1440,6 +1441,7 @@ describe('installLlmReplay (through the real LlmRuntime)', () => {
       defaultMaxTokens: 64_000,
       reasoning: {
         efforts: [{ id: 'off', name: 'off' }, { id: 'max', name: 'max' }],
+        floorEffort: 'off',
         defaultEffort: 'max',
       },
       systemPromptUpdate: 'in-history',
@@ -1470,7 +1472,11 @@ describe('installLlmReplay (through the real LlmRuntime)', () => {
       maxDelayMs: 10_000,
       jitterRatio: 0.1,
     })
-    expect(await drain(ctx.llm.stream({ provider: 'deepseek', model: 'pro', messages: [] }))).toEqual(TEXT_CHUNKS)
+    const prepared = await ctx.llm.prepareCall({
+      provider: 'deepseek', model: 'flash', reasoningEffort: { select: 'minimum' },
+    })
+    expect(prepared.config.reasoningEffort).toBe('off')
+    expect(await drain(prepared.stream({ ...prepared.config, messages: [] }))).toEqual(TEXT_CHUNKS)
 
     dispose()
     expect(ctx.llm.listProviders()).toEqual([])

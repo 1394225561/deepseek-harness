@@ -60,6 +60,8 @@ for await (const chunk of ctx.llm.stream({
 
 `GenerateOptions.messages` 接受持久 `Message` 值和仅供请求使用的 `RequestUserInput` 值。仅供请求使用的输入包含 user-role 内容，不含 `id` 或 `source`；Session 写入和 Agent 投递仍然要求持久消息。调用方必须在流结束前保持辅助输入不变。会记录完整请求的调用方（例如会话标题生成）必须使用持久消息。
 
+`prepareCall(request, signal)` 接受现有的 `LlmCallConfig` 值，也接受 `reasoningEffort: { select: 'minimum' }`。它返回用于记录与分发的冻结具体配置。确切强度 id 保持原值并接受校验；省略时使用路由默认值。最低强度选择使用声明的 `floorEffort`；有可选强度却没有最低强度时拒绝，没有推理控制时不指定强度。它不保证零推理 token。准备操作要求注册适配器，解析失败会在流式调用前拒绝。
+
 ### 你可以做什么
 
 - **流式发起一次模型调用**——`ctx.llm.stream(options)` 为任何已注册提供方与模型产出原始分片（token 级增量）；消费方用 `BlockAssembler` 组装。

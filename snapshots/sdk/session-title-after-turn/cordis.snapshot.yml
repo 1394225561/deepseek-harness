@@ -49,6 +49,9 @@
             name: Title replay
             models:
               - id: title-model
+                reasoningEfforts: [high, low]
+                floorReasoningEffort: low
+                defaultReasoningEffort: high
     - id: session-title-provider
       name: '@deepseek-ai/dsh-session-title-first-prompt-llm'
       config:
