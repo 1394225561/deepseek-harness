@@ -383,6 +383,11 @@ async function main(): Promise<void> {
     else process.env.DSH_DESKTOP_PACKAGING_RUN_DIR = previousDirectory
     run.finish(success)
   }
+  if (success && target.platform === 'darwin' && !invocation.directory && !invocation.prepareOnly) {
+    const paths = desktopTargetBuildPaths(target.name)
+    const filename = `deepseek-harness-${buildVersion}-mac-${target.arch}${invocation.unsigned ? '-unsigned' : ''}.dmg`
+    console.log(`DMG: ${join(invocation.unsigned ? paths.unsignedArtifacts : paths.artifacts, filename)}`)
+  }
 }
 
 /**
