@@ -62,7 +62,7 @@
     "@deepseek-ai/dsh-subagent": "workspace:*",
     "@deepseek-ai/dsh-subprocess-local": "workspace:*",
     "@deepseek-ai/node-addon-system": "workspace:~",
-    "@types/picomatch": "^3.0.2",
+    "@types/picomatch": "^4.0.3",
     "@types/readable-stream": "^4.0.24",
     "chokidar": "^5.0.0"
   },
