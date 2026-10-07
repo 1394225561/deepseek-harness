@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { runBuiltBenchmarkWorker } from '../support/built-worker.ts'
 import { ciTimeBudget, PERFORMANCE_BUDGET_HEADROOM } from '../support/calibration.ts'
+import { recordTimings } from '../support/scaling-report.ts'
 import type { ProjectionListReport } from './projection-list.worker.ts'
 
 const WORKER = join(import.meta.dirname, '..', '.dsh-build', 'session-corpus', 'projection-list.worker.js')
@@ -17,6 +18,8 @@ const LIST_REFERENCE_MS = { modest: 50, tail: 500, cheap: 150 } as const
 const CALLBACK_REFERENCE_MS = 30
 /** Reference retained-heap allowance; memory receives variance headroom but no CPU scaling. */
 const RETAINED_HEAP_REFERENCE_BYTES = 240 * 1024 * 1024
+/** Estimated storage wait in listing: projection-cache reads mostly hit the page cache of the just-written corpus. */
+const IO_SHARE = 0.1
 
 function median(values: readonly number[]): number {
   return [...values].sort((left, right) => left - right)[Math.floor(values.length / 2)] as number
@@ -68,6 +71,9 @@ it.each(['modest', 'tail', 'cheap'] as const)('serves the %s projection list wit
   console.log(JSON.stringify({ benchmark: `session-corpus/projection-list-${workload}`,
     reports, medians, budgets, environment: { node: process.version, platform: process.platform, arch: process.arch, cpu: cpus()[0]?.model } }))
 
+  recordTimings(`session-corpus/projection-list-${workload}`, IO_SHARE, {
+    firstListAndJsonMs: medians.firstListAndJsonMs, repeatListAndJsonMs: medians.repeatListAndJsonMs, worstCallbackDelayMs: medians.worstCallbackDelayMs,
+  }, { firstListAndJsonMs: budgets.listAndJsonMs, worstCallbackDelayMs: budgets.callbackDelayMs })
   for (const report of reports) {
     expect(report.workload).toBe(workload)
     expect(report.fixture.sessions).toBe({ modest: 50, tail: 300, cheap: 3_000 }[workload])

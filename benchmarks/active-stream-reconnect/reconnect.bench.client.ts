@@ -3,12 +3,15 @@ import { join } from 'node:path'
 import { expect, it } from 'vitest'
 import { runBuiltBenchmarkWorker } from '../support/built-worker.ts'
 import { ciTimeBudget, PERFORMANCE_BUDGET_HEADROOM } from '../support/calibration.ts'
+import { recordTimings } from '../support/scaling-report.ts'
 import type { ReconnectReport } from './reconnect.worker.client.ts'
 
 const REFERENCE_REPLACE_MS = 50
 const REPLACE_BUDGET_MS = ciTimeBudget(REFERENCE_REPLACE_MS)
 const REFERENCE_RETAINED_MB = 24
 const SAMPLES = 3
+/** Replacement folds in-memory Client state; no storage access is timed. */
+const IO_SHARE = 0
 
 function expectReplacementWithinBudget(value: number, budget: number): void {
   expect(value).toBeLessThanOrEqual(budget)
@@ -49,6 +52,7 @@ it('reconstructs a 100000-delta live prefix within baseline time and retained-me
   const budgetMs = REPLACE_BUDGET_MS
   const budgetMb = REFERENCE_RETAINED_MB * PERFORMANCE_BUDGET_HEADROOM
   console.log(JSON.stringify({ benchmark: 'active-stream-reconnect', samples, median: { replaceMs, retainedMb }, referenceMs: REFERENCE_REPLACE_MS, referenceMb: REFERENCE_RETAINED_MB, budgetMs, budgetMb }))
+  recordTimings('active-stream-reconnect', IO_SHARE, { replaceMs }, { replaceMs: budgetMs })
   expectReplacementWithinBudget(replaceMs, budgetMs)
   expect.soft(retainedMb).toBeLessThanOrEqual(budgetMb)
 })

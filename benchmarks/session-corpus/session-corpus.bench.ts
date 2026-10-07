@@ -7,6 +7,7 @@ import { performance } from 'node:perf_hooks'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { runBuiltBenchmarkWorker } from '../support/built-worker.ts'
 import { PERFORMANCE_BUDGET_HEADROOM } from '../support/calibration.ts'
+import { recordPeakMemory, recordTimings } from '../support/scaling-report.ts'
 import { anchorShape, ANCHOR_COUNT, sessionShape } from './corpus-shape.ts'
 import { subagentRank } from './synthetic-corpus.ts'
 import type {
@@ -68,6 +69,12 @@ const EXPECTED_CI_PEAK_RSS_MB = {
   search: 1_200,
   fork: 750,
 } as const satisfies Record<keyof typeof RECORDED_CI_PEAK_RSS_MB, number>
+
+/**
+ * Estimated storage-wait shares: listing and search read a just-written corpus mostly from the page cache;
+ * forking appends and synchronizes a new Session log.
+ */
+const IO_SHARE = { list: 0.1, search: 0.1, fork: 0.3 } as const
 
 type CorpusName = keyof typeof CORPUS
 
@@ -221,6 +228,10 @@ describe('Session corpus operations', () => {
       heapUsedMb: reports.map(report => report.memory.heapUsedMb),
     }
     console.log(JSON.stringify({ benchmark: `session-corpus/list-${String(CORPUS.list)}`, samples, budgets, environment: environment() }))
+    recordTimings(`session-corpus/list-${String(CORPUS.list)}`, IO_SHARE.list,
+      { bootMs: median(samples.bootMs), firstMs: median(samples.firstMs), repeatMs: median(samples.repeatMs) },
+      { bootMs: budgets.bootMs, firstMs: budgets.firstMs, repeatMs: budgets.repeatMs })
+    recordPeakMemory(`session-corpus/list-${String(CORPUS.list)}`, { peakRssMb: Math.max(...samples.peakRssMb) })
     for (const report of reports) expect(report.itemsWithProjections).toBe(CORPUS.list)
     expectWithinBudget(median(samples.bootMs), budgets.bootMs)
     expectWithinBudget(median(samples.firstMs), budgets.firstMs)
@@ -237,6 +248,9 @@ describe('Session corpus operations', () => {
     // One sample: the cold index build dominates this file's time.
     const report = await run<SearchReport>([root('search'), 'search'])
     console.log(JSON.stringify({ benchmark: 'session-corpus/search', report, budgets, environment: environment() }))
+    recordTimings('session-corpus/search', IO_SHARE.search, { firstMs: report.firstMs, repeatMs: report.repeatMs },
+      { firstMs: budgets.firstMs, repeatMs: budgets.repeatMs })
+    recordPeakMemory('session-corpus/search', { peakRssMb: report.memory.peakRssMb })
     expectWithinBudget(report.firstMs, budgets.firstMs)
     expectWithinBudget(report.repeatMs, budgets.repeatMs)
     expectWithinBudget(report.memory.peakRssMb, budgets.peakRssMb)
@@ -267,6 +281,10 @@ describe('Session corpus operations', () => {
       peakRssMb: [...reports, longest].map(report => report.memory.peakRssMb),
     }
     console.log(JSON.stringify({ benchmark: 'session-corpus/fork', samples, budgets, environment: environment() }))
+    recordTimings('session-corpus/fork', IO_SHARE.fork,
+      { stratumMedianMs: median(samples.stratumMedianMs), p99Ms: median(samples.p99Ms), longestMs: samples.longestMs },
+      { stratumMedianMs: budgets.stratumMedianMs, p99Ms: budgets.p99Ms, longestMs: budgets.longestMs })
+    recordPeakMemory('session-corpus/fork', { peakRssMb: Math.max(...samples.peakRssMb) })
     expectWithinBudget(median(samples.stratumMedianMs), budgets.stratumMedianMs)
     expectWithinBudget(median(samples.p99Ms), budgets.p99Ms)
     expectWithinBudget(samples.longestMs, budgets.longestMs)

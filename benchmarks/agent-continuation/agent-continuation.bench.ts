@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { runBuiltBenchmarkWorker } from '../support/built-worker.ts'
 import { ciTimeBudget, PERFORMANCE_BUDGET_HEADROOM } from '../support/calibration.ts'
+import { recordTimings } from '../support/scaling-report.ts'
 import type { ContinuationReport } from './agent-continuation.worker.ts'
 import type { CatalogReport } from './child-catalog.worker.ts'
 import type { ProfileReport } from './profile-continuation.worker.ts'
@@ -28,6 +29,8 @@ const CATALOG_BUDGET_MS = Math.ceil(EXPECTED_CATALOG_CI_MS * PERFORMANCE_BUDGET_
 const REQUEST_HISTORY_BUDGET_MS = 297
 const EXPECTED_RETAINED_HEAP_MB = 23
 const WORKERS = join(import.meta.dirname, '..', '.dsh-build', 'agent-continuation')
+/** Estimated storage wait: continuation reads a copied Session tree and appends synchronized log records. */
+const IO_SHARE = 0.15
 
 type Scenario = 'request-history' | 'catalog' | 'tool-continuation' | keyof typeof EXPECTED_MS
 type Report = ContinuationReport | CatalogReport | ProfileReport
@@ -175,6 +178,7 @@ describe('continuing tool-heavy Sessions with large histories', () => {
         samples, totalMs: { min: Math.min(...totalMs), median: median(totalMs), max: Math.max(...totalMs) },
         budgetMs, ...(scenario === 'tool-continuation' ? { retainedHeapBudgetMb } : {}),
       }))
+      recordTimings('agent-continuation/' + scenario, IO_SHARE, { totalMs: median(totalMs) }, { totalMs: budgetMs })
       if (scenario === 'request-history') assertRequestHistoryBudget(median(totalMs))
       else expectTotalWithinBudget(median(totalMs), budgetMs)
       if (scenario === 'tool-continuation') {

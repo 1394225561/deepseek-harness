@@ -10,6 +10,7 @@ import {
   ciTimeBudget,
   PERFORMANCE_BUDGET_HEADROOM,
 } from '../support/calibration.ts'
+import { recordTimings } from '../support/scaling-report.ts'
 import type { ConversationFoldWorkerReport, PreparingToolWorkerReport } from './conversation-fold.worker.client.ts'
 
 /** Replies in the folded window; each carries one reasoning block and one text block. */
@@ -20,6 +21,8 @@ const LARGE_DELTAS = 2_000
 const SMALL_DELTAS = 100
 /** Fresh object graphs measured in one compiled worker; the fastest sample removes scheduler delay. */
 const ATTEMPTS = 3
+/** Folding and argument preparation run on in-memory Client state without storage access. */
+const IO_SHARE = 0
 /** A stuck fold worker is reaped before the outer benchmark deadline. */
 const WORKER_TIMEOUT_MS = 60_000
 
@@ -77,6 +80,7 @@ describe('cold Chat fold of a large v2 history window', () => {
       budgetMs: LARGE_FOLD_BUDGET_MS,
       maxScaling: MAX_DELTA_SCALING,
     }))
+    recordTimings('conversation-fold/large-window', IO_SHARE, { largeFoldMs: report.largeFoldMs }, { largeFoldMs: LARGE_FOLD_BUDGET_MS })
     expect(report.chatNodes).toBeGreaterThan(0)
     expect(report.largeFoldMs).toBeLessThanOrEqual(LARGE_FOLD_BUDGET_MS)
     expect(report.scaling).toBeLessThanOrEqual(MAX_DELTA_SCALING)
@@ -108,6 +112,7 @@ describe('preparing tool arguments', () => {
     const budgetMs = ciTimeBudget(workload.expectedMs)
     const budgetMb = workload.expectedMb * PERFORMANCE_BUDGET_HEADROOM
     console.log(JSON.stringify({ benchmark: `conversation-fold/preparing-${workload.tool}`, samples, medianMs, retainedMb, budgetMs, budgetMb }))
+    recordTimings(`conversation-fold/preparing-${workload.tool}`, IO_SHARE, { medianMs }, { medianMs: budgetMs })
     expect(medianMs).toBeLessThanOrEqual(budgetMs)
     expect(retainedMb).toBeLessThanOrEqual(budgetMb)
   })
