@@ -119,6 +119,9 @@ it.skipIf(!built)('installs the exported registry\'s local closure and switches 
   })
   if (child.stdout === null) throw new Error('installed Web process has no stdout')
   const lines = createInterface({ input: child.stdout })
+  // A failure in the body must stay the reported one: teardown asserts only when the body
+  // passed, so a Web process that does not exit cannot replace the real error.
+  let failure: unknown
   try {
     const observed = await new Promise<Observation>((resolveObservation, reject) => {
       lines.on('line', (line) => {
@@ -161,11 +164,17 @@ it.skipIf(!built)('installs the exported registry\'s local closure and switches 
     expect(record.buildId).toBe('packed-e2e')
     expect(record.packages).toHaveLength(selection.members.length)
     expect(record.packages).toEqual(expect.arrayContaining([expect.objectContaining({ name: packages[0], version })]))
+  } catch (error) {
+    failure = error
   } finally {
     lines.close()
     child.kill('SIGTERM')
     const result = await child
-    expect(result.timedOut, `${result.stdout}\n${result.stderr}`).toBe(false)
-    expect(result.exitCode === 0 || result.signal === 'SIGTERM', result.stderr).toBe(true)
+    if (failure === undefined) {
+      // The installed Web process stops on SIGTERM within its own budget; a timed-out child is a teardown defect.
+      expect(result.timedOut, `${result.stdout}\n${result.stderr}`).toBe(false)
+      expect(result.exitCode === 0 || result.signal === 'SIGTERM', result.stderr).toBe(true)
+    }
   }
+  if (failure !== undefined) throw failure
 })

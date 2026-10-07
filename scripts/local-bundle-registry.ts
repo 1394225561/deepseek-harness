@@ -563,13 +563,15 @@ export async function startBundleRegistry(options: {
     response.end()
   })
 
-  await new Promise<void>((resolveListen, rejectListen) => {
+  const listening = new Promise<void>((resolveListen, rejectListen) => {
     server.once('error', rejectListen)
-    server.listen(0, '127.0.0.1', () => {
+    server.once('listening', () => {
       server.off('error', rejectListen)
       resolveListen()
     })
   })
+  server.listen({ port: 0, host: '127.0.0.1' })
+  await listening
   const address = server.address()
   if (address === null || typeof address === 'string') {
     await closeServer(server)
