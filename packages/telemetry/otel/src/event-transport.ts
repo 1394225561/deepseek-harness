@@ -5,7 +5,7 @@ import got from 'got'
 import { createOtlpNetworkExportDelegate, OTLPExporterBase, type OTLPExporterNodeConfigBase } from '@opentelemetry/otlp-exporter-base'
 import { JsonLogsSerializer } from '@opentelemetry/otlp-transformer'
 import type { LogRecordExporter } from '@opentelemetry/sdk-logs'
-import { logTransportOptions } from './transport.ts'
+import { createLogExporterMetrics, logTransportOptions } from './transport.ts'
 
 /**
  * Create a channel-owned exporter whose cancellation releases requests and retry timers.
@@ -16,7 +16,7 @@ import { logTransportOptions } from './transport.ts'
 export function createEventLogExporter(options: OTLPExporterNodeConfigBase & { url: string }, signal: AbortSignal): LogRecordExporter {
   const config = logTransportOptions(options)
   let agent: ReturnType<typeof config.agentFactory> | undefined
-  const exporter = new OTLPExporterBase(createOtlpNetworkExportDelegate(config, JsonLogsSerializer, {
+  const exporter = new OTLPExporterBase(createOtlpNetworkExportDelegate(config, JsonLogsSerializer, createLogExporterMetrics(config.url), {
     async send(data, timeoutMillis) {
       signal.throwIfAborted()
       agent ??= config.agentFactory(new URL(config.url).protocol)
