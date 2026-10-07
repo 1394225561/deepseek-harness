@@ -1298,7 +1298,11 @@ def smoke_sdk_dynamic_tools(base_url: str, executable: Path, update_snapshots: b
     with tempfile.TemporaryDirectory(prefix="dsh-sdk-dynamic-tools-") as temporary:
         root = Path(temporary).resolve()
         dsh_home = root / "home"
+        user_home = root / "user-home"
+        user_home.mkdir()
         sessions = dsh_home / "sessions"
+        # Own the baseline instruction message instead of inheriting host instructions.
+        (root / "AGENTS.md").write_text("Use the tools requested by the user.\n", encoding="utf-8")
         task = root / "dynamic-tool-task.txt"
         task.write_text("Call snapshot_ping once.\n", encoding="utf-8")
         patch = write_profile_patch(root, "dynamic-tools.patch.yml", sessions, [
@@ -1318,7 +1322,11 @@ def smoke_sdk_dynamic_tools(base_url: str, executable: Path, update_snapshots: b
         with DeepSeekHarness(
             provider="deepseek-official", model="smoke-model", cwd=str(root),
             dsh_bin=str(executable), dsh_home=str(dsh_home), patches=(str(patch),),
-            env={"DSH_PERMISSION_MODE": "danger-full-access", "DSH_TELEMETRY_DISABLED": "1"},
+            env={
+                "DSH_PERMISSION_MODE": "danger-full-access", "DSH_TELEMETRY_DISABLED": "1",
+                "HOME": str(user_home), "USERPROFILE": str(user_home),
+                "DSH_AGENTS_HOME": str(user_home / ".agents"),
+            },
             api_key="sk-keyless-smoke", base_url=base_url, request_timeout_seconds=60,
         ) as harness:
             result = harness.run(DYNAMIC_TOOLS_PROMPT, session_id="dynamic-tools-smoke")
