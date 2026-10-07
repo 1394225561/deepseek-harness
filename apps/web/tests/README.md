@@ -20,6 +20,8 @@ State-sensitive cases use Workspace, admission, attachment, and model-stream bar
 
 [Idle-submission handoff](idle-submission-handoff.e2e.ts) waits up to the scaffold's 30-second turn-completion budget for Host frames and browser placement. Vitest owns scaffold teardown so a replay-consumption error does not replace the failed scenario assertion.
 
+Plugin-card switches wait up to 10 seconds for the Host's profile write and the panel's follow-up inventory read, the two steps that republish `aria-checked`. That chain measured 0.5-0.8 s on an idle host and 2.0-4.8 s across 32 samples in a 16-worker lane, so Vitest's 1-second `expect.poll` default expires first.
+
 Explicit scrolling uses `scrollIntoView` from `support.ts`: it resolves the locator again when its old element detaches and checks connection in the same browser task as native scrolling. Scenarios retain their visibility and geometry assertions after scrolling.
 
 ## These are Host-face tests

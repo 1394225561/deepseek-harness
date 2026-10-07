@@ -41,6 +41,14 @@ export const ZH_BROWSER_LOCALE = 'zh-CN'
 /** Same-day anchor for seeded event times and the Asia/Shanghai browser clock. */
 export const WEB_FIXTURE_TIME = Date.parse('2026-01-15T12:00:00+08:00')
 
+/**
+ * Budget for a plugin-card switch to republish its state after a click: the
+ * click starts a Host profile write, and the panel then re-reads its inventory.
+ * That chain measured 0.5-0.8 s on an idle host and 2.0-4.8 s across 32 samples
+ * in a 16-worker lane, so Vitest's 1-second `expect.poll` default expires first.
+ */
+export const PLUGIN_TOGGLE_SETTLE_MS = 10_000
+
 /** How often a pinned browser clock advances, in milliseconds. */
 const PINNED_CLOCK_STEP_MS = 250
 

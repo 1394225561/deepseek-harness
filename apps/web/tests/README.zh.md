@@ -20,6 +20,8 @@ pnpm --filter @deepseek-ai/dsh-web-frontend exec playwright install --with-deps 
 
 [空闲提交交接](idle-submission-handoff.e2e.ts)对 Host 帧和浏览器中的消息归位的等待使用 scaffold 的 30 秒 Turn 完成预算。Vitest 负责 scaffold 清理，使 replay 消耗检查错误不会覆盖场景中失败的断言。
 
+插件卡片的开关为 Host 的 profile 写入与面板随后的 inventory 读取预留最多 10 秒，这两步完成后才会重新发布 `aria-checked`。该链路在空闲主机上实测 0.5-0.8 秒，在 16-worker lane 的 32 次采样中为 2.0-4.8 秒，而 Vitest 的 1 秒 `expect.poll` 默认预算先到期。
+
 显式滚动使用 `support.ts` 的 `scrollIntoView`：旧元素脱离 DOM 时重新解析 locator，并在同一个浏览器任务中检查连接状态、执行原生滚动。各场景保留滚动后的可见性与几何断言。
 
 ## 这些是 Host 面的测试
