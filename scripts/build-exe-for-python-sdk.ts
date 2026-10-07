@@ -14,7 +14,7 @@ import { basename, dirname, extname, join, resolve, sep } from 'node:path'
 import { parseArgs } from 'node:util'
 import { resolveLinuxNodePtyAddon, resolveWindowsNodePtyAddons } from './build-exe-for-python-sdk-native-pty.ts'
 import { copyOfficeSidecar, OFFICE_ASSET_IGNORES } from './build-exe-for-python-sdk-office.ts'
-import { materializeStagedLinks } from './build-exe-for-python-sdk-staging.ts'
+import { deduplicateStagedWorkspacePackages, materializeStagedLinks } from './build-exe-for-python-sdk-staging.ts'
 import { preparePrimaryRuntime, smokePrimaryRuntime, type PrimaryRuntimeTarget } from './primary-runtime/prepare.ts'
 
 const root = resolve(import.meta.dirname, '..')
@@ -311,6 +311,7 @@ class SingleExeBuild {
       '--config.node-linker=hoisted',
       '--config.auto-install-peers=false',
       '--config.link-workspace-packages=true',
+      '--config.hoist-workspace-packages=false',
       this.staging,
     ])
     await this.restoreLegacyHoists()
@@ -374,6 +375,7 @@ class SingleExeBuild {
       return
     }
     await materializeStagedLinks(this.staging)
+    await deduplicateStagedWorkspacePackages(this.staging, root)
   }
 
   /** Add the executable entry and pkg assets to the staged manifest. */

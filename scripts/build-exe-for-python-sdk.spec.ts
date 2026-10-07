@@ -135,6 +135,7 @@ describe('Python runtime executable builder CLI', () => {
     expect(result.stdout).toContain(`${process.execPath} C:\\tools\\pnpm.cjs --filter dsh-python-runtime-closure deploy`)
     const deploy = result.stdout.split('\n').find(line => line.includes(' --filter dsh-python-runtime-closure deploy'))
     expect(deploy).toContain('--prod --config.allow-unused-patches=true')
+    expect(deploy).toContain('--config.hoist-workspace-packages=false')
     expect(result.stdout.split('--config.allow-unused-patches=true')).toHaveLength(2)
     expect(result.stdout).not.toContain(resolve(root, 'python/sdk-runtime/runtime-bootstrap.mjs'))
     expect(result.stdout).toContain('"bin":"runtime-bootstrap.mjs"')

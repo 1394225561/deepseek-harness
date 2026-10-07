@@ -1,6 +1,49 @@
-/** Turn the deploy-time package links of the Python runtime payload into real files. */
-import { cp, lstat, readdir, realpath, rm } from 'node:fs/promises'
-import { join, sep } from 'node:path'
+/** Prepare a symlink-free Python runtime payload with shared workspace module instances. */
+import { cp, lstat, readFile, readdir, realpath, rm, unlink } from 'node:fs/promises'
+import { isAbsolute, join, relative, resolve, sep } from 'node:path'
+import { load } from 'js-yaml'
+
+function isHoistedLocations(value: unknown): value is Record<string, string[]> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    && Object.values(value).every(paths => Array.isArray(paths)
+      && paths.every((path: unknown) => typeof path === 'string'))
+}
+
+/**
+ * Share root workspace packages with nested consumers of the same pnpm dependency identity.
+ * Different peer resolutions and third-party packages keep their installed locations.
+ * All metadata paths are checked before deletion; the caller first materializes links.
+ * @param staging - Symlink-free deployed payload root.
+ * @param workspace - Workspace root relative to which pnpm records hoisted locations.
+ */
+export async function deduplicateStagedWorkspacePackages(staging: string, workspace: string): Promise<void> {
+  const modules = resolve(staging, 'node_modules')
+  const file = join(modules, '.modules.yaml')
+  const manifest: unknown = load(await readFile(file, 'utf8'))
+  if (typeof manifest !== 'object' || manifest === null || !('hoistedLocations' in manifest)
+    || !isHoistedLocations(manifest.hoistedLocations)) {
+    throw new Error(`${file}: hoistedLocations must map dependency identities to path lists`)
+  }
+  const duplicates: string[] = []
+  for (const [identity, locations] of Object.entries(manifest.hoistedLocations)) {
+    const paths = locations.map((location) => {
+      const path = resolve(workspace, location)
+      const local = relative(modules, path)
+      if (local === '' || local === '..' || local.startsWith(`..${sep}`) || isAbsolute(local)) {
+        throw new Error(`${file}: hoistedLocations path is outside deployed node_modules: ${location}`)
+      }
+      return { path, parts: local.split(sep) }
+    })
+    if (!/^(?:@[^/]+\/)?[^@()]+@file:/.test(identity)) continue
+    const root = paths.find(({ parts }) => parts.length === (parts[0]?.startsWith('@') === true ? 2 : 1))
+    if (root === undefined) continue
+    if (!(await lstat(root.path)).isDirectory()) {
+      throw new Error(`${file}: hoistedLocations root package is not a directory: ${root.path}`)
+    }
+    duplicates.push(...paths.filter(({ path }) => path !== root.path).map(({ path }) => path))
+  }
+  for (const path of duplicates) await rm(path, { recursive: true, force: true })
+}
 
 /** Return the first symbolic link below a directory, if one exists. */
 async function findSymlink(directory: string): Promise<string | undefined> {
@@ -42,12 +85,12 @@ export async function materializeStagedLinks(staging: string): Promise<void> {
     const destination = remaining
     const source = await realpath(destination)
     if (payload === source || payload.startsWith(source + sep)) {
-      await rm(destination, { recursive: true, force: true })
+      await unlink(destination)
       remaining = await findSymlink(nodeModules)
       continue
     }
     const nestedNodeModules = join(source, 'node_modules')
-    await rm(destination, { recursive: true, force: true })
+    await unlink(destination)
     await cp(source, destination, {
       recursive: true,
       dereference: true,
