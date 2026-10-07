@@ -12,7 +12,9 @@ import {
   acknowledgeReloadConnectionLoss, assertFixtureInventory, captureStableAria, compareOrRefreshGolden, fixtureUserPrompts,
   launchWebScaffold, readPersistedEvents, watchConsole, webSnapshotMode, type WebScaffold,
 } from './scaffold.ts'
-import { connectFreshWorkspaceZh, expandOwningTurnProcess, saveFailureShot, ZH_BROWSER_LOCALE } from './support.ts'
+import {
+  connectFreshWorkspaceZh, expandOwningTurnProcess, PLUGIN_TOGGLE_SETTLE_MS, saveFailureShot, ZH_BROWSER_LOCALE,
+} from './support.ts'
 
 const BUNDLE_NAME = '@deepseek-ai/dsh-experimental-cot-translation-bundle'
 const BUNDLE = fileURLToPath(new URL('../../../packages/experimental/cot-translation-bundle', import.meta.url))
@@ -198,7 +200,7 @@ it.skipIf(MODE === 'record')('persists Bing reasoning translation across reopen 
   await toggle.waitFor()
   expect(await toggle.getAttribute('aria-checked')).toBe('false')
   await toggle.click()
-  await expect.poll(() => toggle.getAttribute('aria-checked')).toBe('true')
+  await expect.poll(() => toggle.getAttribute('aria-checked'), { timeout: PLUGIN_TOGGLE_SETTLE_MS }).toBe('true')
   await card.getByRole('button').first().click()
   const provider = panel.getByLabel('翻译服务', { exact: true })
   const target = panel.getByLabel('目标语言', { exact: true })
@@ -315,7 +317,7 @@ it.skipIf(MODE === 'record')('persists Bing reasoning translation across reopen 
 
   await panel.getByRole('button', { name: '返回插件列表', exact: true }).click()
   await toggle.click()
-  await expect.poll(() => toggle.getAttribute('aria-checked')).toBe('false')
+  await expect.poll(() => toggle.getAttribute('aria-checked'), { timeout: PLUGIN_TOGGLE_SETTLE_MS }).toBe('false')
   await body.waitFor({ state: 'detached' })
   await reasoning.getByText(ORIGINAL, { exact: true }).waitFor()
   await reasoning.locator('[data-disclosure-row]').first().click()
