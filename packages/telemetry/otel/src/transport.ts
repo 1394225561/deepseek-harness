@@ -8,11 +8,22 @@ import type { LogRecordExporter, ReadableLogRecord } from '@opentelemetry/sdk-lo
 const OTLP_HTTP_LOG_EXPORTER_COMPONENT_TYPE = 'otlp_http_log_exporter'
 
 /**
+ * Collector and SDK HTTP settings accepted by this package's log exporters.
+ *
+ * `OTLPExporterConfigBase.selfObsMeterProvider` is excluded: every channel here
+ * passes no meter provider to the exporter metrics recorder, which stays noop.
+ */
+export type LogExporterOptions = Omit<OTLPExporterNodeConfigBase, 'selfObsMeterProvider'> & {
+  /** Full HTTP(S) logs destination. */
+  url: string
+}
+
+/**
  * Create an SDK JSON exporter without inheriting another collector's headers or TLS identity.
  * @param options - explicit endpoint, headers, agent, and SDK transport settings.
  * @returns the exporter owned by one independent log pipeline.
  */
-export function createLogExporter(options: OTLPExporterNodeConfigBase & { url: string }): LogRecordExporter {
+export function createLogExporter(options: LogExporterOptions): LogRecordExporter {
   return new OTLPExporterBase(createOtlpHttpExportDelegate(
     logTransportOptions(options), JsonLogsSerializer, OTLP_HTTP_LOG_EXPORTER_COMPONENT_TYPE, LogsExporterMetricsHelper, undefined))
 }
@@ -32,7 +43,7 @@ export function createLogExporterMetrics(url: string): ExporterMetrics<ReadableL
  * @returns resolved transport settings without ambient credentials.
  */
 export function logTransportOptions(
-  options: OTLPExporterNodeConfigBase & { url: string },
+  options: LogExporterOptions,
 ): Parameters<typeof createOtlpHttpExportDelegate>[0] {
   const shared = mergeOtlpSharedConfigurationWithDefaults(options, getSharedConfigurationFromEnvironment('LOGS'), getSharedConfigurationDefaults())
   return {

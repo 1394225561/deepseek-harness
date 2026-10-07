@@ -2832,8 +2832,8 @@ export interface Config {
 ## `@deepseek-ai/dsh-session-telemetry-otel`
 
 - `inject`: `sessions` · `otel`
-- `refs`: `BatchLogRecordProcessorOptions` (`@opentelemetry/sdk-logs`) · `OTLPExporterNodeConfigBase` (`@opentelemetry/otlp-exporter-base`)
-- `source`: [`packages/session/session-telemetry-otel/src/index.ts:87`](../packages/session/session-telemetry-otel/src/index.ts)
+- `refs`: [`LogExporterOptions`](../packages/telemetry/otel/src/index.ts) · [`SessionLogProcessorOptions`](../packages/telemetry/otel/src/index.ts)
+- `source`: [`packages/session/session-telemetry-otel/src/index.ts:85`](../packages/session/session-telemetry-otel/src/index.ts)
 
 ```ts config-catalog
 /**
@@ -2847,16 +2847,18 @@ export interface Config {
   /**
    * Explicit SDK HTTP transport settings, including optional routing headers.
    * Ambient credentials are not inherited. URL is required while uploading.
+   * Exporter self-observability metering is not supported.
    */
-  exporter?: OTLPExporterNodeConfigBase & {
+  exporter?: Omit<LogExporterOptions, 'url'> & {
     /** Full logs endpoint (e.g. `https://collector.example.com/v1/logs`). Required outside `DISABLED`; validated at load. */
     url?: string
   }
   /**
    * Count, queue, cadence, and per-request watchdog settings for the byte-bounded
    * processor. A watchdog warning never releases an unsettled transport slot.
+   * SDK processor self-observability metering is not supported.
    */
-  processor?: Omit<BatchLogRecordProcessorOptions, 'exporter'>
+  processor?: SessionLogProcessorOptions
   /** Maximum time spent awaiting the SDK provider's complete shutdown path. */
   shutdownTimeoutMillis?: number
   /** Uncompressed OTLP request byte limit, at most 4,000,000. */
