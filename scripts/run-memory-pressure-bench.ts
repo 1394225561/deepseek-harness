@@ -4,8 +4,8 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { getHeapStatistics } from 'node:v8'
-import { buildCiBenchArtifacts } from './run-ci-bench.ts'
 import { pnpmCommand } from './release/process.ts'
+import { buildCiBenchArtifacts } from './run-ci-bench.ts'
 
 /** Modeled machines: memory available to the whole benchmark process tree, without swap. */
 export const MEMORY_PRESSURE_MACHINES = { '4g': 4, '8g': 8 } as const
@@ -66,26 +66,54 @@ function cgroupFile(name: string): string {
   return readFileSync(join('/sys/fs/cgroup', line.slice(3), name), 'utf8').trim()
 }
 
+/** Memory controls of the cgroup that contains the benchmark process tree. */
+export interface CgroupMemoryLimits {
+  /** `memory.max` contents. */
+  readonly max: string
+  /** `memory.swap.max` contents. */
+  readonly swapMax: string
+  /** `process.constrainedMemory()` in bytes, which also reflects ancestor cgroups. */
+  readonly constrained: number
+}
+
 /**
- * Run the selected benchmark files inside the current scope and report the scope's memory facts.
+ * Describe why a cgroup does not model the machine.
+ * @param machine - Modeled machine.
+ * @param limits - Memory controls of the current cgroup.
+ * @returns The violation, or `undefined` when memory is capped at the machine's size without swap.
+ */
+export function memoryLimitViolation(machine: MemoryPressureMachine, limits: CgroupMemoryLimits): string | undefined {
+  const limitBytes = String(MEMORY_PRESSURE_MACHINES[machine] * 1024 ** 3)
+  if (limits.max === limitBytes && limits.swapMax === '0' && String(limits.constrained) === limitBytes) return undefined
+  return `the cgroup does not cap ${machine} without swap: memory.max=${limits.max}, `
+    + `memory.swap.max=${limits.swapMax}, constrainedMemory=${String(limits.constrained)}`
+}
+
+/**
+ * Run the selected benchmark files inside the current cgroup and report its memory facts.
+ * `memory.peak` and `oom_kill` cover the cgroup's lifetime: a fresh systemd scope contains only this run, while a
+ * container cgroup also contains earlier commands in that container. `memory.peak` needs Linux 5.19 or later.
  * @param root - Repository root with built benchmark artifacts.
- * @param machine - Modeled machine that the current scope must enforce.
+ * @param machine - Modeled machine that the current cgroup must enforce.
  * @returns The benchmark exit status.
- * @throws If the current cgroup does not enforce the machine's memory.
+ * @throws If the current cgroup does not cap memory at the machine's size without swap.
  */
 export function runScopedMemoryPressureBench(root: string, machine: MemoryPressureMachine): number {
-  const limitBytes = MEMORY_PRESSURE_MACHINES[machine] * 1024 ** 3
-  if (Number(cgroupFile('memory.max')) !== limitBytes || process.constrainedMemory() !== limitBytes) {
-    throw new Error(`run-memory-pressure-bench: the scope does not enforce ${machine}: memory.max=${cgroupFile('memory.max')}`)
-  }
+  const violation = memoryLimitViolation(machine, {
+    max: cgroupFile('memory.max'),
+    swapMax: cgroupFile('memory.swap.max'),
+    constrained: process.constrainedMemory(),
+  })
+  if (violation !== undefined) throw new Error(`run-memory-pressure-bench: ${violation}`)
   const status = run(root, [...pnpmCommand(), 'exec', 'vitest', 'run', '--config', 'vitest.bench.config.ts', ...MEMORY_PRESSURE_FILES])
   const oomKills = /^oom_kill (\d+)$/m.exec(cgroupFile('memory.events'))?.[1]
+  if (oomKills === undefined) throw new Error('run-memory-pressure-bench: memory.events has no oom_kill counter')
   console.log(JSON.stringify({
     benchmark: `memory-pressure/${machine}`,
-    limitMb: limitBytes / 1024 ** 2,
-    swapLimit: cgroupFile('memory.swap.max'),
-    nodeHeapLimitMb: Math.round(getHeapStatistics().heap_size_limit / 1024 ** 2),
-    peakMb: Math.round(Number(cgroupFile('memory.peak')) / 1024 ** 2),
+    limitMb: MEMORY_PRESSURE_MACHINES[machine] * 1024,
+    // Heap limit Node derives from the cgroup for a process without an explicit `--max-old-space-size`.
+    defaultNodeHeapLimitMb: Math.round(getHeapStatistics().heap_size_limit / 1024 ** 2),
+    cgroupPeakMb: Math.round(Number(cgroupFile('memory.peak')) / 1024 ** 2),
     oomKills: Number(oomKills),
     files: MEMORY_PRESSURE_FILES,
     status,

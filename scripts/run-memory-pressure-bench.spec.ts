@@ -3,6 +3,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   MEMORY_PRESSURE_FILES,
+  memoryLimitViolation,
   memoryPressureMachine,
   memoryScopeCommand,
 } from './run-memory-pressure-bench.ts'
@@ -25,5 +26,19 @@ describe('memory-pressure benchmark launcher', () => {
     expect(memoryScopeCommand('4g', ['node', 'x.js'])).toEqual([
       'systemd-run', '--user', '--scope', '--quiet', '-p', 'MemoryMax=4G', '-p', 'MemorySwapMax=0', '--', 'node', 'x.js',
     ])
+  })
+
+  it('accepts only a cgroup capped at the machine size without swap', () => {
+    const capped = { max: '4294967296', swapMax: '0', constrained: 4 * 1024 ** 3 }
+    expect(memoryLimitViolation('4g', capped)).toBeUndefined()
+    for (const limits of [
+      { ...capped, max: 'max' },
+      { ...capped, max: '8589934592' },
+      { ...capped, swapMax: 'max' },
+      { ...capped, swapMax: '4294967296' },
+      { ...capped, constrained: 2 * 1024 ** 3 },
+    ]) {
+      expect(memoryLimitViolation('4g', limits)).toContain('does not cap 4g without swap')
+    }
   })
 })
