@@ -8,7 +8,8 @@
  *
  * A scaled endpoint is `ms × ((1 − io) × cpuScore(measured) / cpuScore(target) + io × ioLatency(target) /
  * ioLatency(measured))`, where `io` is the declared share of the endpoint's wall time spent waiting on
- * storage. The report lets readers change that share. Memory and dimensionless ratios are not scaled.
+ * storage. The report lets readers change that share per endpoint. Memory and dimensionless ratios are not
+ * scaled.
  *
  * Bench files also pass peak memory to {@link recordPeakMemory}. The report compares those unscaled peaks
  * with 4 GB and 8 GB of available memory; it does not run cases under an operating-system memory limit.
@@ -167,16 +168,17 @@ const times = data.records.filter(r => r.kind === 'time');
 const memories = data.records.filter(r => r.kind === 'memory');
 const AVAILABLE_MB = [4096, 8192];
 const keyOf = r => r.benchmark + ' · ' + r.metric;
-const ioShares = Object.fromEntries(times.map(r => [r.benchmark, r.ioShare]));
+const ioShares = times.map(r => r.ioShare);
 let selected = 0;
 const fmt = ms => ms >= 10000 ? (ms / 1000).toFixed(0) + ' s' : ms >= 1000 ? (ms / 1000).toFixed(1) + ' s' : ms >= 10 ? ms.toFixed(0) + ' ms' : ms.toFixed(1) + ' ms';
 const fmtMb = mb => mb >= 1024 ? (mb / 1024).toFixed(1) + ' GB' : mb.toFixed(0) + ' MB';
 const band = ms => ms < 100 ? 0 : ms < 1000 ? 1 : ms < 10000 ? 2 : 3;
 const memoryBand = share => share < 0.5 ? 0 : share < 0.75 ? 1 : share < 1 ? 2 : 3;
 const colors = ['#1a7f37', '#9a6700', '#cf222e', '#82071e'];
-function scale(record, target) {
+function scale(index, target) {
+  const record = times[index];
   const base = profiles.find(p => p.id === $('measured').value);
-  const io = ioShares[record.benchmark];
+  const io = ioShares[index];
   return record.ms * ((1 - io) * base.cpuScore / target.cpuScore + io * target.ioLatencyUs / base.ioLatencyUs);
 }
 function esc(text) { const node = document.createElement('span'); node.textContent = text; return node.innerHTML; }
@@ -209,19 +211,18 @@ function table() {
   let html = '<thead><tr><th>Endpoint</th><th>Measured</th><th>CI budget</th>' + profiles.map(p => '<th title="' + esc(p.cpu + ' · ' + p.storage) + '">' + esc(p.label) + '</th>').join('') + '</tr></thead><tbody>';
   times.forEach((r, i) => {
     html += '<tr data-index="' + i + '"' + (i === selected ? ' class="selected"' : '') + '><td>' + esc(keyOf(r)) + '</td><td>' + fmt(r.ms) + '</td><td>' + (r.budgetMs === undefined ? '' : fmt(r.budgetMs)) + '</td>';
-    for (const p of profiles) { const ms = scale(r, p); html += '<td class="b' + band(ms) + '">' + fmt(ms) + '</td>'; }
+    for (const p of profiles) { const ms = scale(i, p); html += '<td class="b' + band(ms) + '">' + fmt(ms) + '</td>'; }
     html += '</tr>';
   });
   $('table').innerHTML = html + '</tbody>';
 }
 function render() {
   if (times.length === 0) return;
-  const record = times[selected];
   $('endpoint').value = String(selected);
-  $('io').value = String(ioShares[record.benchmark]);
-  $('io-value').textContent = Math.round(ioShares[record.benchmark] * 100) + '%';
+  $('io').value = String(ioShares[selected]);
+  $('io-value').textContent = Math.round(ioShares[selected] * 100) + '%';
   bars($('chart'), profiles.map(p => {
-    const ms = scale(record, p);
+    const ms = scale(selected, p);
     return { label: p.label + ' · ' + p.storage, title: p.cpu, value: ms, band: band(ms), current: p.id === $('measured').value };
   }), [1, 10, 100, 1000, 10000, 100000, 1000000].map(value => ({ value, label: fmt(value), marked: value === 100 || value === 1000 })), fmt);
   table();
@@ -240,7 +241,7 @@ function renderMemory() {
 }
 $('measured').onchange = render;
 $('endpoint').onchange = () => { selected = Number($('endpoint').value); render(); };
-$('io').oninput = () => { ioShares[times[selected].benchmark] = Number($('io').value); render(); };
+$('io').oninput = () => { ioShares[selected] = Number($('io').value); render(); };
 $('table').onclick = event => { const row = event.target.closest('tr[data-index]'); if (row) { selected = Number(row.dataset.index); render(); } };
 render();
 renderMemory();

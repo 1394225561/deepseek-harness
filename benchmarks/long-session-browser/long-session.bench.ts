@@ -8,7 +8,7 @@ import { expect, it, vi } from 'vitest'
 import { launchWebScaffold, seedSession, watchConsole, webSnapshotMode } from '../../apps/web/tests/scaffold.ts'
 import { newEnglishPage } from '../../apps/web/tests/support.ts'
 import { ciTimeBudget, PERFORMANCE_BUDGET_HEADROOM } from '../support/calibration.ts'
-import { recordPeakMemory, recordTimings } from '../support/scaling-report.ts'
+import { recordTimings } from '../support/scaling-report.ts'
 import { HISTORY_TURNS, SESSION_ID, FIRST, DONE, DELTAS, PACE_MS, syntheticHistory, syntheticReply } from './synthetic-history.ts'
 
 const SAMPLES = 3
@@ -445,6 +445,5 @@ it('opens, pages, navigates and streams into a 240-turn browser history', async 
   }
   console.log(JSON.stringify({ benchmark: 'long-session-browser/median', turns: HISTORY_TURNS, deltas: DELTAS, paceMs: PACE_MS, samples, aggregate, referenceMs: REFERENCE, expectedOpenCiMs: EXPECTED_OPEN_CI_MS, expectedPageCiMs: EXPECTED_PAGE_CI_MS, expectedTrajectoryCiMs: EXPECTED_TRAJECTORY_CI_MS, budgets }))
   recordTimings('long-session-browser', IO_SHARE, Object.fromEntries(SCALED_ENDPOINTS.map(key => [key, aggregate[key]!])), budgets)
-  recordPeakMemory('long-session-browser', { pageJsHeapMb: Math.max(...samples.map(sample => sample.heapMb)) })
   for (const [key, value] of Object.entries(aggregate)) expectEndpointWithinBudget(value, budgets[key]!)
 })

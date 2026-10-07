@@ -73,7 +73,7 @@ it.each(['modest', 'tail', 'cheap'] as const)('serves the %s projection list wit
 
   recordTimings(`session-corpus/projection-list-${workload}`, IO_SHARE, {
     firstListAndJsonMs: medians.firstListAndJsonMs, repeatListAndJsonMs: medians.repeatListAndJsonMs, worstCallbackDelayMs: medians.worstCallbackDelayMs,
-  }, { firstListAndJsonMs: budgets.listAndJsonMs, worstCallbackDelayMs: budgets.callbackDelayMs })
+  }, { firstListAndJsonMs: budgets.listAndJsonMs, repeatListAndJsonMs: budgets.listAndJsonMs, worstCallbackDelayMs: budgets.callbackDelayMs })
   for (const report of reports) {
     expect(report.workload).toBe(workload)
     expect(report.fixture.sessions).toBe({ modest: 50, tail: 300, cheap: 3_000 }[workload])

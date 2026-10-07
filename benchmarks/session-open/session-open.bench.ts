@@ -77,8 +77,11 @@ const AGENT_RETAINED_HEAP_BUDGET_MB = Math.ceil(
 )
 
 const WORKER = join(import.meta.dirname, '..', '.dsh-build', 'session-open', 'session-open.worker.js')
-/** Estimated storage wait: each fresh process reads one Session log that the page cache usually holds. */
-const IO_SHARE = 0.1
+/**
+ * Estimated storage wait: endpoints that include open or read access one Session log that the page cache
+ * usually holds; restore and projection start after the file handle closes and process memory only.
+ */
+const IO_SHARE = { file: 0.1, memory: 0 } as const
 
 type WorkerRun = BuiltBenchmarkWorkerRun<SessionOpenWorkerReport>
 
@@ -396,10 +399,11 @@ describe('opening a large Session for first open and post-upgrade reopen', () =>
             projection: PROJECTION_BUDGET_MS,
           },
         }))
-        recordTimings(`session-open/${access.accessKind}/phases`, IO_SHARE, {
-          openMs: result.openMs.median, readMs: result.readMs.median,
-          sessionRestoreMs: result.sessionRestoreMs.median, projectionMs: result.projectionMs.median,
-        }, { openMs: access.openBudgetMs, readMs: READ_BUDGET_MS, sessionRestoreMs: SESSION_RESTORE_BUDGET_MS, projectionMs: PROJECTION_BUDGET_MS })
+        recordTimings(`session-open/${access.accessKind}/phases`, IO_SHARE.file,
+          { openMs: result.openMs.median, readMs: result.readMs.median }, { openMs: access.openBudgetMs, readMs: READ_BUDGET_MS })
+        recordTimings(`session-open/${access.accessKind}/phases`, IO_SHARE.memory,
+          { sessionRestoreMs: result.sessionRestoreMs.median, projectionMs: result.projectionMs.median },
+          { sessionRestoreMs: SESSION_RESTORE_BUDGET_MS, projectionMs: PROJECTION_BUDGET_MS })
         expectOpenWithinBudget(result.openMs.median, access.openBudgetMs)
         expect(result.readMs.median).toBeLessThanOrEqual(READ_BUDGET_MS)
         expect(result.sessionRestoreMs.median).toBeLessThanOrEqual(SESSION_RESTORE_BUDGET_MS)
@@ -424,7 +428,7 @@ describe('opening a large Session for first open and post-upgrade reopen', () =>
           result,
           budgetMs: access.firstHistoryBudgetMs,
         }))
-        recordTimings(`session-open/${access.accessKind}/first-history`, IO_SHARE, { totalMs: result.totalMs.median }, { totalMs: access.firstHistoryBudgetMs })
+        recordTimings(`session-open/${access.accessKind}/first-history`, IO_SHARE.file, { totalMs: result.totalMs.median }, { totalMs: access.firstHistoryBudgetMs })
         expect(result.totalMs.median).toBeLessThanOrEqual(access.firstHistoryBudgetMs)
       })
 
@@ -447,7 +451,7 @@ describe('opening a large Session for first open and post-upgrade reopen', () =>
           budgetMs: access.agentResumeBudgetMs,
           retainedHeapBudgetMb: AGENT_RETAINED_HEAP_BUDGET_MB,
         }))
-        recordTimings(`session-open/${access.accessKind}/agent-resume`, IO_SHARE, { totalMs: result.totalMs.median }, { totalMs: access.agentResumeBudgetMs })
+        recordTimings(`session-open/${access.accessKind}/agent-resume`, IO_SHARE.file, { totalMs: result.totalMs.median }, { totalMs: access.agentResumeBudgetMs })
         expect(result.totalMs.median).toBeLessThanOrEqual(access.agentResumeBudgetMs)
         expect(result.retainedHeapMb.median).toBeLessThanOrEqual(AGENT_RETAINED_HEAP_BUDGET_MB)
       })
