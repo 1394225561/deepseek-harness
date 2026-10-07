@@ -1,6 +1,7 @@
 /** Behavior of the local Official-bundle registry: closure selection, archive validation, HTTP, and shutdown. */
 
 import { createHash } from 'node:crypto'
+import { connect } from 'node:net'
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -17,6 +18,7 @@ import {
   readReleaseMembers,
   readWorkspacePackages,
   selectBundleDependencies,
+  packBundleArtifacts,
   startBundleRegistry,
   writeRegistryManifest,
   type BundleArtifact,
@@ -254,6 +256,16 @@ describe('packed archives', () => {
       .toThrow(/@scope\/bundle: packed archive lacks its declared bundle patch cordis\.patch\.yml/u)
   })
 
+  it('reports a preparation stopped by a signal as a cancellation', async () => {
+    const destination = temporaryDirectory('dsh-local-registry-cancel-')
+    const { member, entry } = packFixture({ destination, name: '@scope/pkg', version: '1.0.0', source: 'export default 1\n' })
+    const controller = new AbortController()
+    controller.abort()
+    await expect(packBundleArtifacts({
+      root, destination, members: [member], release: new Map([[member.name, entry]]), signal: controller.signal,
+    })).rejects.toThrow(/packing was cancelled/u)
+  })
+
   it('rejects a missing archive and a package that is not a public release member', () => {
     const destination = temporaryDirectory('dsh-local-registry-missing-')
     const missing = workspacePackage('@scope/pkg', { version: '1.0.0' })
@@ -354,6 +366,24 @@ describe('registry HTTP', () => {
     const external = await fetch(`${url}@anthropic-ai%2fclaude-agent-sdk`, { redirect: 'manual' })
     expect(external.status).toBe(302)
     expect(external.headers.get('location')).toBe('https://registry.npmjs.org/@anthropic-ai%2fclaude-agent-sdk')
+  })
+
+  it('keeps serving after a client abandons a tarball request', async () => {
+    const destination = temporaryDirectory('dsh-local-registry-disconnect-')
+    const { artifact } = fabricate({ destination, name: '@scope/local', version: '1.0.0', source: 'export default 1\n' })
+    const url = await servingRun({ destination, artifacts: [artifact], workspaceNames: ['@scope/local'] })
+    const { port, pathname } = new URL(url)
+    const socket = connect(Number(port), '127.0.0.1')
+    await new Promise<void>((resolveConnect, rejectConnect) => {
+      socket.once('connect', resolveConnect)
+      socket.once('error', rejectConnect)
+    })
+    socket.write(`GET ${pathname}tarballs/${artifact.file} HTTP/1.1\r\nHost: 127.0.0.1:${port}\r\n\r\n`)
+    await new Promise<void>((resolveData) => { socket.once('data', () => { resolveData() }) })
+    socket.destroy()
+    const response = await fetch(`${url}@scope%2flocal`)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ name: '@scope/local' })
   })
 
   it('rejects out-of-namespace, malformed, and non-GET requests, then stops listening', async () => {

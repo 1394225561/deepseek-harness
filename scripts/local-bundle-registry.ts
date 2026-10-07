@@ -367,15 +367,30 @@ export async function packBundleArtifacts(options: {
     'pack', '--recursive', `--workspace-concurrency=${String(Math.min(4, members.length))}`,
     ...members.map(member => `--filter=${member.name}`), '--pack-destination', destination,
   ])
-  const result = await execa(invocation.command, invocation.args, {
-    cwd: root, reject: false, killDescendants: true,
-    ...options.signal === undefined ? {} : { cancelSignal: options.signal },
-  })
+  let result
+  try {
+    result = await execa(invocation.command, invocation.args, {
+      cwd: root, reject: false, killDescendants: true,
+      ...options.signal === undefined ? {} : { cancelSignal: options.signal },
+    })
+  } catch (error) {
+    if (isCanceled(error)) throw new Error('packing was cancelled')
+    throw error
+  }
   if (result.isCanceled) throw new Error('packing was cancelled')
   if (result.exitCode !== 0) {
     throw new Error(`pnpm pack exited with ${String(result.exitCode ?? result.signal)}:\n${result.stdout}\n${result.stderr}`)
   }
   return readPackedArtifacts({ destination, members, release })
+}
+
+/**
+ * Whether a settled or thrown child-process outcome was a cancellation.
+ * @param value - the settled execa result or the error it rejected with.
+ * @returns True when an abort signal ended the child.
+ */
+function isCanceled(value: unknown): boolean {
+  return typeof value === 'object' && value !== null && 'isCanceled' in value && value.isCanceled === true
 }
 
 /**
