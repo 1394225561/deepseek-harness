@@ -66,6 +66,7 @@ kind: "package-library"
 | `SettingsFormModel`、`settingsNumberField`、`settingsTextField` | 这类页面背后基于设置 scope 的暂存编辑模型：草稿先暂存、保存时写入，字段是否被覆盖看用户层是否含有它，未落地的保存保留草稿。 |
 | `JsonTree`、`JsonBlock` | 只读 JSON 查看。 |
 | `MarkdownText`、`MarkdownDelegateProvider`、`CodeBlock` | 不可信 GFM 与 TeX 数学、owner 委托的 HTTP(S) 导航，以及高亮代码。`CodeBlock` 可通过 `lineNumbers` 开启行号；复制的源码不含行号栏，`contentRef` 则向需要把稳定源码包装节点用作滚动区的 owner 提供该节点。调用方提供自己的语言与复制工具栏时，设置 `showHeader={false}`。 |
+| `CommandText` | 可选中的命令或参数文本；仅横向溢出时添加具名的键盘聚焦目标。 |
 | `TerminalBlock`、`ReadBlock`、`DiffBlock`、`SearchBlock`、`WebBlock` | 与各类工具结果意图对应的 agent 输出卡片。 |
 | `icons/*`、`FishLogo`、`BrandWordmark`、`ReferenceIconRegular`/`ReferenceIconMedium`、`LinkIconRegular`/`LinkIconMedium` | 字形与品牌标识。思考图标的轨道在 16px 视口内保留内边距。`LinkIconMedium` 用于 14px 的可点击链接分类及已知站点标记。 |
 | `PermissionIconReadOnlyRegular`/`Medium`、`PermissionIconWorkspaceWriteRegular`/`Medium`、`PermissionIconFullAccessRegular`/`Medium` | 只读、工作区写入与完全访问选项使用的权限模式图形。 |
@@ -160,7 +161,7 @@ kind: "package-library"
 
 ### 几何与溢出
 
-输出卡片共享同一套几何模型：`white-space: pre` 并横向滚动，让按列对齐的内容保持对齐；超过 `maxLines`（默认 16）时折叠为头部切片加尾部切片，由展开按钮控制，长正文不会撑高卡片。`TerminalBlock` 把 ANSI 解析为 React span，并带逐行列缓冲处理光标移动，遵循行内擦除、制表位与字符宽度。宿主可按表层选择退出共享几何：把 `--dsl-terminal-command-whitespace` / `--dsl-terminal-line-whitespace` 重绑为 `pre-wrap` 让命令与输出完整换行且不横向滚动；`maxLines: Infinity` 为改用 `--dsl-terminal-output-max-height` 限高滚动的宿主禁用折叠；`copyText` 覆盖复制载荷（并让控件在任何输出出现之前就保持渲染）；`runStateDot: false` 在外围行已携带同一状态时省去状态点，并经 `--dsl-terminal-gutter` 收回其落区。横幅分割线跟随渲染出的正文：正在流式输出的 running 卡片像已结束卡片一样把命令与文本分隔开。
+输出卡片共享同一套几何模型：`white-space: pre` 并横向滚动，让按列对齐的内容保持对齐；超过 `maxLines`（默认 16）时折叠为头部切片加尾部切片，由展开按钮控制，长正文不会撑高卡片。`TerminalBlock` 通过 `CommandText` 让每条原始命令行可选中并横向滚动；提示符和状态保持固定。只有横向溢出的文本以具名 group 进入 Tab 顺序，名称使用 owner 的本地化 `commandLine(line)` 标签。能完整显示的文本（包括 Jobs 中已换行的命令）不会添加 Tab 停靠点。尺寸、文本与字体变化会更新可聚焦状态，不改变滚动位置。`TerminalBlock` 把 ANSI 解析为 React span，并带逐行列缓冲处理光标移动，遵循行内擦除、制表位与字符宽度。宿主可按表层选择退出共享几何：把 `--dsl-terminal-command-whitespace` / `--dsl-terminal-line-whitespace` 重绑为 `pre-wrap` 让命令与输出完整换行且不横向滚动；`maxLines: Infinity` 为改用 `--dsl-terminal-output-max-height` 限高滚动的宿主禁用折叠；`copyText` 覆盖复制载荷（并让控件在任何输出出现之前就保持渲染）；`runStateDot: false` 在外围行已携带同一状态时省去状态点，并经 `--dsl-terminal-gutter` 收回其落区。横幅分割线跟随渲染出的正文：正在流式输出的 running 卡片像已结束卡片一样把命令与文本分隔开。
 
 </details>
 

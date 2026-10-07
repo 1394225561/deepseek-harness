@@ -17,6 +17,7 @@ import { recordedAbsolutePath } from './recorded-path.ts'
  */
 export function terminalBlockLabels(t: TranslateNS<'conversation'>): TerminalBlockLabels {
   return {
+    commandLine: line => t('terminal.commandLine', { n: line }),
     signal: signal => t('terminal.signal', { signal }),
     exitCode: code => t('terminal.exitCode', { code }),
     noExitCode: t('terminal.noExitCode'),
@@ -208,6 +209,16 @@ function shellCall(name: string, args: Record<string, unknown>): ShellCall | nul
     persistent: false,
     background: background === true,
   }
+}
+
+/**
+ * Identify a background shell launch whose result acknowledges a job, not its exit.
+ * @param block - Tool block at any call stage.
+ * @returns whether the call requests a background shell job.
+ */
+export function isBackgroundShellCall(block: ToolCallBlock): boolean {
+  const parsed = parsedToolCall(block)
+  return parsed !== null && shellCall(parsed.name, parsed.args)?.background === true
 }
 
 /**
