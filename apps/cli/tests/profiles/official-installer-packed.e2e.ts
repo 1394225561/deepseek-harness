@@ -1,5 +1,5 @@
 /** Install actual packed Official providers through the ordinary manager in a source-independent Web process. */
-import { existsSync, globSync } from 'node:fs'
+import { existsSync, globSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { createInterface } from 'node:readline'
@@ -51,6 +51,23 @@ interface Observation {
     removed: ChangeResult
     absent: BundleInfo
   }>
+}
+
+/**
+ * Read the tail of the newest plugin-manager pnpm log, for a failure the child cannot report itself.
+ * @param profile - isolated profile directory.
+ * @returns The last log lines, or a marker when no run logged anything.
+ */
+function pnpmLogTail(profile: string): string {
+  const logs = join(profile, '.plugin-manager', 'logs')
+  const newest = existsSync(logs)
+    ? readdirSync(logs, { withFileTypes: true }).filter(entry => entry.isDirectory())
+      .map(entry => join(logs, entry.name, 'pnpm.log'))
+      .filter(path => existsSync(path))
+      .sort((left, right) => statSync(right).mtimeMs - statSync(left).mtimeMs)[0]
+    : undefined
+  if (newest === undefined) return '--- plugin-manager log: none ---'
+  return `--- ${newest} ---\n${readFileSync(newest, 'utf8').split('\n').slice(-40).join('\n')}`
 }
 
 it.skipIf(!built)('installs the exported registry\'s local closure and switches Official bundles through the generic manager', {
@@ -166,7 +183,8 @@ it.skipIf(!built)('installs the exported registry\'s local closure and switches 
     expect(record.packages).toHaveLength(selection.members.length)
     expect(record.packages).toEqual(expect.arrayContaining([expect.objectContaining({ name: packages[0], version })]))
   } catch (error) {
-    failure = error
+    // The manager's own pnpm output names a stalled or refused operation, which the child's stdout cannot show.
+    failure = error instanceof Error ? new Error(`${error.message}\n\n${pnpmLogTail(profile)}`) : error
   } finally {
     lines.close()
     child.kill('SIGTERM')
