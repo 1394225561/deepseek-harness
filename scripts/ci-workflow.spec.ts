@@ -194,7 +194,7 @@ describe('CI workflow', () => {
     const job = workflowJob(loadWorkflow('.github/workflows/ci.yml'), jobName)
     if (!Array.isArray(job.steps)) throw new TypeError(`${jobName} must define steps`)
     const steps = job.steps.filter(isRecord)
-    const checkout = steps.findIndex(step => step.uses === 'actions/checkout@v6')
+    const checkout = steps.findIndex(step => step.uses === 'actions/checkout@v7.0.1')
     const restore = steps.findIndex(step => step.name === 'Restore coverage duration history')
     const coverage = steps.findIndex(step => step.run === command)
     const save = steps.findIndex(step => step.name === 'Save coverage duration history')
@@ -205,11 +205,11 @@ describe('CI workflow', () => {
     expect(coverage).toBeGreaterThan(restore)
     expect(save).toBeGreaterThan(coverage)
     expect(steps[restore]).toMatchObject({
-      uses: 'actions/cache/restore@v4',
+      uses: 'actions/cache/restore@v6.1.0',
       with: { path: '.coverage-times.json', key, 'restore-keys': `${prefix}\n` },
     })
     expect(steps[save]).toMatchObject({
-      uses: 'actions/cache/save@v4',
+      uses: 'actions/cache/save@v6.1.0',
       if: '${{ !cancelled() }}',
       with: { path: '.coverage-times.json', key },
     })
@@ -261,7 +261,7 @@ describe('CI workflow', () => {
       if (jobName === 'node-24-consumers') {
         const browserCache: unknown = job.steps.find(step => isRecord(step) && isRecord(step.with)
           && step.with.path === '${{ env.PLAYWRIGHT_BROWSERS_PATH }}')
-        expect(browserCache).toMatchObject({ uses: 'actions/cache/restore@v4' })
+        expect(browserCache).toMatchObject({ uses: 'actions/cache/restore@v6.1.0' })
       }
       const store: unknown = job.steps.find(step => isRecord(step) && step.name === 'Configure pnpm store path')
       expect(store).toMatchObject({
@@ -623,7 +623,7 @@ describe('CI workflow', () => {
   it('always restores the hosted benchmark pnpm cache', () => {
     const benchmark = workflowJob(loadWorkflow('.github/workflows/ci.yml'), 'node-24-bench')
     if (!Array.isArray(benchmark.steps)) throw new TypeError('benchmark job must define steps')
-    const caches = benchmark.steps.filter(step => isRecord(step) && step.uses === 'actions/cache/restore@v4')
+    const caches = benchmark.steps.filter(step => isRecord(step) && step.uses === 'actions/cache/restore@v6.1.0')
 
     expect(caches).toHaveLength(1)
     expect(caches[0]).not.toHaveProperty('if')
