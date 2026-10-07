@@ -64,7 +64,7 @@ Bundle 将 `tool-subagent-claude-code` 作为 Host 条目插入，因此 `subage
 - insert:
     - id: subagent-claude-code
       name: '@deepseek-ai/dsh-subagent-claude-code'
-    - id: tool-subagent-claude
+    - id: tool-subagent-claude-code
       name: '@deepseek-ai/dsh-tool-subagent'
       config:
         provider: claude-code

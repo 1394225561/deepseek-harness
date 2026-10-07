@@ -64,7 +64,7 @@ The bundle inserts `tool-subagent-claude-code` as a Host row, so `subagent_claud
 - insert:
     - id: subagent-claude-code
       name: '@deepseek-ai/dsh-subagent-claude-code'
-    - id: tool-subagent-claude
+    - id: tool-subagent-claude-code
       name: '@deepseek-ai/dsh-tool-subagent'
       config:
         provider: claude-code

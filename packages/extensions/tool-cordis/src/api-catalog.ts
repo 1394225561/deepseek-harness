@@ -2522,7 +2522,7 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
       },
       {
         signature: 'register(provider: SessionTitleProvider): () => Promise<void>',
-        description: 'Register the sole optional title provider. Disposal aborts its pending and active work before another provider may register.',
+        description: 'Register the sole optional title provider. Disposal aborts its pending and active work; a replacement may register once disposal has started, and the closing provider\'s late results never commit.',
         parameters: [{ name: 'provider', description: 'provider identity, cadence, and generation function.' }],
         returns: 'exact Cordis effect disposer, which settles after active calls quiesce.',
       },

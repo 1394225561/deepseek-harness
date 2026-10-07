@@ -690,7 +690,8 @@ export class PluginManager extends TypertRemoteService {
     const rows: BundleRowInfo[] = []
     const packages = this.ctx.get('pluginPackages')
     for (const row of flatten(composeEntries([patches.filter(item => item.insert !== undefined)]))) {
-      if (typeof row.id !== 'string' || typeof row.name !== 'string') continue
+      // Group rows are containers without a plugin inventory entry; their children carry the switches.
+      if (typeof row.id !== 'string' || typeof row.name !== 'string' || row.group === true) continue
       const active = live.get(row.id)
       const entryId = active?.entryId
       const base = active?.baseUrl ?? pathToFileURL(join(dir, 'package.json')).href

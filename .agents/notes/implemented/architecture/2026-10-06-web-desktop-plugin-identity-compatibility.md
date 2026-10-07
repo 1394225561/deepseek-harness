@@ -31,10 +31,10 @@ These naming changes are deferred, not prerequisites for experimental classifica
 
 **Publish aliases or keep duplicate compatibility rows.** Parallel identities need continuing resolution and removal rules and can register the same capability twice. Retaining the established identity avoids that additional mechanism.
 
-**Keep provider-only bundles through additional wrapper packages.** Web and Desktop already provide the required presets. Extra delivery packages would preserve compositions outside the selected compatibility scope and increase catalog and release maintenance.
+**Keep provider-only bundles through additional wrapper packages.** Native bundles insert ordinary Host rows that compose into any profile. Extra delivery packages would preserve compositions outside the selected compatibility scope and increase catalog and release maintenance.
 
 ## Consequences
 
-The repository carries a bounded naming-exception map and tests that classify retained names through direct imports, aliases, transitive dependencies, and packed or bundled artifacts. An unprefixed name does not grant admission to the default product. Existing row identities have Web/Desktop composition coverage for user overrides, disabled state, and preset replacement. No general alias or automatic profile migration mechanism is introduced.
+The repository carries a bounded naming-exception map and tests that classify retained names through direct imports, aliases, transitive dependencies, and packed or bundled artifacts. An unprefixed name does not grant admission to the default product. Existing row identities have Web/Desktop composition coverage for user overrides and disabled state. No general alias or automatic profile migration mechanism is introduced.
 
 The [classification decision](../process/2026-10-05-product-package-classification.md), [optional-composition decision](2026-09-21-experimental-capabilities-as-optional-bundles.md), and [on-demand discovery decision](2026-10-05-official-on-demand-bundles.md) retain their separate responsibilities. Released Session generations and persisted hook event names remain protected independently of this profile compatibility scope.
