@@ -232,7 +232,8 @@ jobs:
           esac
           addon_dir="$(realpath packages/subprocess/subprocess-local/node_modules/node-pty)"
           pnpm_setup_root="$(realpath "$(dirname "$(dirname "$PNPM_HOME")")")"
-          (cd "$addon_dir" && npm_config_build_from_source=true pnpm run install)
+          # Verification installs would install node-gyp inside the package and package it into the exe.
+          (cd "$addon_dir" && npm_config_build_from_source=true pnpm --config.verifyDepsBeforeRun=false run install)
           addon="$addon_dir/build/Release/pty.node"
           [ -f "$addon_dir/build/Makefile" ] || {
             echo "::error::node-pty install did not generate $addon_dir/build/Makefile"
