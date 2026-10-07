@@ -47,6 +47,9 @@
 /deepseek-harness-desktop/package/local-macos-dmg-without-release-signing:
   en: 57869a5e3885f843
   zh: 7cfc01b2dcbebd78
+/deepseek-harness-desktop/package/local-official-bundles-from-a-loopback-registry:
+  en: e6a1ea5aa317af5b
+  zh: 70499589cde60903
 /deepseek-harness-desktop/package/runtime-file-selection:
   en: e7c1eb8e78fe46e3
   zh: b7ea497dd75be524

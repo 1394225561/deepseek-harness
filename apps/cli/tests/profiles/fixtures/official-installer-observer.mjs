@@ -22,7 +22,6 @@ function applied(stage, result) {
 
 async function exercise(ctx, config) {
   const initial = await ctx.pluginManager.listBundles()
-  await fetch(`${config.registry}catalog-observed`)
   const steps = []
   for (const name of config.packages) {
     const spec = initial.find(bundle => bundle.name === name)?.installTarget?.spec
@@ -34,6 +33,8 @@ async function exercise(ctx, config) {
     applied(`install ${name}`, install)
     const manifest = JSON.parse(await readFile(join(config.profile, 'package.json'), 'utf8'))
     const installed = (await ctx.pluginManager.listBundles()).find(bundle => bundle.name === name)
+    // A transitive repository package the registry served, absent from npm at this version.
+    const localDependency = JSON.parse(await readFile(join(config.profile, 'node_modules', config.localDependency, 'package.json'), 'utf8')).version
     const provider = name.endsWith('-codex') ? 'codex' : 'claude-code'
     const providerEnabled = ctx.subagents.list().includes(provider)
     const nativeDir = join(config.profile, 'node_modules', config.nativePackages[name])
@@ -53,8 +54,8 @@ async function exercise(ctx, config) {
     const removed = await ctx.pluginManager.removeBundle(name)
     applied(`remove ${name}`, removed)
     const absent = (await ctx.pluginManager.listBundles()).find(bundle => bundle.name === name)
-    steps.push({ name, install, savedVersion: manifest.dependencies?.[name], installed, providerEnabled, nativeArtifact, presets,
-      unavailable, unchangedAfterUnavailable, off, disabled, on, enabled, removed, absent })
+    steps.push({ name, install, savedVersion: manifest.dependencies?.[name], installed, localDependency, providerEnabled, nativeArtifact,
+      presets, unavailable, unchangedAfterUnavailable, off, disabled, on, enabled, removed, absent })
   }
   return { initial, steps, sessionCount: ctx.sessions.list().length }
 }

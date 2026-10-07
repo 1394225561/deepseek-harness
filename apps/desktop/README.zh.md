@@ -252,6 +252,22 @@ pnpm run package:desktop:mac:x64:unsigned
 
 这些命令忽略 `.env.macos` 和继承的发布配置，使用 `com.deepseek.harness` 作为应用 ID，并省略自动更新和强制更新配置。构建工具、标准网络代理与 `DSH_DESKTOP_NPM_REGISTRY` 仍可从 shell 提供。它们跳过 Developer ID 签名、Apple 公证、临时签名钥匙串和公证代理修改。Electron 使用无需证书的本地 ad-hoc 签名，以便修改后的可执行文件能够运行；DMG 不签名。准备阶段和组装后的应用仍执行运行时完整性与冒烟检查。本地构建不生成更新源、ZIP 或发布完成记录，上传命令无法发布这些产物。macOS 可能要求在“系统设置 → 隐私与安全性”中批准打开未经公证的应用。
 
+### 用回环 registry 安装本地 Official 包
+
+测试 DMG 不包含 Official 按需目录所宣传的 provider 运行时，而正式发布才会把对应版本的 bundle 发到 npm。要在发布前安装本地构建的 bundle，请启动一个回环 registry，它会打包并提供该目录的完整本地依赖闭包：
+
+```sh
+pnpm run dev:bundle-registry
+```
+
+该命令先校验目录与 workspace 清单，运行 `pnpm run build:official`，把闭包打包进新的 `dist/test-bundles/<run-id>/` 目录，最后写入 `bundle-registry.json` 作为完成标记，然后才打印产物路径、registry URL 和精确的 `name@version` 规格。它在分配到的端口上只监听 `127.0.0.1`，使用一次性的命名空间提供服务，直到 Ctrl+C 或 SIGTERM；停止后产物和已安装的包都保留在磁盘上。它不需要 `.env.macos`、Apple 凭据或 npm 凭据，也不改变 `pnpm run package:desktop:unsigned`。
+
+在打包应用中打开“插件 → 添加插件”，粘贴一条打印出的规格，选择**自定义地址**，粘贴打印出的 registry URL 后安装。自定义 registry 会被单独询问，因此必须由本进程回答每一个依赖：仓库自有的包取自本次运行的产物，第三方包则通过固定重定向到 `registry.npmjs.org` 保留 npm 的真实元数据与字节，因此仍需要网络访问。安装后的条目仍归类为 Official，因为它的包名在目录中。registry 选择会在此浏览器中记住；再次选择某个提供的 registry 即可切回。
+
+一次运行的产物是不可变的，所以重新构建会提供新的命名空间和新 URL。要在同一版本上验证改动后的代码，请重新运行命令，然后移除并重新安装该 bundle；当已安装版本与运行版本一致时，Official 的**更新**控件不会出现。`bundle-registry.json` 记录每个归档的版本、文件名、大小和 SHA-512 完整性，以及打包所用 checkout 的 commit 和 dirty 标记。
+
+所提供的 `time` 是真实的打包时间，因此 pnpm 11 默认的 24 小时 `minimumReleaseAge` 会在 profile 的 `pnpm-workspace.yaml` 中记录它授予的豁免（`minimumReleaseAgeExclude`）；如果那里显式配置了更严格的策略，安装会以 pnpm 自己的报错失败，而不会被覆盖。`~/.npmrc` 或 profile 的 `.npmrc` 中的 `@scope:registry` 路由会覆盖该 scope 的 `--registry`，因此不能让它们指向正在提供服务的 scope。
+
 ### 运行时文件筛选
 
 Desktop 在本地打包工作区包，并通过目标捆绑的 Node 和 pnpm 安装外部依赖。[Desktop 文件策略](scripts/runtime-file-policy.ts)随后在签名和完整性封装前过滤不可变的 `resources/app.asar/dsh/node_modules` 副本。它排除 TypeScript 声明、已识别的 JavaScript/CSS/TypeScript source map、TypeScript 构建缓存、Domino 测试目录、选定的原生编译器输出和其他平台的 node-pty 预构建文件。它保留运行时 JavaScript、原生模块及其 DLL/EXE 辅助文件、WASM、未知资源、许可证和 notices。依赖清单在完整性封装前经过 electron-builder 的元数据清理，确保归档保持已记录的字节。该策略不修改 npm tarball、捆绑的包管理器或用户安装的插件文件。
