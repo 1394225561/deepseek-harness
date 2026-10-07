@@ -65,7 +65,10 @@
         targetWords: 5
         targetCjkCharacters: 10
         maxInputBytes: 4096
-        maxOutputTokens: 64
+        # A ceiling against runaway output, not a length target: the prompt
+        # keeps titles short, while reasoning a model cannot switch off also
+        # counts as output. Stays within common model output limits.
+        maxOutputTokens: 4096
         timeoutMs: 60000
 
     - id: user-questions

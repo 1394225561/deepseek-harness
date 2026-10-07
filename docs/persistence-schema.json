@@ -11890,7 +11890,7 @@
       "kind": "event",
       "event": "session/title-llm-request",
       "surface": false,
-      "digest": "19fab83e64cf84ee8a6caf62c592e85c9b195bfd19e84a2667c6693a395681fd",
+      "digest": "b33545b3244861bcbf73b407d24b53402710f5acacab7ae939537e5504a68dc6",
       "schema": {
         "root": 0,
         "nodes": [
@@ -11942,6 +11942,11 @@
                 "name": "messages",
                 "type": 4,
                 "optional": false
+              },
+              {
+                "name": "reasoningEffort",
+                "type": 10,
+                "optional": true
               },
               {
                 "name": "route",
@@ -22042,6 +22047,15 @@
       "sources": []
     },
     {
+      "digest": "045926475a46f625f84ae2be292b384817059f16927c69a9adab93717923ac19",
+      "names": [
+        "packages/session/session-title-llm/src/index.ts#SessionTitleLlmRequestEventData"
+      ],
+      "sources": [
+        "packages/session/session-title-llm/src/index.ts:34"
+      ]
+    },
+    {
       "digest": "05a2796621b1ee6c03ef7abe560b25116bb4da4d592312117242a78415a32b04",
       "names": [],
       "sources": []
@@ -22356,11 +22370,6 @@
     },
     {
       "digest": "1986c2664009c99155e44795676c887fa67f7c55cd2d5e6b648ff763e0ab033a",
-      "names": [],
-      "sources": []
-    },
-    {
-      "digest": "19fab83e64cf84ee8a6caf62c592e85c9b195bfd19e84a2667c6693a395681fd",
       "names": [],
       "sources": []
     },
@@ -22758,7 +22767,7 @@
         "packages/llm/llm/src/call-config.ts#LlmCallConfigAdapterDefaults"
       ],
       "sources": [
-        "packages/llm/llm/src/call-config.ts:36"
+        "packages/llm/llm/src/call-config.ts:54"
       ]
     },
     {
@@ -23534,16 +23543,7 @@
         "packages/llm/llm/src/call-config.ts#LlmCallConfig"
       ],
       "sources": [
-        "packages/llm/llm/src/call-config.ts:23"
-      ]
-    },
-    {
-      "digest": "681028d4517ac1ac96af970b6d1d084e8c257d9ba7941478985922880b0eccff",
-      "names": [
-        "packages/session/session-title-llm/src/index.ts#SessionTitleLlmRequestEventData"
-      ],
-      "sources": [
-        "packages/session/session-title-llm/src/index.ts:34"
+        "packages/llm/llm/src/call-config.ts:31"
       ]
     },
     {
@@ -24690,6 +24690,11 @@
       "sources": [
         "packages/experimental/agent-team/src/types.ts:71"
       ]
+    },
+    {
+      "digest": "b33545b3244861bcbf73b407d24b53402710f5acacab7ae939537e5504a68dc6",
+      "names": [],
+      "sources": []
     },
     {
       "digest": "b3681c026a0b98e98b103f057dfd217fbe904129c090efd668253ec9aea7fece",

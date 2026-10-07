@@ -47,9 +47,19 @@ const headlessSessionExpected = join(goldensDir, 'headless-profile', 'session.ex
 const headlessReasoningExpected = join(goldensDir, 'headless-profile', 'reasoning.stderr.expected.txt')
 const headlessFailureExpected = join(goldensDir, 'headless-profile', 'stderr.expected.txt')
 const refreshing = process.env.DSH_SNAPSHOT === 'refresh'
+/** The shipped base bundle's title output cap, which marks a title request's `max_tokens`. */
+const TITLE_MAX_TOKENS = 4096
 
 interface JsonObject {
   [key: string]: unknown
+}
+
+/** Framed user text that distinguishes the auxiliary title request from a main request. */
+const TITLE_PROMPT_MARKER = 'Generate the session title from this JSON array of human messages'
+
+/** Whether one recorded request body is the auxiliary title request. */
+function isTitleRequest(request: JsonObject): boolean {
+  return JSON.stringify(request['messages'] ?? null).includes(TITLE_PROMPT_MARKER)
 }
 
 interface PersistedLog {
@@ -100,7 +110,7 @@ async function deepseekDefaultsServer(
       const write = (): void => {
         // One-shot teardown may cancel background title work after the main response.
         if (keepAlives-- > 0
-          || (options.waitForTitleRequest === true && !requests.some(request => request.max_tokens === 64))) {
+          || (options.waitForTitleRequest === true && !requests.some(isTitleRequest))) {
           response.write(': keep-alive\n\n')
           timer = setTimeout(write, 60)
           return
@@ -259,6 +269,8 @@ describe('headless stream-json snapshots', () => {
         if (actual === undefined) throw new Error('the headless profile did not persist its session')
         const context = contextFromLogs([actual.content])
         const session = normalizeSessionSnapshot(actual.content, context)
+        const titleRequest = parseJsonl(session).find(event => event.type === 'session/title-llm-request')
+        expect(titleRequest?.data).toMatchObject({ reasoningEffort: 'off', maxTokens: TITLE_MAX_TOKENS })
         if (refreshing) await writeFile(headlessSessionExpected, session)
         await expectSessionSnapshot(session, context, headlessSessionExpected)
         expect(session).toContain(task)
@@ -610,7 +622,8 @@ describe('headless stream-json snapshots', () => {
       expect(server.requests).toHaveLength(2)
       expect(server.paths).toEqual(['/v1/messages', '/v1/messages'])
       const agentRequest = server.requests.find(request => request.max_tokens === 256_000)
-      const titleRequest = server.requests.find(request => request.max_tokens === 64)
+      const titleRequest = server.requests.find(isTitleRequest)
+      expect(titleRequest?.max_tokens).toBe(TITLE_MAX_TOKENS)
       expect(agentRequest?.output_config).toEqual({ effort: 'low' })
       expect(titleRequest).toBeDefined()
       const header = (parseJsonl(result.stdout)
@@ -659,7 +672,10 @@ describe('headless stream-json snapshots', () => {
         }
         const title = await fetch(server.url, {
           method: 'POST',
-          body: JSON.stringify({ max_tokens: 64 }),
+          body: JSON.stringify({
+            max_tokens: TITLE_MAX_TOKENS,
+            messages: [{ role: 'user', content: [{ type: 'text', text: TITLE_PROMPT_MARKER }] }],
+          }),
         })
         for (;;) {
           const chunk = await reader.read()
@@ -699,10 +715,10 @@ describe('headless stream-json snapshots', () => {
 
       expect(result.stderr).toBe('')
       expect(server.requests).toHaveLength(2)
-      const agentRequest = server.requests.find(request => request.max_tokens === 1024)
-      const titleRequest = server.requests.find(request => request.max_tokens === 64)
+      const agentRequest = server.requests.find(request => !isTitleRequest(request))
+      const titleRequest = server.requests.find(isTitleRequest)
       expect(agentRequest).not.toHaveProperty('max_completion_tokens')
-      expect(titleRequest).toBeDefined()
+      expect(titleRequest?.max_tokens).toBe(TITLE_MAX_TOKENS)
       const header = (parseJsonl(result.stdout)
         .map(record => record.event)
         .find((event): event is JsonObject => (
