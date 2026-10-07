@@ -2161,7 +2161,13 @@ describe('apply (the plugin entry)', () => {
     apply(ctx, {
       file,
       providers: [
-        { id: 'm', models: [{ id: 'm', inputModalities: ['image'] }, { id: 'text' }] },
+        {
+          id: 'm',
+          models: [
+            { id: 'm', inputModalities: ['image'], reasoningEfforts: ['low'], floorReasoningEffort: 'low' },
+            { id: 'text' },
+          ],
+        },
         { id: 'empty' },
       ],
       paceMs: 1,
@@ -2202,6 +2208,17 @@ describe('apply (the plugin entry)', () => {
     expect(priced?.[0]?.text).toContain('640x480px')
     expect(priced?.[1]?.text).toContain('image omitted to fit request image limits')
     expect(ctx.llm.imageRequestPricing('deepseek', 'plain')).toBeUndefined()
+  })
+
+  it.each([undefined, [], ['high']])('rejects a floor absent from configured efforts %s', (reasoningEfforts) => {
+    const ctx = new Context()
+    const model = {
+      id: 'm', floorReasoningEffort: 'low',
+      ...reasoningEfforts === undefined ? {} : { reasoningEfforts },
+    }
+    expect(() => { apply(ctx, { file, providers: [{ id: 'm', models: [model] }] }) }).toThrow(
+      'llm-replay: provider "m" model "m" floorReasoningEffort must appear in reasoningEfforts',
+    )
   })
 
   it('rejects imageRequestTokens on a model without the image modality during load', () => {

@@ -1151,6 +1151,13 @@ export interface Config {
 function validateConfiguredModels(providers: ReplayProviderConfig[] | undefined): void {
   for (const provider of providers ?? []) {
     for (const model of provider.models ?? []) {
+      if (model.floorReasoningEffort !== undefined
+        && !model.reasoningEfforts?.includes(model.floorReasoningEffort)) {
+        throw new Error(
+          `llm-replay: provider "${provider.id}" model "${model.id}" floorReasoningEffort `
+          + 'must appear in reasoningEfforts',
+        )
+      }
       const modalities: unknown = model.inputModalities
       if (modalities !== undefined && (!Array.isArray(modalities)
         || !modalities.every((modality: unknown) => modality === 'text' || modality === 'image'))) {
