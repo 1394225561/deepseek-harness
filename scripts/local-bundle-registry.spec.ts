@@ -435,6 +435,50 @@ describe('run record', () => {
   })
 })
 
+/**
+ * Run one pnpm command in a profile-shaped directory, terminating and awaiting it with the test.
+ * @param options - consumer directory, environment, the store and cache directories an installing
+ *   command shares, and the arguments to append.
+ * @returns The settled child result.
+ */
+async function pnpmIn(options: {
+  readonly consumer: string
+  readonly environment: NodeJS.ProcessEnv
+  readonly store?: string
+  readonly cache?: string
+  readonly args: readonly string[]
+}): Promise<{ exitCode?: number | null; stdout: string; stderr: string; timedOut: boolean }> {
+  const invocation = pnpmInvocationFor([
+    ...options.args,
+    ...options.store === undefined ? [] : ['--store-dir', options.store],
+    ...options.cache === undefined ? [] : ['--cache-dir', options.cache],
+    '--config.fetch-retries=0',
+  ])
+  const child = execa(invocation.command, invocation.args, {
+    cwd: options.consumer, env: options.environment, extendEnv: false, reject: false, timeout: 240_000,
+  })
+  onTestFinished(async () => {
+    child.kill('SIGKILL')
+    await child.catch(() => undefined)
+  })
+  return child
+}
+
+/** Prepare one isolated profile-shaped consumer directory. */
+function consumerDirectory(parent: string, name: string): string {
+  const consumer = join(parent, name)
+  mkdirSync(consumer, { recursive: true })
+  writeFileSync(join(consumer, 'package.json'), JSON.stringify({ name, private: true, dependencies: {} }))
+  writeFileSync(join(consumer, 'pnpm-workspace.yaml'), 'packages:\n  - .\n\nnodeLinker: hoisted\nautoInstallPeers: false\n')
+  return consumer
+}
+
+/** The payload a consumer's installed fixture carries, or a marker when nothing is installed. */
+function installedPayload(consumer: string): string {
+  try { return readFileSync(join(consumer, 'node_modules', '@dsh-local', 'fixture', 'lib', 'index.js'), 'utf8').trim() }
+  catch { return '(absent)' }
+}
+
 describe('package cache freshness', () => {
   it('installs a rebuilt archive at the same version through a retained pnpm store', { timeout: 300_000 }, async () => {
     const temporary = temporaryDirectory('dsh-local-registry-cache-')
@@ -453,24 +497,15 @@ describe('package cache freshness', () => {
         directory: destination, artifacts: [artifact], workspaceNames: ['@dsh-local/fixture'],
       })
       onTestFinished(() => registry.close())
-      const consumer = join(temporary, run, 'consumer')
-      mkdirSync(consumer, { recursive: true })
-      writeFileSync(join(consumer, 'package.json'), JSON.stringify({ name: `consumer-${run}`, private: true, dependencies: {} }))
-      writeFileSync(join(consumer, 'pnpm-workspace.yaml'), 'packages:\n  - .\n\nnodeLinker: hoisted\nautoInstallPeers: false\n')
-      const invocation = pnpmInvocationFor([
-        'add', '@dsh-local/fixture@1.0.0', `--registry=${registry.url}`,
-        '--store-dir', store, '--cache-dir', cache, '--config.lockfile=false',
-      ])
-      const result = await execa(invocation.command, invocation.args, {
-        cwd: consumer, env: environment, extendEnv: false, reject: false, timeout: 240_000,
+      const consumer = consumerDirectory(temporary, `consumer-${run}`)
+      const result = await pnpmIn({
+        consumer, environment, store, cache,
+        args: ['add', '@dsh-local/fixture@1.0.0', `--registry=${registry.url}`],
       })
       expect(result.timedOut, `${result.stdout}\n${result.stderr}`).toBe(false)
       expect(result.exitCode, `${result.stdout}\n${result.stderr}`).toBe(0)
       await registry.close()
-      return {
-        payload: readFileSync(join(consumer, 'node_modules', '@dsh-local', 'fixture', 'lib', 'index.js'), 'utf8'),
-        settings: readFileSync(join(consumer, 'pnpm-workspace.yaml'), 'utf8'),
-      }
+      return { payload: installedPayload(consumer), settings: readFileSync(join(consumer, 'pnpm-workspace.yaml'), 'utf8') }
     }
 
     const first = await install('first', 'export default "first build"\n')
@@ -482,5 +517,43 @@ describe('package cache freshness', () => {
 
     const second = await install('second', 'export default "second build"\n')
     expect(second.payload).toContain('second build')
+  })
+})
+
+describe('same-version iteration', () => {
+  it('needs the earlier run\'s stale resolution cleared before a new run at the same version installs', { timeout: 300_000 }, async () => {
+    const temporary = temporaryDirectory('dsh-local-registry-iteration-')
+    const store = join(temporary, 'store')
+    const userConfig = join(temporary, 'empty.npmrc')
+    writeFileSync(userConfig, '')
+    const environment = { ...process.env, npm_config_userconfig: userConfig }
+    const consumer = consumerDirectory(temporary, 'profile')
+    const serve = async (tag: string, payload: string) => {
+      const destination = join(temporary, tag)
+      mkdirSync(destination, { recursive: true })
+      const { artifact } = fabricate({ destination, name: '@dsh-local/fixture', version: '1.0.0', source: `export default ${payload}\n` })
+      return startBundleRegistry({ directory: destination, artifacts: [artifact], workspaceNames: ['@dsh-local/fixture'] })
+    }
+    const add = (url: string) => pnpmIn({ consumer, environment, store, args: ['add', '@dsh-local/fixture@1.0.0', `--registry=${url}`] })
+
+    const first = await serve('run-a', '"A"')
+    expect((await add(first.url)).exitCode).toBe(0)
+    expect(installedPayload(consumer)).toContain('"A"')
+    await first.close()
+
+    // A new run answers at a new URL, so the recorded tarball no longer verifies against it.
+    const second = await serve('run-b', '"B"')
+    onTestFinished(() => second.close())
+    const refused = await add(second.url)
+    expect(refused.exitCode).not.toBe(0)
+    expect(`${refused.stdout}${refused.stderr}`).toContain('ERR_PNPM_TARBALL_URL_MISMATCH')
+    expect(installedPayload(consumer)).toContain('"A"')
+
+    // pnpm's own remedy for that error: drop the stale resolution, then resolve again from the new run.
+    const cleaned = await pnpmIn({ consumer, environment, args: ['clean', '--lockfile'] })
+    expect(cleaned.exitCode, `${cleaned.stdout}\n${cleaned.stderr}`).toBe(0)
+    const reinstalled = await add(second.url)
+    expect(reinstalled.exitCode, `${reinstalled.stdout}\n${reinstalled.stderr}`).toBe(0)
+    expect(installedPayload(consumer)).toContain('"B"')
   })
 })

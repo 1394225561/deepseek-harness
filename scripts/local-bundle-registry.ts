@@ -4,7 +4,7 @@
  *
  * A packaged application installs an Official bundle as `name@<running DSH
  * version>`, and the plugin manager asks a custom registry *alone*
- * ([registry plan](../../packages/boot/plugin-manager/src/registry.ts)). Every
+ * ([registry plan](../packages/boot/plugin-manager/src/registry.ts)). Every
  * transitive dependency of the packed bundles must therefore be answerable by
  * this process: repository-owned packages come from the run's own artifacts,
  * and genuinely external packages keep npm's real metadata and bytes through a
@@ -157,11 +157,12 @@ export interface ReleaseEntry {
  */
 export function pnpmInvocationFor(args: readonly string[]): { command: string; args: string[] } {
   const entrypoint = process.env.npm_execpath
-  if (entrypoint === undefined || entrypoint === '') {
-    const [command, ...prefix] = pnpmCommand()
-    return { command, args: [...prefix, ...args] }
+  // `npm run` and `yarn run` set the same variable; handing them pnpm's arguments would write a different lockfile.
+  if (entrypoint !== undefined && /[\\/]pnpm[\\/]/u.test(entrypoint) && /\.[cm]?js$/u.test(entrypoint)) {
+    return pnpmInvocation(args)
   }
-  return pnpmInvocation(args)
+  const [command, ...prefix] = pnpmCommand()
+  return { command, args: [...prefix, ...args] }
 }
 
 /**
@@ -686,6 +687,7 @@ function describePlatform(constraint: PlatformConstraint): string {
  * @returns True when a required dependency edge reaches the target.
  */
 function reachedByRequiredEdge(target: string, entries: readonly string[], selected: ReadonlyMap<string, WorkspacePackage>): boolean {
+  if (entries.includes(target)) return true
   const visited = new Set<string>()
   const pending = [...entries]
   for (let index = 0; index < pending.length; index += 1) {
@@ -728,7 +730,7 @@ function dependencyPath(name: string, parents: ReadonlyMap<string, string>, entr
  * @returns The package-relative path.
  */
 function payloadPath(file: string): string {
-  return file.replaceAll('\\', '/').replace(/^\.\/+/u, '').replace(/^package\//u, '')
+  return file.replaceAll('\\', '/').replace(/^\.\/+/u, '')
 }
 
 /**

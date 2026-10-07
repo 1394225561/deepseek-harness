@@ -59,8 +59,8 @@ it.skipIf(!built)('installs the exported registry\'s local closure and switches 
   timeout: 900_000,
   retry: 0,
 }, async () => {
-  // The product under test is a real source-independent installation, and the fixture packs the two providers into it,
-  // so the product ships neither and both stay available to the Official catalog.
+  // The product under test is a real source-independent installation that ships neither provider, so both stay
+  // available to the Official catalog and only the local registry can supply them.
   const fixture = await createPackedInstallation('dsh-official-packed-', [])
   const { temporary, installation, home, profile, environment } = fixture
 
@@ -108,7 +108,8 @@ it.skipIf(!built)('installs the exported registry\'s local closure and switches 
       packages,
       localDependency: '@deepseek-ai/dsh-brand',
       nativePackages: {
-        '@deepseek-ai/dsh-subagent-claude-code': `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}`,
+        // The Agent SDK publishes a musl variant of its Linux artifact, which is what pnpm installs there.
+        '@deepseek-ai/dsh-subagent-claude-code': `@anthropic-ai/claude-agent-sdk-${process.platform}-${process.arch}${hostPlatform().libc?.[0] === 'musl' ? '-musl' : ''}`,
         '@deepseek-ai/dsh-subagent-codex': `@openai/codex-${process.platform}-${process.arch}`,
       },
     },

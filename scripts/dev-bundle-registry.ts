@@ -67,23 +67,23 @@ async function runStep(root: string, args: readonly string[], signal: AbortSigna
 
 /**
  * Print the installation summary the developer copies from.
- * @param options - run directory, registry URL, packed artifacts, source evidence, and foreign-target members.
+ * Only the catalog roots are installable specs; the rest of the closure is a
+ * dependency the installer resolves itself and stays in the run manifest.
+ * @param options - run directory, registry URL, catalog roots, packed artifacts, source evidence.
  */
 function printSummary(options: {
   readonly directory: string
   readonly url: string
+  readonly entries: readonly string[]
   readonly artifacts: readonly BundleArtifact[]
   readonly source: ReturnType<typeof sourceEvidence>
-  readonly foreignTargets: readonly string[]
 }): void {
+  const roots = options.entries.flatMap(name => options.artifacts.filter(artifact => artifact.name === name))
   process.stdout.write(`Source: ${options.source.commit}${options.source.dirty ? ' (dirty worktree)' : ''}, DSH ${options.source.dshVersion}\n`)
-  if (options.foreignTargets.length > 0) {
-    process.stdout.write(`Other platforms: ${options.foreignTargets.join(', ')} (served; pnpm skips them on this host)\n`)
-  }
   process.stdout.write(`Artifacts: ${options.directory}\n`)
   process.stdout.write(`Registry: ${options.url}\n`)
-  process.stdout.write('Packages:\n')
-  for (const artifact of options.artifacts) process.stdout.write(`  ${artifact.name}@${artifact.version}\n`)
+  process.stdout.write(`Packages (${String(options.artifacts.length)} archives served):\n`)
+  for (const artifact of roots) process.stdout.write(`  ${artifact.name}@${artifact.version}\n`)
   process.stdout.write('In Plugins > Add plugin, use an exact package above and this custom registry URL.\n')
   process.stdout.write('Keep this process running during package operations. Ctrl+C stops the registry.\n')
 }
@@ -96,9 +96,6 @@ function runId(): string {
 /** Build, pack, and serve the local bundle closure until a signal stops the run. */
 async function main(): Promise<void> {
   const root = resolve(import.meta.dirname, '..')
-  if (!process.features.typescript) {
-    throw new Error('dev:bundle-registry: Node.js TypeScript type stripping is unavailable; remove --no-experimental-strip-types from NODE_OPTIONS')
-  }
   const abort = new AbortController()
   // A persistent listener, so a second signal during shutdown cannot fall back to the default kill;
   // the second signal is an explicit forced exit instead.
@@ -146,7 +143,7 @@ async function main(): Promise<void> {
     registry = await startBundleRegistry({
       directory, artifacts, workspaceNames: selection.workspaceNames,
     })
-    printSummary({ directory, url: registry.url, artifacts, source, foreignTargets: selection.foreignTargets })
+    printSummary({ directory, url: registry.url, entries, artifacts, source })
     await new Promise<void>((resolveStop) => {
       if (abort.signal.aborted) resolveStop()
       else abort.signal.addEventListener('abort', () => { resolveStop() }, { once: true })
@@ -156,8 +153,10 @@ async function main(): Promise<void> {
     process.stdout.write('Registry stopped. Artifacts and installed packages stay on disk.\n')
   } catch (error) {
     if (registry !== undefined) await registry.close()
-    if (error instanceof Interrupted) {
-      process.stderr.write(`dev:bundle-registry: ${error.message}\n`)
+    // A signal that stopped packing or packing's child is the same stop as a stopped build step.
+    if (error instanceof Interrupted || abort.signal.aborted) {
+      const stage = error instanceof Interrupted ? error.message : 'interrupted during preparation'
+      process.stderr.write(`dev:bundle-registry: ${stage}\n`)
       process.exitCode = 130
       return
     }
