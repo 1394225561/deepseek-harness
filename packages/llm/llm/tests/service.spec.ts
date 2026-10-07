@@ -19,6 +19,7 @@ import LlmRuntime, {
 } from '@deepseek-ai/dsh-llm'
 import type {
   LlmCallConfig,
+  ConfigureCall,
   LlmModelContext,
   LlmModelInfo,
   LlmModelReasoningInfo,
@@ -862,7 +863,6 @@ describe('LlmRuntime', () => {
     [{ efforts: [{ id: 'valid', name: 'Valid', description: 1 }] }, 'non-string description'],
     [{ efforts: [{ id: 'same', name: 'One' }, { id: 'same', name: 'Two' }] }, 'duplicate id'],
     [{ efforts: [{ id: 'valid', name: 'Valid' }], defaultEffort: 'other' }, 'unknown default'],
-    [{ efforts: [{ id: 'valid', name: 'Valid' }], floorEffort: 'other' }, 'unknown floor'],
   ] as const)('rejects invalid model reasoning metadata (%s: %s)', async (metadata, _label) => {
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
@@ -1035,8 +1035,7 @@ describe('LlmRuntime', () => {
   it.each([
     [undefined, 'high', { reasoningEffort: true }],
     [ReasoningEffortId('minimum'), 'minimum', {}],
-    [{ select: 'minimum' } as const, 'low', {}],
-  ])('prepares reasoning selection %s as a concrete effort', async (selection, expected, defaults) => {
+  ])('preserves concrete reasoning selection %s during preparation', async (selection, expected, defaults) => {
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
     const adapter = new class extends RecordingAdapter {
@@ -1044,8 +1043,7 @@ describe('LlmRuntime', () => {
         return Promise.resolve({
           provider, id: model, name: model,
           reasoning: {
-            efforts: ['high', 'minimum', 'low'].map(id => ({ id: ReasoningEffortId(id), name: id })),
-            floorEffort: ReasoningEffortId('low'),
+            efforts: ['low', 'minimum', 'high'].map(id => ({ id: ReasoningEffortId(id), name: id })),
             defaultEffort: ReasoningEffortId('high'),
           },
         })
@@ -1062,33 +1060,122 @@ describe('LlmRuntime', () => {
     expect(adapter.lastOptions?.reasoningEffort).toBe(expected)
   })
 
-  it('leaves minimum reasoning unspecified when a route has no selectable efforts', async () => {
+  it('composes controls once before defaults while retaining the captured route', async () => {
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
-    const adapter = new RecordingAdapter(SCRIPT)
+    const metadata: LlmResolvedModelInfo = {
+      provider: 'route', id: 'model', name: 'Model', defaultMaxTokens: 8_192,
+      reasoning: {
+        efforts: ['low', 'high'].map(id => ({ id: ReasoningEffortId(id), name: id })),
+        defaultEffort: ReasoningEffortId('high'),
+      },
+    }
+    const adapter = new class extends RecordingAdapter {
+      override resolveModel(): Promise<LlmResolvedModelInfo> { return Promise.resolve(metadata) }
+    }(SCRIPT)
     ctx.llm.registerAdapter(['route'], adapter)
-    const prepared = await ctx.llm.prepareCall({
-      provider: 'route', model: 'model', reasoningEffort: { select: 'minimum' },
+    const selectLeast: ConfigureCall = (controls, model) => ({
+      ...controls, reasoningEffort: model.reasoning!.efforts[0]!.id, maxTokens: 256,
     })
-    expect(prepared.config).not.toHaveProperty('reasoningEffort')
+    const selectOutput: ConfigureCall = controls => ({ ...controls, maxTokens: 128 })
+    const stop = ['END']
+    let calls = 0
+    const prepared = await ctx.llm.prepareCall({
+      provider: 'route', model: 'model', temperature: 0.2, stop,
+    }, undefined, (controls, model) => {
+      calls++
+      expect(controls).toEqual({ temperature: 0.2, stop: ['END'] })
+      expect(Object.isFrozen(controls)).toBe(true)
+      expect(Object.isFrozen(controls.stop)).toBe(true)
+      expect(Object.isFrozen(model)).toBe(true)
+      expect(Object.isFrozen(model.reasoning?.efforts)).toBe(true)
+      const configured = selectOutput(selectLeast(controls, model), model)
+      const wider: LlmCallConfig = { ...configured, provider: 'other', model: 'other' }
+      return wider
+    })
+    expect(calls).toBe(1)
+    expect(Object.isFrozen(stop)).toBe(false)
+    expect(Object.isFrozen(metadata.reasoning?.efforts)).toBe(false)
+    stop.push('LATER')
+    expect(prepared.config).toEqual({
+      provider: 'route', model: 'model', reasoningEffort: 'low', maxTokens: 128,
+      temperature: 0.2, stop: ['END'],
+    })
     expect(prepared.adapterDefaults).toEqual({})
     await collect(prepared.stream({ ...prepared.config, messages: [] }))
-    expect(adapter.lastOptions).not.toHaveProperty('reasoningEffort')
+    expect(adapter.lastOptions).toEqual({ ...prepared.config, messages: [] })
+    expect(calls).toBe(1)
   })
 
-  it('rejects minimum selection when the advertised efforts declare no floor', async () => {
+  it('applies defaults to controls omitted by the configuration function', async () => {
     const ctx = new Context()
     await ctx.plugin(LlmRuntime)
     ctx.llm.registerAdapter(['route'], new CatalogAdapter(
       { id: 'route', name: 'Route' }, [], {},
-      { model: { efforts: [{ id: ReasoningEffortId('high'), name: 'High' }] } },
+      { model: { efforts: [{ id: ReasoningEffortId('high'), name: 'High' }], defaultEffort: ReasoningEffortId('high') } },
+      { model: 8_192 },
     ))
-    await expect(ctx.llm.prepareCall({
-      provider: 'route', model: 'model', reasoningEffort: { select: 'minimum' },
-    })).rejects.toMatchObject({ code: 'UNSUPPORTED_REASONING_SELECTION' })
-    await expect(ctx.llm.prepareCall({
-      provider: 'route', model: 'model', reasoningEffort: ReasoningEffortId('low'),
-    })).rejects.toMatchObject({ code: 'UNSUPPORTED_REASONING_EFFORT' })
+    const prepared = await ctx.llm.prepareCall({
+      provider: 'route', model: 'model', reasoningEffort: ReasoningEffortId('unsupported'), maxTokens: 64,
+    }, undefined, () => ({}))
+    expect(prepared.config).toEqual({ provider: 'route', model: 'model', reasoningEffort: 'high', maxTokens: 8_192 })
+    expect(prepared.adapterDefaults).toEqual({ reasoningEffort: true, maxTokens: true })
+    const explicit = await ctx.llm.prepareCall({ provider: 'route', model: 'model' }, undefined, () => ({
+      reasoningEffort: ReasoningEffortId('high'), maxTokens: 8_192,
+    }))
+    expect(explicit.adapterDefaults).toEqual({})
+  })
+
+  it('rejects callback failures and unsupported configured effort before dispatch', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    const adapter = new RecordingAdapter(SCRIPT)
+    ctx.llm.registerAdapter(['route'], adapter)
+    const failure = new Error('configuration unavailable')
+    await expect(ctx.llm.prepareCall({ provider: 'route', model: 'model' }, undefined, () => {
+      throw failure
+    })).rejects.toBe(failure)
+    await expect(ctx.llm.prepareCall({ provider: 'route', model: 'model' }, undefined, () => ({
+      reasoningEffort: ReasoningEffortId('unsupported'),
+    }))).rejects.toMatchObject({ code: 'UNSUPPORTED_REASONING_EFFORT' })
+    expect(adapter.lastOptions).toBeUndefined()
+  })
+
+  it('skips configuration when cancellation precedes preparation or occurs during model lookup', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    const abort = new AbortController()
+    const failure = new Error('cancelled preparation')
+    let lookups = 0
+    let configurations = 0
+    const adapter = new class extends RecordingAdapter {
+      override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
+        lookups++
+        abort.abort(failure)
+        return Promise.resolve({ provider, id: model, name: model })
+      }
+    }(SCRIPT)
+    ctx.llm.registerAdapter(['route'], adapter)
+    const configure: ConfigureCall = (controls) => { configurations++; return controls }
+    await expect(ctx.llm.prepareCall({ provider: 'route', model: 'model' }, abort.signal, configure)).rejects.toBe(failure)
+    await expect(ctx.llm.prepareCall({ provider: 'route', model: 'model' }, abort.signal, configure)).rejects.toBe(failure)
+    expect(lookups).toBe(1)
+    expect(configurations).toBe(0)
+    expect(adapter.lastOptions).toBeUndefined()
+  })
+
+  it('rejects cancellation raised during configuration before returning a prepared call', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmRuntime)
+    const adapter = new RecordingAdapter(SCRIPT)
+    ctx.llm.registerAdapter(['route'], adapter)
+    const abort = new AbortController()
+    const failure = new Error('cancelled configuration')
+    await expect(ctx.llm.prepareCall({ provider: 'route', model: 'model' }, abort.signal, (controls) => {
+      abort.abort(failure)
+      return controls
+    })).rejects.toBe(failure)
+    expect(adapter.lastOptions).toBeUndefined()
   })
 
   it('reuses one exact-model lookup for prepared config and context metadata', async () => {
@@ -1146,7 +1233,6 @@ describe('LlmRuntime', () => {
             provider, id: model, name: model, inputModalities: ['text'] as const,
             reasoning: {
               efforts: [{ id: ReasoningEffortId(captured), name: captured }],
-              floorEffort: ReasoningEffortId(captured),
             },
           },
           stream: (options: GenerateOptions) => {
@@ -1159,8 +1245,8 @@ describe('LlmRuntime', () => {
     ctx.llm.registerAdapter(['route'], adapter)
 
     const prepared = await ctx.llm.prepareCall({
-      provider: 'route', model: 'model', reasoningEffort: { select: 'minimum' },
-    })
+      provider: 'route', model: 'model',
+    }, undefined, (controls, model) => ({ ...controls, reasoningEffort: model.reasoning!.efforts[0]!.id }))
     generation = 'second'
     expect(prepared.config.reasoningEffort).toBe('first')
     expect(prepared.inputModalities).toEqual(['text'])

@@ -1414,7 +1414,6 @@ describe('installLlmReplay (through the real LlmRuntime)', () => {
               inputModalities: ['text', 'image'],
               defaultMaxTokens: 64_000,
               reasoningEfforts: ['off', 'max'],
-              floorReasoningEffort: 'off',
               defaultReasoningEffort: 'max',
               systemPromptUpdate: 'in-history',
               toolUpdate: 'addition-only',
@@ -1441,7 +1440,6 @@ describe('installLlmReplay (through the real LlmRuntime)', () => {
       defaultMaxTokens: 64_000,
       reasoning: {
         efforts: [{ id: 'off', name: 'off' }, { id: 'max', name: 'max' }],
-        floorEffort: 'off',
         defaultEffort: 'max',
       },
       systemPromptUpdate: 'in-history',
@@ -1473,8 +1471,8 @@ describe('installLlmReplay (through the real LlmRuntime)', () => {
       jitterRatio: 0.1,
     })
     const prepared = await ctx.llm.prepareCall({
-      provider: 'deepseek', model: 'flash', reasoningEffort: { select: 'minimum' },
-    })
+      provider: 'deepseek', model: 'flash',
+    }, undefined, (controls, model) => ({ ...controls, reasoningEffort: model.reasoning!.efforts[0]!.id }))
     expect(prepared.config.reasoningEffort).toBe('off')
     expect(await drain(prepared.stream({ ...prepared.config, messages: [] }))).toEqual(TEXT_CHUNKS)
 
@@ -2164,7 +2162,7 @@ describe('apply (the plugin entry)', () => {
         {
           id: 'm',
           models: [
-            { id: 'm', inputModalities: ['image'], reasoningEfforts: ['low'], floorReasoningEffort: 'low' },
+            { id: 'm', inputModalities: ['image'], reasoningEfforts: ['low'] },
             { id: 'text' },
           ],
         },
@@ -2208,17 +2206,6 @@ describe('apply (the plugin entry)', () => {
     expect(priced?.[0]?.text).toContain('640x480px')
     expect(priced?.[1]?.text).toContain('image omitted to fit request image limits')
     expect(ctx.llm.imageRequestPricing('deepseek', 'plain')).toBeUndefined()
-  })
-
-  it.each([undefined, [], ['high']])('rejects a floor absent from configured efforts %s', (reasoningEfforts) => {
-    const ctx = new Context()
-    const model = {
-      id: 'm', floorReasoningEffort: 'low',
-      ...reasoningEfforts === undefined ? {} : { reasoningEfforts },
-    }
-    expect(() => { apply(ctx, { file, providers: [{ id: 'm', models: [model] }] }) }).toThrow(
-      'llm-replay: provider "m" model "m" floorReasoningEffort must appear in reasoningEfforts',
-    )
   })
 
   it('rejects imageRequestTokens on a model without the image modality during load', () => {

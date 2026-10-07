@@ -339,7 +339,7 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   DeepSeekLlmApiExtensionProvider: 'llm-streaming.md',
   DeepSeekLlmApiExtensionRequest: 'llm-streaming.md',
   LlmCallConfig: 'llm-streaming.md',
-  LlmCallRequest: 'llm-streaming.md',
+  ConfigureCall: 'llm-streaming.md',
   LlmModelContext: 'llm-streaming.md',
   LlmModelReasoningInfo: 'llm-streaming.md',
   LlmResolvedModelInfo: 'llm-streaming.md',

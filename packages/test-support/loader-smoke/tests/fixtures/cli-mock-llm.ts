@@ -27,7 +27,6 @@ class CliMockAdapter extends LlmAdapter {
           { id: OFF, name: 'Off' },
           { id: HIGH, name: 'High' },
         ],
-        floorEffort: OFF,
         defaultEffort: HIGH,
       },
     }

@@ -378,14 +378,8 @@ export interface LlmReasoningEffortInfo {
 
 /** Selectable reasoning efforts for one exact provider/model route. */
 export interface LlmModelReasoningInfo {
-  /** Supported efforts in adapter-preferred display order. */
+  /** Supported efforts from least to greatest selectable reasoning effort, not predicted token use or latency. */
   efforts: readonly LlmReasoningEffortInfo[]
-  /**
-   * The least selectable effort this route accepts. Minimum-effort call
-   * preparation requires this field when reasoning controls are available.
-   * It does not guarantee that the provider disables reasoning.
-   */
-  floorEffort?: ReasoningEffortId
   /**
    * Adapter-configured default materialized into requests when callers omit
    * an effort. Absence preserves the provider's own default.

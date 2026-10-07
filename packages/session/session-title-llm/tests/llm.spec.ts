@@ -36,7 +36,6 @@ class RecordingAdapter extends LlmAdapter {
         : {
           reasoning: {
             efforts: efforts.map(id => ({ id: ReasoningEffortId(id), name: id })),
-            floorEffort: ReasoningEffortId(floor),
           },
         },
     })

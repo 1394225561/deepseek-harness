@@ -81,14 +81,12 @@ export function modelInfo(
       ? {
         reasoning: {
           efforts: OFF_ONLY_REASONING_EFFORTS,
-          floorEffort: OFF_REASONING_EFFORT,
           defaultEffort: OFF_REASONING_EFFORT,
         },
       }
       : {
         reasoning: {
           efforts: REASONING_EFFORTS,
-          floorEffort: OFF_REASONING_EFFORT,
           defaultEffort: connection.defaults.reasoningEffort === 'off'
             ? OFF_REASONING_EFFORT
             : connection.defaults.reasoningEffort === 'low'

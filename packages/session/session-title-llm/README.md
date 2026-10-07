@@ -72,7 +72,7 @@ One shared policy so provider plugins cannot drift: config validation, route res
 
 ### Request flow
 
-Each revision frames the selected messages as JSON and checks `maxInputBytes`. `ctx.llm.prepareCall()` resolves minimum reasoning under the selected route's captured adapter generation. The helper records the exact input, output cap, and resolved effort in `session/title-llm-request`, then dispatches through that prepared call under the shared deadline. `purpose: 'session-title'` supplies attribution only. The request has no agent-loop identity and does not enter conversation history. Generation failures preserve the request record.
+Each revision frames the selected messages as JSON and checks `maxInputBytes`. The title configuration function selects the first effort from the route's least-to-greatest list during `ctx.llm.prepareCall()`. The helper records the exact input, output cap, and resolved effort in `session/title-llm-request`, then dispatches through the same captured adapter generation under the shared deadline. `purpose: 'session-title'` supplies attribution only. The request has no agent-loop identity and does not enter conversation history. Generation failures preserve the request record.
 
 </details>
 
@@ -117,7 +117,7 @@ These limits define the accepted generation shapes. They are current package con
 
 - **Text output only** — the helper accepts text output and rejects tool calls; structured-output adapters and provider-specific prompt variants are not exposed.
 - **Whole-prompt byte ceiling** — it enforces a byte ceiling for the whole framed user prompt rather than clipping individual messages or applying a retention policy.
-- **Minimum reasoning is capability-dependent** — routes with selectable efforts must declare their minimum. Routes without selectable reasoning leave effort unspecified; minimum selection does not guarantee zero reasoning tokens or a complete title within the output cap.
+- **Minimum reasoning is capability-dependent** — title policy selects the first advertised effort. Routes without selectable reasoning leave effort unspecified; the least selectable effort does not guarantee zero reasoning tokens or a complete title within the output cap.
 
 <a id="dev-note"></a>
 ### Dev Note

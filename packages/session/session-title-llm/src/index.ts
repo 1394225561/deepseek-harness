@@ -284,8 +284,10 @@ export async function generateSessionTitleWithLlm(
   const call = await ctx.llm.prepareCall({
     ...route,
     maxTokens,
-    reasoningEffort: { select: 'minimum' },
-  }, callDeadline.signal)
+  }, callDeadline.signal, (controls, model) => {
+    const effort = model.reasoning?.efforts[0]?.id
+    return { ...controls, ...effort === undefined ? {} : { reasoningEffort: effort } }
+  })
   const options: GenerateOptions = deepFreeze({
     ...call.config,
     messages,

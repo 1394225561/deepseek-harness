@@ -32,7 +32,7 @@ import { resolveRetryPolicy } from './retry-policy.ts'
 import type { ResolvedRetryPolicy } from './retry-policy.ts'
 import type { ProviderRequestId } from './brand.ts'
 import { callConfigEquals } from './call-config.ts'
-import type { LlmCallConfig, LlmCallConfigAdapterDefaults, LlmCallRequest } from './call-config.ts'
+import type { ConfigureCall, LlmCallConfig, LlmCallConfigAdapterDefaults } from './call-config.ts'
 import { HarnessError, INVALID_CREDENTIAL_CODE } from './error.ts'
 import { normalizeLlmFailure } from './adapter-failure.ts'
 import { normalizeApiKey } from './api-key.ts'
@@ -52,7 +52,7 @@ export * from './message.ts'
 export * from './retry-policy.ts'
 export { BlockAssembler } from './assembler.ts'
 export { callConfigEquals, isAgentLoopRequest, markAgentLoopRequest } from './call-config.ts'
-export type { LlmCallConfig, LlmCallConfigAdapterDefaults, LlmCallRequest, ReasoningSelection } from './call-config.ts'
+export type { ConfigureCall, LlmCallConfig, LlmCallConfigAdapterDefaults, LlmCallControls } from './call-config.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -849,17 +849,10 @@ export class LlmRuntime extends TypertRemoteService {
         'INVALID_MODEL_REASONING',
       )
     }
-    if (reasoning.floorEffort !== undefined && !seen.has(reasoning.floorEffort)) {
-      throw new LlmError(
-        `adapter returned an unknown floor reasoning effort for provider "${provider}" model "${model}"`,
-        'INVALID_MODEL_REASONING',
-      )
-    }
     return {
       ...info,
       reasoning: {
         efforts,
-        ...reasoning.floorEffort === undefined ? {} : { floorEffort: reasoning.floorEffort },
         ...reasoning.defaultEffort === undefined ? {} : { defaultEffort: reasoning.defaultEffort },
       },
     }
@@ -929,40 +922,39 @@ export class LlmRuntime extends TypertRemoteService {
    * Resolve one call under its current adapter registration. The returned
    * one-shot handle keeps that registration across header logging and dispatch,
    * so HMR cannot combine one adapter's capability result with another adapter.
-   * Minimum reasoning selects the adapter-declared floor, or leaves the effort
-   * unset when the route has no selectable reasoning. An undeclared floor for
-   * selectable efforts rejects with `UNSUPPORTED_REASONING_SELECTION`.
-   * @param request - provider/model route and concrete or intent-based controls.
+   * An optional synchronous callback selects concrete controls using captured
+   * model metadata. Defaults and validation apply to its result. Callback
+   * failures and cancellation reject preparation before dispatch.
+   * @param config - provider/model route and optional concrete request controls.
    * @param signal - optional cancellation for adapter-owned capability lookup.
+   * @param configure - pure control selection, called once before defaults and validation.
    * @returns a prepared config and its registration-bound stream entry point.
    */
-  async prepareCall(request: LlmCallRequest, signal?: AbortSignal): Promise<PreparedLlmCall> {
-    const registration = this.registration(request.provider)
-    const adapterCall = await registration.adapter.prepareCall(request.provider, request.model, signal)
-    const modelInfo = this.normalizeModelInfo(registration, request.model, adapterCall.model)
-    const { reasoningEffort: selection, ...controls } = request
-    if (typeof selection === 'object'
-      && modelInfo.reasoning !== undefined && modelInfo.reasoning.floorEffort === undefined) {
-      throw new LlmError(
-        `provider "${request.provider}" model "${request.model}" does not declare a minimum reasoning effort`,
-        'UNSUPPORTED_REASONING_SELECTION',
-      )
-    }
-    const reasoningEffort = typeof selection === 'object' ? modelInfo.reasoning?.floorEffort : selection
-    const config: LlmCallConfig = {
-      ...controls,
-      ...reasoningEffort === undefined ? {} : { reasoningEffort },
-    }
-    const resolved = this.resolveCallWithInfo(config, modelInfo)
+  async prepareCall(
+    config: LlmCallConfig,
+    signal?: AbortSignal,
+    configure?: ConfigureCall,
+  ): Promise<PreparedLlmCall> {
+    signal?.throwIfAborted()
+    const { provider, model, ...controls } = config
+    const registration = this.registration(provider)
+    const adapterCall = await registration.adapter.prepareCall(provider, model, signal)
+    signal?.throwIfAborted()
+    const modelInfo = this.normalizeModelInfo(registration, model, adapterCall.model)
+    const proposed = configure === undefined
+      ? config
+      : { ...configure(deepFreeze(structuredClone(controls)), deepFreeze(modelInfo)), provider, model }
+    signal?.throwIfAborted()
+    const resolved = this.resolveCallWithInfo(proposed, modelInfo)
     const resolvedConfig = deepFreeze(structuredClone(resolved.config))
     const context = resolved.context === undefined
       ? undefined
       : deepFreeze(structuredClone(resolved.context))
     const adapterDefaults = deepFreeze<LlmCallConfigAdapterDefaults>({
-      ...request.reasoningEffort === undefined && resolvedConfig.reasoningEffort !== undefined
+      ...proposed.reasoningEffort === undefined && resolvedConfig.reasoningEffort !== undefined
         ? { reasoningEffort: true }
         : {},
-      ...config.maxTokens === undefined && resolvedConfig.maxTokens !== undefined
+      ...proposed.maxTokens === undefined && resolvedConfig.maxTokens !== undefined
         ? { maxTokens: true }
         : {},
     })

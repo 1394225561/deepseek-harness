@@ -169,24 +169,6 @@ function resolveReasoningLevel(
 }
 
 /**
- * The level one request dispatches with: the effort the caller selected, or
- * the profile default. The adapter validates that choice and dispatches it; a
- * caller that wants the least reasoning for a short result selects the floor
- * effort the route reports.
- * @param model - the resolved model descriptor.
- * @param options - the request's requested effort.
- * @param profile - the route profile carrying the default effort.
- * @returns the level to dispatch, or undefined to send none.
- */
-function requestReasoningLevel(
-  model: Model<Api>,
-  options: GenerateOptions,
-  profile: ResolvedPiAiProviderProfile,
-): ModelThinkingLevel | undefined {
-  return resolveReasoningLevel(model, options.reasoningEffort ?? profile.reasoning)
-}
-
-/**
  * Selectable reasoning efforts for one model, or nothing at all.
  *
  * A model that carries no reasoning metadata — every hand-declared one, and
@@ -208,15 +190,12 @@ function reasoningInfo(
 ): Pick<LlmResolvedModelInfo, 'reasoning'> | Record<string, never> {
   if (!model.reasoning) return {}
   const levels = getSupportedThinkingLevels(model)
-  const floor = levels[0]
   return {
     reasoning: {
       efforts: levels.map(level => ({
         id: ReasoningEffortId(level),
         name: `${level.charAt(0).toUpperCase()}${level.slice(1)}`,
       })),
-      /* v8 ignore next -- a reasoning route always declares at least one level, and the runtime rejects an empty list. */
-      ...floor === undefined ? {} : { floorEffort: ReasoningEffortId(floor) },
       ...defaultLevel === undefined ? {} : { defaultEffort: ReasoningEffortId(defaultLevel) },
     },
   }
@@ -362,7 +341,10 @@ export class PiAiAdapter extends LlmAdapter {
     // the one it started with and the next call picks up the new one.
     const profile = this.profileOf(snapshot, options.provider)
     const model = this.modelOf(snapshot, options.provider, options.model)
-    const reasoning = requestReasoningLevel(model, options, profile)
+    const reasoning = resolveReasoningLevel(
+      model,
+      options.reasoningEffort ?? profile.reasoning,
+    )
     const apiKey = await this.config.resolveApiKey(options.provider, profile)
 
     const consumer = new AbortController()

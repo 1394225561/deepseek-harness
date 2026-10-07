@@ -128,12 +128,12 @@
     },
     {
       "doc": "docs/subsystems/llm-streaming.md",
-      "symbol": "ReasoningSelection",
+      "symbol": "LlmCallControls",
       "source": "packages/llm/llm/src/call-config.ts"
     },
     {
       "doc": "docs/subsystems/llm-streaming.md",
-      "symbol": "LlmCallRequest",
+      "symbol": "ConfigureCall",
       "source": "packages/llm/llm/src/call-config.ts"
     },
     {

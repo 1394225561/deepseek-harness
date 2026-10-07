@@ -788,7 +788,7 @@ describe('provider profile lifecycle', () => {
     expect(server.requests[0]).not.toHaveProperty('reasoning_effort')
   })
 
-  it('reports the floor effort and dispatches the level a caller selects', async () => {
+  it('reports efforts in ascending order and dispatches the level a caller selects', async () => {
     vi.stubEnv('PI_TEST_KEY', 'test-key')
     const server = await mockServer([
       { events: anthropicTextEvents },
@@ -821,11 +821,10 @@ describe('provider profile lifecycle', () => {
       messages: [],
     })
 
-    // Each route names its own floor, so a caller can select the least reasoning.
     await expect(ctx.llm.resolveModelInfo('adaptive-gateway', 'always-thinks'))
-      .resolves.toMatchObject({ reasoning: { floorEffort: ReasoningEffortId('low') } })
+      .resolves.toMatchObject({ reasoning: { efforts: [{ id: 'low' }, { id: 'high' }, { id: 'max' }] } })
     await expect(ctx.llm.resolveModelInfo('adaptive-gateway', 'may-think'))
-      .resolves.toMatchObject({ reasoning: { floorEffort: ReasoningEffortId('off') } })
+      .resolves.toMatchObject({ reasoning: { efforts: [{ id: 'off' }, { id: 'low' }, { id: 'high' }, { id: 'max' }] } })
 
     await request('always-thinks', 'max')
     await request('always-thinks', 'low')

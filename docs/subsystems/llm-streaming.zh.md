@@ -535,7 +535,7 @@ interface LlmModelContext {
 }
 ```
 
-推理强度是另一项针对确切路由的能力。核心为标识符添加品牌类型，但不枚举其值；有序集合、展示名称和可选的部署默认值均由各适配器持有。
+推理强度是另一项确切路由能力。核心为标识符添加品牌类型，但不枚举其值；每个适配器负责按强度递增排列的选项、显示名称与可选部署默认值。该顺序比较可选控制，不预测 token 用量、成本或延迟。
 
 ```ts type-equiv
 /** Adapter-owned identifier for one model's selectable reasoning effort. */
@@ -557,14 +557,8 @@ interface LlmReasoningEffortInfo {
 ```ts type-equiv
 /** Selectable reasoning efforts for one exact provider/model route. */
 interface LlmModelReasoningInfo {
-  /** Supported efforts in adapter-preferred display order. */
+  /** Supported efforts from least to greatest selectable reasoning effort, not predicted token use or latency. */
   efforts: readonly LlmReasoningEffortInfo[]
-  /**
-   * The least selectable effort this route accepts. Minimum-effort call
-   * preparation requires this field when reasoning controls are available.
-   * It does not guarantee that the provider disables reasoning.
-   */
-  floorEffort?: ReasoningEffortId
   /**
    * Adapter-configured default materialized into requests when callers omit
    * an effort. Absence preserves the provider's own default.
@@ -757,15 +751,8 @@ interface LlmDiscoveredModel {
 FIXME(call-config-shape)：重新审视其余哪些字段出于缓存目的确实属于 epoch 层级（`model` 和模型持有的推理强度已明确属于；采样标量目前出于谨慎保留在此）。
 
 ```ts type-equiv
-/**
- * Provider, model, reasoning effort, and sampling scalars of one conversation's
- * requests. Every field maps 1:1 onto the same-named `GenerateOptions` field;
- * the loop builds requests from the logged header rather than accepting these
- * per call.
- */
-interface LlmCallConfig {
-  provider: string
-  model: string
+/** Concrete generation settings; omitted controls use the selected route's defaults. */
+interface LlmCallControls {
   reasoningEffort?: ReasoningEffortId
   temperature?: number
   maxTokens?: number
@@ -774,21 +761,32 @@ interface LlmCallConfig {
 ```
 
 ```ts type-equiv
-/** Exact effort or a request to select the route's least controllable reasoning. */
-type ReasoningSelection = ReasoningEffortId | { readonly select: 'minimum' }
+/**
+ * Provider, model, reasoning effort, and sampling scalars of one conversation's
+ * requests. Every field maps 1:1 onto the same-named `GenerateOptions` field;
+ * the loop builds requests from the logged header rather than accepting these
+ * per call.
+ */
+interface LlmCallConfig extends LlmCallControls {
+  provider: string
+  model: string
+}
 ```
 
 ```ts type-equiv
 /**
- * Preparation input. Concrete call configs are accepted unchanged. A minimum
- * selection uses the adapter's declared floor; selectable efforts without a
- * declared floor reject. A route with no selectable reasoning leaves the
- * effort unset. Minimum selection does not guarantee zero reasoning tokens.
+ * Synchronous, pure configuration of one call before defaults and validation.
+ * Compose functions in the desired order; later writes replace earlier ones.
+ * The returned controls cannot change the captured route. Errors reject
+ * preparation before dispatch; only the resolved configuration is recordable.
+ * @param controls - detached, deeply frozen proposed controls, without defaults.
+ * @param model - detached, deeply frozen metadata from the captured adapter generation.
+ * @returns concrete controls; omitted fields receive the route's defaults.
  */
-interface LlmCallRequest extends Omit<LlmCallConfig, 'reasoningEffort'> {
-  /** Omission uses the adapter default; an id requires that exact effort. */
-  reasoningEffort?: ReasoningSelection
-}
+type ConfigureCall = (
+  controls: Readonly<LlmCallControls>,
+  model: Readonly<LlmResolvedModelInfo>,
+) => LlmCallControls
 ```
 
 ```ts type-equiv
@@ -1084,14 +1082,15 @@ async resolveCallConfig(config: LlmCallConfig, signal?: AbortSignal): Promise<Ll
  * Resolve one call under its current adapter registration. The returned
  * one-shot handle keeps that registration across header logging and dispatch,
  * so HMR cannot combine one adapter's capability result with another adapter.
- * Minimum reasoning selects the adapter-declared floor, or leaves the effort
- * unset when the route has no selectable reasoning. An undeclared floor for
- * selectable efforts rejects with `UNSUPPORTED_REASONING_SELECTION`.
- * @param request - provider/model route and concrete or intent-based controls.
+ * An optional synchronous callback selects concrete controls using captured
+ * model metadata. Defaults and validation apply to its result. Callback
+ * failures and cancellation reject preparation before dispatch.
+ * @param config - provider/model route and optional concrete request controls.
  * @param signal - optional cancellation for adapter-owned capability lookup.
+ * @param configure - pure control selection, called once before defaults and validation.
  * @returns a prepared config and its registration-bound stream entry point.
  */
-async prepareCall(request: LlmCallRequest, signal?: AbortSignal): Promise<PreparedLlmCall>
+async prepareCall( config: LlmCallConfig, signal?: AbortSignal, configure?: ConfigureCall, ): Promise<PreparedLlmCall>
 
 /**
  * Stream one model call as raw chunks (token-level deltas). Replay state is

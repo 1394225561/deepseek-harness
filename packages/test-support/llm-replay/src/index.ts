@@ -96,10 +96,8 @@ export interface ReplayModelConfig {
    * no image pricing.
    */
   imageRequestTokens?: number
-  /** Optional reasoning-effort ids the replay route accepts, in display order. */
+  /** Optional reasoning-effort ids from least to greatest selectable effort. */
   reasoningEfforts?: string[]
-  /** Optional least selectable effort; must appear in {@link reasoningEfforts}. */
-  floorReasoningEffort?: string
   /**
    * Optional effort materialized when callers omit one; must appear in
    * {@link reasoningEfforts} or call resolution rejects the route.
@@ -934,9 +932,6 @@ class ReplayAdapter extends LlmAdapter {
         : {
           reasoning: {
             efforts: configuredModel.reasoningEfforts.map(id => ({ id: ReasoningEffortId(id), name: id })),
-            ...configuredModel.floorReasoningEffort === undefined
-              ? {}
-              : { floorEffort: ReasoningEffortId(configuredModel.floorReasoningEffort) },
             ...configuredModel.defaultReasoningEffort === undefined
               ? {}
               : { defaultEffort: ReasoningEffortId(configuredModel.defaultReasoningEffort) },
@@ -1151,13 +1146,6 @@ export interface Config {
 function validateConfiguredModels(providers: ReplayProviderConfig[] | undefined): void {
   for (const provider of providers ?? []) {
     for (const model of provider.models ?? []) {
-      if (model.floorReasoningEffort !== undefined
-        && !model.reasoningEfforts?.includes(model.floorReasoningEffort)) {
-        throw new Error(
-          `llm-replay: provider "${provider.id}" model "${model.id}" floorReasoningEffort `
-          + 'must appear in reasoningEfforts',
-        )
-      }
       const modalities: unknown = model.inputModalities
       if (modalities !== undefined && (!Array.isArray(modalities)
         || !modalities.every((modality: unknown) => modality === 'text' || modality === 'image'))) {
