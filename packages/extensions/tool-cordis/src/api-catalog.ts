@@ -5334,7 +5334,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'EventLogOptions',
-    declaration: 'export interface EventLogOptions {\n    exporter: SessionLogOptions[\'exporter\'];\n    resourceAttributes: Attributes;\n    scope: {\n        name: string;\n        version?: string;\n    };\n    processor: Omit<BatchLogRecordProcessorOptions, \'exporter\'>;\n    onFailure: SessionLogOptions[\'onFailure\'];\n}',
+    declaration: 'export interface EventLogOptions {\n    exporter: LogExporterOptions;\n    resourceAttributes: Attributes;\n    scope: {\n        name: string;\n        version?: string;\n    };\n    processor: Omit<BatchLogRecordProcessorOptions, \'exporter\'>;\n    onFailure: SessionLogOptions[\'onFailure\'];\n}',
   },
   {
     name: 'EventLogReporter',
@@ -5843,6 +5843,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'LocalizedText',
     declaration: 'export type LocalizedText = string | {\n    readonly en: string;\n    readonly [locale: string]: string;\n};',
+  },
+  {
+    name: 'LogExporterOptions',
+    declaration: 'export type LogExporterOptions = Omit<OTLPExporterNodeConfigBase, \'selfObsMeterProvider\'> & {\n    url: string;\n};',
   },
   {
     name: 'LspHover',
@@ -6950,7 +6954,11 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'SessionLogOptions',
-    declaration: 'export interface SessionLogOptions {\n    exporter: OTLPExporterNodeConfigBase & {\n        url: string;\n    };\n    processor?: Omit<BatchLogRecordProcessorOptions, \'exporter\'>;\n    maxRequestBytes?: number;\n    scope: {\n        name: string;\n        version?: string;\n    };\n    resourceAttributes: Attributes;\n    onFailure: (message: string, error?: Error) => void;\n}',
+    declaration: 'export interface SessionLogOptions {\n    exporter: LogExporterOptions;\n    processor?: SessionLogProcessorOptions;\n    maxRequestBytes?: number;\n    scope: {\n        name: string;\n        version?: string;\n    };\n    resourceAttributes: Attributes;\n    onFailure: (message: string, error?: Error) => void;\n}',
+  },
+  {
+    name: 'SessionLogProcessorOptions',
+    declaration: 'export type SessionLogProcessorOptions = Omit<BatchLogRecordProcessorOptions, \'exporter\' | \'selfObsMeterProvider\'>;',
   },
   {
     name: 'SessionLogRecord',
