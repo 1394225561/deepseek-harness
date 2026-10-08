@@ -70,7 +70,7 @@ describe('reasoning Content Factory', () => {
     const view = b.render(b.renderSlot('conversation.chat.reasoning.body', { text: 'Original thought', running: false }))
     expect(view.getByText('Original thought')).toBeTruthy()
     expect(b.runtime.slots.entries('conversation.chat.reasoning.body')[0]?.options.priority).toBe(100)
-    const plugin = await b.runtime.mount({ inject: ['slots'], apply: ctx => {
+    const plugin = await b.runtime.mount({ inject: ['slots'], apply: (ctx) => {
       ctx.slots.inject('conversation.chat.reasoning.body', () => ctx.slots.register({
         name: 'conversation.chat.reasoning.body',
       }, WrappedBody))

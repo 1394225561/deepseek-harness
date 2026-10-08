@@ -48,7 +48,8 @@ describe('ReasoningRow', () => {
     ['First\r\n \t\r\nNext complete\r\n', 'Next complete'],
     ['First\n\n\n', 'First'],
   ])('previews the completed paragraph first line for %j', (text, summary) => {
-    const view = render(<ReasoningRow renderSlot={renderSlot} useDisclosure={useDisclosure} text={text} running usePresentation={useDetailedPresentation} t={t} />)
+    const view = render(<ReasoningRow renderSlot={renderSlot} useDisclosure={useDisclosure}
+      text={text} running usePresentation={useDetailedPresentation} t={t} />)
     const root = view.container.querySelector('[data-variant="think"]')!
     expect(root.querySelector('[class*="summaryText"]')?.textContent).toBe(summary)
     expect(root.hasAttribute('data-preview')).toBe(summary !== '')

@@ -41,9 +41,11 @@ export async function createReasoningRenderFixture(language = 'zh') {
   })
   const owner = await runtime.mount({
     inject: ['slots'],
-    apply: ctx => registerChatNodeRenderers(ctx,
-      createSnapshotStore<PerformanceUsageMode>('detailed'),
-      derivePresentationPolicy(createSnapshotStore<TranscriptViewMode>('detailed'))),
+    apply: (ctx) => {
+      registerChatNodeRenderers(ctx,
+        createSnapshotStore<PerformanceUsageMode>('detailed'),
+        derivePresentationPolicy(createSnapshotStore<TranscriptViewMode>('detailed')))
+    },
   })
   await runtime.sessions.add({ id: 'reasoning-fixture' })
   const session = runtime.sessions.retainFor(runtime.ctx, SessionId('reasoning-fixture'))
