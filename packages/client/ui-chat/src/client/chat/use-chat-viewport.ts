@@ -286,7 +286,8 @@ export class ChatViewport {
     const first = this.turns[0]
     if (elements === null || metrics === null || first === undefined) return null
     const line = elements.scroller.getBoundingClientRect().top + Math.min(96, metrics.height * 0.2)
-    const rows = elements.column.children
+    // Slot anchors use display:contents: measure their rows, not the anchor's empty box.
+    const rows = (elements.column.querySelector(':scope > [data-slot="conversation.chat.flow"]') ?? elements.column).children
     let low = 0
     let high = rows.length
     let reading = first.turn
