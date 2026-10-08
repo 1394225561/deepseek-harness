@@ -95,6 +95,25 @@ describe('Cordis effect ownership', () => {
     expect(ctx.fiber.getEffects()).toEqual([])
   })
 
+  it('adopts a yielded plain effect disposer away from its creating fiber', async () => {
+    const ctx = new Context()
+    const order: string[] = []
+    let originCtx!: Context
+    const origin = await ctx.plugin((inner: Context) => { originCtx = inner })
+    const adopted = originCtx.effect(() => () => { order.push('adopted') }, 'adopted-effect')
+    const owner = await ctx.plugin((inner: Context) => {
+      inner.effect(function* () {
+        yield adopted
+        yield () => { order.push('owner') }
+      }, 'composite-effect')
+    })
+
+    await origin.dispose()
+    expect(order).toEqual([])
+    await owner.dispose()
+    expect(order).toEqual(['owner', 'adopted'])
+  })
+
   it('rejects cleanup-time registration while a restart is unloading', async () => {
     const ctx = new Context()
     let registrationError: unknown
