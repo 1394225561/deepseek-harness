@@ -3,6 +3,8 @@ import type { Volatile } from '@deepseek-ai/cordis'
 /** One declared preset and its current activation failure, if any. */
 export interface AgentPreset {
   readonly id: string
+  /** Loader row that registered this current definition, when present. */
+  readonly definitionEntryId?: string
   readonly name?: string
   readonly description?: string
   readonly order?: number
@@ -13,8 +15,6 @@ export interface AgentPreset {
 export interface Config {
   /** Deployment default when the caller omits a preset. */
   default: string
-  /** User-selected default while the chooser is shown; edited through Settings. */
+  /** User-selected default; edited through Settings. */
   selectedDefault: Volatile<string | undefined>
-  /** Whether new-session surfaces expose preset selection and the saved default applies. */
-  modeSelectionEnabled: Volatile<boolean>
 }

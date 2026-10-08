@@ -102,6 +102,6 @@ The carrier adds no request-prefix content.
 <details>
 <summary>Working context for maintainers — click to expand</summary>
 
-No invariant companion is published. This process entry has no independently observed Cordis state; archive verification and the owning providers enforce its deployment and execution obligations.
+None.
 
 </details>

@@ -7,7 +7,7 @@
  */
 
 import { spawn } from 'node:child_process'
-import { materializeStagedLinks, pnpmInvocation, restoreLegacyHoists } from './executable-packaging.ts'
+import { pnpmInvocation, restoreLegacyHoists } from './executable-packaging.ts'
 import { existsSync, statSync } from 'node:fs'
 import { chmod, copyFile, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -15,6 +15,7 @@ import { basename, dirname, join, resolve, sep } from 'node:path'
 import { parseArgs } from 'node:util'
 import { resolveLinuxNodePtyAddon, resolveWindowsNodePtyAddons } from './executable-native-pty.ts'
 import { copyOfficeSidecar, OFFICE_ASSET_IGNORES } from './build-exe-for-python-sdk-office.ts'
+import { deduplicateStagedWorkspacePackages, materializeStagedLinks } from './build-exe-for-python-sdk-staging.ts'
 import { preparePrimaryRuntime, smokePrimaryRuntime, type PrimaryRuntimeTarget } from './primary-runtime/prepare.ts'
 
 const root = resolve(import.meta.dirname, '..')
@@ -49,7 +50,9 @@ const ASSET_GLOBS = [
   'node_modules/**/*.mjs',
   'node_modules/**/package.json',
   'node_modules/**/*.json',
-  // Package-owned Markdown includes runtime skill instructions and badge content.
+  // Plugin display metadata resolves these package-owned images at runtime.
+  'node_modules/@deepseek-ai/dsh-*/**/*.{svg,png,jpg,jpeg,webp}',
+  // Package-owned Markdown includes runtime skill instructions.
   'node_modules/**/*.md',
   'node_modules/**/*.dylib',
   'node_modules/**/*.dll',
@@ -61,8 +64,8 @@ const ASSET_GLOBS = [
   'node_modules/**/*.yml',
   // web-app builds this path dynamically, so pkg cannot discover the static frontend.
   'node_modules/@deepseek-ai/dsh-web-frontend/dist/**/*',
-  // skill-badge resolves both Markdown and image resources through import.meta.url.
-  'node_modules/@deepseek-ai/dsh-skill-badge/assets/**/*',
+  // The diagnosis provider extracts its PowerShell script for an external interpreter.
+  'node_modules/@deepseek-ai/dsh-sandbox-windows-acl/assets/**/*',
 ]
 
 const PLATFORMS = ['linux', 'macos', 'win'] as const
@@ -155,8 +158,10 @@ class BuildCli {
   private constructor(
     /** Build targets; defaults to the host platform only. */
     readonly targets: readonly Target[],
-    /** Skip step 1 (`pnpm run build`); lib/ artifacts must already exist. */
+    /** Skip the package build; lib/ artifacts must already exist. */
     readonly skipBuild: boolean,
+    /** Emit package and Web artifacts without repository test and script typechecks. */
+    readonly artifactsOnly: boolean,
     /** Print every command and config patch instead of executing. */
     readonly dryRun: boolean,
   ) {}
@@ -180,6 +185,9 @@ class BuildCli {
       console.log(BuildCli.usage())
       process.exit(0)
     }
+    if (values['skip-build'] && values['artifacts-only']) {
+      throw new Error('build-exe-for-python-sdk: --skip-build and --artifacts-only cannot be combined.')
+    }
     const targets = values.targets === undefined
       ? [Target.host()]
       : values.targets.split(',').map(part => part.trim()).filter(part => part !== '').map(spec => Target.parse(spec))
@@ -192,7 +200,7 @@ class BuildCli {
       }
       seen.add(key)
     }
-    return new BuildCli(targets, values['skip-build'], values['dry-run'])
+    return new BuildCli(targets, values['skip-build'], values['artifacts-only'], values['dry-run'])
   }
 
   private static parseRaw(argv: string[]) {
@@ -201,6 +209,7 @@ class BuildCli {
       options: {
         'targets': { type: 'string' },
         'skip-build': { type: 'boolean', default: false },
+        'artifacts-only': { type: 'boolean', default: false },
         'dry-run': { type: 'boolean', default: false },
         'help': { type: 'boolean', default: false },
       },
@@ -214,6 +223,7 @@ class BuildCli {
       '  --targets=<t1,t2,...>  pkg targets, e.g. node24-linux-x64,node24-linux-arm64,node24-macos-arm64,node24-macos-x64,node24-win-x64.',
       '                         Default: the host platform only (on node24).',
       '  --skip-build           skip `pnpm run build` (lib/ artifacts must already exist).',
+      '  --artifacts-only       omit repository test and script typechecks from the artifact build.',
       '  --dry-run              print every command and config patch without executing.',
       '  --help                 print this help.',
       '',
@@ -257,7 +267,8 @@ class SingleExeBuild {
       console.log('build-exe-for-python-sdk: skipping pnpm run build (--skip-build)')
       return
     }
-    await this.runPnpm('build', ['run', 'build'])
+    const args = this.cli.artifactsOnly ? ['run', 'build', '--artifacts-only'] : ['run', 'build']
+    await this.runPnpm('build', args)
   }
 
   /** Clear and deploy the runtime closure into the node carrier. */
@@ -278,6 +289,7 @@ class SingleExeBuild {
       '--config.node-linker=hoisted',
       '--config.auto-install-peers=false',
       '--config.link-workspace-packages=true',
+      '--config.hoist-workspace-packages=false',
       this.staging,
     ]) } finally {
       // Legacy deploy records production-only workspace state; restore the development installation before exec.
@@ -313,7 +325,8 @@ class SingleExeBuild {
       console.log('build-exe-for-python-sdk: [dry-run] materialize staged package links')
       return
     }
-    await materializeStagedLinks(join(this.staging, 'node_modules'))
+    await materializeStagedLinks(this.staging)
+    await deduplicateStagedWorkspacePackages(this.staging, root)
   }
 
   /** Add the executable entry and pkg assets to the staged manifest. */
@@ -374,7 +387,7 @@ class SingleExeBuild {
     } else {
       const { version } = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { version: string }
       await preparePrimaryRuntime({ target: runtimeTarget, output: resources,
-        cache: join(tmpdir(), 'dsh-primary-runtime-downloads'), version, pythonOnly: true })
+        cache: join(tmpdir(), 'dsh-primary-runtime-downloads'), version })
       smokePrimaryRuntime(join(resources, 'primary-runtime'))
     }
     if (target.platform !== 'macos') return [product, ripgrep, office, resources]

@@ -1,6 +1,6 @@
 /** Shared production-deploy preparation for the SDK and SSH executable carriers. */
 import { existsSync } from 'node:fs'
-import { cp, lstat, mkdir, readFile, readdir, realpath, rm, unlink } from 'node:fs/promises'
+import { cp, mkdir, readFile } from 'node:fs/promises'
 import { dirname, extname, join, resolve, sep } from 'node:path'
 
 /**
@@ -67,47 +67,4 @@ export async function restoreLegacyHoists(staging: string, sourceNodeModules: st
     throw new Error(`executable-packaging: staged dependencies remain missing: ${stillMissing.join(', ')}.`)
   }
   return restored
-}
-
-/**
- * Materialize deployed package links and remove command shims before embedding files.
- * @param nodeModules - deployed dependency directory, owned by the current build.
- */
-export async function materializeStagedLinks(nodeModules: string): Promise<void> {
-  let remaining = await findSymlink(nodeModules)
-  while (remaining !== undefined) {
-    const segments = remaining.slice(nodeModules.length + 1).split(sep)
-    const binIndex = segments.lastIndexOf('.bin')
-    if (binIndex >= 0) {
-      const directory = join(nodeModules, ...segments.slice(0, binIndex + 1))
-      if ((await lstat(directory)).isSymbolicLink()) await unlink(directory)
-      else await rm(directory, { recursive: true, force: true })
-      remaining = await findSymlink(nodeModules)
-      continue
-    }
-    const destination = remaining
-    const source = await realpath(destination)
-    const nestedNodeModules = join(source, 'node_modules')
-    await unlink(destination)
-    await cp(source, destination, {
-      recursive: true,
-      dereference: true,
-      filter: path => path !== nestedNodeModules && !path.startsWith(nestedNodeModules + sep),
-    })
-    remaining = await findSymlink(nodeModules)
-  }
-}
-
-/** Return the first symbolic link below a directory, if one exists. */
-async function findSymlink(directory: string): Promise<string | undefined> {
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const path = join(directory, entry.name)
-    const metadata = await lstat(path)
-    if (metadata.isSymbolicLink()) return path
-    if (metadata.isDirectory()) {
-      const nested = await findSymlink(path)
-      if (nested !== undefined) return nested
-    }
-  }
-  return undefined
 }

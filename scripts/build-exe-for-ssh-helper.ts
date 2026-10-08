@@ -7,7 +7,8 @@ import { parseArgs } from 'node:util'
 import { build } from 'tsdown'
 import { create as createTar } from 'tar'
 import { verifyRuntimeClosure } from './verify-runtime-closure.ts'
-import { materializeStagedLinks, pnpmInvocation, restoreLegacyHoists } from './executable-packaging.ts'
+import { pnpmInvocation, restoreLegacyHoists } from './executable-packaging.ts'
+import { materializeStagedLinks, deduplicateStagedWorkspacePackages } from './build-exe-for-python-sdk-staging.ts'
 import { resolveLinuxNodePtyAddon } from './executable-native-pty.ts'
 import { artifactManifestSchema, fileDigest, payloadFiles, SSH_HELPER_TARGETS, verifyPayload, type SshHelperTarget } from './ssh-helper/artifact.ts'
 import { probeHelper } from './ssh-helper/probe.ts'
@@ -129,13 +130,14 @@ export async function buildSshHelper(argv: string[]): Promise<void> {
     const product = join(temporary, 'dsh-ssh-helper')
     await mkdir(product)
     try {
-      await pnpm('--filter', closureName, 'deploy', '--legacy', '--prod', '--config.allow-unused-patches=true', '--config.node-linker=hoisted', '--config.auto-install-peers=false', '--config.link-workspace-packages=true', staging)
+      await pnpm('--filter', closureName, 'deploy', '--legacy', '--prod', '--config.allow-unused-patches=true', '--config.node-linker=hoisted', '--config.auto-install-peers=false', '--config.link-workspace-packages=true', '--config.hoist-workspace-packages=false', staging)
     } finally {
       // Legacy deploy records production-only workspace state; pnpm's next exec otherwise prunes build tools.
       await pnpm('install', '--offline', '--frozen-lockfile', '--prod=false', '--ignore-scripts')
     }
     await restoreLegacyHoists(staging, join(root, closureDirectory, 'node_modules'))
-    await materializeStagedLinks(join(staging, 'node_modules'))
+    await materializeStagedLinks(staging)
+    await deduplicateStagedWorkspacePackages(staging, root)
     await prepareNative(staging, product, process.platform, process.arch as 'x64' | 'arm64')
     await verifyNativePayload(join(staging, 'node_modules'), target)
     const stagedManifest = await manifest(join(staging, 'package.json'))

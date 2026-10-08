@@ -2,7 +2,8 @@ import { lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it, onTestFinished } from 'vitest'
-import { materializeStagedLinks, restoreLegacyHoists } from './executable-packaging.ts'
+import { restoreLegacyHoists } from './executable-packaging.ts'
+import { materializeStagedLinks } from './build-exe-for-python-sdk-staging.ts'
 
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'dsh-exe-deploy-'))
@@ -38,7 +39,7 @@ it('materializes a package junction without deleting its source and drops linked
   await writeFile(join(test.source, 'peer/index.js'), 'intact')
   await symlink(join(test.source, 'peer'), join(test.modules, 'peer'), 'junction')
   await symlink(join(test.source, 'peer'), join(test.modules, '.bin'), 'junction')
-  await materializeStagedLinks(test.modules)
+  await materializeStagedLinks(test.staging)
   expect((await lstat(join(test.modules, 'peer'))).isSymbolicLink()).toBe(false)
   expect(await readFile(join(test.modules, 'peer/index.js'), 'utf8')).toBe('intact')
   expect(await readFile(join(test.source, 'peer/index.js'), 'utf8')).toBe('intact')

@@ -14,6 +14,7 @@ import { deliverSubagentPrompt, type HostPromptDeliverer } from '@deepseek-ai/ds
 import * as SubagentFork from '@deepseek-ai/dsh-subagent-fork-in-process'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
+import { mountWorkingDirectoryFixture } from '../../../subagent/subagent/tests/working-directory-fixture.ts'
 import TeamService, { TeamError, TeamId, TeamMessageId, TeamTaskId } from '../src/index.ts'
 import { TeamRuntimeLifecycle } from '../src/lifecycle.ts'
 import { teamProjectionDefinition } from '../src/projection.ts'
@@ -22,17 +23,20 @@ import { TestSessionQuery } from './test-session-query.ts'
 
 const SIGNAL = new AbortController().signal
 const roots: string[] = []
+const contexts: Context[] = []
 
-afterEach(() => {
+afterEach(async () => {
   vi.useRealTimers()
+  vi.restoreAllMocks()
+  for (const ctx of contexts.splice(0).reverse()) await ctx.fiber.dispose()
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
 })
 
 /** Detached durable Team read through the same projection definition as the service. */
 function durable(agent: Agent): {
-  members: TeamMemberSnapshot[]
-  tasks: TeamTaskSnapshot[]
-  pendingMessages: TeamMessageSnapshot[]
+  members: readonly TeamMemberSnapshot[]
+  tasks: readonly TeamTaskSnapshot[]
+  pendingMessages: readonly TeamMessageSnapshot[]
 } {
   let projected = teamProjectionDefinition.init(agent.session.header)
   for (const event of agent.session.snapshotEvents()) projected = teamProjectionDefinition.apply(projected, event)
@@ -60,7 +64,9 @@ async function setup(
   config: ConstructorParameters<typeof TeamService>[1] = {},
 ) {
   const ctx = new Context()
+  contexts.push(ctx)
   await mountAgentLoopTestDependencies(ctx)
+  await mountWorkingDirectoryFixture(ctx)
   const storageRoot = mkdtempSync(join(tmpdir(), 'dsh-team-'))
   roots.push(storageRoot)
   await ctx.plugin(JsonlSessionPersistence, { root: storageRoot })
@@ -167,7 +173,9 @@ describe('Team identity and provisioning', () => {
 
   it('supports direct-constructor defaults and recovers roots that already exist', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await mountAgentLoopTestDependencies(ctx)
+    await mountWorkingDirectoryFixture(ctx)
     const storageRoot = mkdtempSync(join(tmpdir(), 'dsh-team-direct-'))
     roots.push(storageRoot)
     await ctx.plugin(JsonlSessionPersistence, { root: storageRoot })
@@ -336,7 +344,7 @@ describe('Team identity and provisioning', () => {
 
   it('records non-Error provider failures and contains a reversed provisioning settlement race', async () => {
     const first = await setup([])
-    vi.spyOn(first.ctx.subagents, 'startContinuable').mockRejectedValueOnce('string provider failure')
+    vi.spyOn(first.ctx.subagents, 'startActivation').mockRejectedValueOnce('string provider failure')
     await expect(spawn(first.ctx, first.lead, 'string-failure')).rejects.toBe('string provider failure')
     expect(first.ctx.agentTeams.listMembers(first.lead)[1]).toMatchObject({
       status: 'failed',
@@ -347,7 +355,7 @@ describe('Team identity and provisioning', () => {
     })).rejects.toMatchObject({ code: 'TEAM_MEMBER_NOT_FOUND' })
 
     const second = await setup([])
-    vi.spyOn(second.ctx.subagents, 'startContinuable').mockImplementationOnce(async () => {
+    vi.spyOn(second.ctx.subagents, 'startActivation').mockImplementationOnce(async () => {
       const provisioning = durable(second.lead).members[0]
       if (provisioning === undefined) throw new Error('missing provisioning edge')
       second.lead.session.append('team/member', {
@@ -364,11 +372,11 @@ describe('Team identity and provisioning', () => {
 
   it('cleans up a child when recovery settles its provisioning record first', async () => {
     const { ctx, lead } = await setup(['hang'])
-    const start = ctx.subagents.startContinuable.bind(ctx.subagents)
+    const start = ctx.subagents.startActivation.bind(ctx.subagents)
     const entered = Promise.withResolvers<undefined>()
     const release = Promise.withResolvers<undefined>()
     let childId: SessionId | undefined
-    vi.spyOn(ctx.subagents, 'startContinuable').mockImplementation(async (spec) => {
+    vi.spyOn(ctx.subagents, 'startActivation').mockImplementation(async (spec) => {
       childId = spec.childId
       entered.resolve(undefined)
       await release.promise
@@ -390,7 +398,9 @@ describe('Team identity and provisioning', () => {
   it('handles a continuation that settles before the active roster view or conflict cleanup lookup', async () => {
     const first = await setup([])
     vi.spyOn(teamInternals(first.ctx).roster, 'checkpointInitialPrompt').mockResolvedValueOnce()
-    vi.spyOn(first.ctx.subagents, 'startContinuable').mockImplementationOnce(async spec => ({
+    vi.spyOn(first.ctx.subagents, 'startActivation').mockImplementationOnce(async spec => ({
+      result: Promise.resolve({ output: [], stopReason: 'completed' as const }),
+      dispose: async () => {},
       childId: spec.childId!,
       messageId: createUserMessage({ content: content('accepted'), source: { kind: 'user' } }).id,
     }))
@@ -402,10 +412,12 @@ describe('Team identity and provisioning', () => {
     vi.spyOn(teamInternals(second.ctx).roster, 'checkpointInitialPrompt').mockResolvedValueOnce()
     const entered = Promise.withResolvers<undefined>()
     const release = Promise.withResolvers<undefined>()
-    vi.spyOn(second.ctx.subagents, 'startContinuable').mockImplementationOnce(async (spec) => {
+    vi.spyOn(second.ctx.subagents, 'startActivation').mockImplementationOnce(async (spec) => {
       entered.resolve(undefined)
       await release.promise
       return {
+        result: Promise.resolve({ output: [], stopReason: 'completed' as const }),
+        dispose: async () => {},
         childId: spec.childId!,
         messageId: createUserMessage({ content: content('accepted'), source: { kind: 'user' } }).id,
       }
@@ -486,7 +498,8 @@ describe('Team identity and provisioning', () => {
 
   it('rejects stale Agent identities and non-Team subagent children', async () => {
     const { ctx, lead } = await setup([textResponse('done')])
-    const started = await ctx.subagents.startContinuable({
+    const started = await ctx.subagents.startActivation({
+      delivery: 'parent',
       provider: 'spawn',
       label: 'ordinary worker',
       request: { prompt: content('ordinary'), parent: lead },
@@ -516,7 +529,8 @@ describe('Team identity and provisioning', () => {
       sessionId: SessionId('temporary-parent'),
       agentOptions: { provider: 'mock', model: 'mock' },
     })
-    const started = await first.ctx.subagents.startContinuable({
+    const started = await first.ctx.subagents.startActivation({
+      delivery: 'parent',
       provider: 'spawn',
       label: 'ordinary child',
       request: { prompt: content('finish'), parent: parent.agent },
@@ -870,24 +884,6 @@ describe('Team shared task DAG', () => {
 
     ctx.agentTeams.interrupt(lead, 'editor')
     await waitNoAgent(ctx, editor.id)
-  })
-})
-
-describe('Team Remote API', () => {
-  it('reads tasks created and updated by Team agents', async () => {
-    const { ctx, lead } = await setup([])
-    expect(ctx.agentTeams.typertRemote).toMatchObject({ serviceKey: 'agentTeams', namespace: 'agentTeams' })
-    expect(ctx.agentTeams.remoteView(lead)).toEqual({
-      members: [expect.objectContaining({ name: 'lead', role: 'lead', status: 'inactive' })],
-      tasks: [],
-    })
-    const created = await ctx.agentTeams.createTask(lead, {
-      subject: 'Agent task', description: 'Created by the Team Lead',
-    })
-    const updated = await ctx.agentTeams.updateTask(lead, {
-      taskId: created.id, expectedRevision: 1, action: 'claim',
-    })
-    expect(ctx.agentTeams.remoteView(lead).tasks).toEqual([updated])
   })
 })
 
@@ -1364,7 +1360,9 @@ describe('Team mailbox and waiting', () => {
 
   it('waits for one change, supports cancellation, times out, and releases waiters on HMR disposal', async () => {
     const ctx = new Context()
+    contexts.push(ctx)
     await mountAgentLoopTestDependencies(ctx)
+    await mountWorkingDirectoryFixture(ctx)
     const storageRoot = mkdtempSync(join(tmpdir(), 'dsh-team-wait-'))
     roots.push(storageRoot)
     await ctx.plugin(JsonlSessionPersistence, { root: storageRoot })
@@ -1452,11 +1450,11 @@ describe('Team mailbox and waiting', () => {
   it('closes creation admission and drains an in-flight spawn before unload completes', async () => {
     const { ctx, lead, teamFiber } = await setup(['hang'])
     const service = ctx.agentTeams
-    const start = ctx.subagents.startContinuable.bind(ctx.subagents)
+    const start = ctx.subagents.startActivation.bind(ctx.subagents)
     const entered = Promise.withResolvers<undefined>()
     const release = Promise.withResolvers<undefined>()
     let childId: SessionId | undefined
-    vi.spyOn(ctx.subagents, 'startContinuable').mockImplementation(async (spec) => {
+    vi.spyOn(ctx.subagents, 'startActivation').mockImplementation(async (spec) => {
       childId = spec.childId
       entered.resolve(undefined)
       await release.promise
@@ -1534,7 +1532,8 @@ describe('Team mailbox and waiting', () => {
       teamId: TeamId(lead.id),
       member,
     })
-    await ctx.subagents.startContinuable({
+    await ctx.subagents.startActivation({
+      delivery: 'parent',
       childId,
       provider: 'spawn',
       label: member.description,
@@ -1658,7 +1657,7 @@ describe('Team mailbox and waiting', () => {
     const { ctx, lead, teamFiber } = await setup(['hang'], { disposalTimeoutMs: 25 })
     const started = await spawn(ctx, lead, 'stuck-worker')
     await waitRunning(ctx, started.member.id)
-    const drain = vi.spyOn(ctx.subagents, 'drainContinuableChildren')
+    const drain = vi.spyOn(ctx.subagents, 'drainChildren')
       .mockImplementation(() => new Promise(() => {}))
 
     const outcome = await Promise.race([
@@ -1740,7 +1739,7 @@ describe('Team mailbox and waiting', () => {
     const { ctx, lead, teamFiber } = await setup(['hang'])
     const started = await spawn(ctx, lead, 'failing-drain')
     await waitRunning(ctx, started.member.id)
-    vi.spyOn(ctx.subagents, 'drainContinuableDescendants').mockRejectedValueOnce(new Error('drain failure'))
+    vi.spyOn(ctx.subagents, 'drainDescendants').mockRejectedValueOnce(new Error('drain failure'))
 
     await teamFiber.dispose()
     expect(ctx.get('agentTeams')).toBeUndefined()

@@ -1,17 +1,28 @@
 /** Public plugin management records shared with clients. */
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { PluginLocalizedMeta } from '@deepseek-ai/dsh-package-manifest'
-import type { PluginInventoryEntry } from '@deepseek-ai/dsh-host-plugin-inventory/types'
+import type { PluginInventoryEntry, AgentPresetPluginRow } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 export type { PluginEntryId } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 import type { PluginEntryId } from '@deepseek-ai/dsh-host-plugin-inventory/types'
 
 /** Reasons a profile control cannot modify its target. */
-export type ReadOnlyReason = 'management-required' | 'unaddressable'
+export type ReadOnlyReason = 'management-required' | 'unaddressable' | 'preset-managed'
+
+/** A package whose declared DSH peers reject the running DSH version, without an exemption for the exact pair. */
+export interface IncompatiblePlugin {
+  name: string
+  version: string
+  runtimeVersion: string
+  /** Only the DSH peer ranges the running version does not satisfy. */
+  peers: Record<string, string>
+}
 
 /** Localizable management failure and optional external diagnostic. */
 export interface ManagementError {
-  code: ReadOnlyReason | 'unknown-plugin' | 'invalid-spec' | 'ambiguous-install' | 'not-bundle' | 'not-removable' | 'stop-profile' | 'bundle-in-use' | 'stale-approval' | 'operation-error'
+  code: ReadOnlyReason | 'unknown-plugin' | 'invalid-spec' | 'ambiguous-install' | 'not-bundle' | 'not-removable' | 'stop-profile' | 'bundle-in-use' | 'stale-approval' | 'incompatible-version' | 'operation-error'
   diagnostic?: string
+  /** Present with `incompatible-version`: the packages the running DSH version rejects. */
+  incompatible?: IncompatiblePlugin[]
 }
 
 /** One running-profile entry and its persistent control availability. */
@@ -22,8 +33,14 @@ export type PluginInfo = PluginInventoryEntry & (
 
 /** One row a bundle's patch declares, with its live entry while the bundle contributes it. */
 export interface BundleRowInfo {
-  /** The row id as the patch declares it. */
+  /** Declared row id, or an internal identity for an anonymous scoped insertion. */
   rowId: string
+  /** Outer preset row id; together with rowId identifies a scoped declaration. */
+  preset?: string
+  /** Why direct row controls are unavailable; scoped rows are configured through their preset or bundle. */
+  readOnlyReason?: ReadOnlyReason
+  /** Current preset composition state; scoped rows have no editable root Loader entry. */
+  composition?: Pick<AgentPresetPluginRow, 'enabled' | 'fiberPhase'>
   /** The module the row names. */
   moduleName: string
   /** Local package display metadata, including rows whose bundle is disabled. */
@@ -32,9 +49,15 @@ export interface BundleRowInfo {
   entryId?: PluginEntryId
 }
 
-/** One installed or installation-provided bundle. */
+/** One shipped, profile-installed, or discoverable on-demand bundle. */
 export interface BundleInfo {
   name: string
+  /** Project-maintained shipped optional bundle or on-demand catalog entry, independent of installation and selection. */
+  official: boolean
+  /** Readable package location; on-demand catalog entries exclude undeclared transitive copies, and declared files may be missing. */
+  availability: 'installation' | 'profile' | 'missing'
+  /** Exact released Host version or same-checkout development link offered for an on-demand catalog entry. */
+  installTarget?: { spec: string; version: string }
   version?: string
   /** Local display text with available translations or literal fallbacks, or a metadata diagnostic. */
   meta?: PluginLocalizedMeta
@@ -42,8 +65,13 @@ export interface BundleInfo {
   description?: string
   /** Selected in the profile manifest; a load error means its layer was skipped. */
   enabled: boolean
-  /** Whether the profile's own dependencies hold the package; false for a bundle the dsh installation supplies. */
+  /** Whether the profile declares this dependency; availability separately reports whether its files can be read. */
   installed: boolean
+  /**
+   * Present for a profile dependency the installation does not also supply: the spec `pnpm add` accepts, with local
+   * paths made absolute and the user information of an http(s) URL removed.
+   */
+  source?: string
   /**
    * Whether the installation ships the bundle for the person to switch on: named by the launcher's `OPTIONAL_BUNDLES`,
    * held by the installation's dependencies, selected by no shipped template, and never removable.
@@ -69,7 +97,7 @@ export interface PluginRegistries {
   readonly resolved: string | null
 }
 
-/** How a pnpm run failed, read off how it ended and what it printed. */
+/** How a package operation failed, read off how it ended and what it printed. */
 export type PluginInstallFailureKind =
   | 'pnpm-missing'
   | 'timeout'
@@ -82,7 +110,7 @@ export type PluginInstallFailureKind =
   | 'integrity'
   | 'unknown'
 
-/** Pnpm completion, including a retrieval path for unabridged diagnostics. */
+/** Package operation completion, including Git checks and a retrieval path for unabridged diagnostics. */
 export interface PackageResult {
   exitCode: number
   output: string
@@ -90,6 +118,10 @@ export interface PackageResult {
   logPath: string
   /** Present when the run failed: what kind of failure its exit and output describe. */
   kind?: PluginInstallFailureKind
+  /** The manager terminated the run after it printed nothing for its silence bound; `exitCode` still reports how it ended. */
+  timedOut?: boolean
+  /** Present when a compatibility check refused the run: the packages the running DSH version rejects. */
+  incompatible?: IncompatiblePlugin[]
 }
 
 /** Persisted change and independently observed application outcome. */
@@ -107,6 +139,8 @@ export interface ChangeResult {
   packageResult?: PackageResult
   /** The bundle an installation added, once pnpm and the bundle check accepted it. */
   bundle?: string
+  /** The installed bundle's manifest version, when declared; pnpm's `minimumReleaseAge` can make it older than the newest release. */
+  version?: string
   /** Exact package names awaiting explicit script approval in the profile's pnpm settings, read after a failed run. */
   pendingBuilds?: string[]
   /** Package script permissions saved before this installation attempt. */
@@ -126,6 +160,8 @@ export type PluginInstallRequestId = Branded<'PluginInstallRequestId'>
 /** Bundle installation defaults to activation; callers that offer cancellation supply their request id. */
 export interface InstallBundleOptions {
   enabled?: boolean
+  /** Save the resolved dependency version without a range; applies to any bundle installation. */
+  saveExact?: boolean
   requestId?: PluginInstallRequestId
   /** Explicitly allow these pending packages' scripts for this profile, then install; a name no longer pending refuses the call. */
   approvedBuilds?: string[]
