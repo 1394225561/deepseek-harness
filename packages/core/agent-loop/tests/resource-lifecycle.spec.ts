@@ -4,11 +4,12 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, it, onTestFinished, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
-import { ToolCallId } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import LocalJobRegistry from '@deepseek-ai/dsh-jobs-local'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
@@ -39,7 +40,16 @@ it.each([0, 1, 2])('retains Agent resources until all work exits with %i failed 
   let scopeDisposedBeforeWorkExit = false
   let projectionPresentAtWorkExit = false
   let scopeDisposed = false
+  let abortHandled = 0
+  const controller = new AbortController()
+  controller.signal.addEventListener('abort', () => {
+    agent.cancel({ kind: 'parent' })
+    agent.cancel({ kind: 'parent' })
+    abortHandled++
+  }, { once: true })
   agent.ctx.effect(() => () => {
+    controller.abort()
+    controller.abort()
     scopeDisposed = true
     scopeDisposedBeforeWorkExit = !workExited
   })
@@ -63,6 +73,7 @@ it.each([0, 1, 2])('retains Agent resources until all work exits with %i failed 
   expect(scopeDisposedBeforeWorkExit).toBe(false)
   expect(projectionPresentAtWorkExit).toBe(true)
   expect(scopeDisposed).toBe(true)
+  expect(abortHandled).toBe(1)
   expect(projections.stateOf(agent.session, 'inbox')).toBeUndefined()
   expect(projections.stateOf(agent.session, 'turnBoundary')).toBeUndefined()
   expect(ctx.agents.get(agent.id)).toBeUndefined()
@@ -99,10 +110,10 @@ it.each(['loop', 'root'] as const)('unloads %s while a background child is stopp
   const { agent: parent } = await ctx.agents.create({
     sessionId: parentId, agentOptions: { provider: 'mock', model: 'mock' },
   })
-  const requestEntered = Promise.withResolvers<undefined>()
+  const requestEntered = Promise.withResolvers<Agent>()
   ctx.on('agent/request', async (event, next) => {
     expect(event.agent).not.toBe(parent)
-    requestEntered.resolve(undefined)
+    requestEntered.resolve(event.agent)
     await release.promise
     return next()
   })
@@ -112,12 +123,31 @@ it.each(['loop', 'root'] as const)('unloads %s while a background child is stopp
     arguments: { description: 'child', prompt: 'wait' },
   })
   expect(started.isError).toBe(false)
-  await requestEntered.promise
+  const child = await requestEntered.promise
+  for (const target of ['next-step', 'next-turn'] as const) {
+    child.send(createUserMessage({ content: [{ type: 'text', text: target }], source: { kind: 'user' } }), target, false)
+  }
   const disposal = owner === 'loop' ? loop.dispose() : ctx.fiber.dispose()
   // Teardown cancels the in-flight child while it is still inside agent/request.
   await childCancelObserved.promise
   release.resolve(undefined)
   await disposal
+  expect(child.status).toBe('idle')
+  const events = child.session.snapshotEvents()
+  expect(events.at(-1)).toMatchObject({ type: 'turn/end', data: { reason: { kind: 'aborted' } } })
+  expect(events.filter(event => event.type === 'agent/inbox/spliced' && event.data.outcome === 'canceled'))
+    .toMatchObject([
+      { data: { target: 'next-step', removedCount: 1 } },
+      { data: { target: 'next-turn', removedCount: 1 } },
+    ])
+  if (owner === 'loop') {
+    const verify = new Context()
+    onTestFinished(async () => { await verify.fiber.dispose() })
+    await verify.plugin(JsonlSessionPersistence, { root })
+    const reader = await verify.sessionPersistence.open(child.id, 'read')
+    expect((await reader.read()).events).toEqual(events)
+    await reader.close()
+  }
 })
 
 it.each([false, true])('releases the Agent scope after cancel failure with scope failure %s', async (failScope) => {

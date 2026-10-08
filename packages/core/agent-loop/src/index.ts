@@ -572,10 +572,10 @@ export class AgentLoop extends Service implements AgentFactory {
       } catch (error: unknown) {
         failures.push(error)
       }
-      // The loop above committed its closing events synchronously into the
-      // session; handle close drains them durably before releasing the write
-      // path. The close drain can be the first operation that surfaces a
-      // durability failure, so its error is retained, not logged away.
+      // Close drains events already routed into the handle. The backend's
+      // live-event listeners must stay mounted through driver shutdown to
+      // receive all closing events. A failed final drain is retained here
+      // rather than logged away.
       try {
         await handle?.close()
       } catch (error: unknown) {
