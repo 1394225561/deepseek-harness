@@ -873,6 +873,25 @@ describe('TrajectoryTable', () => {
     expect(errorResult.closest('[class*="errorPayload"]')).toBeTruthy()
   })
 
+  it('does not expose a request placeholder as a completed assistant result', () => {
+    const turns = deriveTrajectoryLayout({
+      nodes: [], partial: null, runningCalls: [],
+      requests: [{
+        purpose: 'assistant', startSeq: 2, turn: 1, step: 1,
+        startedAt: 2_000, completedAt: null, status: 'running',
+      }],
+    }, t)
+    render(<TrajectoryTable turns={turns} requestNumbers={[{
+      turn: 1, step: 1, seq: 2, group: 'Step 1', number: 1,
+      status: 'running', startedAt: 2_000, completedAt: null,
+    }]} {...FOLD_PROPS} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Request #1' }))
+    expect(screen.getByText('Pending')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Assistant Message' })).toBeNull()
+    expect(screen.queryByText('Completed')).toBeNull()
+  })
+
   it('marks failed requests and lays coincident request markers left to right', () => {
     const turns: readonly TrajectoryTurnModel[] = [
       {
