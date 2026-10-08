@@ -79,6 +79,31 @@ async function feedList(b: Bench, rows: FeedRow[]): Promise<void> {
 }
 
 describe('list store projection', () => {
+  it('publishes format-status changes and preserves a newer update over an in-flight list', async ({ bench }) => {
+    const b = bench()
+    const historical = {
+      sessionId: sid('s1'), updatedAt: 1, running: false, blank: false, agentAvailable: false,
+      formatStatus: 'migration-required' as const,
+    }
+    b.mock.remote.session.list.mockResolvedValue(ok({ items: [historical] }))
+    await b.svc.refresh()
+    await Promise.resolve()
+    expect(b.svc.list.getSnapshot().byId[sid('s1')]?.formatStatus).toBe('migration-required')
+
+    const pending = Promise.withResolvers<Awaited<ReturnType<typeof b.mock.remote.session.list>>>()
+    b.unblock.push(() => { pending.resolve(ok({ items: [historical] })) })
+    b.mock.remote.session.list.mockReturnValueOnce(pending.promise)
+    const refreshing = b.svc.refresh()
+    b.svc.handleSessionAdded({ ...historical, formatStatus: 'current' })
+    await Promise.resolve()
+    expect(b.svc.list.getSnapshot().byId[sid('s1')]?.formatStatus).toBe('current')
+    pending.resolve(ok({ items: [historical] }))
+    await refreshing
+    await Promise.resolve()
+    expect(b.svc.list.getSnapshot().byId[sid('s1')]?.formatStatus).toBe('current')
+    expect(b.mock.remote.session.projections).not.toHaveBeenCalled()
+  })
+
   it('projects durable titles separately from cwd/id display fallbacks and parent links', async ({ bench }) => {
     const b = bench()
     b.svc.handleControlFrame({

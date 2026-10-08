@@ -17,8 +17,7 @@ import css from './SubagentHeaderLineage.module.css'
 
 type SubagentCatalogSnapshot = Omit<SessionProjectionSnapshot, 'values' | 'state'> & {
   state: 'loading' | 'ready' | 'migration-required' | 'error'
-  entries: (Pick<SessionProjectionMap['subagentCatalog'][number], 'id' | 'mode' | 'label'>
-    & { activity: 'running' | 'inactive' })[]
+  entries: (SessionProjectionMap['subagentCatalog'][number] & { activity: 'running' | 'inactive' })[]
 }
 type Catalogs = Readonly<Record<SessionId, SubagentCatalogSnapshot>>
 
@@ -213,6 +212,7 @@ function CatalogRows({
   const emptyLoading = catalog.state === 'loading' && catalog.entries.length === 0
   const reserveDisclosure = catalog.entries.some(entry =>
     entry.mode !== 'external' && !isKnownLeaf(catalogs[entry.id])
+    && summaries[entry.id]?.formatStatus !== 'migration-required'
     && catalogs[entry.id]?.state !== 'migration-required')
   return (
     <>
@@ -237,7 +237,8 @@ function CatalogRows({
         const childCatalog = catalogs[entry.id]
         const isCurrent = entry.id === currentSessionId
         const knownLeaf = external || isKnownLeaf(childCatalog)
-        const requiresOpening = childCatalog?.state === 'migration-required'
+        const requiresOpening = summaries[entry.id]?.formatStatus === 'migration-required'
+          || childCatalog?.state === 'migration-required'
         const canExpand = !knownLeaf && !requiresOpening
         const isExpanded = canExpand && expanded.has(entry.id)
         const childLoading = childCatalog === undefined

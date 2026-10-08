@@ -764,6 +764,7 @@ describe('web e2e: migration-required subagent catalog', () => {
   it('stops at a migration-required child until its history opens', async () => {
     onTestFailed(() => saveFailureShot(page, 'screenshots/non-migrating-session-reads/migration-required-subagent'))
     const observe = vi.spyOn(scaffold.ctx.sessionQuery, 'observeSession')
+    const projections = vi.spyOn(scaffold.ctx.sessionController, 'projections')
     const model = vi.spyOn(scaffold.ctx.llm, 'stream')
     try {
       await page.goto(scaffold.authenticatedUrl, { waitUntil: 'load' })
@@ -774,16 +775,7 @@ describe('web e2e: migration-required subagent catalog', () => {
       const tree = page.getByRole('tree', { name: 'Subagent sessions' })
       const childRow = tree.getByRole('treeitem', { name: new RegExp(childLabel) })
       await childRow.waitFor()
-      const [projections] = await Promise.all([
-        page.waitForResponse((response) => {
-          if (new URL(response.url()).pathname !== '/api/session/projections') return false
-          const envelope = response.request().postDataJSON() as { payload: { args: { request: { sessionId: string } } } }
-          return envelope.payload.args.request.sessionId === childId
-        }),
-        childRow.getByRole('button', { name: `Expand ${childLabel} descendants`, exact: true }).click(),
-      ])
-      const receipt = await projections.json() as { result: unknown }
-      expect(receipt.result).toEqual({ ok: true, value: { kind: 'migration-required', values: {} } })
+      await expect.poll(() => childRow.textContent()).toContain('Migration required')
       await expect.poll(() => childRow.getByRole('button', { name: `Expand ${childLabel} descendants`, exact: true }).count()).toBe(0)
       expect(await childRow.getAttribute('aria-expanded')).toBeNull()
       expect(await childRow.textContent()).toContain('Migration required')
@@ -797,14 +789,17 @@ describe('web e2e: migration-required subagent catalog', () => {
       }
       const before = await captureStableAria(page, '[role="tree"][aria-label="Subagent sessions"]', scaffold.workspaceCwd)
       expect(observe.mock.calls.some(([id]) => id === childId || id === grandchildId)).toBe(false)
+      expect(projections).not.toHaveBeenCalled()
 
       await childRow.click()
       await page.getByRole('button', { name: `Switch subagent: ${childLabel}`, exact: true }).waitFor()
       await page.getByRole('button', { name: '1 subagent', exact: true }).hover()
       const grandchildRow = tree.getByRole('treeitem', { name: new RegExp(grandchildLabel) })
       await grandchildRow.waitFor()
-      expect(await grandchildRow.textContent()).toContain('continuable')
-      expect(await tree.getByText('Migration required').count()).toBe(0)
+      expect(await grandchildRow.textContent()).toContain('Migration required')
+      expect(await grandchildRow.getAttribute('aria-expanded')).toBeNull()
+      expect(await grandchildRow.getByRole('button', { name: `Expand ${grandchildLabel} descendants`, exact: true }).count()).toBe(0)
+      expect(projections).not.toHaveBeenCalled()
       expect(observe.mock.calls.some(([id]) => id === childId)).toBe(true)
       const after = await captureStableAria(page, '[role="tree"][aria-label="Subagent sessions"]', scaffold.workspaceCwd)
       if (MODE === 'refresh') await mkdir(dirname(MIGRATING_CHILD_EXPECTED), { recursive: true })
@@ -819,6 +814,7 @@ describe('web e2e: migration-required subagent catalog', () => {
       expect(tripwire.pageErrors).toEqual([])
       expect(tripwire.warnings).toEqual([])
     } finally {
+      projections.mockRestore()
       model.mockRestore()
       observe.mockRestore()
     }

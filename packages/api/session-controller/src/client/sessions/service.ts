@@ -21,6 +21,7 @@ import { SessionManager } from './manager.ts'
 import type { SessionRemotes } from './remotes.ts'
 import type { SessionListPhase, SessionSearchResultItem, SessionProjectionSnapshot } from './manager.ts'
 import type { Session } from './session.ts'
+import type { SessionListEntry } from './lineage.ts'
 
 /** Session list row projected from the host list RPC plus live stream increments. */
 export interface SessionSummary {
@@ -33,6 +34,8 @@ export interface SessionSummary {
   parentId?: SessionId
   /** Coarse durable origin for navigation filtering; not a continuation capability. */
   origin?: 'subagent'
+  /** Format classification supplied by the Host list, when available. */
+  formatStatus?: SessionListEntry['formatStatus']
   /** Host running state for `ids` members; a display fallback for other rows. */
   running: boolean
   /** Local ownership counts; Host metadata refreshes cannot overwrite them. */
@@ -624,6 +627,7 @@ export class ClientSessions implements ISessions {
         retainedBy: this.retentionSnapshot(entry.sessionId).retainedBy,
         blank: entry.blank,
         updatedAt: entry.updatedAt,
+        formatStatus: entry.formatStatus,
         ...(entry.projectionValues === undefined
           ? {}
           : { projectionValues: entry.projectionValues }),

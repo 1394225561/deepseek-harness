@@ -177,6 +177,8 @@ export type QueueAction =
 export interface SessionSummary {
   /** Whether this Session currently owns a live Agent. */
   readonly agentAvailable: boolean
+  /** Current for attached Sessions; otherwise the persistence format status when reported. */
+  readonly formatStatus?: 'current' | 'migration-required'
   readonly sessionId: SessionId
   readonly updatedAt: number
   readonly running: boolean

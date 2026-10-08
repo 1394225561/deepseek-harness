@@ -795,6 +795,7 @@ export class SessionManager {
         && prev.blank === entry.blank
         && prev.parentSessionId === entry.parentSessionId && prev.cwd === entry.cwd
         && prev.origin === entry.origin && prev.title === entry.title && prev.depth === entry.depth
+        && prev.formatStatus === entry.formatStatus
         && prev.projectionValues === entry.projectionValues
       ) return prev
       this.entryCache.set(entry.sessionId, entry)
@@ -834,6 +835,7 @@ function applyMutation(summaries: readonly SessionSummary[], mutation: SessionLi
         ...(mutation.kind === 'upsert' ? {
           agentAvailable: mutation.summary.agentAvailable,
           running: mutation.summary.running,
+          ...(mutation.summary.formatStatus === undefined ? {} : { formatStatus: mutation.summary.formatStatus }),
         } : {}),
         ...(existing.cwd === undefined && mutation.summary.cwd !== undefined ? { cwd: mutation.summary.cwd } : {}),
         ...(existing.parentSessionId === undefined && mutation.summary.parentSessionId !== undefined
@@ -844,6 +846,7 @@ function applyMutation(summaries: readonly SessionSummary[], mutation: SessionLi
       if (filled.cwd === existing.cwd && filled.parentSessionId === existing.parentSessionId
         && filled.origin === existing.origin && filled.blank === existing.blank
         && filled.agentAvailable === existing.agentAvailable && filled.running === existing.running
+        && filled.formatStatus === existing.formatStatus
       ) return [...summaries]
       return summaries.map(summary => summary.sessionId === mutation.summary.sessionId ? filled : summary)
     }
