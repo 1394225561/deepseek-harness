@@ -775,6 +775,7 @@ function scaffold(change: PersistenceChangeRecord, chinese: boolean, prose?: Per
 }
 
 /** Parse authored compatibility evidence for the exact schemas in an acknowledgement.
+ * Placeholder checks exclude marker names embedded in event identifiers and paths.
  * @param value - decoded JSON supplied through --review or a saved machine record.
  * @returns validated evidence with canonical field ordering.
  */
@@ -783,7 +784,7 @@ export function parsePersistenceReview(value: unknown): PersistenceCompatibility
   keys(input, ['oldReaders', 'newReaders', 'verification'], 'compatibility review')
   const authored = (name: string): string => {
     const text = textValue(input[name], `compatibility review ${name}`)
-    if (text.trim().length === 0 || /\b(?:TODO|TBD|FIXME)\b/iu.test(text)) {
+    if (text.trim().length === 0 || /(?:^|\s)(?:TODO|TBD|FIXME)(?=$|[\s:;,.!?])/iu.test(text)) {
       throw new Error(`compatibility review ${name} requires authored text without placeholders`)
     }
     return text

@@ -1031,6 +1031,26 @@ function reviewFile(root: string, review: unknown = COMPATIBILITY_REVIEW): strin
 }
 
 describe('authored same-version compatibility review', () => {
+  it('records and reloads evidence containing todo event names and test paths', () => {
+    const root = fixture()
+    baseline(root)
+    const review = {
+      oldReaders: 'Unknown event:todo/write records are refused before resume.',
+      newReaders: 'Historical event:todo/write records retain their meaning.',
+      verification: 'pnpm exec vitest run packages/todo/tool-todo/tests/tool-todo.spec.ts: passed.',
+    }
+    const after = inventory({ value: 'number' })
+    runPersistenceChanges(['--record', NEXT_ID, '--review', reviewFile(root, review), '--prose', proseFile(root)], root, () => after)
+    expect(loadPersistenceHistory(root).entries.find(entry => entry.record.id === NEXT_ID)?.record.review).toEqual(review)
+    expect(runPersistenceChanges(['--check'], root, () => after)).toContain('roots match')
+  })
+
+  it.each(['TODO', 'tbd', 'FIXME: run tests', 'Evidence:\n  todo: run tests', 'Reader behavior is TBD.'])(
+    'rejects standalone placeholder evidence: %s', (verification) => {
+      expect(() => parsePersistenceReview({ ...COMPATIBILITY_REVIEW, verification })).toThrow('without placeholders')
+    },
+  )
+
   it.each(['optional header', 'removed field', 'changed field'] as const)('admits a reviewed %s after finalization', (kind) => {
     const root = fixture()
     finalize(root)
