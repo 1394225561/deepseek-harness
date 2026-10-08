@@ -15,6 +15,7 @@
 /* The uncapped body scrolls with the conversation; keep its collapse toggle
    reachable. Compact Markdown code banners stay in flow below this header. */
 .root[data-expanded] [data-open] [data-disclosure-header] {
+  column-gap: 12px;
   position: sticky;
   top: 0;
   z-index: 1;
@@ -33,15 +34,15 @@
   flex: none;
   height: calc(24px + var(--dsh-content-font-delta, 0px));
   padding: 0 2px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px);
-  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: var(--dsh-content-font-size-secondary, 13px);
+  line-height: calc(24px + var(--dsh-content-font-delta, 0px));
 }
 
-.root .headerAction:hover,
-.root .headerAction:active {
+.root .headerAction:hover:not(:disabled),
+.root .headerAction:active:not(:disabled) {
   background: transparent;
-  color: var(--dsw-alias-label-primary);
+  color: var(--dsw-alias-label-secondary);
   text-decoration: underline;
   text-underline-offset: 3px;
 }
