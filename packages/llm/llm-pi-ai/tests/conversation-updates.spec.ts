@@ -1,7 +1,7 @@
 /** Capability-driven transcript updates through the real pi-ai serializers and shared runtime. */
 import { afterEach, describe, expect, it } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import LlmRuntime, { createDeveloperMessage, createMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createAssistantMessage, createDeveloperMessage, createMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, ToolSchema, ToolUpdate } from '@deepseek-ai/dsh-llm'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import type { Api, Model } from '@earendil-works/pi-ai'
@@ -143,14 +143,36 @@ describe('serialized conversation updates', () => {
     ])
   })
 
+  it.each([
+    { provider: 'moonshotai', modelId: 'kimi-k3', field: 'messages', role: 'system' },
+    { provider: 'openai', modelId: 'gpt-5.4', field: 'input', role: 'developer' },
+  ])('preserves update placement through $provider', async ({ provider, modelId, field, role }) => {
+    const { requests } = await send(provider, modelId, {
+      messages: [system('initial'), user('first'),
+        createAssistantMessage({ source: { provider, model: modelId }, content: [{ type: 'text', text: 'answer' }] }),
+        system('updated'), user('next')],
+    })
+    expect(requests).toHaveLength(1)
+    expect(requests[0]).toHaveProperty(field, [
+      expect.objectContaining({ content: 'initial' }),
+      expect.objectContaining({ role: 'user' }),
+      expect.objectContaining({ role: 'assistant' }),
+      expect.objectContaining({ role, content: 'updated' }),
+      expect.objectContaining({ role: 'user' }),
+    ])
+  })
+
   it('sends concatenated system messages and current tools on unsupported routes', async () => {
     const update = addition()
     const { requests } = await send('openai', 'gpt-4.1', {
-      messages: [system('initial'), user('first'), system('current'), user('next'), update], tools: [added],
+      system: 'direct',
+      messages: [system('initial'), user('first'), system('current'), user('next'), update,
+        createAssistantMessage({ source: { provider: 'openai', model: 'gpt-4.1' }, content: [{ type: 'text', text: 'answer' }] }),
+        system('current'), system('')], tools: [added],
       toolHistory: { tools: [baseline], updates: [{ messageId: update.id, additions: [added] }] },
     })
     expect(requests).toHaveLength(1)
-    expect(requests[0]).toHaveProperty('input.0', { role: 'system', content: 'initial\n\ncurrent' })
+    expect(requests[0]).toHaveProperty('input.0', { role: 'system', content: 'direct\n\ninitial\n\ncurrent\n\ncurrent' })
     expect(JSON.stringify(requests[0])).not.toContain('Instruction one.')
     expect(JSON.stringify(requests[0])).not.toContain('additional_tools')
   })

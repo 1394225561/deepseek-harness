@@ -522,20 +522,22 @@ describe('pi-ai system prompt source', () => {
     await expect(toPiContext(options, imageContext(attachments))).resolves.toEqual(expected)
   })
 
-  it('concatenates all system messages at the head when updates are unsupported', async () => {
+  it('preserves later system messages for pi-ai to resolve model support', async () => {
     const options: GenerateOptions = { ...base, system: 'direct', messages: [leading, question,
       history('system', [{ type: 'text', text: 'additional rule' }]),
       leading, history('system', []),
     ] }
     const expected = { messages: [
-      { role: 'system', content: 'direct\n\nlead rule\n\nadditional rule\n\nlead rule', timestamp: 0 },
+      { role: 'system', content: 'direct\n\nlead rule', timestamp: 0 },
       { role: 'user', content: 'hi', timestamp: 0 },
+      { role: 'system', content: 'additional rule', timestamp: 0 },
+      { role: 'system', content: 'lead rule', timestamp: 0 },
     ] }
     expect(toPiContext(options)).toEqual(expected)
     await expect(toPiContext(options, imageContext(attachments))).resolves.toEqual(expected)
   })
 
-  it('preserves full repeated updates after user and tool results on both paths', async () => {
+  it('preserves repeated system updates in history order on both paths', async () => {
     const callId = ToolCallId('lookup')
     const snapshot = history('system', [{ type: 'text', text: 'lead rule\nnew rule' }])
     const options: GenerateOptions = { ...base, system: 'direct', messages: [leading,
@@ -549,15 +551,15 @@ describe('pi-ai system prompt source', () => {
       { role: 'system', content: 'direct\n\nlead rule\n\nlead rule\nnew rule', timestamp: 0 },
       { role: 'user', content: 'hi', timestamp: 0 },
       expect.objectContaining({ role: 'assistant' }),
+      { role: 'system', content: 'lead rule\nnew rule', timestamp: 0 },
       expect.objectContaining({ role: 'toolResult', content: [{ type: 'text', text: 'found' }] }),
       { role: 'system', content: 'lead rule\nnew rule', timestamp: 0 },
-      { role: 'system', content: 'lead rule\nnew rule', timestamp: 0 },
     ] }
-    expect(toPiContext(options, undefined, undefined, 'in-history')).toEqual(expected)
-    await expect(toPiContext(options, imageContext(attachments), undefined, 'in-history')).resolves.toEqual(expected)
+    expect(toPiContext(options)).toEqual(expected)
+    await expect(toPiContext(options, imageContext(attachments))).resolves.toEqual(expected)
   })
 
-  it('places complete prompt updates after user input and before the assistant response', async () => {
+  it('preserves prompt updates before the following user message', async () => {
     const options: GenerateOptions = { ...base, messages: [leading, question,
       history('assistant', [{ type: 'text', text: 'first answer' }]),
       history('system', [{ type: 'text', text: 'replacement' }]),
@@ -568,15 +570,15 @@ describe('pi-ai system prompt source', () => {
       { role: 'system', content: 'lead rule', timestamp: 0 },
       { role: 'user', content: 'hi', timestamp: 0 },
       expect.objectContaining({ role: 'assistant', content: [{ type: 'text', text: 'first answer' }] }),
-      { role: 'user', content: 'next question', timestamp: 0 },
       { role: 'system', content: 'replacement', timestamp: 0 },
+      { role: 'user', content: 'next question', timestamp: 0 },
       expect.objectContaining({ role: 'assistant', content: [{ type: 'text', text: 'second answer' }] }),
     ] }
-    expect(toPiContext(options, undefined, undefined, 'in-history')).toEqual(expected)
-    await expect(toPiContext(options, imageContext(attachments), undefined, 'in-history')).resolves.toEqual(expected)
+    expect(toPiContext(options)).toEqual(expected)
+    await expect(toPiContext(options, imageContext(attachments))).resolves.toEqual(expected)
   })
 
-  it.each([undefined, 'in-history'] as const)('skips empty system messages with %s support on both paths', async (support) => {
+  it('skips empty system messages on both paths', async () => {
     const options: GenerateOptions = { ...base, messages: [
       history('system', []), leading, question,
       history('system', [{ type: 'text', text: '' }]),
@@ -588,8 +590,8 @@ describe('pi-ai system prompt source', () => {
       { role: 'user', content: 'hi', timestamp: 0 },
       expect.objectContaining({ role: 'assistant' }),
     ] }
-    expect(toPiContext(options, undefined, undefined, support)).toEqual(expected)
-    await expect(toPiContext(options, imageContext(attachments), undefined, support)).resolves.toEqual(expected)
+    expect(toPiContext(options)).toEqual(expected)
+    await expect(toPiContext(options, imageContext(attachments))).resolves.toEqual(expected)
   })
 
   it('keeps a later update distinct from an absent initial prompt', async () => {
@@ -599,20 +601,17 @@ describe('pi-ai system prompt source', () => {
       { role: 'user', content: 'hi', timestamp: 0 },
       { role: 'system', content: 'lead rule', timestamp: 0 },
     ] }
-    expect(toPiContext(options, undefined, undefined, 'in-history')).toEqual(expected)
-    await expect(toPiContext(options, imageContext(attachments), undefined, 'in-history')).resolves.toEqual(expected)
+    expect(toPiContext(options)).toEqual(expected)
+    await expect(toPiContext(options, imageContext(attachments))).resolves.toEqual(expected)
   })
 
-  it.each<{ label: string; messages: Message[]; error: string }>([
-    { label: 'non-text system', messages: [history('system', [{ type: 'reasoning', text: 'hidden' }])], error: 'non-text system messages' },
-    { label: 'update after assistant', messages: [question, history('assistant', [{ type: 'text', text: 'answer' }]), leading], error: 'preceding user or tool-result turn' },
-  ])('rejects $label on both conversion paths', async ({ messages, error }) => {
-    const options: GenerateOptions = { ...base, messages }
-    expect(() => toPiContext(options, undefined, undefined, 'in-history')).toThrow(error)
-    await expect(toPiContext(options, imageContext(attachments), undefined, 'in-history')).rejects.toThrow(error)
+  it('rejects non-text system content on both conversion paths', async () => {
+    const options: GenerateOptions = { ...base, messages: [history('system', [{ type: 'reasoning', text: 'hidden' }])] }
+    expect(() => toPiContext(options)).toThrow('non-text system messages')
+    await expect(toPiContext(options, imageContext(attachments))).rejects.toThrow('non-text system messages')
   })
 
-  it('keeps developer text and tool changes together after the following user turn', async () => {
+  it('keeps developer text and tool changes together at their recorded position', async () => {
     const lookup = { name: 'lookup', description: 'initial', parameters: { type: 'object' } }
     const search = { name: 'search', description: 'later', parameters: { type: 'object' }, deferLoading: true }
     const update = createDeveloperMessage({ source: { kind: 'test' }, content: [
@@ -623,9 +622,9 @@ describe('pi-ai system prompt source', () => {
     const options: GenerateOptions = { ...base, tools: [lookup, search], messages: [leading, update, question] }
     const expected = { messages: [
       { role: 'system', content: 'lead rule', timestamp: 0, toolsAdded: [lookup] },
-      { role: 'user', content: 'hi', timestamp: 0 },
       { role: 'system', content: [{ type: 'text', text: 'first' }, { type: 'text', text: 'second' }], timestamp: 0,
         toolsAdded: [{ name: 'search', description: 'later', parameters: { type: 'object' } }], toolsRemoved: [{ name: 'lookup' }] },
+      { role: 'user', content: 'hi', timestamp: 0 },
     ] }
     expect(toPiContext(options)).toEqual(expected)
     await expect(toPiContext(options, imageContext(attachments))).resolves.toEqual(expected)

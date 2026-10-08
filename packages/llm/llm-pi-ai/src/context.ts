@@ -6,7 +6,7 @@
 
 import { brandString } from '@deepseek-ai/dsh-brand'
 import { contentHasImage, IMAGE_OFFLOAD_REQUIRED_CODE, LlmError, offloadedImageText, projectOffloadedImages, requestImageHandleText, requiredImageOffload } from '@deepseek-ai/dsh-llm'
-import type { ContentBlock, GenerateOptions, ImageAttachmentAccessResolver, Message, RequestMessage, SystemPromptUpdate, ToolCallId } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, GenerateOptions, ImageAttachmentAccessResolver, Message, RequestMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type {
   AttachmentId,
   AttachmentStore,
@@ -129,33 +129,19 @@ function piTool(tool: NonNullable<GenerateOptions['tools']>[number]): PiTool {
   return { name: tool.name, description: tool.description, parameters: tool.parameters }
 }
 
-/**
- * Serialize system-message text and projected tool updates. Pending
- * updates are emitted immediately before the next assistant message or at the
- * end of the history, and must follow a user or tool-result message.
- */
+/** Convert ordered history; pi-ai owns protocol placement and unsupported-model fallback. */
 function conversationContext(
   options: GenerateOptions,
   history: readonly RequestMessage[],
   inputContent: (message: RequestMessage) => string | (TextContent | ImageContent)[],
   onReplayDegrade?: (reason: string) => void,
-  systemPromptUpdate?: SystemPromptUpdate,
 ): PiContext {
   const messages: PiMessage[] = []
-  const systemUpdates: PiMessage[] = []
   const toolNames = new Map<ToolCallId, string>()
   const historySystem: string[] = []
-  const flushSystemUpdates = () => {
-    if (systemUpdates.length === 0) return
-    const previous = messages.at(-1)
-    if (previous?.role !== 'user' && previous?.role !== 'toolResult') {
-      throw new LlmError('pi-ai system update requires a preceding user or tool-result turn', 'UNSUPPORTED_CONTENT')
-    }
-    messages.push(...systemUpdates.splice(0))
-  }
   for (const message of history) {
     if (message.role === 'developer') {
-      appendDeveloper(message, options, systemUpdates)
+      appendDeveloper(message, options, messages)
       continue
     }
     if (message.role === 'system') {
@@ -164,15 +150,14 @@ function conversationContext(
       }
       const text = flattenText(message)
       if (text.length === 0) continue
-      if (systemPromptUpdate === 'in-history' && messages.length > 0) {
-        systemUpdates.push({ role: 'system', content: text, timestamp: 0 })
+      if (messages.length > 0) {
+        messages.push({ role: 'system', content: text, timestamp: 0 })
       } else {
         historySystem.push(text)
       }
       continue
     }
     if (message.role === 'assistant') {
-      flushSystemUpdates()
       appendAssistant(message, messages, toolNames, onReplayDegrade)
       continue
     }
@@ -183,7 +168,6 @@ function conversationContext(
       messages.push({ role: 'user', content, timestamp: 0 })
     }
   }
-  flushSystemUpdates()
   const system = [options.system, ...historySystem].filter(Boolean).join('\n\n')
   const tools = options.tools?.filter(tool => !tool.deferLoading).map(piTool)
   // An explicit empty head keeps the first later update from becoming the initial prompt.
@@ -247,13 +231,12 @@ function appendAssistant(
 function textOnlyContext(
   options: GenerateOptions,
   onReplayDegrade?: (reason: string) => void,
-  systemPromptUpdate?: SystemPromptUpdate,
 ): PiContext {
   assertSupportedHistory(options.messages)
   if (options.messages.some(message => contentHasImage(message.content))) {
     throw new LlmError('pi-ai image conversion requires the durable attachment service', 'UNSUPPORTED_CONTENT')
   }
-  return conversationContext(options, options.messages, flattenText, onReplayDegrade, systemPromptUpdate)
+  return conversationContext(options, options.messages, flattenText, onReplayDegrade)
 }
 
 /** Inputs that bind deterministic request images to one current tool execution world. */
@@ -287,7 +270,6 @@ function requestImageTarget(ref: ImageAttachmentRef, budget: PiImageRequestBudge
  * @param options - projected request; one-shot system text precedes the leading history prompt.
  * @param images - absent; selects the synchronous conversion.
  * @param onReplayDegrade - forwarded to {@link toPiAssistant} for each assistant message.
- * @param systemPromptUpdate - resolved route support for complete in-history system snapshots.
  * @returns the pi-ai transcript with initial tools and ordered updates.
  * @throws {LlmError} `UNSUPPORTED_CONTENT` for images in any history role, including a leading system message.
  */
@@ -295,7 +277,6 @@ export function toPiContext(
   options: GenerateOptions,
   images?: undefined,
   onReplayDegrade?: (reason: string) => void,
-  systemPromptUpdate?: SystemPromptUpdate,
 ): PiContext
 /**
  * Convert harness history to a pi-ai Context while resolving durable images.
@@ -307,31 +288,27 @@ export function toPiContext(
  * @param options - projected request; one-shot system text precedes the leading history prompt.
  * @param images - attachment provider, current path resolver, and request limits.
  * @param onReplayDegrade - forwarded to {@link toPiAssistant} for each assistant message.
- * @param systemPromptUpdate - resolved route support for complete in-history system snapshots.
  * @returns the asynchronously resolved pi-ai transcript.
  */
 export function toPiContext(
   options: GenerateOptions,
   images: PiImageRequestContext,
   onReplayDegrade?: (reason: string) => void,
-  systemPromptUpdate?: SystemPromptUpdate,
 ): Promise<PiContext>
 export function toPiContext(
   options: GenerateOptions,
   images?: PiImageRequestContext,
   onReplayDegrade?: (reason: string) => void,
-  systemPromptUpdate?: SystemPromptUpdate,
 ): PiContext | Promise<PiContext> {
   return images === undefined
-    ? textOnlyContext(options, onReplayDegrade, systemPromptUpdate)
-    : toPiContextWithImages(options, images, onReplayDegrade, systemPromptUpdate)
+    ? textOnlyContext(options, onReplayDegrade)
+    : toPiContextWithImages(options, images, onReplayDegrade)
 }
 
 async function toPiContextWithImages(
   options: GenerateOptions,
   images: PiImageRequestContext,
   onReplayDegrade?: (reason: string) => void,
-  systemPromptUpdate?: SystemPromptUpdate,
 ): Promise<PiContext> {
   const { attachments, resolveImageAccess, maxRequestImageBytes } = images
   const requestImagePolicy = images.requestImagePolicy ?? {
@@ -363,6 +340,5 @@ async function toPiContextWithImages(
     exactMessages,
     message => userContent(message.content, requestImages, resolveImageAccess),
     onReplayDegrade,
-    systemPromptUpdate,
   )
 }
