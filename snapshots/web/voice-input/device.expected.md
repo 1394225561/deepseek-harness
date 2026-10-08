@@ -1,6 +1,6 @@
-- menu:
-  - menuitem "System default (Fake Default Audio Input)"
-  - menuitem "Fake Audio Input 1 Microphone input level":
-    - text: Fake Audio Input 1
-    - img "Microphone input level"
-  - menuitem "Fake Audio Input 2"
+- text: Input device
+- combobox "Input device":
+  - option "System default (Fake Default Audio Input)"
+  - option "Fake Audio Input 1" [selected]
+  - option "Fake Audio Input 2"
+- img "Microphone input level"

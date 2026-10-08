@@ -1,6 +1,6 @@
-- menu:
-  - menuitem "System default (Fake Default Audio Input)"
-  - menuitem "USB studio microphone — conference room recording input Microphone input level":
-    - text: USB studio microphone — conference room recording input
-    - img "Microphone input level"
-  - menuitem "Fake Audio Input 2"
+- text: Input device
+- combobox "Input device":
+  - option "System default (Fake Default Audio Input)"
+  - option "USB studio microphone — conference room recording input" [selected]
+  - option "Fake Audio Input 2"
+- img "Microphone input level"

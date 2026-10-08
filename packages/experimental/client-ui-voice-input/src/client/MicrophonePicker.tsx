@@ -1,11 +1,9 @@
-/** Device selection owns microphone previews only while its portaled menu is open. */
+/** Device selection owns microphone previews only while its native field is focused. */
 import { useEffect, useRef, useState } from 'react'
-import { IconCheckOutlineRegular, IconChevronDownOutlineRegular, Menu, StateDot } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { VoiceInputInjected } from './VoiceInput.tsx'
 import { RecordingError, type Recording } from './audio.ts'
 import type { MicrophoneDevice } from './microphone-device.ts'
-import { DeviceName } from './DeviceName.tsx'
 import { failureText } from './failure-text.ts'
 import { NS } from './locales.ts'
 import css from './VoiceInput.module.css'
@@ -35,7 +33,9 @@ function InputLevel({ recording, label }: { recording: Recording; label: string 
 export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, createRecording, t }:
   Pick<InjectFace<VoiceInputInjected>, 'useMicrophoneDevice' | 'selectMicrophone' | 'createRecording'> & PropsLocale<typeof NS>) {
   const selected = useMicrophoneDevice(value => value)
-  const [open, setOpen] = useState(false), [devices, setDevices] = useState<DeviceChoice[]>([])
+  const [focused, setFocused] = useState(false), [devices, setDevices] = useState<DeviceChoice[]>([
+    { id: selected.id, label: selected.id === '' ? '' : selected.label },
+  ])
   const [preview, setPreview] = useState<Recording>(), [error, setError] = useState<{ failure: unknown }>()
   useEffect(() => {
     const media = (navigator as Partial<Navigator>).mediaDevices
@@ -98,11 +98,11 @@ export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, create
           return next
         })
         if (missing) { release(); setPreview(undefined); setError(undefined) }
-        else if (open && !document.hidden && !capture) void acquire()
+        else if (focused && !document.hidden && !capture) void acquire()
       } catch (failure) { if (request === enumeration) fail(failure) }
     }
     const changed = (): void => { void refresh() }
-    const hidden = (): void => { if (document.hidden) setOpen(false); else changed() }
+    const hidden = (): void => { if (document.hidden) setFocused(false); else changed() }
     media?.addEventListener('devicechange', changed, { signal: lifetime.signal })
     document.addEventListener('visibilitychange', hidden, { signal: lifetime.signal })
     changed()
@@ -110,7 +110,7 @@ export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, create
       lifetime.abort()
       release()
     }
-  }, [open, selected.id, createRecording])
+  }, [focused, selected.id, createRecording])
   const choices = devices.filter(device => !device.unavailable || device.id === selected.id || device.id === '')
   const missing = choices.find(device => device.id === selected.id)?.unavailable
   const deviceName = (device: MicrophoneDevice, index: number): string => {
@@ -118,31 +118,21 @@ export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, create
     return device.label || (device.id === selected.id ? selected.label : '')
       || (index > 0 ? t('unnamedMicrophone', { number: String(index) }) : t('unnamedSelectedMicrophone'))
   }
-  const selectedIndex = choices.findIndex(device => device.id === selected.id)
-  const selectedDevice = choices[selectedIndex] ?? (selected.id === '' ? { id: '', label: '' } : selected)
-  const title = deviceName(selectedDevice, selectedIndex)
-  return <div className={css.deviceRow}>
-    <span>{t('inputDevice')}</span>
-    <Menu open={open} onClose={() => { setOpen(false) }} portal autoFocus dense selection="fill"
-      className={css.deviceAnchor} listClassName={css.deviceMenu} selectedId={selected.id}
-      items={choices.map((device, index) => ({ id: device.id, disabled: device.unavailable === true,
-        icon: <span className={css.deviceCheck}>{device.id === selected.id && <IconCheckOutlineRegular />}</span>,
-        label: <span className={css.deviceOption}>
-          <DeviceName label={deviceName(device, index)} unavailable={device.unavailable} />
-          {device.unavailable ? <span className={css.deviceStatus}>{t('deviceUnavailable')}</span>
-            : device.id === selected.id && (preview ? <InputLevel recording={preview} label={t('inputLevel')} />
-              : !error && <StateDot state="ongoing" />)}
-        </span>,
-      }))}
-      onSelect={(id) => {
-        const device = choices.find(item => item.id === id) as DeviceChoice
-        selectMicrophone({ id: device.id, label: device.id === '' ? '' : device.label })
-      }}
-      footer={error ? [{ id: 'error', type: 'label', text: failureText(error.failure, t) }] : []}
-      anchor={<button type="button" className={css.deviceTrigger} aria-label={t('inputDevice')}
-        aria-haspopup="menu" aria-expanded={open} onClick={() => { setOpen(value => !value) }}>
-        <DeviceName label={title} unavailable={missing} />
-        {missing && <span className={css.deviceStatus}>{t('deviceUnavailable')}</span>}<IconChevronDownOutlineRegular />
-      </button>} />
+  return <div className={css.deviceRow} data-voice-input-device>
+    <label htmlFor="voice-input-device">{t('inputDevice')}</label>
+    <span className={css.deviceField}>
+      <select id="voice-input-device" value={selected.id} className={preview ? css.deviceSelectMeter : undefined}
+        onFocus={() => { setFocused(true) }} onBlur={() => { setFocused(false) }}
+        onChange={(event) => {
+          const device = choices.find(item => item.id === event.target.value) as DeviceChoice
+          selectMicrophone({ id: device.id, label: device.id === '' ? '' : device.label })
+        }}>
+        {choices.map((device, index) => <option key={device.id} value={device.id} disabled={device.unavailable}>
+          {deviceName(device, index)}{device.unavailable ? ` — ${t('deviceUnavailable')}` : ''}
+        </option>)}
+      </select>
+      {preview && !missing && <span className={css.deviceMeter}><InputLevel recording={preview} label={t('inputLevel')} /></span>}
+    </span>
+    {error && <span className={css.deviceError} role="alert">{failureText(error.failure, t)}</span>}
   </div>
 }

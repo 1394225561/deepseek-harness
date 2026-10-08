@@ -1,4 +1,5 @@
-- menu:
-  - menuitem "System default (Fake Default Audio Input)"
-  - menuitem "Fake Audio Input 1 Unavailable" [disabled]
-  - menuitem "Fake Audio Input 2"
+- text: Input device
+- combobox "Input device":
+  - option "System default (Fake Default Audio Input)"
+  - option "Fake Audio Input 1 — Unavailable" [disabled] [selected]
+  - option "Fake Audio Input 2"
