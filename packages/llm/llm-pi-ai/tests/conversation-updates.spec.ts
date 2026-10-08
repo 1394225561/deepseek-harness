@@ -114,10 +114,10 @@ describe('serialized conversation updates', () => {
         { role: 'system', content: [{ type: 'text', text: 'full updated prompt' }] },
         { role: 'system', content: [
           { type: 'text', text: 'Instruction one.\nInstruction two.' },
-          { type: 'tool_addition', tool: { type: 'tool_reference', name: 'search' } },
+          { type: 'tool_addition', tool: { type: 'tool_definition', definition: { name: 'search', description: added.description, input_schema: added.parameters } } },
         ] },
       ],
-      tools: [expect.objectContaining({ name: 'read' }), expect.anything(), expect.objectContaining({ name: 'search', defer_loading: true })],
+      tools: [expect.objectContaining({ name: 'read' }), expect.objectContaining({ name: '__pi_deferred_placeholder__', defer_loading: true })],
     })
   })
 
@@ -133,13 +133,13 @@ describe('serialized conversation updates', () => {
         { role: 'user', content: 'first' },
         { role: 'system', content: [
           { type: 'text', text: 'Instruction one.\nInstruction two.' },
-          { type: 'tool_addition', tool: { type: 'tool_reference', name: 'search' } },
+          { type: 'tool_addition', tool: { type: 'tool_definition', definition: { name: 'search', description: added.description, input_schema: added.parameters } } },
         ] },
       ],
     })
     const tools = (requests[0] as { tools: { name?: string; defer_loading?: boolean }[] }).tools
     expect(tools.map(tool => [tool.name, tool.defer_loading])).toEqual([
-      ['DeferredToolPlaceholder', undefined], ['__pi_deferred_placeholder__', true], ['search', true],
+      ['DeferredToolPlaceholder', undefined], ['__pi_deferred_placeholder__', true],
     ])
   })
 
@@ -211,7 +211,7 @@ describe('historical tool availability on the wire', () => {
     expect(requests[0]).toMatchObject({ messages: [
       { role: 'user', content: 'first' }, { role: 'user', content: 'restore' },
       { role: 'system', content: [{ type: 'tool_removal', tool: { type: 'tool_reference', name: 'search' } }] },
-      { role: 'system', content: [{ type: 'tool_addition', tool: { type: 'tool_reference', name: 'search' } }] },
+      { role: 'system', content: [{ type: 'tool_addition', tool: { type: 'tool_definition', definition: { name: 'search', description: added.description, input_schema: added.parameters } } }] },
     ] })
   })
 
