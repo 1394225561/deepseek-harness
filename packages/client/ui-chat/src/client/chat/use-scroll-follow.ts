@@ -1,7 +1,7 @@
 /** Independent bottom-follow intent and native scrolling, without paging or DOM observers. */
 import { useState } from 'react'
 
-/** Scroll position, target content floor, and viewport height; reserved fold space may extend past the floor. */
+/** Scroll position, caller-supplied floor, and viewport height; raw measurements use the physical floor. */
 export interface ViewportMetrics {
   readonly top: number
   readonly floor: number

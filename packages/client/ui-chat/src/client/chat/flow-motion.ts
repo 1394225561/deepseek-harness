@@ -239,7 +239,7 @@ function useFlowTransition(motion: FlowMotionRows | undefined, grow: boolean): H
  * Apply searchable hiding with the containing Chat viewport's optional fold animation.
  * @param hidden - desired visibility.
  * @param reveal - browser-find and focus-protection callback.
- * @param motion - owning viewport's row callbacks; absent in standalone rendering.
+ * @param motion - owning viewport's row callbacks; undefined applies visibility synchronously.
  * @returns the stable subtree ref.
  */
 export function useFlowHidden(hidden: boolean, reveal: () => void, motion: FlowMotionRows | undefined): RefObject<HTMLDivElement> {

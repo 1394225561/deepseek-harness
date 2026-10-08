@@ -135,7 +135,7 @@ export class ChatReading {
     // Native follow animation progress is not reader movement; scrollend settles it.
     if (this.follow.animating) return
     if ((!scroll.movedByReader && this.state.followingTail)
-      || (scroll.movedByReader && scroll.metrics.top === scroll.metrics.floor)) {
+      || (scroll.movedByReader && Math.abs(scroll.metrics.top - scroll.metrics.floor) < 1)) {
       this.followTail()
       this.sampled?.({ position: null, movedByReader: scroll.movedByReader, followingTail: true })
       return

@@ -127,6 +127,22 @@ it('releases fold room immediately for reduced-motion following', async () => {
   expect(h.follow.animating).toBe(false)
 })
 
+it.each([1_999.5, 2_000, 2_000.5])('restores follow immediately at a rounded floor sample (%s)', (top) => {
+  const h = fixture()
+  h.reading.pauseFollowing()
+  h.reading.onScroll({ metrics: { top, floor: 2_000, height: 400 }, movedByReader: true })
+  expect(h.reading.followingTail).toBe(true)
+  expect(h.reading.pending).toBe(false)
+})
+
+it.each([1_999, 2_001])('keeps movement at least one pixel from the floor pending (%s)', (top) => {
+  const h = fixture()
+  h.reading.pauseFollowing()
+  h.reading.onScroll({ metrics: { top, floor: 2_000, height: 400 }, movedByReader: true })
+  expect(h.reading.followingTail).toBe(false)
+  expect(h.reading.pending).toBe(true)
+})
+
 it('does not measure geometry to interrupt an idle follow controller', () => {
   const h = fixture()
   const reads = (['clientHeight', 'scrollHeight', 'scrollTop'] as const).map(property =>
