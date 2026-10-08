@@ -110,8 +110,6 @@ interface EffectRunner<T> {
 // Public effect disposers remain single-shot, but structural owners and outer
 // effects must still be able to join a cleanup that another caller started.
 const effectInertia = new WeakMap<Disposable, () => void | Promise<void>>()
-// Composites can adopt effects created through another fiber's dependency context.
-const effectOwners = new WeakMap<Disposable, Fiber>()
 
 function runDisposable(dispose: Disposable) {
   const result = dispose()
@@ -449,8 +447,7 @@ export class Fiber {
       epoch: true,
       collect: (dispose) => {
         disposables.push(dispose)
-        const owner = effectOwners.get(dispose) ?? this
-        owner._disposables.delete(dispose)
+        this._disposables.delete(dispose)
         if (dispose[symbols.effect]) {
           meta.children.push(dispose[symbols.effect])
         }
@@ -516,7 +513,6 @@ export class Fiber {
       })
     }, symbols.effect, meta) as AsyncDisposable
     effectInertia.set(wrapper, () => inFlight)
-    effectOwners.set(wrapper, this)
 
     // Make the effect visible to a reentrant owner unload before execute()
     // runs any plugin code. Async teardown stays owner-visible until it

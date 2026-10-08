@@ -109,7 +109,7 @@ const handle = await ctx.agents.create({
 
 创建是同一个受回滚保护的事务：构造私有会话、具象 agent 与带作用域上下文；等待可选 setup；进入两个注册表；宣告 `session/created`；等待串行 `agent/created` 监听器；随后释放已排队输入。创建运行时子 Agent 的调用方设置 `options.parentAgent`；调用方 Context 则单独拥有事务和存活句柄。Setup、commit、监听器失败或所有者 dispose 都会回滚已准备的资源。已送达的宣告仍可被观察，并有配对的销毁通知。Teardown 停止并排空驱动器、撤销作用域、关闭会话写路径、detach agent，再 detach 会话。每次 detach 都绑定到确切进入的对象，因此陈旧 disposer 无法移除之后出现的同 id 替代项。
 
-工厂卸载时保留 inbox 投影与轮次边界投影，直到所有 Agent teardown 和启动任务结算，即使其他 teardown 已失败也如此。投影的注册 disposer 与工厂 teardown 属于同一个有序 effect。每个 Agent 作用域继承工厂的依赖，但其 disposer 属于调用方的生命周期 effect；调用方卸载、工厂卸载和句柄释放等待同一次 teardown。独立的 Cordis effect 并发卸载，因此仅靠注册顺序无法提供这些保证。
+工厂卸载时保留 inbox 投影与轮次边界投影，直到所有 Agent teardown 和启动任务结束，即使清理失败也如此。调用方卸载、工厂卸载和句柄释放等待同一次 teardown。
 
 ### 持久化集成
 
@@ -213,6 +213,7 @@ const handle = await ctx.agents.create({
 这些限制说明循环何时需要特别留意。它们是当前包约束，不是任务积压。
 
 - **分类是一元的**：安全性取决于比较同级调用或资源的调用必须保持独占（[原理](../../../.agents/notes/implemented/feature/2026-07-10-parallel-tool-call-execution.zh.md)）。
+- **根上下文关停的持久化**：存在活跃后台子 Agent 时，关停根上下文可能使最终的 `turn/end` 仅留在内存中，未写入持久化日志。Agent teardown 完成不保证该事件已保存。
 - **此前已关闭的不一致历史**：失败步骤恢复不会改写已关闭历史轮次中尚无结果的调用。
 - **配置标签默认对应新会话**：省略 `sessionId` 时，每次启动都会创建新的 `${id}-session-<uuid>`；如需确切的恢复或创建行为，必须显式提供稳定的 `sessionId`，而 `resumeSessionId` 要求已有持久化历史。
 - **配置 agent 没有逐 agent persona 字段或 setup 钩子**：它们使用部署 persona；只有编程式 `ctx.agents.create()` / `resume()` 工厂选项支持带作用域的 persona 与工具组合。

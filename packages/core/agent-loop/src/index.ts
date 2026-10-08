@@ -374,7 +374,6 @@ export class AgentLoop extends Service implements AgentFactory {
     // rejected constructor leaves no projection unit behind.
     const ownership = this.ownership = new FactoryOwnership(ctx.fiber)
     this.runtime = { ctx }
-    // Independent effects unload concurrently; projections must outlive Agents.
     ctx.effect(function* () {
       const unregisterTurnBoundary = ctx.sessionProjections.register(turnBoundaryProjectionDefinition)
       yield unregisterTurnBoundary
@@ -543,7 +542,9 @@ export class AgentLoop extends Service implements AgentFactory {
     // stop the machine, unwind the scope, drain and close the session's write
     // path, leave the registries, release bookkeeping.
     const teardown = (): Promise<void> => (disposing ??= (async () => {
-      abort.abort(new Error(`agent "${id}" lifecycle disposed`))
+      abort.abort(new Error(this.ownership.isActive()
+        ? `agent "${id}" lifecycle disposed`
+        : 'agent loop is not active'))
       callerSignal?.removeEventListener('abort', onCallerAbort)
       this.ownership.signal.removeEventListener('abort', onFactoryTeardown)
       // Teardown failures are collected, never swallowed: registry, scope,
@@ -588,23 +589,35 @@ export class AgentLoop extends Service implements AgentFactory {
       }
       throwCollectedFailures(failures, `agent "${id}" disposal failed`)
     })())
+    let unfollowScope: (() => Promise<void> | void) | undefined
     let unfollowOwner: () => Promise<void> | void
     const dispose = async (): Promise<void> => {
       try {
         await teardown()
       } finally {
-        await unfollowOwner()
+        await Promise.all([unfollowOwner(), unfollowScope?.()])
       }
     }
     const untrack = this.ownership.track(dispose)
     try {
       unfollowOwner = ownerCtx.effect(function* () {
-        machine = new ReactLoopAgent(loopCtx, id, options, session)
+        const created = machine = new ReactLoopAgent(loopCtx, id, options, session)
         machineReady.resolve()
-        yield machine.scope.rawDispose
-        yield () => {
+        // Adopt the scope on its original fiber so it cannot unload before teardown.
+        // A loop already unloading during minting owns the provisional scope itself.
+        if (!INACTIVE_STATES.has(loopCtx.fiber.state)) {
+          unfollowScope = loopCtx.effect(function* () {
+            yield created.scope.rawDispose
+            yield () => teardown()
+          }, `agentLoop.scope(${id})`)
+        }
+        yield async () => {
           abort.abort(new Error(`agent "${id}" setup aborted: owner disposed during setup`))
-          return teardown()
+          try {
+            await teardown()
+          } finally {
+            await unfollowScope?.()
+          }
         }
       }, `agentLoop.lifecycle(${id})`)
       /* v8 ignore start -- ctx.effect throws only on an inactive fiber, which assertActive() above already rejected */

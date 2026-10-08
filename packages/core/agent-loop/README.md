@@ -109,7 +109,7 @@ The loop deep-freezes each derived message identity on its first request and reu
 
 Creation is one rollback-covered transaction: construct a private session, concrete agent, and scoped context; await optional setup; enter both registries; announce `session/created`; await serial `agent/created` listeners; then release queued input. A caller creating a runtime child sets `options.parentAgent`; the caller Context separately owns the transaction and live handle. Setup, commit, or listener failure and owner disposal roll back the prepared resources. Announcements already delivered remain observable and receive matching disposal notifications. Teardown stops and drains the driver, unwinds the scope, closes the session's write path, detaches the agent, then detaches the session. Every detach binds the exact entered object, so a stale disposer cannot remove a later same-id replacement.
 
-Factory unload retains the inbox and turn-boundary projections until every Agent teardown and startup task settles, including when another teardown fails. Their registration disposers belong to the same ordered effect as factory teardown. Each Agent scope inherits the factory's dependencies, but its disposer belongs to the caller's lifecycle effect; caller unload, factory unload, and handle disposal await the same teardown. Independent Cordis effects unload concurrently, so registration order alone cannot provide these guarantees.
+Factory unload retains the inbox and turn-boundary projections until every Agent teardown and startup task settles, even when cleanup fails. Caller unload, factory unload, and handle disposal await the same teardown.
 
 ### Persistence integration
 
@@ -213,6 +213,7 @@ Recovery results append after the existing history and preserve its reusable pre
 These limits define when the loop needs special care. They are current package constraints, not a task backlog.
 
 - **Classification is unary** — calls whose safety depends on comparing siblings or resources must remain exclusive ([rationale](../../../.agents/notes/implemented/feature/2026-07-10-parallel-tool-call-execution.md)).
+- **Root shutdown persistence** — shutting down the root context with an active background child can leave its final `turn/end` in memory but absent from the persisted log. Agent teardown completing does not guarantee that this event was saved.
 - **Previously closed inconsistent history** — failed-step recovery does not rewrite unanswered calls in already-closed historical turns.
 - **Config labels are fresh by default** — omitting `sessionId` creates a fresh `${id}-session-<uuid>` on every startup; exact resume-or-create behavior requires an explicit stable `sessionId`, while `resumeSessionId` requires existing persisted history.
 - **Config agents have no per-agent persona field or setup hook** — they use the deployment persona; scoped persona and tool composition are available only through the programmatic `ctx.agents.create()` / `resume()` factory options.
