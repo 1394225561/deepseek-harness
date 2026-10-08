@@ -360,9 +360,9 @@ pnpm run package:desktop:win:x64:unsigned
 
 先运行 `pnpm install --frozen-lockfile`，再运行 `pnpm run package:desktop:win:x64:unsigned --check` 校验配置和工具，最后执行上面的完整命令。打包自行执行完整构建和隔离的运行时 smoke，不调用在线模型。阶段日志保留在 `.desktop-build/packaging-runs/`；仅构建成功不代表安装包验证通过。依赖安装和运行时准备需要访问 npm、GitHub release 资源和 nodejs.org；网络需要时使用现有 registry 和代理配置。缓存与工具位置属于构建机器配置，不在跟踪文件中固定个人路径。
 
-[Windows 手动工作流](../../.github/workflows/windows-package.yml) 准备 GitHub 托管的 `windows-2025` runner，并调用同一个未签名命令。必须填写策略部署环境和 HTTPS origin；测试部署还需填写逗号分隔的登录 origin。这些公开输入生成临时 `.env.windows`，不包含签名或上传凭据。`build_version` 默认为 `auto`：在所选代码的产品版本后附加 UTC 日期、工作流运行编号和尝试次数，例如 `0.2.1-alpha.1.20261008.42.2`。稳定产品版本使用 `-test` 前缀。显式版本复用现有产品版本校验器。解析后的版本在打包前显示于运行摘要，manifest 保持不变。这些编号标识工作流构建，不是全局预留的发布序号。
+[Windows 手动工作流](../../.github/workflows/windows-package.yml) 准备 GitHub 托管的 `windows-2025` runner，并调用同一个未签名命令。必须填写策略部署环境和 HTTPS origin；测试部署还需填写逗号分隔的登录 origin。这些公开输入生成临时 `.env.windows`，不包含签名或上传凭据。`build_version` 默认为 `auto`，使用[发布版本](#release-versions)中说明的 CI 标识。显式版本复用现有产品版本校验器。解析后的版本在打包前显示于运行摘要，manifest 保持不变。
 
-工作流进入默认分支后，在 Actions 中选择它，选择源码分支、填写输入并点击 Run workflow。它不监听 push 或 PR，不改变现有自动 CI。打包日志和成功生成的 EXE 产物保留 14 天；安装、签名和发布是独立操作。必须完成远端验收运行后，才能认定该工作流的托管执行已经验证。
+工作流进入默认分支后，在 Actions 中选择它，选择源码分支、填写输入并点击 Run workflow。它不监听 push 或 PR，不改变现有自动 CI。打包日志和成功生成的 EXE 产物保留 14 天；安装、签名和发布是独立操作。依赖托管打包前，先从默认分支运行一次，并检查保留的日志和安装包。
 
 <a id="windows-uninstall-rules"></a>
 
