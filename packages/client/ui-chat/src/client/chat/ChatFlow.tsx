@@ -1,4 +1,4 @@
-/** Ordered Chat rows and local echoes, with node/image dispatch owned by the flow slot. */
+/** Ordered Chat rows, local echoes, and running status share the flow slot's parent. */
 import { memo, useCallback } from 'react'
 import type { RenderMessageImages } from '@deepseek-ai/dsh-client-ui-conversation/client'
 import { assertNever } from '@deepseek-ai/dsh-util-values'
@@ -7,15 +7,24 @@ import { ChatNodeSeat } from './ChatNodeSeat.tsx'
 import { ChatGroupSeat } from './ChatGroupSeat.tsx'
 import { PendingSteeringBubble, PendingSubmissionBubble } from './MessageItem.tsx'
 import { chatRenderKey } from './render-entry.ts'
+import { RunningStatus } from './RunningStatus.tsx'
 
 /** Render the flow without adding a DOM parent or changing keyed row positions. */
 export const ChatFlow = memo(function ChatFlow({
   entries, pendingInputs, lastInputTurn, deferCollapse,
-  useChat, useChatNode, useChatNodeBottom, useChatNodeProcess, useChatGroup, usePresentation,
+  useSession, useChat, useChatNode, useChatNodeBottom, useChatNodeProcess, useChatGroup, usePresentation,
   useStore, actions, renderSlot, t, useGroupAction, useGroupHeaderAction,
   cwd, openFile, openSkill, inspectCall, forkAt, loadImage, fileMentions,
 }: ChatFlowSlotProps) {
   const nodeStore = useChat(snapshot => snapshot.nodes)
+  const running = useSession(snapshot => snapshot.running)
+  const latestTurnAnchor = useChat(snapshot => snapshot.navigation.items().at(-1)?.anchorKey)
+  const runningStartTime = useChatNode(latestTurnAnchor ?? '', (node) => {
+    const location = node?.location
+    return location?.kind === 'turn' || location?.kind === 'step'
+      ? location.turn.status === 'open' ? location.turn.start?.time : undefined
+      : undefined
+  })
   const renderMessageImages = useCallback<RenderMessageImages>(
     owner => renderSlot('conversation.message.images', { ...owner, loadImage }),
     [loadImage, renderSlot],
@@ -53,5 +62,5 @@ export const ChatFlow = memo(function ChatFlow({
     const index = pendingInputs.findIndex(item => 'requestId' in item && item.placement === 'transcript')
     if (index !== -1) rows.splice(rows.length - 1, 0, ...pendingRows.splice(index, 1))
   }
-  return [...rows, ...pendingRows]
+  return [...rows, ...pendingRows, ...running ? [<RunningStatus key="running" startTime={runningStartTime} t={t} />] : []]
 })
