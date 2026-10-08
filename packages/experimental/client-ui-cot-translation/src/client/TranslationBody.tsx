@@ -25,10 +25,10 @@ export type TranslationBodyProps = PropsRuntime<'conversation.chat.reasoning-bod
 /**
  * Render translated reasoning, retaining the complete original until a failed request is retried.
  * @param props - original reasoning, translation preferences, and cancellation-aware callback.
- * @returns compact Markdown and its display-only translation controls.
+ * @returns compact Markdown and translation status with a retry action on failure.
  */
 export function TranslationBody(props: TranslationBodyProps) {
-  const { text, running, translate, t } = props
+  const { text, running, translate, t, setHeaderAction } = props
   const preferences = props.usePreferences(value => value)
   const locale = props.useTranslationLocale(value => value.active)
   const maxTextChars = props.useTranslationLimit(value => value)
@@ -46,16 +46,19 @@ export function TranslationBody(props: TranslationBodyProps) {
   const labels = useMemo(() => ({ code: { copyLabel: t('copy'), copiedLabel: t('copied'),
     toolbarLabels: { codeLabel: t('codeTitle'), wrapLabel: t('wrap'), unwrapLabel: t('unwrap') } }, footnotes: t('footnotes') }), [t])
   const showOriginal = original || state.failed
+  const actionLabel = t(showOriginal ? 'translation' : 'original')
+  useEffect(() => {
+    setHeaderAction({ label: actionLabel, persistent: showOriginal, disabled: state.failed,
+      onClick: () => { setOriginal(!showOriginal) } })
+    return () => { setHeaderAction(undefined) }
+  }, [actionLabel, showOriginal, state.failed, setHeaderAction])
   return <div data-cot-translation="true" data-translation-state={state.failed ? 'failed' : state.pending ? 'pending' : 'ready'}
     data-translation-view={showOriginal ? 'original' : 'translated'}>
-    <div className={css.toolbar}>
-      <Button size="sm" variant="ghost" aria-pressed={!showOriginal} disabled={state.failed}
-        onClick={() => { setOriginal(false) }}>{t('translation')}</Button>
-      <Button size="sm" variant="ghost" aria-pressed={showOriginal} onClick={() => { setOriginal(true) }}>{t('original')}</Button>
+    {(state.pending || state.failed) && <div className={css.toolbar}>
       {state.pending && <span role="status" aria-label={t('translating')}><IconLoadingOutlineRegular size={14} className={css.spinner} /></span>}
       {state.failed && <><span className={css.failure} role="status">{t('failed')}</span>
         <Button size="sm" variant="ghost" onClick={() => { translation.current?.retry() }}>{t('retry')}</Button></>}
-    </div>
+    </div>}
     <MarkdownText text={showOriginal ? text : state.text} streaming={running} labels={labels} variant="compact" />
   </div>
 }

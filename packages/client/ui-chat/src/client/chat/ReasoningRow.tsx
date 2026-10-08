@@ -1,8 +1,8 @@
 /** Assistant reasoning disclosure, independent of Tool-call presentation. */
-import { memo, useMemo } from 'react'
-import { DisclosureRow, IconThinkOutlineRegular, MarkdownText, TextShimmer } from '@deepseek-ai/dsh-client-ui-primitives'
+import { memo, useMemo, useState } from 'react'
+import { Button, DisclosureRow, IconThinkOutlineRegular, MarkdownText, TextShimmer } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots'
-import type { ChatViewSlotProps, UseDisclosure, UsePresentation } from '../contract/slots.ts'
+import type { ChatViewSlotProps, ReasoningHeaderAction, UseDisclosure, UsePresentation } from '../contract/slots.ts'
 import { markdownLabels } from '../markdown-labels.ts'
 import a11yCss from './accessibility.module.css'
 import css from './ReasoningRow.module.css'
@@ -55,6 +55,7 @@ export const ReasoningRow = memo(function ReasoningRow({ text, running, usePrese
   t: ChatViewSlotProps['t']
 }) {
   const { expanded, toggle } = useDisclosure()
+  const [headerAction, setHeaderAction] = useState<ReasoningHeaderAction>()
   const labels = useMemo(() => markdownLabels(t), [t])
   const summaryText = running ? latestCompletedParagraphFirstLine(text) : firstLine(text)
   const summary = useMemo(() => summaryText.replaceAll('**', ''), [summaryText])
@@ -74,11 +75,16 @@ export const ReasoningRow = memo(function ReasoningRow({ text, running, usePrese
     <div className={css.thinkBody}>
       {renderReasoningBody === undefined
         ? <MarkdownText text={text} streaming={running} labels={labels} variant="compact" />
-        : renderReasoningBody('conversation.chat.reasoning-body', { text, running }, {
+        : renderReasoningBody('conversation.chat.reasoning-body', { text, running, setHeaderAction }, {
           fallback: <MarkdownText text={text} streaming={running} labels={labels} variant="compact" />,
         })}
     </div>
   ) : undefined, [expanded, labels, renderReasoningBody, running, text])
+  const headerAccessory = useMemo(() => expanded && headerAction !== undefined && (
+    <Button size="sm" variant="ghost" className={css.headerAction}
+      data-persistent={headerAction.persistent || undefined} disabled={headerAction.disabled}
+      onClick={headerAction.onClick}>{headerAction.label}</Button>
+  ), [expanded, headerAction])
 
   return (
     <div
@@ -101,6 +107,7 @@ export const ReasoningRow = memo(function ReasoningRow({ text, running, usePrese
         expandOnRowClick
         onToggle={toggle}
         collapsedContent={collapsedContent}
+        headerAccessory={headerAccessory}
       >
         {content}
       </DisclosureRow>
