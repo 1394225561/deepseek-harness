@@ -193,7 +193,10 @@ describe('Trajectory conversation Definitions', () => {
         failure: { code: 'TRANSPORT', message: 'temporary failure' },
       }),
     ])
-    expect(snapshot(value).requests).toMatchObject([{ status: 'running', completedAt: null, retry: 1 }])
+    expect(snapshot(value).requests).toMatchObject([{
+      status: 'running', completedAt: null, retry: 1,
+      error: 'temporary failure', errorCode: 'TRANSPORT',
+    }])
     value.append(at(4, 'assistant/live-chunk', {
       turn: 1, step: 1, chunk: { type: 'text-delta', index: 0, text: 'recovered' },
     }))
@@ -205,6 +208,7 @@ describe('Trajectory conversation Definitions', () => {
     value.flush()
     expect(snapshot(value).requests).toMatchObject([{
       status: 'complete', completedAt: 1_700_000_000_005, resultSeq: 5,
+      retry: 1, error: 'temporary failure', errorCode: 'TRANSPORT',
     }])
   })
 
