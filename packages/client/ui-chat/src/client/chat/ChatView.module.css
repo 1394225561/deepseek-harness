@@ -87,6 +87,23 @@
   min-width: 0;
 }
 
+/* Bottom room: sized by the viewport owner while rows above the reader close,
+   given back only as later content grows into it. */
+.turnSpacer {
+  height: 0;
+}
+
+/* While a Turn folds, spacing changes share the closing rows' timing. */
+.column[data-chat-motion] > :not([data-chat-motion]) {
+  transition: margin-top 160ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .column[data-chat-motion] > :not([data-chat-motion]) {
+    transition: none;
+  }
+}
+
 /* The Turn header has 16px clearance from its input and following content. */
 .flowItem[data-chat-flow-kind="turn-process"],
 .flowItem[data-turn-process-answer],

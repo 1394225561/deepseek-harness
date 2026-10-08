@@ -76,12 +76,20 @@ export class ChatReading {
     this.publish({ ...this.state, followingTail: false })
   }
 
-  /** Land at the current floor and clear saved reader position. */
-  followTail(): void {
-    const landing = this.viewport.scrollToBottom(this.follow)
+  /**
+   * Land at the current floor and clear saved reader position.
+   * @param behavior - immediate positioning, or one native animation when the reader's own input moved the tail.
+   */
+  followTail(behavior: 'instant' | 'smooth' = 'instant'): void {
+    const landing = this.viewport.scrollToBottom(this.follow, behavior)
     if (landing === null) return
     this.cancelPending()
     this.commit(landing, true, this.viewport.latestTurn)
+  }
+
+  /** Stop a native follow animation where it is; the next sampled position decides follow intent. */
+  interruptFollow(): void {
+    this.viewport.interruptFollow(this.follow)
   }
 
   /** Restore the Session's semantic position, or follow the tail when none is saved. */
@@ -124,6 +132,8 @@ export class ChatReading {
    * @param scroll - attributed scroll delivery; other reader movement remains pending until sampled.
    */
   readonly onScroll = (scroll: ViewportScroll): void => {
+    // Native follow animation progress is not reader movement; scrollend settles it.
+    if (this.follow.animating) return
     if ((!scroll.movedByReader && this.state.followingTail)
       || (scroll.movedByReader && scroll.metrics.top >= scroll.metrics.floor)) {
       this.followTail()
@@ -133,8 +143,22 @@ export class ChatReading {
     this.sampleTimer ??= window.setTimeout(this.flushSample, SCROLL_SAMPLE_INTERVAL_MS)
   }
 
-  /** Settle pending reader movement at the browser's scrollend. */
-  readonly onScrollEnd = (): void => { this.flushSample() }
+  /** Settle pending reader movement, or a finished follow animation, at the browser's scrollend. */
+  readonly onScrollEnd = (): void => {
+    if (this.follow.animating) {
+      const scroll = this.viewport.readScroll()
+      if (scroll === null) return
+      if (this.follow.settle(scroll.metrics)) {
+        this.followTail()
+        return
+      }
+      this.viewport.acknowledge(scroll.metrics)
+      this.publish({ ...this.state, followingTail: false })
+      this.refreshActiveTurn()
+      return
+    }
+    this.flushSample()
+  }
 
   /** Reconcile a layout change without overriding unsampled reader input. */
   onResize(): void {

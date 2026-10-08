@@ -1,0 +1,3 @@
+- menu:
+  - menuitem "完成时收起"
+  - menuitem "下次发送时收起"

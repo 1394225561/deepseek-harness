@@ -22,6 +22,8 @@
   - button "More font settings"
   - text: Work details Choose how much detail to show for tool calls
   - button "Standard"
+  - text: Collapse work details Collapse work details when a task finishes, or keep them until you send the next message
+  - button "On completion"
   - text: Show coding view Shows trajectory, code diffs, and all Agent presets
   - switch "Show coding view" [checked]
   - text: Keyboard shortcuts
