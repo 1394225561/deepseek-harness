@@ -18,8 +18,8 @@
   en: 6ea51316a841bce7
   zh: df455b74ac9d4a91
 /deepseek-ai-dsh-session-title-llm/use-this-package/registering-a-provider:
-  en: cf61c021b1bdb52f
-  zh: dac17588e4143815
+  en: 82ddf0a0e1a3f2e6
+  zh: f93e848ee0ddacfd
 /deepseek-ai-dsh-session-title-llm/use-this-package/route-and-failure-contract:
   en: ef4c7003eaa84cf6
   zh: 5a13dde678ea3e14
@@ -36,8 +36,8 @@
   en: 0fdc928704abdd3a
   zh: bd4c0a7dd47578cf
 /deepseek-ai-dsh-session-title-llm/understand-the-implementation/request-flow:
-  en: 0a6d1cd67188ab21
-  zh: 6259ae486230e88d
+  en: a6a173b3f4be8102
+  zh: 1c104d8099f93201
 /deepseek-ai-dsh-session-title-llm/further-exploration:
   en: d9844c0fc3e16c5c
   zh: 1e0c0b4b5d566972
@@ -48,14 +48,14 @@
   en: 7dcc6f74474f78e7
   zh: 64cffa0b4d94c69d
 /deepseek-ai-dsh-session-title-llm/model-experience/auxiliary-title-request/what-the-model-sees:
-  en: 780cf5c74d231b24
-  zh: 4cf0e39c6a8475ad
+  en: 85b79ec06dcaa104
+  zh: 66bd534155a30bb6
 /deepseek-ai-dsh-session-title-llm/model-experience/auxiliary-title-request/token-effect:
   en: 43f7973c421d4155
   zh: c63ffe0858e5b71e
 /deepseek-ai-dsh-session-title-llm/model-experience/auxiliary-title-request/kv-cache-effect:
-  en: 5d3b5b7c8d8b4b67
-  zh: 1b231d96bf6ca545
+  en: c15c8288a973bf88
+  zh: dd742aeb138b288a
 /deepseek-ai-dsh-session-title-llm/known-limitations-and-deferred-work:
   en: eab2e1857d98680a
   zh: 02cd4a5d5f565e1b

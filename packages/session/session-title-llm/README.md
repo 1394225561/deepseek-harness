@@ -31,6 +31,8 @@ As a deployment, configure this policy through the [first-prompt](../session-tit
 
 A provider plugin calls `registerSessionTitleLlmProvider(ctx, config, id, automatic, selectMessages)`; the helper validates the shared config, registers the provider on `ctx.sessionTitle`, and runs every generation through the shared policy. The two shipped plugins register the `first-prompt` and `all-prompts` cadences with their message selectors, and a second registration on the service throws.
 
+For `all-prompts`, the helper also supplies the current title when a provider generated it, including a title inherited from the first-prompt provider. It excludes fallback and user-supplied titles from this input. The first-prompt cadence uses only its selected messages.
+
 ### Route and failure contract
 
 `provider` and `model` overrides are optional but must be supplied together as non-empty strings. Without that pair, the helper uses the exact provider/model route captured from the current session's logged `request/header`, so an explicit refresh before any route exists needs overrides. The helper measures the final JSON-framed user prompt against `maxInputBytes` before logging or dispatch instead of truncating it, and rechecks timeout and caller cancellation while consuming the stream and after it completes, so a late successful result cannot be accepted even if an interceptor or adapter ignores abort. Malformed or empty output, tool calls, and non-stop finish reasons reject; the session-title service decides whether that rejection is an automatic warning or an explicit caller failure. The accepted title is the first non-empty line of the model's text output, with one emphasis pair removed when it wraps that whole line, so commentary a model writes after the title cannot become the title. The title request uses `maxOutputTokens` independently of the conversation's cap. Its route must have a registered adapter so preparation can resolve the request before it is recorded.
@@ -72,7 +74,7 @@ One shared policy so provider plugins cannot drift: config validation, route res
 
 ### Request flow
 
-Each revision frames the selected messages as JSON and checks `maxInputBytes`. The title configuration function selects the first effort from the route's least-to-greatest list during `ctx.llm.prepareCall()`. The helper records the exact input, output cap, and resolved effort in `session/title-llm-request`, then dispatches through the same captured adapter generation under the shared deadline. `purpose: 'session-title'` supplies attribution only. The request has no agent-loop identity and does not enter conversation history. Generation failures preserve the request record.
+Each revision frames the selected messages and any current title as JSON and checks the complete input against `maxInputBytes`. The title configuration function selects the first effort from the route's least-to-greatest list during `ctx.llm.prepareCall()`. The helper records the exact input, output cap, and resolved effort in `session/title-llm-request`, then dispatches through the same captured adapter generation under the shared deadline. `purpose: 'session-title'` supplies attribution only. The request has no agent-loop identity and does not enter conversation history. Generation failures preserve the request record.
 
 </details>
 
@@ -98,7 +100,7 @@ Read these pages when the generation policy is not enough. They move from the se
 
 #### What the model sees
 
-The title model receives a fixed system instruction to return one concise unadorned title in the input language, including the configured word and CJK-character targets and a short title instead of an explanation when the messages give little to name. Its one user message contains a JSON array of the exact selected human messages and their seqs.
+The title model receives a system instruction to return one concise unadorned title in the input language, including the configured word and CJK-character targets and a short title instead of an explanation when the messages give little to name. Its one user message contains a JSON array of the exact selected human messages and their seqs. When a current provider-generated title is supplied, the user message instead contains a JSON object with `currentTitle` and `messages`. The instruction asks the model to return an adequate current title exactly unchanged, taking priority over the target length, and to change it only when a material change or expansion of the main topic or task makes it inaccurate.
 
 #### Token effect
 
@@ -106,7 +108,7 @@ The auxiliary request consumes tokens according to selected input size and `maxO
 
 #### KV Cache effect
 
-No main-request invalidation. Auxiliary cache reuse is provider-specific; the fixed instruction is reusable while the JSON message array changes with each revision.
+No main-request invalidation. Auxiliary cache reuse is provider-specific; the instruction is reusable while the JSON input changes with each revision.
 
 ## Known Limitations and Deferred Work
 

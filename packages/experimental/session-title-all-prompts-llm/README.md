@@ -31,6 +31,8 @@ Mount this plugin beside the title service when a session should be retitled as 
 
 A new revision starts after each new eligible human prompt, including prompts in child sessions; the generation folds all eligible messages through the current revision, seeded history included. A newer revision aborts and supersedes older work, so a stale completion can never commit. An automatic failure — including input over `maxInputBytes`, which fails instead of truncating history — warns and keeps the prior title; `ctx.sessionTitle.refresh()` is the explicit retry.
 
+Once a provider-generated title exists, each request includes it and asks the model to preserve it exactly while it still describes the main topic or task. Follow-up questions, same-topic details, acknowledgements such as “thanks”, and requests to continue do not by themselves justify rewording. The model is instructed to update the title only when a material change or expansion of the main topic or task makes it inaccurate. A fallback title still receives ordinary initial generation; every eligible prompt still schedules a revision.
+
 ### Configuration
 
 The plugin accepts the complete required [shared LLM configuration](../../session/session-title-llm/README.md#configuration): `targetWords`, `targetCjkCharacters`, `maxInputBytes`, `maxOutputTokens`, `timeoutMs`, and the optional paired `provider`/`model` route. Omit both to inherit the exact route from each current logged main request, or set both to route title generation independently. The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-session-title-all-prompts-llm) is the exhaustive source for every accepted field.
@@ -86,7 +88,7 @@ Read these pages when the provider contract is not enough. They move from the sh
 
 #### What the model sees
 
-The title model receives the shared title instruction and a JSON array of all eligible human messages through the current revision, in log order with exact seqs. Seeded history is included.
+The title model receives all eligible human messages through the current revision, in log order with exact seqs, including seeded history. When a provider-generated title exists, the [shared LLM policy](../../session/session-title-llm/README.md#model-experience) adds it as `currentTitle` with preservation instructions. Both the messages and current title count toward `maxInputBytes`.
 
 #### Token effect
 
@@ -104,7 +106,8 @@ No main-request invalidation. Auxiliary input grows or changes after each prompt
 These limits define how the provider treats long and heterogeneous sessions. They are current package constraints.
 
 - **No summarization-of-summaries** — input overflow retains the prior title; this provider has no summarization-of-summaries or retention policy for very long sessions.
-- **Messages are treated equally** — it treats all eligible human messages alike and offers no weighting, filtering, or manual-title precedence.
+- **Messages are treated equally** — it includes every eligible human message without configurable weighting or filtering.
+- **Model-dependent stability** — title preservation is a model instruction, not a deterministic semantic check; the model may still change an adequate title.
 
 <a id="dev-note"></a>
 ### Dev Note
