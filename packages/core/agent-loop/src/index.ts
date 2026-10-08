@@ -94,6 +94,12 @@ export const turnBoundaryProjectionDefinition = {
   },
 } satisfies ProjectionDefinition<'turnBoundary', TurnBoundaryProjection>
 
+/** Re-throw one collected failure as itself, or several as one `AggregateError`. */
+function throwCollectedFailures(failures: readonly unknown[], message: string): void {
+  if (failures.length === 1) throw failures[0]
+  if (failures.length > 1) throw new AggregateError(failures, message)
+}
+
 /** Factory-level ownership: live agent teardowns plus config startup work. */
 class FactoryOwnership {
   private accepting = true
@@ -148,8 +154,7 @@ class FactoryOwnership {
     for (const result of settlements) {
       if (result.status === 'rejected') failures.push(result.reason)
     }
-    if (failures.length === 1) throw failures[0]
-    if (failures.length > 1) throw new AggregateError(failures, 'agent loop disposal failed')
+    throwCollectedFailures(failures, 'agent loop disposal failed')
   }
 }
 
@@ -582,10 +587,7 @@ export class AgentLoop extends Service implements AgentFactory {
       } finally {
         untrack()
       }
-      if (failures.length === 1) throw failures[0]
-      if (failures.length > 1) {
-        throw new AggregateError(failures, `agent "${id}" disposal failed`)
-      }
+      throwCollectedFailures(failures, `agent "${id}" disposal failed`)
     })())
     const dispose = async (): Promise<void> => {
       try {
