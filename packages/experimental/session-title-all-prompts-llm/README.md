@@ -9,7 +9,7 @@ English | [中文](README.zh.md)
 
 ## Summary
 
-`dsh-session-title-all-prompts-llm` summarizes every eligible human message through `ctx.llm` as an optional `ctx.sessionTitle` provider. It registers the `all-prompts` cadence and starts a new revision after each new human prompt, using seeded history and child-session prompts. A newer revision aborts and supersedes older work, and even a provider that ignores cancellation cannot commit stale output. It uses the complete required shared LLM configuration from `dsh-session-title-llm`, so route, prompt, budget, and cancellation behavior cannot drift. Automatic behavior and configuration come first; the implementation is a thin registration over the shared policy.
+`dsh-session-title-all-prompts-llm` summarizes every eligible human message through `ctx.llm` as an optional `ctx.sessionTitle` provider. It registers the `all-prompts` cadence and starts a new revision after each new human prompt, using seeded history and child-session prompts. A newer revision aborts and supersedes older work, and even a provider that ignores cancellation cannot commit stale output. It owns both its initial-generation prompt and its revision prompt, and shares only the [execution module](../../session/session-title-llm/README.md) from `dsh-session-title-llm` with the first-prompt provider. Automatic behavior and configuration come first; the implementation is a small provider strategy over that executor.
 
 ## Table of Contents
 
@@ -25,7 +25,7 @@ English | [中文](README.zh.md)
 <a id="use-this-package"></a>
 ## Use this package
 
-Mount this plugin beside the title service when a session should be retitled as it grows, so the title keeps representing the whole conversation. It requires the full [shared LLM configuration](../../session/session-title-llm/README.md#configuration) with no defaults.
+Mount this plugin beside the title service when a session should be retitled as it grows, so the title keeps representing the whole conversation. It requires its own `targetWords` and `targetCjkCharacters` plus the shared [execution controls](../../session/session-title-llm/README.md#configuration), all with no defaults.
 
 ### When titles are generated
 
@@ -35,7 +35,7 @@ Once a provider-generated title exists, each request includes it and asks the mo
 
 ### Configuration
 
-The plugin accepts the complete required [shared LLM configuration](../../session/session-title-llm/README.md#configuration): `targetWords`, `targetCjkCharacters`, `maxInputBytes`, `maxOutputTokens`, `timeoutMs`, and the optional paired `provider`/`model` route. Omit both to inherit the exact route from each current logged main request, or set both to route title generation independently. The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-session-title-all-prompts-llm) is the exhaustive source for every accepted field.
+The plugin requires `targetWords` and `targetCjkCharacters` plus the shared [execution controls](../../session/session-title-llm/README.md#configuration): `maxInputBytes`, `maxOutputTokens`, `timeoutMs`, and the optional paired `provider`/`model` route. Omit both to inherit the exact route from each current logged main request, or set both to route title generation independently. The generated [configuration catalog](../../../docs/config-catalog.md#deepseek-aidsh-session-title-all-prompts-llm) is the exhaustive source for every accepted field.
 
 ### Failures and recovery
 
@@ -53,13 +53,13 @@ This section explains the plugin's shape; the observable behavior is fully cover
 
 ### Design concept
 
-A thin provider plugin: it registers the `all-prompts` cadence with an identity selector over all eligible messages, and delegates everything else to the [shared LLM policy](../../session/session-title-llm/README.md).
+A small provider strategy: it owns both the initial-generation prompt and the revision prompt that anchors `currentTitle`, parses the assembled response into a title, and delegates only route, bounds, cancellation, logging, and assembly to the [shared execution module](../../session/session-title-llm/README.md).
 
 ### Source map
 
 | File | Role |
 |---|---|
-| [`src/index.ts`](src/index.ts) | Plugin entry: shared config schema, provider registration with the all-messages selector |
+| [`src/index.ts`](src/index.ts) | Plugin entry: config schema, initial and revision prompts, output parsing, and direct provider registration |
 
 ### Scheduling
 
@@ -72,9 +72,9 @@ The title service schedules automatic work: for the `all-prompts` cadence, every
 <a id="further-exploration"></a>
 ## Further Exploration
 
-Read these pages when the provider contract is not enough. They move from the shared policy to the alternative cadence and the service it plugs into.
+Read these pages when the provider contract is not enough. They move from the shared execution module to the alternative cadence and the service it plugs into.
 
-- [Shared LLM title policy](../../session/session-title-llm/README.md) — the generation helper this provider uses.
+- [Shared LLM execution module](../../session/session-title-llm/README.md) — the execution module this provider uses.
 - [First-message title provider](../../session/session-title-first-prompt-llm/README.md) — the cadence that titles a session once from its first prompt.
 - [Session title service](../../session/session-title/README.md) — fallback behavior, rename, refresh, and provider registration.
 - [Session package map](../../session/README.md) — adjacent persistence, projection, title, and telemetry packages.
@@ -88,11 +88,11 @@ Read these pages when the provider contract is not enough. They move from the sh
 
 #### What the model sees
 
-The title model receives all eligible human messages through the current revision, in log order with exact seqs, including seeded history. When a provider-generated title exists, the [shared LLM policy](../../session/session-title-llm/README.md#model-experience) adds it as `currentTitle` with preservation instructions. Both the messages and current title count toward `maxInputBytes`.
+The title model receives all eligible human messages through the current revision, in log order with exact seqs, including seeded history. When an accepted provider-generated title exists, this provider adds it as `currentTitle` with its own preservation instructions; fallback, user, and absent titles take its initial-generation path. Both the messages and the current title count toward `maxInputBytes`.
 
 #### Token effect
 
-One auxiliary request may follow every new eligible prompt, bounded per request by `maxInputBytes` and `maxOutputTokens`; explicit refreshes may add calls. The main agent request gains zero tokens.
+One auxiliary request may follow every new eligible prompt, bounded per request by `maxInputBytes` and `maxOutputTokens`; explicit refreshes may add calls. It selects the route's least supported reasoning effort, or leaves effort unspecified when the route exposes none. The main agent request gains zero tokens.
 
 #### KV Cache effect
 
