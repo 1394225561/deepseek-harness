@@ -589,6 +589,7 @@ export class AgentLoop extends Service implements AgentFactory {
       }
       throwCollectedFailures(failures, `agent "${id}" disposal failed`)
     })())
+    let unfollowOwner: () => Promise<void> | void
     const dispose = async (): Promise<void> => {
       try {
         await teardown()
@@ -597,7 +598,6 @@ export class AgentLoop extends Service implements AgentFactory {
       }
     }
     const untrack = this.ownership.track(dispose)
-    let unfollowOwner: () => Promise<void> | void
     try {
       unfollowOwner = ownerCtx.effect(function* () {
         machine = new ReactLoopAgent(loopCtx, id, options, session)
