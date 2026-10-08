@@ -66,8 +66,8 @@ Detected 2 changed roots and 2 structural differences. The review requirement be
 
 | Path | Change | Review requirement |
 |---|---|---|
-| `event:feedback/message-delete` | `root-added` | `same-version` |
-| `event:feedback/message-put` | `root-added` | `same-version` |
+| `event:feedback/message-delete` | `root-added` | `not-required` |
+| `event:feedback/message-put` | `root-added` | `not-required` |
 
 <!-- persistence-release-changes:end -->
 

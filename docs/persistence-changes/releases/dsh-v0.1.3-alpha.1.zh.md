@@ -115,17 +115,17 @@ changes:
 | `JsonlHeaderLine.isSeeded` | `required-property-added` | `review-required` |
 | `SessionHeader.version` | `type-changed` | `review-required` |
 | `event:agent/inbox/spliced.data.inserted[].content[]` | `union-variants-changed` | `review-required` |
-| `event:agent/inbox/spliced.data.inserted[].source.references[].capturedFormatVersion` | `optional-property-added` | `same-version` |
-| `event:assistant/attempt` | `root-added` | `same-version` |
+| `event:agent/inbox/spliced.data.inserted[].source.references[].capturedFormatVersion` | `optional-property-added` | `not-required` |
+| `event:assistant/attempt` | `root-added` | `not-required` |
 | `event:assistant/chunk` | `root-removed` | `review-required` |
 | `event:assistant/message.data.message.content[]` | `union-variants-changed` | `review-required` |
 | `event:assistant/message.data.stream` | `required-property-added` | `review-required` |
 | `event:compaction/summary.data` | `union-variants-changed` | `review-required` |
-| `event:session-log-deepseek/delivery-accepted.data.sessionFormatVersion` | `optional-property-added` | `same-version` |
-| `event:session/end-seed.data.inherited` | `optional-property-added` | `same-version` |
+| `event:session-log-deepseek/delivery-accepted.data.sessionFormatVersion` | `optional-property-added` | `not-required` |
+| `event:session/end-seed.data.inherited` | `optional-property-added` | `not-required` |
 | `event:session/end-seed.data` | `index-signature-changed` | `review-required` |
 | `event:session/title-llm-request.data.messages[].content[]` | `union-variants-changed` | `review-required` |
-| `event:session/title-llm-request.data.messages[].source.references[].capturedFormatVersion` | `optional-property-added` | `same-version` |
+| `event:session/title-llm-request.data.messages[].source.references[].capturedFormatVersion` | `optional-property-added` | `not-required` |
 | `event:team/member.data.version` | `type-changed` | `review-required` |
 | `event:team/message/delivered.data.version` | `type-changed` | `review-required` |
 | `event:team/message/queued.data.message.content[]` | `union-variants-changed` | `review-required` |
@@ -135,7 +135,7 @@ changes:
 | `event:tool/code-dispatch.data.content[]` | `union-variants-changed` | `review-required` |
 | `event:tool/result.data.message.content[0].content[]` | `union-variants-changed` | `review-required` |
 | `event:user/message.data.content[]` | `union-variants-changed` | `review-required` |
-| `event:user/message.data.source.references[].capturedFormatVersion` | `optional-property-added` | `same-version` |
+| `event:user/message.data.source.references[].capturedFormatVersion` | `optional-property-added` | `not-required` |
 
 <!-- persistence-release-changes:end -->
 

@@ -66,6 +66,7 @@ describe('persistence review', () => {
       { root: 'event:user/message', path: 'event:user/message.data.source[kind="tool-registry"]' },
     ] })
     const markdown = renderPersistenceReview(report)
+    expect(markdown).toContain('## Compatibility review requirements')
     expect(markdown).not.toContain('hooks-codex')
     expect(markdown).not.toMatch(/source\[\d+\]/u)
     for (const root of report.roots) expect(root.changes).toEqual(classifyPersistenceChange(

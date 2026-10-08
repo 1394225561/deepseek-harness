@@ -40,7 +40,7 @@ function structuralChanges(entry: PersistenceReleaseEntry, language: Language): 
   const heading = language === 'en' ? '| Path | Change | Review requirement |' : '| 路径 | 变化 | 审查要求 |'
   const rows = entry.differences.map((change) => {
     const path = change.path.replaceAll('`', '\\`').replaceAll('|', '\\|')
-    return `| \`${path}\` | \`${change.kind}\` | \`${change.requiresCompatibilityReview ? 'review-required' : 'same-version'}\` |`
+    return `| \`${path}\` | \`${change.kind}\` | \`${change.requiresCompatibilityReview ? 'review-required' : 'not-required'}\` |`
   })
   return [summary, '', heading, '|---|---|---|', ...rows].join('\n')
 }

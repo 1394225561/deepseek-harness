@@ -16,6 +16,8 @@ schema 的结构差异不能证明 Session 需要新的整数版本。可选的�
 
 schema 分类器标识需要兼容性评审的结构变更，而不将其直接判定为版本破坏。每项 schema 差异仍须确认。已明确安全的情形推断为同版本；其他同版本变更在记录或更新时要求显式决策。已有的兼容性与验证部分记录读取器行为和已执行检查。检查器验证决策与所记录的 schema，但无法证明说明与运行时行为一致。显式升版本决策仍须包含其自身递增的 `SessionHeader.version`。已接受的机器记录与检查点保持不可变；说明文字不参与检查点哈希。
 
+用户将记录中的 `same-version` 决策视为显式选择，无论它由 CLI 还是编辑器产生。CLI 对被标记的记录与更新操作要求 `--decision same-version`；CI 按历史、schema 和头版本约束验证保存的决策。两种机制都不证明人类已评审转换。评审者使用 base/head 清单比较，而非当前目录一致性检查，来检查已确认的变更。
+
 本决策部分取代[版本机制说明](../architecture/2026-08-10-session-log-version-mechanism.zh.md)中的结构性升版本标准，以及[持久化类型历史说明](2026-09-11-persistence-type-history.zh.md)中的自动最低版本要求。它们的单调整数、未知事件默认必需、类型历史与不可变代际决策仍然有效。[评审流程](../../../../docs/cookbook/reviewing-persistence-type-changes.zh.md)负责记录编写与验证细节。
 
 ## 迁移义务

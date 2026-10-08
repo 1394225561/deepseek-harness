@@ -344,7 +344,7 @@ describe('release facts', () => {
     ['difference count', '1 structural difference', '9 structural differences'],
     ['path', '`event:example/value.data`', '`event:example/value.wrong`'],
     ['kind', '`type-changed`', '`optional-property-added`'],
-    ['review requirement', '`review-required`', '`same-version`'],
+    ['review requirement', '`review-required`', '`not-required`'],
   ])('rejects stale record %s', (_label, original, replacement) => {
     const data = fixture()
     runPersistenceReleases(['--write'], data.root)

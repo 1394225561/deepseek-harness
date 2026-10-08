@@ -101,10 +101,10 @@ Detected 12 changed roots and 12 structural differences. The review requirement 
 | `event:compact/prune` | `root-removed` | `review-required` |
 | `event:compact/start` | `root-removed` | `review-required` |
 | `event:compact/summary` | `root-removed` | `review-required` |
-| `event:compaction/end` | `root-added` | `same-version` |
-| `event:compaction/prune` | `root-added` | `same-version` |
-| `event:compaction/start` | `root-added` | `same-version` |
-| `event:compaction/summary` | `root-added` | `same-version` |
+| `event:compaction/end` | `root-added` | `not-required` |
+| `event:compaction/prune` | `root-added` | `not-required` |
+| `event:compaction/start` | `root-added` | `not-required` |
+| `event:compaction/summary` | `root-added` | `not-required` |
 | `event:hook/invoked.data.dialect` | `type-changed` | `review-required` |
 | `event:session/title-llm-request.data.messages[].source.kind` | `type-changed` | `review-required` |
 | `event:user/message.data.source.kind` | `type-changed` | `review-required` |

@@ -63,7 +63,7 @@ changes:
 
 | 路径 | 变化 | 审查要求 |
 |---|---|---|
-| `event:permission/preset.data.origin` | `optional-property-added` | `same-version` |
+| `event:permission/preset.data.origin` | `optional-property-added` | `not-required` |
 
 <!-- persistence-release-changes:end -->
 

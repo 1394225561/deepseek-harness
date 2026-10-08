@@ -39,6 +39,8 @@ To review a PR independently of its acknowledgement history, save the base and h
 pnpm --silent run persistence-review --before .artifacts/base.schema.json --after docs/persistence-schema.json
 ```
 
+A recorded decision does not hide the transition from this comparison. `--check` only compares current source with acknowledged history; after recording, it cannot replace a base/head review or establish that a human reviewed the change.
+
 Record the commits supplying those files with the report. Add `--json` for structured output. This read-only comparison groups shared changes with their affected roots and uses actual literal `kind`/`form` values instead of union positions. Ambiguous alternatives remain separate additions and removals. Its compatibility section copies every root's authoritative classifier result; the structural explanation does not replace acknowledgement checks. Current catalog labels and declaration names are descriptive metadata; structural anchors and fingerprints identify types.
 
 The current machine inventory stores complete graphs in `roots`. A `types` entry contains `digest`, `names`, and `sources`, plus an explicit `schema` when roots cannot reconstruct that graph exactly. Readers resolve omitted graphs from root subgraphs by digest and validate explicit graphs directly, preserving every type and its metadata. Historical full entries remain readable. `formatVersion` identifies normalization rules; storage compaction does not change root fingerprints or require an acknowledgement.
@@ -103,10 +105,10 @@ The command refreshes the machine declaration, schemas, catalogs, and pairing. W
 
 When integration creates competing terminal records, update the unaccepted record against the remaining history, then reassess the resulting diff. An unrelated root's acknowledgement does not need refreshing. The [mechanism decision](../../.agents/notes/implemented/process/2026-09-11-persistence-type-history.md) explains why complete snapshots and per-root predecessors are retained.
 
-For an existing property value-type change requiring review, this command records the explicit same-version choice. The record’s Compatibility and Verification sections must support that choice:
+For an existing property value-type change requiring review, first revise the prose file’s Compatibility and Verification sections to explain the actual new transition and its executed checks. Do not reuse the earlier required-to-optional explanation for a different change. Then update the record with that prose and the explicit same-version choice:
 
 ```sh
-pnpm --silent run persistence-changes --update 2026-09-11-poc-optional --decision same-version --json
+pnpm --silent run persistence-changes --update 2026-09-11-poc-optional --decision same-version --prose .artifacts/persistence-change.prose.json --json
 ```
 
 <a id="dev-note"></a>

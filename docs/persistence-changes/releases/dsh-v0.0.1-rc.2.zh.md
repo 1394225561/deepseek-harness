@@ -221,7 +221,7 @@ changes:
 | `event:request/context.ignorable` | `optional-property-added` | `review-required` |
 | `event:request/header.ignorable` | `optional-property-added` | `review-required` |
 | `event:sandbox/mode.ignorable` | `optional-property-added` | `review-required` |
-| `event:schedule/change` | `root-added` | `same-version` |
+| `event:schedule/change` | `root-added` | `not-required` |
 | `event:session/end-seed.ignorable` | `optional-property-added` | `review-required` |
 | `event:session/title.ignorable` | `optional-property-added` | `review-required` |
 | `event:session/title-llm-request.data.messages[].source` | `union-variants-changed` | `review-required` |
@@ -230,10 +230,10 @@ changes:
 | `event:step/start.ignorable` | `optional-property-added` | `review-required` |
 | `event:subagent/descriptor.ignorable` | `optional-property-added` | `review-required` |
 | `event:todo/write.ignorable` | `optional-property-added` | `review-required` |
-| `event:tool-workflow/agent-end` | `root-added` | `same-version` |
-| `event:tool-workflow/agent-start` | `root-added` | `same-version` |
-| `event:tool-workflow/run-end` | `root-added` | `same-version` |
-| `event:tool-workflow/run-start` | `root-added` | `same-version` |
+| `event:tool-workflow/agent-end` | `root-added` | `not-required` |
+| `event:tool-workflow/agent-start` | `root-added` | `not-required` |
+| `event:tool-workflow/run-end` | `root-added` | `not-required` |
+| `event:tool-workflow/run-start` | `root-added` | `not-required` |
 | `event:tool/call.ignorable` | `optional-property-added` | `review-required` |
 | `event:tool/code-dispatch.ignorable` | `optional-property-added` | `review-required` |
 | `event:tool/code-dispatch-start.ignorable` | `optional-property-added` | `review-required` |

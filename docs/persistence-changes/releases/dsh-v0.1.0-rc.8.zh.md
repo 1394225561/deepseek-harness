@@ -85,12 +85,12 @@ changes:
 | 路径 | 变化 | 审查要求 |
 |---|---|---|
 | `event:agent/inbox/spliced.data.inserted[].source` | `union-variants-changed` | `review-required` |
-| `event:assistant/message.data.interrupted` | `optional-property-added` | `same-version` |
+| `event:assistant/message.data.interrupted` | `optional-property-added` | `not-required` |
 | `event:session/title-llm-request.data.messages[].source` | `union-variants-changed` | `review-required` |
-| `event:team/member` | `root-added` | `same-version` |
-| `event:team/message/delivered` | `root-added` | `same-version` |
-| `event:team/message/queued` | `root-added` | `same-version` |
-| `event:team/task` | `root-added` | `same-version` |
+| `event:team/member` | `root-added` | `not-required` |
+| `event:team/message/delivered` | `root-added` | `not-required` |
+| `event:team/message/queued` | `root-added` | `not-required` |
+| `event:team/task` | `root-added` | `not-required` |
 | `event:user/message.data.source` | `union-variants-changed` | `review-required` |
 
 <!-- persistence-release-changes:end -->

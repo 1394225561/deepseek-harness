@@ -90,17 +90,17 @@ Detected 10 changed roots and 11 structural differences. The review requirement 
 
 | Path | Change | Review requirement |
 |---|---|---|
-| `event:agent/inbox/spliced.data.inserted[].content[].attachment.originalDimensions` | `optional-property-added` | `same-version` |
-| `event:assistant/chunk.data.chunk.block.attachment.originalDimensions` | `optional-property-added` | `same-version` |
-| `event:assistant/message.data.message.content[].attachment.originalDimensions` | `optional-property-added` | `same-version` |
-| `event:compaction/summary.data.rawOutput[].attachment.originalDimensions` | `optional-property-added` | `same-version` |
-| `event:compaction/summary.data.summary[].attachment.originalDimensions` | `optional-property-added` | `same-version` |
+| `event:agent/inbox/spliced.data.inserted[].content[].attachment.originalDimensions` | `optional-property-added` | `not-required` |
+| `event:assistant/chunk.data.chunk.block.attachment.originalDimensions` | `optional-property-added` | `not-required` |
+| `event:assistant/message.data.message.content[].attachment.originalDimensions` | `optional-property-added` | `not-required` |
+| `event:compaction/summary.data.rawOutput[].attachment.originalDimensions` | `optional-property-added` | `not-required` |
+| `event:compaction/summary.data.summary[].attachment.originalDimensions` | `optional-property-added` | `not-required` |
 | `event:permission/preset.data.origin` | `property-removed` | `review-required` |
-| `event:session/title-llm-request.data.messages[].content[].attachment.originalDimensions` | `optional-property-added` | `same-version` |
-| `event:team/message/queued.data.message.content[].attachment.originalDimensions` | `optional-property-added` | `same-version` |
-| `event:tool/code-dispatch.data.content[].attachment.originalDimensions` | `optional-property-added` | `same-version` |
-| `event:tool/result.data.message.content[0].content[].attachment.originalDimensions` | `optional-property-added` | `same-version` |
-| `event:user/message.data.content[].attachment.originalDimensions` | `optional-property-added` | `same-version` |
+| `event:session/title-llm-request.data.messages[].content[].attachment.originalDimensions` | `optional-property-added` | `not-required` |
+| `event:team/message/queued.data.message.content[].attachment.originalDimensions` | `optional-property-added` | `not-required` |
+| `event:tool/code-dispatch.data.content[].attachment.originalDimensions` | `optional-property-added` | `not-required` |
+| `event:tool/result.data.message.content[0].content[].attachment.originalDimensions` | `optional-property-added` | `not-required` |
+| `event:user/message.data.content[].attachment.originalDimensions` | `optional-property-added` | `not-required` |
 
 <!-- persistence-release-changes:end -->
 

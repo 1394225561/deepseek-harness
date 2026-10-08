@@ -63,7 +63,7 @@ Detected 1 changed root and 1 structural difference. The review requirement belo
 
 | Path | Change | Review requirement |
 |---|---|---|
-| `event:permission/preset.data.origin` | `optional-property-added` | `same-version` |
+| `event:permission/preset.data.origin` | `optional-property-added` | `not-required` |
 
 <!-- persistence-release-changes:end -->
 

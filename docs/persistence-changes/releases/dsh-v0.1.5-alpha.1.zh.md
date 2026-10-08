@@ -104,13 +104,13 @@ changes:
 | `event:assistant/message.surfaceOp.start` | `property-removed` | `review-required` |
 | `event:assistant/message.surfaceOp.endSeq` | `required-property-added` | `review-required` |
 | `event:assistant/message.surfaceOp.startSeq` | `required-property-added` | `review-required` |
-| `event:request/context.data.systemPromptUpdate` | `optional-property-added` | `same-version` |
+| `event:request/context.data.systemPromptUpdate` | `optional-property-added` | `not-required` |
 | `event:request/header.data.header.system` | `property-removed` | `review-required` |
 | `event:system/message` | `root-added` | `review-required` |
 | `event:tool/code-dispatch` | `root-removed` | `review-required` |
 | `event:tool/code-dispatch-start` | `root-removed` | `review-required` |
-| `event:tool/ptc-dispatch` | `root-added` | `same-version` |
-| `event:tool/ptc-dispatch-start` | `root-added` | `same-version` |
+| `event:tool/ptc-dispatch` | `root-added` | `not-required` |
+| `event:tool/ptc-dispatch-start` | `root-added` | `not-required` |
 | `event:tool/result.surfaceOp` | `property-made-required` | `review-required` |
 | `event:tool/result.surfaceOp.end` | `property-removed` | `review-required` |
 | `event:tool/result.surfaceOp.start` | `property-removed` | `review-required` |

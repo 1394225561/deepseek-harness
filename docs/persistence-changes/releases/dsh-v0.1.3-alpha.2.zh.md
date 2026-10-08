@@ -66,8 +66,8 @@ changes:
 
 | 路径 | 变化 | 审查要求 |
 |---|---|---|
-| `event:feedback/message-delete` | `root-added` | `same-version` |
-| `event:feedback/message-put` | `root-added` | `same-version` |
+| `event:feedback/message-delete` | `root-added` | `not-required` |
+| `event:feedback/message-put` | `root-added` | `not-required` |
 
 <!-- persistence-release-changes:end -->
 
