@@ -580,6 +580,27 @@ describe('desktop main startup', () => {
     expect(harness.updateDownload).not.toHaveBeenCalled()
   })
 
+  it('checks updates from the application menu without offering disabled test authentication', async () => {
+    configureTestAuthPopup(false)
+    harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'feishu-test',
+      allowedAuthOrigins: ['https://login.example.com'], allowedPageOrigins: ['https://downloads.example.com'] }
+    const request = vi.fn<typeof fetch>().mockImplementation(async () =>
+      Response.json({ error: { code: 'UNAUTHENTICATED' } }, { status: 401 }))
+    vi.stubGlobal('fetch', request)
+    await readyForUpdate()
+    await vi.advanceTimersByTimeAsync(0)
+    request.mockClear()
+    harness.updateCheck.mockClear()
+    const checkUpdates = applicationMenuItems().find(item => item.label === en.checkUpdatesMenu)!.click as () => void
+    checkUpdates()
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(request).toHaveBeenCalled()
+    expect(harness.updateCheck).toHaveBeenCalledWith(true)
+    expect(testAuth.login).not.toHaveBeenCalled()
+    expect(harness.dialog.showMessageBox.mock.calls.map(call => (call.at(-1) as { message: string }).message))
+      .not.toContain(en.policyLoginRequired)
+  })
+
   it.each([false, true])('retains anonymous production checks with popup permission %s', async (allow) => {
     configureTestAuthPopup(allow)
     harness.embeddedPolicy = { origin: 'https://policy.example.com', authentication: 'anonymous',
@@ -1676,6 +1697,7 @@ describe('desktop main startup', () => {
       .not.toContain(en.policyLoginRequired)
     ordinaryResult.resolve({ response: 0 })
     await operation
+    await vi.advanceTimersByTimeAsync(0)
     if (allow) await policyShown.promise
     else expect(harness.dialog.showMessageBox.mock.calls.map(call => (call.at(-1) as { message: string }).message))
       .not.toContain(en.policyLoginRequired)

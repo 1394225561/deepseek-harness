@@ -49,6 +49,7 @@ export function readDesktopSettings(userData: string): DesktopSettings {
     try {
       console.warn(`desktop settings: ${path}: using defaults because settings could not be loaded`, error)
     } catch (_logError) {
+      // Diagnostic output is best effort; its failure must not make optional settings fatal.
       // TODO: Persist settings diagnostics when console output is unavailable, without blocking startup.
     }
     return defaults

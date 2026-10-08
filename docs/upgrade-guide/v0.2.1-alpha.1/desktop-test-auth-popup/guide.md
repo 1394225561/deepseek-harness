@@ -9,7 +9,7 @@ English | [中文](guide.zh.md)
 
 ## Change
 
-Test builds previously offered Feishu login after an unauthenticated startup or manual update-policy check. All test authentication dialogs now default to disabled, including manual checks and mandatory-update refreshes. Gateway authentication and known mandatory blocks remain enforced; production policy requests and product account login are unchanged.
+Test builds previously offered Feishu login after an unauthenticated startup or manual update-policy check. All test authentication dialogs now default to disabled, including manual checks and mandatory-update refreshes. Test gateway cookies do not survive restart. With login disabled, a gateway requiring authentication cannot provide new mandatory-update decisions; enable the setting, restart and sign in to obtain them. Authentication failures retain any mandatory block already known in the same process; production policy requests and product account login are unchanged.
 
 ## Migration
 
