@@ -22,12 +22,16 @@ const renderMessageImages: AssistantMarkdownProps['renderMessageImages'] = () =>
 
 describe('ReasoningRow', () => {
   it('offers only text and streaming state to the standard Body Slot after expansion', () => {
-    const extension = vi.fn(renderSlot)
+    const calls = vi.fn()
+    const extension: AssistantMarkdownProps['renderSlot'] = (key, owner, options) => {
+      calls(key, owner)
+      return renderSlot(key, owner, options)
+    }
     const view = render(<ReasoningRow useDisclosure={useDisclosure} text="Original thought" running={false}
       usePresentation={useDetailedPresentation} renderSlot={extension} t={t} />)
-    expect(extension).not.toHaveBeenCalled()
+    expect(calls).not.toHaveBeenCalled()
     fireEvent.click(view.getByRole('button'))
-    expect(extension).toHaveBeenCalledWith('conversation.chat.reasoning.body', { text: 'Original thought', running: false })
+    expect(calls).toHaveBeenCalledWith('conversation.chat.reasoning.body', { text: 'Original thought', running: false })
     expect(view.getAllByText('Original thought')).toHaveLength(1)
     expect(view.getAllByRole('button')).toHaveLength(1)
   })
