@@ -2257,7 +2257,7 @@ Source: [`packages/experimental/tool-agent-team/src/index.ts`](../packages/exper
 
 ### `send_message`
 
-Send one message to another Team member and return its accepted message id. A running target receives it at the nearest step boundary; an inactive target starts or resumes a turn.
+Send one message to another Team member. A running target receives it at the nearest step boundary; an inactive target starts or resumes a turn.
 
 ```json
 {

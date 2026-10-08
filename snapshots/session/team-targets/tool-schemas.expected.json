@@ -293,7 +293,7 @@
     },
     {
       "name": "send_message",
-      "description": "Send one message to another Team member and return its accepted message id. A running target receives it at the nearest step boundary; an inactive target starts or resumes a turn.",
+      "description": "Send one message to another Team member. A running target receives it at the nearest step boundary; an inactive target starts or resumes a turn.",
       "parameters": {
         "type": "object",
         "properties": {
