@@ -48,6 +48,7 @@ DSH 只能从用户已知的 spec 安装第三方组合包（bundle）：npm 包
       "metadata": {
         "category": "productivity",
         "labels": ["official"],
+        "keywords": ["review", "authorization"],
         "sortKeys": { "downloads": 12034, "rating": 4.6 }
       },
       "dist-tags": { "latest": "0.2.0-rc.1", "next": "0.2.0-rc.2" },
@@ -116,12 +117,15 @@ DSH 只能从用户已知的 spec 安装第三方组合包（bundle）：npm 包
 | `icon` | 否 | 以下两种形式之一：`data:<type>;base64,<payload>`，其中 `<type>` 为 `image/svg+xml`、`image/png`、`image/jpeg` 或 `image/webp`，`<payload>` 是按规范填充的 base64，解码后的载荷不超过 256 KiB；或者 URL 引用，它相对于索引 URL 解析的结果是 `https:` URL，或与索引 URL 同源。 |
 | `author` | 否 | 至少包含一个非空白字符的字符串。 |
 | `homepage` | 否 | 介绍该插件的页面的绝对 `https:` 或 `http:` URL。 |
-| `metadata` | 否 | 包含下列三个值的对象。 |
+| `metadata` | 否 | 包含下列值的对象。 |
 | `metadata.category` | 否 | 一个已声明的分类 id。 |
 | `metadata.labels` | 否 | 由互不相同的已声明标签 id 组成的数组。 |
+| `metadata.keywords` | 否 | 自由字符串数组；无需在根部声明。 |
 | `metadata.sortKeys` | 否 | 对象，将已声明的排序键 id 映射为有限数值。 |
 | `dist-tags` | 否 | 将 npm 发布标签名称映射为已列出的精确版本字符串的对象；缺省表示未记录发布渠道。 |
 | `versions` | 是 | 非空的版本数组；见下文。数组顺序不选择安装版本。 |
+
+`metadata.keywords` 按约定来自 npm `package.json` 的 `keywords`，但生成器可以使用其他来源、添加字符串或调整值。不要求提供此字段，也不要求它与包 manifest 一致。读取器保留字符串及其顺序；允许空数组。
 
 ### 版本字段
 

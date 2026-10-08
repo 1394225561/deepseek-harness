@@ -48,6 +48,7 @@ The market reuses npm's package names, versions, ranges, distribution tags, and 
       "metadata": {
         "category": "productivity",
         "labels": ["official"],
+        "keywords": ["review", "authorization"],
         "sortKeys": { "downloads": 12034, "rating": 4.6 }
       },
       "dist-tags": { "latest": "0.2.0-rc.1", "next": "0.2.0-rc.2" },
@@ -116,12 +117,15 @@ Category, label, and sort-key ids are non-empty strings. Readers look ids up as 
 | `icon` | no | Either `data:<type>;base64,<payload>`, where `<type>` is `image/svg+xml`, `image/png`, `image/jpeg`, or `image/webp`, `<payload>` is canonically padded base64, and the decoded payload is at most 256 KiB; or a URL reference whose resolution against the index URL is an `https:` URL or has the index URL's origin. |
 | `author` | no | String with at least one non-whitespace character. |
 | `homepage` | no | Absolute `https:` or `http:` URL of a page about the plugin. |
-| `metadata` | no | Object holding the three values below. |
+| `metadata` | no | Object holding the values below. |
 | `metadata.category` | no | One declared category id. |
 | `metadata.labels` | no | Array of distinct declared label ids. |
+| `metadata.keywords` | no | Array of free-form strings; no root declaration required. |
 | `metadata.sortKeys` | no | Object mapping a declared sort-key id → finite number. |
 | `dist-tags` | no | Object mapping npm distribution-tag names to exact listed version strings; absent means no recorded channels. |
 | `versions` | yes | Non-empty array of versions; see below. Array order does not select the installation version. |
+
+`metadata.keywords` conventionally comes from npm `package.json` `keywords`, but generators may use another source, add strings, or adjust values. Neither presence nor equality with the package manifest is required. Readers preserve the strings and their order; an empty array is valid.
 
 ### Version fields
 
