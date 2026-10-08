@@ -1,4 +1,7 @@
-/** Local Electron shell settings, loaded once per process independently of the Host. */
+/**
+ * Local Electron shell settings, loaded once per process independently of the Host.
+ * Ownership: .agents/notes/implemented/architecture/2026-10-08-desktop-shell-configuration.md.
+ */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
