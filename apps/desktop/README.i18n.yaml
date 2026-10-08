@@ -66,11 +66,14 @@
   en: be1379e4b4703e14
   zh: 244ccd2874bb155a
 /deepseek-harness-desktop/updates:
-  en: 10d58aa5bbffbd67
-  zh: d9c2476e744a6537
+  en: 41d0f50eb7173342
+  zh: ce940ef3cbcc6fa5
+/deepseek-harness-desktop/updates/local-desktop-settings:
+  en: 2d7bdba035bb468f
+  zh: 8689f725254be306
 /deepseek-harness-desktop/updates/mandatory-update-policy:
-  en: 1527dceec540649e
-  zh: 543782c36f91f893
+  en: 3933ae070b0b76be
+  zh: b1b46615208b4e65
 /deepseek-harness-desktop/updates/local-updater-qualification:
   en: bc50fd8a4d96c227
   zh: fb0a6ce80c31cda6

@@ -445,6 +445,24 @@ If task teardown fails after confirmed Host exit, installation is refused and th
 
 Confirmed Host exit without successful task teardown displays localized recovery guidance in both ordinary and mandatory update dialogs. A typed preparation cause selects that guidance in each locale; changing translated wording cannot reclassify the failure. “View technical details” is collapsed by default and exposes only exit status, signal, shutdown acknowledgement, and deadline facts, not plugin stderr. Expanding it neither retries nor authorizes installation.
 
+<a id="local-desktop-settings"></a>
+
+### Local desktop settings
+
+The Electron main process reads `app.getPath('userData')/desktop/settings.json` once at startup, independently of Host and Cordis configuration. The default packaged paths are `%APPDATA%\@deepseek-ai\dsh-desktop\desktop\settings.json` on Windows and `~/Library/Application Support/@deepseek-ai/dsh-desktop/desktop/settings.json` on macOS. Development uses the `userData` path printed by its launcher. `DSH_HOME` does not relocate this file.
+
+On first launch, including after an upgrade, Desktop creates this document if it is absent:
+
+```json
+{
+  "updates": {
+    "allowTestAuthPopupWindow": false
+  }
+}
+```
+
+Existing documents are never overwritten; an omitted `updates` object or field resolves to `false`. Set the field to `true` to permit test authentication dialogs, then fully quit and restart the application. Set it back to `false` and restart to suppress them again. Creation, read, or validation failures use the default `false` without blocking startup. Desktop attempts to warn through the Electron console with the file path; unavailable logging does not block startup. Correct the file and restart to apply an explicit setting. Unknown fields are preserved. Installation updates retain this user-data file; Windows uninstallation removes it under the [uninstall rules](#windows-ev-signing).
+
 <a id="mandatory-update-policy"></a>
 
 ### Mandatory update policy
@@ -466,7 +484,9 @@ Packaging reads `.env.windows` or `.env.macos`: `DSH_DESKTOP_AUTO_UPDATE_ENV=tes
 
 Durations are integers from 1000 through 2147483647 milliseconds. Startup and scheduled polling are independent of business requests; foreground/resume checks respect the next due time, while manual checks bypass it and join any request in flight. The client sends the installed platform, architecture, DSH_CLIENT_VERSION, bundled dsh version, current locale and UTC offset, an empty bundle ID, and fixed Nightly. It uses no business login credentials or installation ID.
 
-With `feishu-test`, an HTTP 401 JSON response containing `error.code: "UNAUTHENTICATED"` offers login during user-initiated checks and the packaged application's initial startup check, without waiting for the local backend. A localized explanation identifies the test build, the need for Feishu authentication, and that login neither downloads nor installs updates. Confirmation closes the explanation before opening a sandboxed window at the configured origin’s root, not a response-provided login URL. Concurrent checks reuse the entire confirmation/login operation and focus its existing window. Press F12 in the test login window to open detached DevTools for diagnosis. Cancellation does not trigger repeated prompts from periodic or foreground checks; users can retry manually.
+With `feishu-test`, an HTTP 401 JSON response containing `error.code: "UNAUTHENTICATED"` offers login only when the local `updates.allowTestAuthPopupWindow` setting is `true`. It defaults to `false`, suppressing the entire authentication dialog flow during startup, manual update checks, mandatory-update refreshes, and deferred or repeated failures. Policy requests still require gateway authentication; an existing valid cookie can authorize them, and an authentication failure never clears a known mandatory block. Ordinary updates and product account authentication remain independent. Production keeps its anonymous policy requests regardless of this setting.
+
+When permitted, login is offered during user-initiated checks and the packaged application's initial startup check, without waiting for the local backend. A localized explanation identifies the test build, the need for Feishu authentication, and that login neither downloads nor installs updates. Confirmation closes the explanation before opening a sandboxed window at the configured origin’s root, not a response-provided login URL. Concurrent checks reuse the entire confirmation/login operation and focus its existing window. Press F12 in the test login window to open detached DevTools for diagnosis. Cancellation does not trigger repeated prompts from periodic or foreground checks; users can retry manually.
 
 Login and policy requests share an in-memory Session, separate from product windows and the updater; restarting requires a new login. Closing cancels login, and navigation failure provides localized retry guidance. Returning to the service triggers a fresh policy query; a redirect, cookie, or HTTP 422 is not a valid policy decision. Cancellation, expiry, and invalid responses retain any known mandatory block. Fixed login outcomes appear in process diagnostics and the optional update journal; cookies, OAuth parameters, and remote error text are not recorded by the login controller. Live Harness gateway/API integration and macOS login qualification remain unverified.
 
