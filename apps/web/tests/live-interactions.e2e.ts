@@ -451,7 +451,7 @@ describe('web e2e: live-turn interactions (cancel / error / retry)', () => {
     await assertFixtureInventory(SNAPSHOT_DIR, [
       'session.v3.jsonl', 'cancel.expected.md', 'cancel-expanded.expected.md',
       'loading.expected.md', 'running-draft.expected.md', 'error-auth.expected.md',
-      'retry.expected.md', 'retry-expanded.expected.md', 'retry-exhausted.expected.md',
+      'retry.expected.md', 'retry-expanded.expected.md', 'retry-request.expected.md', 'retry-exhausted.expected.md',
     ])
   })
 })
