@@ -471,7 +471,7 @@ it.each(['devDependencies', 'optionalDependencies'])('checks installed direct pl
   expect(await runProfilePnpm(context, ['install'], { execution: 'service', outputBytes: 8192 })).toMatchObject({ exitCode: 1 })
 })
 
-it('rejects an incompatible component declared by a newly installed bundle', async () => {
+it.each([undefined, 'preset-standard'])('rejects an incompatible component contributed to %s by a newly installed bundle', async (preset) => {
   const { dir, context, pnpm } = fixture()
   pnpm.mutate = (target) => {
     install(target, 'bundle')
@@ -481,7 +481,16 @@ it('rejects an incompatible component declared by a newly installed bundle', asy
     writeFileSync(join(component, 'package.json'), JSON.stringify({
       name: 'component', version: '1.0.0', peerDependencies: { '@deepseek-ai/dsh': '>=999.0.0' },
     }))
-    writeFileSync(join(packageDir, 'cordis.patch.yml'), '- insert:\n    - id: component\n      name: component/subpath\n')
+    const unrelated = join(target, 'node_modules', 'component')
+    mkdirSync(unrelated, { recursive: true })
+    writeFileSync(join(unrelated, 'package.json'), JSON.stringify({ name: 'component', version: '2.0.0' }))
+    mkdirSync(join(packageDir, 'nested'))
+    writeFileSync(join(packageDir, 'nested', 'group.mjs'), 'export function apply() {}\n')
+    writeFileSync(join(packageDir, 'cordis.patch.yml'), JSON.stringify([{
+      ...preset === undefined ? {} : { preset }, insert: [{ id: 'relative-group', name: './nested/group.mjs', group: true,
+        config: [{ id: 'component', name: 'component/subpath' }],
+      }],
+    }]))
   }
   const outcome = await runProfilePnpm(context, ['add', 'bundle'], { execution: 'service', outputBytes: 8192, activateNewBundles: false })
   expect(outcome.exitCode).toBe(1)
@@ -503,7 +512,7 @@ it('restores the manifest on malformed installed peer metadata and bounds the wa
   expect(readFileSync(join(dir, 'package.json'), 'utf8')).toBe(before)
 })
 
-it('checks scoped components in nested groups while leaving unresolved and local rows to startup', async () => {
+it('validates nested preset contributions without requiring their target preset to be selected', async () => {
   const { context, pnpm } = fixture()
   pnpm.mutate = (target) => {
     install(target, 'bundle')
@@ -511,7 +520,7 @@ it('checks scoped components in nested groups while leaving unresolved and local
     const component = join(packageDir, 'node_modules', '@example', 'component')
     mkdirSync(component, { recursive: true })
     writeFileSync(join(component, 'package.json'), JSON.stringify({ name: '@example/component', version: '1.0.0' }))
-    writeFileSync(join(packageDir, 'cordis.patch.yml'), JSON.stringify([{ insert: [
+    writeFileSync(join(packageDir, 'cordis.patch.yml'), JSON.stringify([{ preset: 'preset-standard', insert: [
       { id: 'group', group: true, config: [{ id: 'component', name: '@example/component/subpath' }] },
       { id: 'empty-group', group: true, config: {} },
       { id: 'relative', name: './plugin.mjs' },
@@ -598,22 +607,50 @@ function runRecord(dir: string): string {
   return join(dir, '.plugin-manager', 'run.json')
 }
 
-/** A run that exits after `ms`, reading the profile's run record while it is still running. */
-function observingChild(dir: string, pid: number, ms = 100) {
+/**
+ * The record an operation writes for the run it started, read once the record
+ * appears. The write follows the run's launch, so a bound this far above one
+ * atomic file write keeps a missing record reporting as the assertion that
+ * names it rather than as a runner timeout.
+ */
+const RECORD_WAIT_MS = 2_000
+
+/**
+ * A run that stays in flight until the test has read the profile's run record,
+ * so the read observes the run and cannot race its end. `spawned` is the
+ * mocked launcher's hand-over: the wait for the record starts when the run
+ * does, not before the operation reached it under a loaded runner.
+ */
+function observingChild(dir: string, pid: number, waitMs = RECORD_WAIT_MS) {
   const stdout = new PassThrough()
   const stderr = new PassThrough()
   const raw = new EventEmitter()
   const observed: { record: string | undefined } = { record: undefined }
+  const spawned = Promise.withResolvers<undefined>()
   const done = new Promise<FakeOutcome>((resolve) => {
-    setTimeout(() => {
-      observed.record = existsSync(runRecord(dir)) ? readFileSync(runRecord(dir), 'utf8') : undefined
+    void spawned.promise.then(async () => {
+      observed.record = await recordedRun(dir, waitMs)
       stdout.end()
       stderr.end()
       raw.emit('exit', 0, null)
       resolve({ exitCode: 0, failed: false, stdout: '', stderr: '' })
-    }, ms)
+    })
   })
-  return { child: Object.assign(done, { stdout, stderr, nodeChildProcess: raw, pid }), observed }
+  return {
+    child: Object.assign(done, { stdout, stderr, nodeChildProcess: raw, pid }),
+    observed,
+    spawned: () => { spawned.resolve(undefined) },
+  }
+}
+
+/** The written run record, or undefined once `waitMs` passes without one. */
+async function recordedRun(dir: string, waitMs: number): Promise<string | undefined> {
+  const deadline = Date.now() + waitMs
+  for (;;) {
+    if (existsSync(runRecord(dir))) return readFileSync(runRecord(dir), 'utf8')
+    if (Date.now() >= deadline) return undefined
+    await new Promise(resolve => setTimeout(resolve, 1))
+  }
 }
 
 it.each([8192, 30])('refuses to run while a run recorded by an exited operation is still active (output bound %i)', async (outputBytes) => {
@@ -667,8 +704,8 @@ it.each(['not json', 'null', '{"pid":0,"grouped":false}', '{"pid":12,"grouped":"
 
 it.each(['cli', 'service'] as const)('records a %s run while it runs and removes the record once it ends', async (execution) => {
   const { dir, context } = fixture()
-  const { child, observed } = observingChild(dir, 4242)
-  command.run.mockImplementationOnce(() => child)
+  const { child, observed, spawned } = observingChild(dir, 4242)
+  command.run.mockImplementationOnce(() => { spawned(); return child })
   const outcome = await runProfilePnpm(context, ['list'], { execution, outputBytes: 8192 })
   expect(outcome.exitCode).toBe(0)
   expect(JSON.parse(observed.record ?? 'null')).toEqual({
@@ -683,7 +720,9 @@ it('records the install that repairs a refused installation', async () => {
   const base = command.run.getMockImplementation() as (...call: unknown[]) => Promise<FakeOutcome> & FakeChild
   const repair = observingChild(dir, 4343)
   command.run.mockImplementation((...call: unknown[]) => {
-    return (call[1] as readonly string[]).includes('--config.lockfile=false') ? repair.child : base(...call)
+    if (!(call[1] as readonly string[]).includes('--config.lockfile=false')) return base(...call)
+    repair.spawned()
+    return repair.child
   })
   const outcome = await runProfilePnpm(context, ['add', 'incompatible'], { execution: 'service', outputBytes: 8192 })
   expect(outcome.exitCode).toBe(1)

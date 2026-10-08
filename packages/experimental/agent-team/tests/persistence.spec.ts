@@ -13,6 +13,7 @@ import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SubagentService, { snapshotSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import * as SubagentSpawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
 import { MockAdapter, textResponse } from '../../../core/agent-loop/tests/mock-adapter.ts'
+import { mountWorkingDirectoryFixture } from '../../../subagent/subagent/tests/working-directory-fixture.ts'
 import TeamService, { TeamId, TeamMessageId } from '../src/index.ts'
 import { readPersistedSession } from '../src/persisted.ts'
 import { teamProjectionDefinition } from '../src/projection.ts'
@@ -101,6 +102,7 @@ async function stack(
   const ctx = new Context()
   contexts.add(ctx)
   await mountAgentLoopTestDependencies(ctx)
+  await mountWorkingDirectoryFixture(ctx)
   await backend.mount(ctx, root)
   await ctx.plugin(TestSessionQuery)
   await ctx.plugin(AgentLoop, { agents: [] })
@@ -223,7 +225,8 @@ for (const backend of backends) {
         first.ctx.sessions.flush(activeRoot.session),
         first.ctx.sessions.flush(failedRoot.session),
       ])
-      await first.ctx.subagents.startContinuable({
+      await first.ctx.subagents.startActivation({
+        delivery: 'parent',
         childId,
         provider: 'spawn',
         label: 'recoverable recovery',
