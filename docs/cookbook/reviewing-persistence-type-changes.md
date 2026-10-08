@@ -31,7 +31,7 @@ pnpm --silent run verify-persistence-changes --json
 
 Use `--silent` when consuming JSON: pnpm otherwise appends lifecycle failure text to stdout. Failed commands still exit with code 1.
 
-Read the reported root, path, change kind, and version requirement. A referenced type can affect several event digests; inspect every affected root. Until the history covers the new schemas, verification fails. A stale generated inventory also fails verification; the recording command refreshes it. If `changes` is empty after reordering fields or union alternatives, run `pnpm run gen-persistence-catalog` and repeat the check. An unchanged digest needs no new acknowledgement even when copied declarations or source locations produce a catalog diff.
+Read the reported root, path, change kind, and compatibility-review requirement. A referenced type can affect several event digests; inspect every affected root. Until the history covers the new schemas, verification fails. A stale generated inventory also fails verification; the recording command refreshes it. If `changes` is empty after reordering fields or union alternatives, run `pnpm run gen-persistence-catalog` and repeat the check. An unchanged digest needs no new acknowledgement even when copied declarations or source locations produce a catalog diff.
 
 To review a PR independently of its acknowledgement history, save the base and head inventories as local JSON files and run:
 
@@ -46,7 +46,7 @@ The current machine inventory stores complete graphs in `roots`. A `types` entry
 <a id="acknowledge"></a>
 ## 1. Record the change
 
-Check the [accepted baseline](../session-format-status.md#finalization-record) first. Preserve its locked records. Record backward-compatible evolution in a new same-version acknowledgement; implement a higher writer version before recording a breaking change.
+Check the [accepted baseline](../session-format-status.md#finalization-record) first and preserve its locked records. Assess both reader directions under the [compatibility rules](../persistence-changes/README.md#compatibility-rules). A structural difference can remain same-version with evidence of safe interpretation or refusal; it does not automatically require a higher writer version.
 
 Write a local JSON file containing `en` and `zh`, each with `summary`, `compatibility`, and `verification` strings. The following input describes an exercised required-to-optional hook audit field change. Replace the explanation and test evidence with facts about your change; the CLI does not establish these claims.
 
@@ -73,9 +73,9 @@ Use a date and descriptive slug in place of this example id:
 pnpm --silent run persistence-changes --record 2026-09-11-poc-optional --prose .artifacts/persistence-change.prose.json --json
 ```
 
-The command validates the history and paired prose, infers the minimum version decision, and checks any required header increase before writing. It generates the record pair, complete after schemas, both catalogs, the machine inventory, and pairing records. Review the explanations and returned `changes`, `roots`, and `files` before committing. Omitting `--prose` creates unfinished drafts that verification rejects until their explanations are completed.
+The command validates the history and paired prose, selects an established same-version decision or checks the supplied compatibility review, and checks any explicit version-bump decision before writing. It generates the record pair, complete after schemas, both catalogs, the machine inventory, and pairing records. Review the explanations and returned `changes`, `roots`, and `files` before committing. Omitting `--prose` creates unfinished drafts that verification rejects until their explanations are completed.
 
-Inference follows the [fixed compatibility rules](../persistence-changes/README.md#compatibility-rules); it never changes source or relaxes them. If a bump is required, first follow [adding a Session format version](adding-a-session-format-version.md). The record must include its own increasing `SessionHeader.version` transition; an unrelated historical bump cannot authorize it. Routine changes never create another baseline.
+For a change marked `requiresCompatibilityReview`, supply `--review FILE` with a JSON object containing authored, nonempty `oldReaders`, `newReaders`, and `verification` strings. Describe actual older-reader handling of new records, new-reader support for historical records, and executed checks. The generated machine declaration embeds this review identically in both languages. When the header version is unchanged, recording without review or explicit `--decision version-bump` fails with `compatibility-review-required`; structural differences alone do not infer a bump. An actual header version increase can infer `version-bump`. If an effective discriminator cannot prevent unsafe interpretation, follow [adding a Session format version](adding-a-session-format-version.md) and select `--decision version-bump`. That record must include its own increasing `SessionHeader.version` transition; review cannot waive it, and an unrelated historical bump cannot authorize it. Routine changes never create another baseline.
 
 <a id="verify"></a>
 ## 2. Check, commit, and push
@@ -99,11 +99,11 @@ If source changes after recording, review the compatibility explanation and refr
 pnpm --silent run persistence-changes --update 2026-09-11-poc-optional --prose .artifacts/persistence-change.prose.json --json
 ```
 
-The command refreshes the machine declaration, schemas, catalogs, and pairing. Without `--prose`, it preserves the existing explanation. Update refuses the initial baseline, records that another record depends on, and finalized checkpoint records. Outside finalized checkpoints, the tree does not infer review acceptance: preserve accepted history and create a successor instead.
+The command refreshes the machine declaration, schemas, catalogs, and pairing. Without `--prose`, it preserves the existing explanation. A changed schema requiring compatibility review needs a fresh `--review FILE`; an earlier review cannot authorize the new transition. Update refuses the initial baseline, records that another record depends on, and finalized checkpoint records. Outside finalized checkpoints, the tree does not infer review acceptance: preserve accepted history and create a successor instead.
 
 When integration creates competing terminal records, update the unaccepted record against the remaining history, then reassess the resulting diff. An unrelated root's acknowledgement does not need refreshing. The [mechanism decision](../../.agents/notes/implemented/process/2026-09-11-persistence-type-history.md) explains why complete snapshots and per-root predecessors are retained.
 
-An explicit `--decision` remains a checked assertion. For an existing property's value-type change, the following deliberately wrong assertion fails before writing:
+An explicit `--decision same-version` does not replace review evidence. For an existing property value-type change requiring review, this command fails before writing unless a fresh `--review FILE` is supplied:
 
 ```sh
 pnpm --silent run persistence-changes --update 2026-09-11-poc-optional --decision same-version --json

@@ -81,7 +81,7 @@ describe('persistence review', () => {
     const report = reviewPersistenceSchemas(fixture(), fixture({ extraKind: true, changed: true }))
     expect(report.evidence.map(item => item.kind).sort()).toEqual(['kind-added', 'type-changed'])
     expect(report.evidence.find(item => item.kind === 'type-changed')?.locations[0]?.path).toBe('event:agent/inbox/spliced.data.inserted[].source[kind="changing"].value')
-    expect(report.roots.every(root => root.changes.some(change => change.requiresVersionBump))).toBe(true)
+    expect(report.roots.every(root => root.changes.some(change => change.requiresCompatibilityReview))).toBe(true)
   })
 
   it('keeps ambiguous kind matches as additions and removals even when another arm is unchanged', () => {

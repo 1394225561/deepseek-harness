@@ -31,12 +31,20 @@ export interface PersistenceChange {
   readonly decision: PersistenceDecision
 }
 
+/** Authored reader behavior and evidence covering every transition in one acknowledgement. */
+export interface PersistenceCompatibilityReview {
+  readonly oldReaders: string
+  readonly newReaders: string
+  readonly verification: string
+}
+
 /** A document's machine record, independent of its translated prose. */
 export interface PersistenceChangeRecord {
   readonly schemaVersion: 1
   readonly id: string
   readonly baseline: boolean
   readonly changes: readonly PersistenceChange[]
+  readonly review?: PersistenceCompatibilityReview
 }
 
 /** A parsed acknowledgement and its self-contained after schemas. */
@@ -50,7 +58,7 @@ export interface PersistenceTypeChange {
   readonly kind: PersistenceTypeChangeKind
   readonly path: string
   readonly description: string
-  readonly requiresVersionBump: boolean
+  readonly requiresCompatibilityReview: boolean
 }
 
 const CHANGE_DESCRIPTIONS = {
@@ -380,19 +388,19 @@ function matchUnionVariants(candidates: readonly (readonly number[])[]): number[
 /** Classify structural differences using the reader promises saved with each schema.
  * @param before - predecessor root, or absence for an addition.
  * @param after - successor root, or absence for deletion.
- * @returns concrete changes and their format-bump requirement.
+ * @returns concrete changes and their compatibility-review requirement.
  */
 export function classifyPersistenceChange(before: PersistenceRoot | null, after: PersistenceRoot | null): PersistenceTypeChange[] {
   if (before === null) {
     return after === null ? [] : [{ path: after.key, kind: 'root-added', description: 'root added',
-      requiresVersionBump: after.kind !== 'event' || after.surface !== false }]
+      requiresCompatibilityReview: after.kind !== 'event' || after.surface !== false }]
   }
-  if (after === null) return [{ path: before.key, kind: 'root-removed', description: 'root removed', requiresVersionBump: true }]
+  if (after === null) return [{ path: before.key, kind: 'root-removed', description: 'root removed', requiresCompatibilityReview: true }]
   const key = after.key
   const oldRoot = before
   const newRoot = after
-  const describe = (path: string, kind: PersistenceTypeChangeKind, requiresVersionBump = true): PersistenceTypeChange =>
-    ({ path, kind, description: CHANGE_DESCRIPTIONS[kind], requiresVersionBump })
+  const describe = (path: string, kind: PersistenceTypeChangeKind, requiresCompatibilityReview = true): PersistenceTypeChange =>
+    ({ path, kind, description: CHANGE_DESCRIPTIONS[kind], requiresCompatibilityReview })
   const changes: PersistenceTypeChange[] = []
   if (before.kind !== after.kind || before.surface !== after.surface) changes.push(describe(key, 'root-classification-changed'))
   if (before.digest === after.digest) return changes
@@ -413,8 +421,8 @@ export function classifyPersistenceChange(before: PersistenceRoot | null, after:
     // or unmatched union arm cannot leave a cached success for another candidate.
     const active = new Set(ancestors).add(pair)
     const differences: PersistenceTypeChange[] = []
-    const add = (path: string, kind: PersistenceTypeChangeKind, requiresVersionBump = true): void => {
-      differences.push(describe(path, kind, requiresVersionBump))
+    const add = (path: string, kind: PersistenceTypeChangeKind, requiresCompatibilityReview = true): void => {
+      differences.push(describe(path, kind, requiresCompatibilityReview))
     }
     const descend = (oldType: number, newType: number, child: string, childScope: Scope): void => {
       differences.push(...compare(oldType, newType, child, childScope, active))
@@ -511,7 +519,7 @@ export function classifyPersistenceChange(before: PersistenceRoot | null, after:
     if (oldTypes.length !== newTypes.length) return [describe(path, 'union-variants-changed')]
     const candidates = oldTypes.map(oldType => newTypes.map(newType => compare(oldType, newType, path, scope, active)))
     const matching = matchUnionVariants(candidates.map(row => row.flatMap((candidate, index) =>
-      candidate.every(change => !change.requiresVersionBump) ? [index] : [])))
+      candidate.every(change => !change.requiresCompatibilityReview) ? [index] : [])))
     if (matching !== undefined) return matching.flatMap((next, previous) => candidates[previous]?.[next] ?? [])
     const oldByHash = new Map(oldTypes.map(index => [fingerprint(oldRoot.schema, index, 0), index]))
     const newByHash = new Map(newTypes.map(index => [fingerprint(newRoot.schema, index, 1), index]))
@@ -522,7 +530,8 @@ export function classifyPersistenceChange(before: PersistenceRoot | null, after:
   }
   changes.push(...compare(0, 0, key, before.kind === 'event' ? 'event' : 'strict', new Set()))
   if (changes.length === 0) changes.push(describe(key, 'type-changed'))
-  return [...new Map(changes.map(change => [JSON.stringify([change.path, change.kind, change.requiresVersionBump]), change])).values()]
+  return [...new Map(changes.map(change =>
+    [JSON.stringify([change.path, change.kind, change.requiresCompatibilityReview]), change])).values()]
 }
 
 function parseDocument(source: string, filename: string, allowIncomplete = false): PersistenceChangeRecord {
@@ -532,7 +541,9 @@ function parseDocument(source: string, filename: string, allowIncomplete = false
   const block = /^```yaml persistence-change[^\S\n]*\n([\s\S]*?)^```[^\S\n]*$/mu.exec(source)
   if (openings.length !== 1 || block === null) throw new Error(`${filename}: expected exactly one persistence-change block`)
   const input = record(load(block[1] as string, { schema: JSON_SCHEMA }), filename)
-  keys(input, ['schemaVersion', 'id', 'baseline', 'changes'], filename)
+  keys(input, ['schemaVersion', 'id', 'baseline', 'changes'], filename, ['review'])
+  if (input.review !== undefined) parsePersistenceReview(input.review)
+  if (input.baseline === true && input.review !== undefined) throw new Error(`${filename}: baseline cannot contain a compatibility review`)
   if (input.schemaVersion !== 1) throw new Error(`${filename}: unsupported acknowledgement schema version`)
   const id = identifier(input.id, filename)
   if (basename(filename) !== `${id}.md`) throw new Error(`${filename}: record id does not match filename`)
@@ -571,6 +582,10 @@ export function validatePersistenceHistory(entries: readonly PersistenceHistoryE
   if (entries.filter(entry => entry.record.baseline).length !== 1) throw new Error('persistence history requires exactly one baseline')
   const records = new Map<string, PersistenceHistoryEntry>()
   for (const entry of entries) {
+    if (entry.record.review !== undefined) {
+      parsePersistenceReview(entry.record.review)
+      if (entry.record.baseline) throw new Error('baseline cannot contain a compatibility review')
+    }
     if (records.has(entry.record.id)) throw new Error(`duplicate persistence record ${entry.record.id}`)
     records.set(entry.record.id, entry)
     const expected = entry.record.changes.filter(change => change.after !== null).map(change => change.root).sort()
@@ -604,10 +619,14 @@ export function validatePersistenceHistory(entries: readonly PersistenceHistoryE
     if (!found.entry.record.baseline) {
       const differences = classifyPersistenceChange(before, after)
       if (differences.length === 0) throw new Error(`${id}: unchanged acknowledgement for ${root}`)
-      if (differences.some(change => change.requiresVersionBump) && found.change.decision !== 'version-bump') {
+      if (root === 'SessionHeader' && headerVersion(before) !== headerVersion(after) && found.change.decision !== 'version-bump') {
+        throw new PersistenceChangeFailure(`${id}: SessionHeader.version changes require an increasing version-bump transition`,
+          'version-transition-required', differences.map(change => ({ root, ...change })), [rootTransition(before, after)])
+      }
+      if (differences.some(change => change.requiresCompatibilityReview) && found.change.decision !== 'version-bump' && found.entry.record.review === undefined) {
         throw new PersistenceChangeFailure(
-          `${id}: ${root} requires a format version bump (${differences.filter(change => change.requiresVersionBump).map(change => change.path + ': ' + change.description).join('; ')})`,
-          'version-bump-required', differences.map(change => ({ root, ...change })), [rootTransition(before, after)],
+          `${id}: ${root} requires an authored compatibility review or an increasing version bump (${differences.filter(change => change.requiresCompatibilityReview).map(change => change.path + ': ' + change.description).join('; ')})`,
+          'compatibility-review-required', differences.map(change => ({ root, ...change })), [rootTransition(before, after)],
         )
       }
       if (found.change.decision === 'version-bump') {
@@ -690,24 +709,6 @@ function verifyFinalization(
   if (writer === undefined || writer < finalized.version) {
     throw new PersistenceChangeFailure(`Session writer must not precede finalized format ${finalized.version}`, 'finalized-version-order')
   }
-  if (writer > finalized.version) return
-  const afterRoots = new Map(current.roots.map(root => [root.key, root]))
-  const changes: ReportedChange[] = []
-  const transitions: RootTransition[] = []
-  for (const key of [...new Set([...finalized.roots.keys(), ...afterRoots.keys()])].sort()) {
-    const before = finalized.roots.get(key) ?? null
-    const after = afterRoots.get(key) ?? null
-    const differences = classifyPersistenceChange(before, after)
-    if (differences.length === 0) continue
-    changes.push(...differences.map(change => ({ root: key, ...change })))
-    transitions.push(rootTransition(before, after))
-  }
-  if (changes.some(change => change.requiresVersionBump)) {
-    throw new PersistenceChangeFailure(
-      `Breaking changes relative to the accepted Session format ${writer} baseline require format ${writer + 1} or later`,
-      'finalized-format-changed', changes, transitions,
-    )
-  }
 }
 
 /** Verify current generated output and acknowledgement tips together.
@@ -729,7 +730,7 @@ export function verifyPersistenceChanges(root: string, current: PersistenceSchem
     throw new PersistenceChangeFailure(`${CURRENT_SCHEMA} is stale; regenerate the persistence catalog`, 'stale-artifacts', differences, transitions)
   }
   if (differences.length !== 0) {
-    const details = differences.map(change => `  ${change.path}: ${change.description} (${change.requiresVersionBump ? 'version-bump required' : 'same-version allowed'})`)
+    const details = differences.map(change => `  ${change.path}: ${change.description} (${change.requiresCompatibilityReview ? 'compatibility review required' : 'same-version allowed'})`)
     throw new PersistenceChangeFailure(`unacknowledged persistence type changes:\n${details.join('\n')}`, 'unacknowledged-changes', differences, transitions)
   }
   return history
@@ -752,7 +753,11 @@ function reportedDifferences(history: PersistenceHistory, current: PersistenceSc
 }
 
 function machineBlock(change: PersistenceChangeRecord): string {
-  return ['```yaml persistence-change', 'schemaVersion: 1', `id: ${change.id}`, `baseline: ${String(change.baseline)}`, 'changes:',
+  return ['```yaml persistence-change', 'schemaVersion: 1', `id: ${change.id}`, `baseline: ${String(change.baseline)}`,
+    ...(change.review === undefined ? [] : ['review:',
+      `  oldReaders: ${JSON.stringify(change.review.oldReaders)}`,
+      `  newReaders: ${JSON.stringify(change.review.newReaders)}`,
+      `  verification: ${JSON.stringify(change.review.verification)}`]), 'changes:',
     ...change.changes.flatMap(item => [`  - root: ${JSON.stringify(item.root)}`, `    previous: ${item.previous === null ? 'null' : JSON.stringify(item.previous)}`, `    after: ${item.after === null ? 'null' : JSON.stringify(item.after)}`, `    decision: ${item.decision}`]), '```'].join('\n')
 }
 
@@ -767,6 +772,23 @@ function scaffold(change: PersistenceChangeRecord, chinese: boolean, prose?: Per
     '<a id="declaration"></a>', `## ${chinese ? '声明' : 'Declaration'}`, '', machineBlock(change), '',
     '<a id="compatibility"></a>', `## ${compatibility}`, '', prose?.compatibility ?? EXPLANATION_PLACEHOLDER, '',
     '<a id="verification"></a>', `## ${verification}`, '', prose?.verification ?? EVIDENCE_PLACEHOLDER, '', '<a id="dev-note"></a>', `## ${chinese ? '开发备注' : 'Dev Note'}`, '', chinese ? '无。' : 'None.', ''].join('\n')
+}
+
+/** Parse authored compatibility evidence for the exact schemas in an acknowledgement.
+ * @param value - decoded JSON supplied through --review or a saved machine record.
+ * @returns validated evidence with canonical field ordering.
+ */
+export function parsePersistenceReview(value: unknown): PersistenceCompatibilityReview {
+  const input = record(value, 'compatibility review')
+  keys(input, ['oldReaders', 'newReaders', 'verification'], 'compatibility review')
+  const authored = (name: string): string => {
+    const text = textValue(input[name], `compatibility review ${name}`)
+    if (text.trim().length === 0 || /\b(?:TODO|TBD|FIXME)\b/iu.test(text)) {
+      throw new Error(`compatibility review ${name} requires authored text without placeholders`)
+    }
+    return text
+  }
+  return { oldReaders: authored('oldReaders'), newReaders: authored('newReaders'), verification: authored('verification') }
 }
 
 /** Parse explicit authored prose without supplying compatibility or validation claims.
@@ -822,12 +844,14 @@ function executeCommand(
 ): CommandResult {
   const { values } = parseArgs({ args: [...args], strict: true, allowPositionals: false, options: {
     check: { type: 'boolean' }, baseline: { type: 'string' }, record: { type: 'string' }, update: { type: 'string' },
-    decision: { type: 'string' }, root: { type: 'string' }, prose: { type: 'string' }, json: { type: 'boolean' },
+    decision: { type: 'string' }, root: { type: 'string' }, prose: { type: 'string' }, review: { type: 'string' }, json: { type: 'boolean' },
   } })
   if (values.root !== undefined) root = resolve(values.root)
   const selected = [values.check === true, values.baseline !== undefined, values.record !== undefined, values.update !== undefined]
   if (selected.filter(Boolean).length > 1) throw new Error('choose exactly one of --check, --baseline ID, --record ID, or --update ID')
   if (values.record === undefined && values.update === undefined && values.decision !== undefined) throw new Error('--decision requires --record or --update')
+  if (values.review !== undefined && values.record === undefined && values.update === undefined) throw new Error('--review requires --record or --update')
+  let review = values.review === undefined ? undefined : parsePersistenceReview(JSON.parse(readFileSync(resolve(root, values.review), 'utf8')))
   const operation = commandOperation(args)
   if (operation === 'check' && values.prose !== undefined) throw new Error('--prose requires --baseline, --record, or --update')
   const prose = values.prose === undefined ? undefined : parsePersistenceProse(JSON.parse(readFileSync(resolve(root, values.prose), 'utf8')))
@@ -858,18 +882,28 @@ function executeCommand(
   const changed = baseline ? current.roots.map(root => root.key) : currentDifferences(history as PersistenceHistory, current)
   if (changed.length === 0) throw new Error('no persistence type changes to acknowledge')
   const differences = history === undefined ? [] : reportedDifferences(history, current)
-  const decision = values.decision ?? (differences.some(change => change.requiresVersionBump) ? 'version-bump' : 'same-version')
+  const previousHeader = history?.tips.get('SessionHeader')?.root ?? null
+  const currentHeader = current.roots.find(root => root.key === 'SessionHeader') ?? null
+  const versionChanged = !baseline && headerVersion(previousHeader) !== headerVersion(currentHeader)
+  const decision = values.decision ?? (versionChanged ? 'version-bump' : 'same-version')
   const roots = current.roots.filter(root => changed.includes(root.key))
   const change: PersistenceChangeRecord = { schemaVersion: 1, id, baseline, changes: changed.sort().map(key => ({
     root: key, previous: history?.tips.get(key)?.id ?? null,
     after: roots.find(root => root.key === key)?.digest ?? null, decision,
   })) }
+  if (review === undefined && existing?.record.review !== undefined) {
+    if (JSON.stringify(existing.record.changes) !== JSON.stringify(change.changes)) {
+      throw new PersistenceChangeFailure(`${id}: changed schemas require renewed --review evidence`, 'compatibility-review-required', differences, rootTransitions(history, current))
+    }
+    review = existing.record.review
+  }
+  const reviewedChange = review === undefined ? change : { ...change, review }
   const snapshot: PersistenceSchemaInventory = { formatVersion: current.formatVersion, roots, types: [] }
-  validatePersistenceHistory([...prior, { record: change, snapshot }])
+  validatePersistenceHistory([...prior, { record: reviewedChange, snapshot }])
   const document = (chinese: boolean): string => {
     const supplied = chinese ? prose?.zh : prose?.en
-    return existing === undefined ? scaffold(change, chinese, supplied)
-      : updateDocument(readFileSync(join(directory, `${id}${chinese ? '.zh' : ''}.md`), 'utf8'), change, chinese, supplied)
+    return existing === undefined ? scaffold(reviewedChange, chinese, supplied)
+      : updateDocument(readFileSync(join(directory, `${id}${chinese ? '.zh' : ''}.md`), 'utf8'), reviewedChange, chinese, supplied)
   }
   const english = document(false)
   const chinese = document(true)

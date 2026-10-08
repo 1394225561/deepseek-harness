@@ -68,9 +68,9 @@ changes:
 
 <!-- persistence-release-changes:start -->
 
-Detected 4 changed roots and 5 structural differences. The minimum below is calculated using current rules for comparison only; it does not assert historical compliance, migration correctness, or runtime compatibility.
+Detected 4 changed roots and 5 structural differences. The review requirement below is calculated using current rules for comparison only; it does not assert historical compliance, migration correctness, or runtime compatibility.
 
-| Path | Change | Current minimum |
+| Path | Change | Review requirement |
 |---|---|---|
 | `event:deliverables/presented` | `root-added` | `same-version` |
 | `event:feedback/message-put.data.item.category` | `optional-property-added` | `same-version` |

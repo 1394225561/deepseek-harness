@@ -201,8 +201,8 @@ export function renderPersistenceReview(report: PersistenceReview): string {
   }
   lines.push('', '## Authoritative compatibility results', '')
   for (const root of report.roots) {
-    lines.push(`### ${code(root.root)}`, '', `Decision: **${root.changes.some(change => change.requiresVersionBump) ? 'version-bump' : 'same-version'}**.`, '',
-      ...root.changes.map(change => `- ${code(change.path)}: ${change.description} (${code(change.kind)}; requiresVersionBump: ${String(change.requiresVersionBump)}).`), '')
+    lines.push(`### ${code(root.root)}`, '', `Assessment: **${root.changes.some(change => change.requiresCompatibilityReview) ? 'compatibility review required' : 'same-version allowed'}**.`, '',
+      ...root.changes.map(change => `- ${code(change.path)}: ${change.description} (${code(change.kind)}; requiresCompatibilityReview: ${String(change.requiresCompatibilityReview)}).`), '')
   }
   return lines.join('\n').trimEnd() + '\n'
 }
