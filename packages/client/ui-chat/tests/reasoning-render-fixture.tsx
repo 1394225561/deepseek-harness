@@ -1,6 +1,6 @@
 /** Real Slot/Factory rendering seats for standalone reasoning component tests. */
 import { useState, type ReactNode } from 'react'
-import { act } from '@testing-library/react'
+import { act, type RenderResult } from '@testing-library/react'
 import { onTestFinished } from 'vitest'
 import { SlotTestRuntime } from '@deepseek-ai/dsh-client-test-runtime'
 import { LocaleRuntime } from '@deepseek-ai/dsh-client-locale/client'
@@ -57,7 +57,7 @@ export async function createReasoningRenderFixture(language = 'zh') {
     <SessionProvider session={session}>{seats.renderSlot(key, props, options)}</SessionProvider>
   )
   const update = (content: ReactNode): void => { act(() => { setContent(content) }) }
-  const render = (content: ReactNode) => {
+  const render = (content: ReactNode): RenderResult => {
     update(content)
     return { ...view, rerender: update }
   }
