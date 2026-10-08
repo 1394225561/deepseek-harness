@@ -1,4 +1,4 @@
-/** Device selection owns microphone previews only while its native field is focused. */
+/** Device selection owns microphone previews while its page is active. */
 import { useEffect, useRef, useState } from 'react'
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { VoiceInputInjected } from './VoiceInput.tsx'
@@ -33,7 +33,7 @@ function InputLevel({ recording, label }: { recording: Recording; label: string 
 export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, createRecording, t }:
   Pick<InjectFace<VoiceInputInjected>, 'useMicrophoneDevice' | 'selectMicrophone' | 'createRecording'> & PropsLocale<typeof NS>) {
   const selected = useMicrophoneDevice(value => value)
-  const [focused, setFocused] = useState(false), [devices, setDevices] = useState<DeviceChoice[]>([
+  const [devices, setDevices] = useState<DeviceChoice[]>([
     { id: selected.id, label: selected.id === '' ? '' : selected.label },
   ])
   const [preview, setPreview] = useState<Recording>(), [error, setError] = useState<{ failure: unknown }>()
@@ -98,11 +98,14 @@ export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, create
           return next
         })
         if (missing) { release(); setPreview(undefined); setError(undefined) }
-        else if (focused && !document.hidden && !capture) void acquire()
+        else if (!document.hidden && !capture) void acquire()
       } catch (failure) { if (request === enumeration) fail(failure) }
     }
     const changed = (): void => { void refresh() }
-    const hidden = (): void => { if (document.hidden) setFocused(false); else changed() }
+    const hidden = (): void => {
+      if (document.hidden) { release(); setPreview(undefined) }
+      else changed()
+    }
     media?.addEventListener('devicechange', changed, { signal: lifetime.signal })
     document.addEventListener('visibilitychange', hidden, { signal: lifetime.signal })
     changed()
@@ -110,7 +113,7 @@ export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, create
       lifetime.abort()
       release()
     }
-  }, [focused, selected.id, createRecording])
+  }, [selected.id, createRecording])
   const choices = devices.filter(device => !device.unavailable || device.id === selected.id || device.id === '')
   const missing = choices.find(device => device.id === selected.id)?.unavailable
   const deviceName = (device: MicrophoneDevice, index: number): string => {
@@ -122,7 +125,6 @@ export function MicrophonePicker({ useMicrophoneDevice, selectMicrophone, create
     <label htmlFor="voice-input-device">{t('inputDevice')}</label>
     <span className={css.deviceField}>
       <select id="voice-input-device" value={selected.id} className={preview ? css.deviceSelectMeter : undefined}
-        onFocus={() => { setFocused(true) }} onBlur={() => { setFocused(false) }}
         onChange={(event) => {
           const device = choices.find(item => item.id === event.target.value) as DeviceChoice
           selectMicrophone({ id: device.id, label: device.id === '' ? '' : device.label })

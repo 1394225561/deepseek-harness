@@ -138,7 +138,6 @@ it.skipIf(webSnapshotMode() === 'record')('guides voice setup, records from stan
   preparation = { phase: 'standby' }
   for (const listener of readinessListeners) listener()
   const devicePicker = page.getByRole('combobox', { name: 'Input device', exact: true })
-  await devicePicker.focus()
   const level = page.getByRole('img', { name: 'Microphone input level', exact: true })
   await level.waitFor()
   const devices = await page.evaluate(async () => (await navigator.mediaDevices.enumerateDevices())
@@ -177,20 +176,17 @@ it.skipIf(webSnapshotMode() === 'record')('guides voice setup, records from stan
   expect(await devicePicker.evaluate(element => (element as HTMLSelectElement).selectedOptions[0]?.textContent)).toContain('Unavailable')
   await compareOrRefreshGolden(fileURLToPath(new URL('../../../snapshots/web/voice-input/device-missing.expected.md', import.meta.url)),
     await captureStableAria(page, '[data-voice-input-device]', scaffold.workspaceCwd), webSnapshotMode())
-  await devicePicker.blur()
-  await level.waitFor({ state: 'hidden' })
-  await expect.poll(() => page.evaluate(() => (window as Window & { voiceTestStreams?: MediaStream[] }).voiceTestStreams!
-    .every(stream => stream.getTracks().every(track => track.readyState === 'ended')))).toBe(true)
   await page.evaluate(() => {
     (window as Window & { voiceTestExcluded?: string[] }).voiceTestExcluded = []
     navigator.mediaDevices.dispatchEvent(new Event('devicechange'))
   })
   await expect.poll(() => devicePicker.evaluate(element => (element as HTMLSelectElement).selectedOptions[0]?.textContent))
     .not.toContain('Unavailable')
-  expect(await page.evaluate(() => (window as Window & { voiceTestStreams?: MediaStream[] }).voiceTestStreams!.length)).toBe(acquisitions)
-  await devicePicker.focus()
   await level.waitFor()
+  expect(await page.evaluate(() => (window as Window & { voiceTestStreams?: MediaStream[] })
+    .voiceTestStreams!.length)).toBe(acquisitions + 1)
   await devicePicker.blur()
+  await level.waitFor()
   const longName = 'USB studio microphone — conference room recording input'
   await page.evaluate(({ id, label }) => {
     (window as Window & { voiceTestNames?: Record<string, string> }).voiceTestNames![id] = label
@@ -198,17 +194,18 @@ it.skipIf(webSnapshotMode() === 'record')('guides voice setup, records from stan
   }, { id: selectedDevice.deviceId, label: longName })
   await expect.poll(() => devicePicker.evaluate(element => (element as HTMLSelectElement).selectedOptions[0]?.textContent)).toBe(longName)
   await page.setViewportSize({ width: 360, height: 900 })
-  await devicePicker.focus()
   await level.waitFor()
+  await devicePicker.scrollIntoViewIfNeeded()
   await compareOrRefreshGolden(fileURLToPath(new URL('../../../snapshots/web/voice-input/device-long.expected.md', import.meta.url)),
     await captureStableAria(page, '[data-voice-input-device]', scaffold.workspaceCwd), webSnapshotMode())
   const pickerBounds = (await devicePicker.boundingBox())!, levelBounds = (await level.boundingBox())!
   expect(levelBounds.x).toBeGreaterThan(pickerBounds.x + pickerBounds.width / 2)
   expect(levelBounds.x + levelBounds.width).toBeLessThan(pickerBounds.x + pickerBounds.width)
-  await devicePicker.blur()
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.getByRole('button', { name: 'New session', exact: true }).filter({ hasText: 'New Session' }).click()
   await mic.waitFor()
+  await expect.poll(() => page.evaluate(() => (window as Window & { voiceTestStreams?: MediaStream[] }).voiceTestStreams!
+    .every(stream => stream.getTracks().every(track => track.readyState === 'ended')))).toBe(true)
   await page.getByRole('button', { name: 'Plugins', exact: true }).click()
   await page.locator('[data-plugin-package="@deepseek-ai/dsh-experimental-voice-input-bundle"]').waitFor()
   expect(await page.locator('[data-plugin-detail]').count()).toBe(0)
