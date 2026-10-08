@@ -103,9 +103,14 @@ export class HostConnectionService extends Service implements HostConnectionHand
     }
   }
 
-  /** Apply the configured Host/Origin fence, then browser authentication. */
+  /** Active Web carrier's bind address; absent when no Web carrier is mounted. */
+  private get bindHost(): string | undefined {
+    return this.ctx.get('webServer')?.host
+  }
+
+  /** Apply the Host/Origin fence, then browser authentication. */
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
-    if (!isTrustedApiRequest(request, this.trustedHosts)) return 403
+    if (!isTrustedApiRequest(request, this.trustedHosts, this.bindHost)) return 403
     return this.browserAuth.isAuthenticated(request) ? undefined : 401
   }
 
