@@ -32,7 +32,6 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
   let tripwire: ReturnType<typeof watchConsole>
   const sessionEvents: SessionEvent[] = []
   let releasePreparation: (() => void) | undefined
-  const requestStates: string[] = []
 
   beforeAll(async () => {
     scaffold = await launchWebScaffold({
@@ -57,6 +56,7 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
 
   it('drives the recorded prompt to a settled turn (all modes)', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-ptc-drive'))
+    const requestStates: string[] = []
     if (MODE !== 'record') {
       expect(fixtureUserPrompts(await readFile(FIXTURE, 'utf8'))).toEqual([PROMPT])
     }
@@ -121,13 +121,28 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
         releasePreparation?.()
       }
     }
-    const [sessionId] = await Promise.all([settled, observePreparation()])
-    expect(sessionEvents.filter(event => event.type === 'turn/end')).toMatchObject([
-      { data: { reason: { kind: 'completed' } } },
-    ])
-    await expect.poll(() => page.locator('[data-state="preparing"]').count(), { timeout: 15_000 }).toBe(0)
-    if (MODE === 'record') {
-      await recordFixture(scaffold, sessionId, FIXTURE)
+    try {
+      const [sessionId] = await Promise.all([settled, observePreparation()])
+      expect(sessionEvents.filter(event => event.type === 'turn/end')).toMatchObject([
+        { data: { reason: { kind: 'completed' } } },
+      ])
+      await expect.poll(() => page.locator('[data-state="preparing"]').count(), { timeout: 15_000 }).toBe(0)
+      if (MODE === 'record') {
+        await recordFixture(scaffold, sessionId, FIXTURE)
+      } else {
+        await page.getByRole('tab', { name: 'Trajectory', exact: true }).click()
+        await page.getByRole('table').getByRole('button', { name: 'Request #1', exact: true }).click()
+        const panel = page.getByRole('tabpanel')
+        await panel.getByText('Completed', { exact: true }).waitFor()
+        requestStates.push('# Settled request', await panel.locator('dl').first().ariaSnapshot())
+        await panel.getByRole('button', { name: 'Assistant Message', exact: true }).click()
+        await panel.getByText('Completed', { exact: true }).waitFor()
+        requestStates.push('# Settled assistant', await panel.locator('dl').first().ariaSnapshot())
+        await compareOrRefreshGolden(REQUEST_LIFECYCLE_EXPECTED, requestStates.join('\n\n'), MODE)
+      }
+    } finally {
+      releasePreparation?.()
+      await page.getByRole('tab', { name: 'Chat', exact: true }).click()
     }
   }, 200_000)
 
@@ -158,19 +173,6 @@ describe('web e2e: PTC mode round renders nested sub-calls', () => {
     expect(bash).toBeDefined()
     const bashContent = (bash!.data as { content: { type: string; text?: string }[] }).content
     expect(bashContent.filter(block => block.type === 'text').map(block => block.text).join('')).toContain('CODE_ROUND_OK')
-  })
-
-  it.skipIf(MODE === 'record')('settles the request and assistant after the held stream resumes', async () => {
-    await page.getByRole('tab', { name: 'Trajectory', exact: true }).click()
-    await page.getByRole('table').getByRole('button', { name: 'Request #1', exact: true }).click()
-    const panel = page.getByRole('tabpanel')
-    await panel.getByText('Completed', { exact: true }).waitFor()
-    requestStates.push('# Settled request', await panel.locator('dl').first().ariaSnapshot())
-    await panel.getByRole('button', { name: 'Assistant Message', exact: true }).click()
-    await panel.getByText('Completed', { exact: true }).waitFor()
-    requestStates.push('# Settled assistant', await panel.locator('dl').first().ariaSnapshot())
-    await compareOrRefreshGolden(REQUEST_LIFECYCLE_EXPECTED, requestStates.join('\n\n'), MODE)
-    await page.getByRole('tab', { name: 'Chat', exact: true }).click()
   })
 
   it.skipIf(MODE === 'record')('renders the code parent row with always-visible nested sub-rows', async () => {
