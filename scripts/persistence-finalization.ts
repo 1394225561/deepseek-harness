@@ -47,9 +47,7 @@ function recordDigest(entry: PersistenceHistoryEntry): string {
   const semantic = { record: { schemaVersion: record.schemaVersion, id: record.id, baseline: record.baseline,
     changes: [...record.changes].sort((a, b) => compare(a.root, b.root)).map(change => ({
       root: change.root, previous: change.previous, after: change.after, decision: change.decision,
-    })), ...(record.review === undefined ? {} : { review: {
-      oldReaders: record.review.oldReaders, newReaders: record.review.newReaders, verification: record.review.verification,
-    } }) }, snapshot: { formatVersion: entry.snapshot.formatVersion,
+    })) }, snapshot: { formatVersion: entry.snapshot.formatVersion,
     roots: [...entry.snapshot.roots].sort((a, b) => compare(a.key, b.key)).map(root => ({
       key: root.key, ...identity(root), schema: root.schema,
     })) } }

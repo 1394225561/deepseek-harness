@@ -14,7 +14,6 @@ import {
   classifyPersistenceChange,
   loadPersistenceHistory,
   parseHistoricalPersistenceSnapshot,
-  parsePersistenceReview,
   parsePersistenceSnapshot,
   runPersistenceChanges as executePersistenceChanges,
   validatePersistenceHistory,
@@ -225,7 +224,7 @@ describe('accepted persistence baseline', () => {
     }
   })
 
-  it.each(['required field', 'changed type'] as const)('requires a review for V4 %s before rendering or writing', (kind) => {
+  it.each(['required field', 'changed type'] as const)('requires an explicit decision for V4 %s before rendering or writing', (kind) => {
     const root = fixture()
     finalize(root)
     const after = inventory(kind === 'required field' ? { value: 'number', label: 'string' } : { value: 'boolean' }, 4)
@@ -235,7 +234,7 @@ describe('accepted persistence baseline', () => {
       rendered = true
       return []
     })) as { ok: boolean; code: string; changes: PersistenceTypeChange[] }
-    expect(result).toMatchObject({ ok: false, code: 'compatibility-review-required' })
+    expect(result).toMatchObject({ ok: false, code: 'decision-required' })
     expect(result.changes.length).toBeGreaterThan(0)
     expect(result.changes.some(change => change.requiresCompatibilityReview)).toBe(true)
     expect(rendered).toBe(false)
@@ -263,7 +262,7 @@ describe('accepted persistence baseline', () => {
     }
   })
 
-  it('keeps later unaccepted records editable and requires review for a changed optional field', () => {
+  it('keeps later unaccepted records editable and requires an explicit decision for a changed optional field', () => {
     const root = fixture()
     finalize(root)
     const first = inventory({ value: 'number', 'label?': 'string' }, 4)
@@ -277,7 +276,7 @@ describe('accepted persistence baseline', () => {
     expect(classifyPersistenceChange(accepted, breaking.roots[2]!).every(change => !change.requiresCompatibilityReview)).toBe(true)
     const before = contents(root)
     expect(() => runPersistenceChanges(['--record', '2026-09-20-breaking-v4', '--prose', proseFile(root)], root, () => breaking))
-      .toThrow('requires an authored compatibility review')
+      .toThrow('--decision')
     expect(contents(root)).toEqual(before)
   })
 
@@ -304,7 +303,7 @@ describe('accepted persistence baseline', () => {
     expect(() => runPersistenceChanges(['--update', FINALIZED_ID], root, () => after)).toThrow('cannot update finalized acknowledgement')
     const later = inventory({ value: 'string' }, 5)
     expect(() => runPersistenceChanges(['--record', '2026-09-20-without-version', '--prose', proseFile(root)], root, () => later))
-      .toThrow('requires an authored compatibility review')
+      .toThrow('--decision')
   })
 
   it.each([4, 5])('detects a consistently rewritten accepted record while the writer is V%s', (version) => {
@@ -600,7 +599,7 @@ describe('persistence history verification', () => {
   it('binds version-bump decisions to the same record header version transition', () => {
     const base = entry(BASE_ID, inventory(), null, true)
     const breaking = inventory({ value: 'number' }, 4)
-    expect(() => validatePersistenceHistory([base, entry(NEXT_ID, onlyEvent(breaking), BASE_ID)])).toThrow('requires an authored compatibility review')
+    expect(validatePersistenceHistory([base, entry(NEXT_ID, onlyEvent(breaking), BASE_ID)]).tips.get('event:example/value')?.id).toBe(NEXT_ID)
     expect(() => validatePersistenceHistory([base, entry(NEXT_ID, onlyEvent(breaking), BASE_ID, false, 'version-bump')])).toThrow("this record's own")
     const touched = { ...breaking, roots: breaking.roots.filter(root => root.key === 'SessionHeader' || root.kind === 'event') }
     expect(validatePersistenceHistory([base, entry(NEXT_ID, touched, BASE_ID, false, 'version-bump')]).tips.get('SessionHeader')?.id).toBe(NEXT_ID)
@@ -707,7 +706,7 @@ describe('persistence changes current-tree commands', () => {
     verifyPersistenceChanges(root, after)
   })
 
-  it('requires evidence for structural changes before writing', () => {
+  it('requires an explicit decision for structural changes before writing', () => {
     const root = fixture()
     baseline(root)
     const prose = proseFile(root)
@@ -715,17 +714,14 @@ describe('persistence changes current-tree commands', () => {
     const files = readdirSync(directory).sort()
     const inventoryPath = join(root, 'docs/persistence-schema.json')
     const before = readFileSync(inventoryPath, 'utf8')
-    for (const [args, code] of [
-      [[], 'compatibility-review-required'],
-      [['--decision', 'same-version'], 'compatibility-review-required'],
-    ] as const) {
-      const result = jsonResult(runPersistenceChanges(['--record', NEXT_ID, '--prose', prose, '--json', ...args], root,
-        () => inventory({ value: 'number' })))
-      expect(result).toMatchObject({ ok: false, code, files: [],
-        changes: [expect.objectContaining({ requiresCompatibilityReview: true })] })
-      expect(readFileSync(inventoryPath, 'utf8')).toBe(before)
-      expect(readdirSync(directory).sort()).toEqual(files)
-    }
+    const result = jsonResult(runPersistenceChanges(['--record', NEXT_ID, '--prose', prose, '--json'], root,
+      () => inventory({ value: 'number' })))
+    expect(result).toMatchObject({ ok: false, code: 'decision-required', files: [],
+      changes: [expect.objectContaining({ requiresCompatibilityReview: true })] })
+    expect(readFileSync(inventoryPath, 'utf8')).toBe(before)
+    expect(readdirSync(directory).sort()).toEqual(files)
+    expect(jsonResult(runPersistenceChanges(['--record', NEXT_ID, '--decision', 'same-version', '--prose', prose, '--json'], root,
+      () => inventory({ value: 'number' }))).ok).toBe(true)
   })
 
   it('authors a complete pair from explicit prose and reports source changes even when generated artifacts are stale', () => {
@@ -773,8 +769,9 @@ describe('persistence changes current-tree commands', () => {
   it('completes a scaffold through update and rejects invalid prose or decisions before changing files', () => {
     const root = fixture()
     baseline(root)
-    const after = inventory({ value: 'string', 'label?': 'string' })
-    runPersistenceChanges(['--record', NEXT_ID, '--decision', 'same-version'], root, () => after)
+    const after = inventory({ value: 'number' })
+    const draft = runPersistenceChanges(['--record', NEXT_ID, '--decision', 'same-version'], root, () => after)
+    expect(draft).toContain(`--update ${NEXT_ID} --decision same-version --prose FILE`)
     const prose = proseFile(root)
     runPersistenceChanges(['--update', NEXT_ID, '--decision', 'same-version', '--prose', prose], root, () => after)
     expect(runPersistenceChanges(['--check'], root, () => after)).toContain('roots match')
@@ -785,9 +782,9 @@ describe('persistence changes current-tree commands', () => {
     expect(pairedPaths.map(path => readFileSync(path, 'utf8'))).toEqual(completed)
     const path = join(root, `docs/persistence-changes/${NEXT_ID}.md`)
     const before = readFileSync(path, 'utf8')
-    const invalid = inventory({ value: 'number' })
-    const result = jsonResult(runPersistenceChanges(['--update', NEXT_ID, '--decision', 'same-version', '--json'], root, () => invalid))
-    expect(result).toMatchObject({ ok: false, code: 'compatibility-review-required', changes: [expect.objectContaining({ kind: 'type-changed', requiresCompatibilityReview: true })] })
+    const invalid = inventory({ value: 'boolean' })
+    const result = jsonResult(runPersistenceChanges(['--update', NEXT_ID, '--json'], root, () => invalid))
+    expect(result).toMatchObject({ ok: false, code: 'decision-required', changes: [expect.objectContaining({ kind: 'type-changed', requiresCompatibilityReview: true })] })
     expect(readFileSync(path, 'utf8')).toBe(before)
     for (const value of [
       { ...AUTHORED_PROSE, extra: 'unsupported' },
@@ -801,7 +798,7 @@ describe('persistence changes current-tree commands', () => {
     }
   })
 
-  // Six real CLI processes and TypeScript extraction share the Windows coverage test budget.
+  // Real CLI processes and TypeScript extraction share the Windows coverage test budget.
   it('executes the real CLI against a source-only temporary checkout without Git history', { timeout: 90_000 }, () => {
     const root = fixture()
     const physical = join(root, 'packages/session/session-persistence-jsonl/src')
@@ -874,6 +871,27 @@ describe('persistence changes current-tree commands', () => {
     expect(structuredResult).toMatchObject({
       ok: false, code: 'unacknowledged-changes', changes: [expect.objectContaining({ kind: 'type-changed', requiresCompatibilityReview: true })],
     })
+    const missingDecision = cli('--record', FUTURE_ID, '--prose', prose, '--json')
+    expect(missingDecision.error).toBeUndefined()
+    expect(missingDecision.signal).toBeNull()
+    expect(missingDecision.status).toBe(1)
+    expect(JSON.parse(String(missingDecision.stdout))).toMatchObject({ ok: false, code: 'decision-required', files: [] })
+    const chosen = cli('--record', FUTURE_ID, '--decision', 'same-version', '--prose', prose, '--json')
+    expect(chosen.error).toBeUndefined()
+    expect(chosen.signal).toBeNull()
+    expect(chosen.status, String(chosen.stderr)).toBe(0)
+    expect(JSON.parse(String(chosen.stdout))).toMatchObject({ ok: true, operation: 'record' })
+    const missingUpdateDecision = cli('--update', FUTURE_ID, '--json')
+    expect(missingUpdateDecision.error).toBeUndefined()
+    expect(missingUpdateDecision.signal).toBeNull()
+    expect(missingUpdateDecision.status).toBe(1)
+    expect(JSON.parse(String(missingUpdateDecision.stdout))).toMatchObject({ ok: false, code: 'decision-required', files: [] })
+    const chosenUpdate = cli('--update', FUTURE_ID, '--decision', 'same-version', '--json')
+    expect(chosenUpdate.error).toBeUndefined()
+    expect(chosenUpdate.signal).toBeNull()
+    expect(chosenUpdate.status, String(chosenUpdate.stderr)).toBe(0)
+    expect(JSON.parse(String(chosenUpdate.stdout))).toMatchObject({ ok: true, operation: 'update' })
+    verifyPersistenceChanges(root, extractPersistenceSchema(root))
   })
 })
 
@@ -972,15 +990,18 @@ describe('recorded source compatibility policy', () => {
     expect(classifyPersistenceChange(before, after)).toEqual([expect.objectContaining({ kind: 'source-policy-changed', requiresCompatibilityReview: true })])
   })
 
-  it('keeps legacy source transitions strict and never infers promises from the successor', () => {
+  it('flags legacy source transitions while accepting explicit same-version history', () => {
     const before = attributedRoot([EXISTING_SOURCE], { policy: null })
     const after = attributedRoot([EXISTING_SOURCE, NEW_SOURCE], { policy: attributionPolicy([NEW_SOURCE.kind]) })
     expect(classifyPersistenceChange(before, after).some(change => change.requiresCompatibilityReview)).toBe(true)
     const legacyAfter = attributedRoot([EXISTING_SOURCE, NEW_SOURCE], { policy: null })
-    const snapshots = [before, legacyAfter].map(root => ({ formatVersion: 1 as const, roots: [root], types: [] }))
-    expect(() => validatePersistenceHistory([
+    const snapshots: PersistenceSchemaInventory[] = [
+      { formatVersion: 1, roots: [...inventory().roots.filter(root => root.kind !== 'event'), before], types: [] },
+      { formatVersion: 1, roots: [legacyAfter], types: [] },
+    ]
+    expect(validatePersistenceHistory([
       entry(BASE_ID, snapshots[0]!, null, true), entry(NEXT_ID, snapshots[1]!, BASE_ID),
-    ])).toThrow('requires an authored compatibility review')
+    ]).tips.get('event:example/source')?.id).toBe(NEXT_ID)
   })
 
   it('validates policy-bearing history without source names or type records', () => {
@@ -1018,40 +1039,8 @@ describe('recorded source compatibility policy', () => {
   })
 })
 
-const COMPATIBILITY_REVIEW = {
-  oldReaders: 'Readers resume when env is absent and reject an unknown env before execution or repair.',
-  newReaders: 'The reader retains absent-env behavior and understands the explicit env field.',
-  verification: 'Compatibility fixture covers absence, required-feature refusal, and retained historical decoding.',
-}
-
-function reviewFile(root: string, review: unknown = COMPATIBILITY_REVIEW): string {
-  const path = join(root, 'review.json')
-  writeFileSync(path, JSON.stringify(review))
-  return path
-}
-
-describe('authored same-version compatibility review', () => {
-  it('records and reloads evidence containing todo event names and test paths', () => {
-    const root = fixture()
-    baseline(root)
-    const review = {
-      oldReaders: 'Unknown event:todo/write records are refused before resume.',
-      newReaders: 'Historical event:todo/write records retain their meaning.',
-      verification: 'pnpm exec vitest run packages/todo/tool-todo/tests/tool-todo.spec.ts: passed.',
-    }
-    const after = inventory({ value: 'number' })
-    runPersistenceChanges(['--record', NEXT_ID, '--review', reviewFile(root, review), '--prose', proseFile(root)], root, () => after)
-    expect(loadPersistenceHistory(root).entries.find(entry => entry.record.id === NEXT_ID)?.record.review).toEqual(review)
-    expect(runPersistenceChanges(['--check'], root, () => after)).toContain('roots match')
-  })
-
-  it.each(['TODO', 'tbd', 'FIXME: run tests', 'Evidence:\n  todo: run tests', 'Reader behavior is TBD.'])(
-    'rejects standalone placeholder evidence: %s', (verification) => {
-      expect(() => parsePersistenceReview({ ...COMPATIBILITY_REVIEW, verification })).toThrow('without placeholders')
-    },
-  )
-
-  it.each(['optional header', 'removed field', 'changed field'] as const)('admits a reviewed %s after finalization', (kind) => {
+describe('explicit same-version decisions', () => {
+  it.each(['optional header', 'removed field', 'changed field'] as const)('admits an explicitly acknowledged %s after finalization', (kind) => {
     const root = fixture()
     finalize(root)
     const previous = contents(root)
@@ -1067,11 +1056,9 @@ describe('authored same-version compatibility review', () => {
     } else {
       after = inventory({ value: 'boolean' }, 4)
     }
-    const review = reviewFile(root)
     const prose = proseFile(root)
-    expect(jsonResult(runPersistenceChanges(['--record', NEXT_ID, '--review', review, '--prose', prose, '--json'], root, () => after)).ok).toBe(true)
+    expect(jsonResult(runPersistenceChanges(['--record', NEXT_ID, '--decision', 'same-version', '--prose', prose, '--json'], root, () => after)).ok).toBe(true)
     const saved = loadPersistenceHistory(root).entries.find(entry => entry.record.id === NEXT_ID)!
-    expect(saved.record.review).toEqual(COMPATIBILITY_REVIEW)
     expect(saved.record.changes.every(change => change.decision === 'same-version')).toBe(true)
     expect(runPersistenceChanges(['--check'], root, () => after)).toContain('roots match')
     for (const [path, content] of Object.entries(previous).filter(([path]) => path.startsWith('docs/persistence-changes/'))) {
@@ -1079,87 +1066,45 @@ describe('authored same-version compatibility review', () => {
     }
   })
 
-  it.each([null, {}, { ...COMPATIBILITY_REVIEW, extra: true }, { ...COMPATIBILITY_REVIEW, oldReaders: ' ' },
-    { ...COMPATIBILITY_REVIEW, newReaders: 3 }, { ...COMPATIBILITY_REVIEW, verification: 'TODO: test this' }])('rejects invalid review evidence before writing', (review) => {
+  it('cannot waive an actual version transition with a same-version decision', () => {
     const root = fixture()
     baseline(root)
-    const path = reviewFile(root, review)
     const before = contents(root)
-    expect(jsonResult(runPersistenceChanges(['--record', NEXT_ID, '--review', path, '--json'], root, () => inventory({ value: 'number' }))).ok).toBe(false)
-    expect(contents(root)).toEqual(before)
-    expect(() => parsePersistenceReview(review)).toThrow()
-  })
-
-  it('limits --review to acknowledgements and cannot waive a version transition', () => {
-    const root = fixture()
-    baseline(root)
-    const review = reviewFile(root)
-    const before = contents(root)
-    for (const args of [['--check'], ['--baseline', NEXT_ID]]) {
-      expect(() => runPersistenceChanges([...args, '--review', review], root, () => inventory())).toThrow('--review requires --record or --update')
-    }
     for (const version of [2, 4]) {
-      expect(jsonResult(runPersistenceChanges(['--record', NEXT_ID, '--review', review, '--decision', 'same-version', '--json'], root, () => inventory({ value: 'string' }, version))))
+      expect(jsonResult(runPersistenceChanges(['--record', NEXT_ID, '--decision', 'same-version', '--json'], root, () => inventory({ value: 'string' }, version))))
         .toMatchObject({ ok: false, code: 'version-transition-required' })
     }
-    expect(jsonResult(runPersistenceChanges(['--record', NEXT_ID, '--review', review, '--decision', 'version-bump', '--json'], root, () => inventory({ value: 'string' }, 2))))
+    expect(jsonResult(runPersistenceChanges(['--record', NEXT_ID, '--decision', 'version-bump', '--json'], root, () => inventory({ value: 'string' }, 2))))
       .toMatchObject({ ok: false, code: 'version-transition-required' })
     expect(contents(root)).toEqual(before)
   })
 
-  it('requires renewed evidence when an update changes reviewed schemas', () => {
+  it.each(['unchanged', 'changed'] as const)('requires an explicit decision when updating %s flagged schemas', (kind) => {
     const root = fixture()
     baseline(root)
-    const review = reviewFile(root)
-    const prose = proseFile(root)
     const after = inventory({ value: 'number' })
-    runPersistenceChanges(['--record', NEXT_ID, '--review', review, '--prose', prose], root, () => after)
-    runPersistenceChanges(['--update', NEXT_ID, '--prose', prose], root, () => after)
-    expect(loadPersistenceHistory(root).entries.find(entry => entry.record.id === NEXT_ID)?.record.review).toEqual(COMPATIBILITY_REVIEW)
+    runPersistenceChanges(['--record', NEXT_ID, '--decision', 'same-version', '--prose', proseFile(root)], root, () => after)
+    const current = kind === 'changed' ? inventory({ value: 'boolean' }) : after
     const before = contents(root)
-    const changed = inventory({ value: 'boolean' })
-    expect(() => runPersistenceChanges(['--update', NEXT_ID], root, () => changed)).toThrow('renewed --review')
+    expect(jsonResult(runPersistenceChanges(['--update', NEXT_ID, '--json'], root, () => current)))
+      .toMatchObject({ ok: false, code: 'decision-required', files: [] })
     expect(contents(root)).toEqual(before)
-    runPersistenceChanges(['--update', NEXT_ID, '--review', review], root, () => changed)
-    expect(runPersistenceChanges(['--check'], root, () => changed)).toContain('roots match')
+    runPersistenceChanges(['--update', NEXT_ID, '--decision', 'same-version'], root, () => current)
+    expect(runPersistenceChanges(['--check'], root, () => current)).toContain('roots match')
   })
 
-  it('binds review evidence to exact history snapshots and leaves uncovered roots rejected', () => {
+  it('binds same-version decisions to exact history snapshots and leaves uncovered roots rejected', () => {
     const root = fixture()
     baseline(root)
     const after = inventory({ value: 'number' })
-    runPersistenceChanges(['--record', NEXT_ID, '--review', reviewFile(root), '--prose', proseFile(root)], root, () => after)
+    runPersistenceChanges(['--record', NEXT_ID, '--decision', 'same-version', '--prose', proseFile(root)], root, () => after)
     const uncovered = { ...after, roots: after.roots.map(root => root.key === 'SessionHeader'
       ? typeRoot('SessionHeader', { id: 'string', 'env?': 'string' }) : root) }
     commitCurrent(root, uncovered)
     expect(() => verifyPersistenceChanges(root, uncovered)).toThrow('unacknowledged persistence type changes')
     const history = loadPersistenceHistory(root)
-    const reviewed = history.entries.find(entry => entry.record.id === NEXT_ID)!
-    const invalid = { ...reviewed, snapshot: onlyEvent(inventory({ value: 'boolean' })) }
-    expect(() => validatePersistenceHistory([...history.entries.filter(entry => entry !== reviewed), invalid])).toThrow('after digest mismatch')
-  })
-
-  it('locks finalized review semantics while ignoring review key ordering', () => {
-    const root = fixture()
-    baseline(root)
-    const after = inventory({ value: 'number' })
-    runPersistenceChanges(['--record', NEXT_ID, '--review', reviewFile(root), '--prose', proseFile(root)], root, () => after)
-    const history = loadPersistenceHistory(root)
-    const checkpoint = createPersistenceFinalizationCheckpoint(history, after)
-    const reordered = { ...history, entries: history.entries.map(entry => entry.record.review === undefined ? entry : {
-      ...entry, record: { ...entry.record, review: {
-        verification: COMPATIBILITY_REVIEW.verification,
-        newReaders: COMPATIBILITY_REVIEW.newReaders,
-        oldReaders: COMPATIBILITY_REVIEW.oldReaders,
-      } },
-    }) }
-    expect(createPersistenceFinalizationCheckpoint(reordered, after)).toEqual(checkpoint)
-    mkdirSync(join(root, 'docs/persistence-changes/finalized'))
-    writeFileSync(join(root, 'docs/persistence-changes/finalized/v3.json'), JSON.stringify(checkpoint))
-    for (const suffix of ['.md', '.zh.md']) writeFileSync(join(root, `docs/session-format-status${suffix}`), '```yaml session-format-finalization\nlatestFinalizedVersion: 3\n```\n')
-    const changed = { ...history, entries: history.entries.map(entry => entry.record.review === undefined ? entry : {
-      ...entry, record: { ...entry.record, review: { ...entry.record.review, oldReaders: 'A different reader claim.' } },
-    }) }
-    expect(() => loadPersistenceFinalization(root, changed)).toThrow('was removed or changed')
+    const recorded = history.entries.find(entry => entry.record.id === NEXT_ID)!
+    const invalid = { ...recorded, snapshot: onlyEvent(inventory({ value: 'boolean' })) }
+    expect(() => validatePersistenceHistory([...history.entries.filter(entry => entry !== recorded), invalid])).toThrow('after digest mismatch')
   })
 })

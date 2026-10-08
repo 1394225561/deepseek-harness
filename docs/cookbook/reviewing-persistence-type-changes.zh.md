@@ -73,9 +73,9 @@ pnpm --silent run persistence-review --before .artifacts/base.schema.json --afte
 pnpm --silent run persistence-changes --record 2026-09-11-poc-optional --prose .artifacts/persistence-change.prose.json --json
 ```
 
-命令在写入前验证历史和双语说明，选择明确允许的同版本决策或检查所提供的兼容性评审，并检查显式升版本决策。它生成记录对、完整的变更后 schema、两份目录、机器清单和配对记录。提交前审阅说明及返回的 `changes`、`roots` 和 `files`。省略 `--prose` 会创建未完成草稿，验证将拒绝它们，直到说明补齐。
+命令在写入前验证历史与双语说明、推断已明确允许的同版本决策，并检查显式兼容性决策。它生成记录对、完整的 after schema、两个目录、机器清单与配对记录。提交前检查说明及返回的 `changes`、`roots`、`files`。省略 `--prose` 会生成未完成草稿；说明填写完成前，验证会拒绝它们。
 
-对于标为 `requiresCompatibilityReview` 的变更，提供 `--review FILE`，文件为 JSON 对象，包含作者填写的非空 `oldReaders`、`newReaders` 和 `verification` 字符串。说明旧读取器如何实际处理新记录、新读取器如何支持历史记录，以及已执行的检查。生成的机器声明在两种语言中嵌入相同评审。头版本未变时，没有评审且未显式指定 `--decision version-bump` 的记录以 `compatibility-review-required` 失败；仅凭结构差异不会推断升版本。实际头版本递增可以推断出 `version-bump`。若有效判别信息无法阻止不安全解释，遵循[添加会话格式版本](adding-a-session-format-version.zh.md)，并选择 `--decision version-bump`。该记录必须包含自身的 `SessionHeader.version` 递增转换；评审不能豁免它，无关的历史升版本也不能授权它。日常变更不创建另一条基线。
+对于标为 `requiresCompatibilityReview` 的变更，在确认记录的兼容性部分说明两个方向的读取器行为，并在验证部分记录已执行的检查。证据支持保持版本时，提供 `--decision same-version`；记录或更新被标记的变更时，若头版本未变且缺少显式决策，会以 `decision-required` 失败。仅凭结构差异不会推断升版本。实际头版本递增可以推断出 `version-bump`。若有效判别信息无法阻止不安全解释，遵循[添加会话格式版本](adding-a-session-format-version.zh.md)，并选择 `--decision version-bump`。该记录必须包含自身的 `SessionHeader.version` 递增转换；无关的历史升版本不能授权它。日常变更不创建另一条基线。
 
 <a id="verify"></a>
 ## 2. 检查、提交并推送
@@ -99,11 +99,11 @@ pnpm run doc-sync
 pnpm --silent run persistence-changes --update 2026-09-11-poc-optional --prose .artifacts/persistence-change.prose.json --json
 ```
 
-命令刷新机器声明、schema、目录和配对。没有 `--prose` 时，它保留已有说明。需要兼容性评审的 schema 再次变化时，必须提供新的 `--review FILE`；之前的评审不能授权新转换。更新会拒绝初始基线、其他记录所依赖的记录，以及已被定稿检查点锁定的记录。定稿检查点之外，目录不会推断审阅接受状态：保留已接受历史，并创建后继。
+命令刷新机器声明、schema、目录和配对。没有 `--prose` 时，它保留已有说明。根据完整转换重新评估说明，并为任何被标记的同版本更新提供 `--decision same-version`。更新会拒绝初始基线、其他记录所依赖的记录，以及已被定稿检查点锁定的记录。定稿检查点之外，目录不会推断审阅接受状态：保留已接受历史，并创建后继。
 
 集成产生竞争末端记录时，根据剩余历史更新尚未接受的记录，再重新评估最终差异。无关根的确认无需刷新。[机制决策](../../.agents/notes/implemented/process/2026-09-11-persistence-type-history.zh.md)解释为何保留完整快照和逐根前驱。
 
-显式 `--decision same-version` 不能替代评审证据。若已有属性的值类型变化需要评审，以下命令在未提供新 `--review FILE` 时会在写入前失败：
+若已有属性的值类型变化需要评审，以下命令记录显式的同版本选择。记录中的兼容性与验证部分必须支持该选择：
 
 ```sh
 pnpm --silent run persistence-changes --update 2026-09-11-poc-optional --decision same-version --json

@@ -31,20 +31,12 @@ export interface PersistenceChange {
   readonly decision: PersistenceDecision
 }
 
-/** Authored reader behavior and evidence covering every transition in one acknowledgement. */
-export interface PersistenceCompatibilityReview {
-  readonly oldReaders: string
-  readonly newReaders: string
-  readonly verification: string
-}
-
 /** A document's machine record, independent of its translated prose. */
 export interface PersistenceChangeRecord {
   readonly schemaVersion: 1
   readonly id: string
   readonly baseline: boolean
   readonly changes: readonly PersistenceChange[]
-  readonly review?: PersistenceCompatibilityReview
 }
 
 /** A parsed acknowledgement and its self-contained after schemas. */
@@ -541,9 +533,7 @@ function parseDocument(source: string, filename: string, allowIncomplete = false
   const block = /^```yaml persistence-change[^\S\n]*\n([\s\S]*?)^```[^\S\n]*$/mu.exec(source)
   if (openings.length !== 1 || block === null) throw new Error(`${filename}: expected exactly one persistence-change block`)
   const input = record(load(block[1] as string, { schema: JSON_SCHEMA }), filename)
-  keys(input, ['schemaVersion', 'id', 'baseline', 'changes'], filename, ['review'])
-  if (input.review !== undefined) parsePersistenceReview(input.review)
-  if (input.baseline === true && input.review !== undefined) throw new Error(`${filename}: baseline cannot contain a compatibility review`)
+  keys(input, ['schemaVersion', 'id', 'baseline', 'changes'], filename)
   if (input.schemaVersion !== 1) throw new Error(`${filename}: unsupported acknowledgement schema version`)
   const id = identifier(input.id, filename)
   if (basename(filename) !== `${id}.md`) throw new Error(`${filename}: record id does not match filename`)
@@ -582,10 +572,6 @@ export function validatePersistenceHistory(entries: readonly PersistenceHistoryE
   if (entries.filter(entry => entry.record.baseline).length !== 1) throw new Error('persistence history requires exactly one baseline')
   const records = new Map<string, PersistenceHistoryEntry>()
   for (const entry of entries) {
-    if (entry.record.review !== undefined) {
-      parsePersistenceReview(entry.record.review)
-      if (entry.record.baseline) throw new Error('baseline cannot contain a compatibility review')
-    }
     if (records.has(entry.record.id)) throw new Error(`duplicate persistence record ${entry.record.id}`)
     records.set(entry.record.id, entry)
     const expected = entry.record.changes.filter(change => change.after !== null).map(change => change.root).sort()
@@ -622,12 +608,6 @@ export function validatePersistenceHistory(entries: readonly PersistenceHistoryE
       if (root === 'SessionHeader' && headerVersion(before) !== headerVersion(after) && found.change.decision !== 'version-bump') {
         throw new PersistenceChangeFailure(`${id}: SessionHeader.version changes require an increasing version-bump transition`,
           'version-transition-required', differences.map(change => ({ root, ...change })), [rootTransition(before, after)])
-      }
-      if (differences.some(change => change.requiresCompatibilityReview) && found.change.decision !== 'version-bump' && found.entry.record.review === undefined) {
-        throw new PersistenceChangeFailure(
-          `${id}: ${root} requires an authored compatibility review or an increasing version bump (${differences.filter(change => change.requiresCompatibilityReview).map(change => change.path + ': ' + change.description).join('; ')})`,
-          'compatibility-review-required', differences.map(change => ({ root, ...change })), [rootTransition(before, after)],
-        )
       }
       if (found.change.decision === 'version-bump') {
         const header = found.entry.record.changes.find(change => change.root === 'SessionHeader')
@@ -753,11 +733,7 @@ function reportedDifferences(history: PersistenceHistory, current: PersistenceSc
 }
 
 function machineBlock(change: PersistenceChangeRecord): string {
-  return ['```yaml persistence-change', 'schemaVersion: 1', `id: ${change.id}`, `baseline: ${String(change.baseline)}`,
-    ...(change.review === undefined ? [] : ['review:',
-      `  oldReaders: ${JSON.stringify(change.review.oldReaders)}`,
-      `  newReaders: ${JSON.stringify(change.review.newReaders)}`,
-      `  verification: ${JSON.stringify(change.review.verification)}`]), 'changes:',
+  return ['```yaml persistence-change', 'schemaVersion: 1', `id: ${change.id}`, `baseline: ${String(change.baseline)}`, 'changes:',
     ...change.changes.flatMap(item => [`  - root: ${JSON.stringify(item.root)}`, `    previous: ${item.previous === null ? 'null' : JSON.stringify(item.previous)}`, `    after: ${item.after === null ? 'null' : JSON.stringify(item.after)}`, `    decision: ${item.decision}`]), '```'].join('\n')
 }
 
@@ -772,24 +748,6 @@ function scaffold(change: PersistenceChangeRecord, chinese: boolean, prose?: Per
     '<a id="declaration"></a>', `## ${chinese ? '声明' : 'Declaration'}`, '', machineBlock(change), '',
     '<a id="compatibility"></a>', `## ${compatibility}`, '', prose?.compatibility ?? EXPLANATION_PLACEHOLDER, '',
     '<a id="verification"></a>', `## ${verification}`, '', prose?.verification ?? EVIDENCE_PLACEHOLDER, '', '<a id="dev-note"></a>', `## ${chinese ? '开发备注' : 'Dev Note'}`, '', chinese ? '无。' : 'None.', ''].join('\n')
-}
-
-/** Parse authored compatibility evidence for the exact schemas in an acknowledgement.
- * Placeholder checks exclude marker names embedded in event identifiers and paths.
- * @param value - decoded JSON supplied through --review or a saved machine record.
- * @returns validated evidence with canonical field ordering.
- */
-export function parsePersistenceReview(value: unknown): PersistenceCompatibilityReview {
-  const input = record(value, 'compatibility review')
-  keys(input, ['oldReaders', 'newReaders', 'verification'], 'compatibility review')
-  const authored = (name: string): string => {
-    const text = textValue(input[name], `compatibility review ${name}`)
-    if (text.trim().length === 0 || /(?:^|\s)(?:TODO|TBD|FIXME)(?=$|[\s:;,.!?])/iu.test(text)) {
-      throw new Error(`compatibility review ${name} requires authored text without placeholders`)
-    }
-    return text
-  }
-  return { oldReaders: authored('oldReaders'), newReaders: authored('newReaders'), verification: authored('verification') }
 }
 
 /** Parse explicit authored prose without supplying compatibility or validation claims.
@@ -845,14 +803,12 @@ function executeCommand(
 ): CommandResult {
   const { values } = parseArgs({ args: [...args], strict: true, allowPositionals: false, options: {
     check: { type: 'boolean' }, baseline: { type: 'string' }, record: { type: 'string' }, update: { type: 'string' },
-    decision: { type: 'string' }, root: { type: 'string' }, prose: { type: 'string' }, review: { type: 'string' }, json: { type: 'boolean' },
+    decision: { type: 'string' }, root: { type: 'string' }, prose: { type: 'string' }, json: { type: 'boolean' },
   } })
   if (values.root !== undefined) root = resolve(values.root)
   const selected = [values.check === true, values.baseline !== undefined, values.record !== undefined, values.update !== undefined]
   if (selected.filter(Boolean).length > 1) throw new Error('choose exactly one of --check, --baseline ID, --record ID, or --update ID')
   if (values.record === undefined && values.update === undefined && values.decision !== undefined) throw new Error('--decision requires --record or --update')
-  if (values.review !== undefined && values.record === undefined && values.update === undefined) throw new Error('--review requires --record or --update')
-  let review = values.review === undefined ? undefined : parsePersistenceReview(JSON.parse(readFileSync(resolve(root, values.review), 'utf8')))
   const operation = commandOperation(args)
   if (operation === 'check' && values.prose !== undefined) throw new Error('--prose requires --baseline, --record, or --update')
   const prose = values.prose === undefined ? undefined : parsePersistenceProse(JSON.parse(readFileSync(resolve(root, values.prose), 'utf8')))
@@ -886,25 +842,24 @@ function executeCommand(
   const previousHeader = history?.tips.get('SessionHeader')?.root ?? null
   const currentHeader = current.roots.find(root => root.key === 'SessionHeader') ?? null
   const versionChanged = !baseline && headerVersion(previousHeader) !== headerVersion(currentHeader)
+  if (values.decision === undefined && !versionChanged && differences.some(change => change.requiresCompatibilityReview)) {
+    throw new PersistenceChangeFailure(
+      `${id}: review reader compatibility and choose --decision same-version or --decision version-bump`,
+      'decision-required', differences, rootTransitions(history, current),
+    )
+  }
   const decision = values.decision ?? (versionChanged ? 'version-bump' : 'same-version')
   const roots = current.roots.filter(root => changed.includes(root.key))
   const change: PersistenceChangeRecord = { schemaVersion: 1, id, baseline, changes: changed.sort().map(key => ({
     root: key, previous: history?.tips.get(key)?.id ?? null,
     after: roots.find(root => root.key === key)?.digest ?? null, decision,
   })) }
-  if (review === undefined && existing?.record.review !== undefined) {
-    if (JSON.stringify(existing.record.changes) !== JSON.stringify(change.changes)) {
-      throw new PersistenceChangeFailure(`${id}: changed schemas require renewed --review evidence`, 'compatibility-review-required', differences, rootTransitions(history, current))
-    }
-    review = existing.record.review
-  }
-  const reviewedChange = review === undefined ? change : { ...change, review }
   const snapshot: PersistenceSchemaInventory = { formatVersion: current.formatVersion, roots, types: [] }
-  validatePersistenceHistory([...prior, { record: reviewedChange, snapshot }])
+  validatePersistenceHistory([...prior, { record: change, snapshot }])
   const document = (chinese: boolean): string => {
     const supplied = chinese ? prose?.zh : prose?.en
-    return existing === undefined ? scaffold(reviewedChange, chinese, supplied)
-      : updateDocument(readFileSync(join(directory, `${id}${chinese ? '.zh' : ''}.md`), 'utf8'), reviewedChange, chinese, supplied)
+    return existing === undefined ? scaffold(change, chinese, supplied)
+      : updateDocument(readFileSync(join(directory, `${id}${chinese ? '.zh' : ''}.md`), 'utf8'), change, chinese, supplied)
   }
   const english = document(false)
   const chinese = document(true)
@@ -920,7 +875,7 @@ function executeCommand(
   for (const file of outputs) writeFileSync(resolve(root, file.path), file.content, { flag: recordFiles.includes(file) && !update ? 'wx' : 'w' })
   const completion = baseline
     ? 'Complete both record documents and refresh their translation pairing.'
-    : `Complete the compatibility and verification prose with --update ${id} --prose FILE.`
+    : `Complete the compatibility and verification prose with --update ${id} --decision ${decision} --prose FILE.`
   const message = existing === undefined && prose === undefined
     ? `Created ${HISTORY_DIRECTORY}/${id}.md and paired schema files. ${completion}`
     : `${update ? 'Updated' : 'Created'} ${HISTORY_DIRECTORY}/${id}.md; schema artifacts and bilingual pairing are current.`

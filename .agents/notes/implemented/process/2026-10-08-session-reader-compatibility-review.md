@@ -14,7 +14,7 @@ The user chose reader behavior as the version criterion. A same-version change i
 
 New readers preserve the meaning of supported historical records and accept valid mixtures of old and new representations within one Session. Removing a required field or changing its representation is not automatically a bump: the replacement must remain distinguishable, and released-reader behavior must satisfy the same admission requirements. A version increase is required when no effective existing discriminator prevents unsafe interpretation. Reusing a logged value with a different meaning is one example; missing admission checks are another.
 
-The schema classifier identifies structural changes requiring compatibility review instead of declaring them inherently version-breaking. A same-version acknowledgement for such a change includes machine-record `review` evidence for `oldReaders`, `newReaders`, and `verification`. The checker requires authored evidence; it cannot prove that the explanation matches runtime behavior. An explicit version-bump decision still requires its own increasing `SessionHeader.version`. Accepted records and checkpoints remain immutable; new review evidence participates in subsequent checkpoint hashes without rewriting legacy record hashes.
+The schema classifier identifies structural changes requiring compatibility review instead of declaring them inherently version-breaking. Every schema difference still needs an acknowledgement. Established safe cases infer same-version; other same-version changes require an explicit decision when recording or updating. The existing Compatibility and Verification sections record reader behavior and executed checks. The checker validates the decision and recorded schemas; it cannot prove that the explanation matches runtime behavior. An explicit version-bump decision still requires its own increasing `SessionHeader.version`. Accepted machine records and checkpoints remain immutable; prose remains outside checkpoint hashes.
 
 This decision partially supersedes the structural bump criterion in the [version-mechanism note](../architecture/2026-08-10-session-log-version-mechanism.md) and the automatic version floor in the [persistence-type-history note](2026-09-11-persistence-type-history.md). Their monotonic integer, required unknown-event default, type history, and immutable generation decisions remain active. The [review procedure](../../../../docs/cookbook/reviewing-persistence-type-changes.md) owns authoring and validation details.
 
@@ -29,6 +29,8 @@ One codec per integer version and one migration per adjacent pair remain suffici
 **Treat every unknown field or value as a refusal mechanism.** Released readers do not uniformly reject unknown values before recovery. Compatibility evidence must inspect the actual admission and mutation paths; a changed schema alone supplies no guarantee.
 
 **Permit same-version changes without recorded reader evidence.** A schema graph cannot establish safe execution, lossless retention, historical interpretation, or mixed-record behavior. Explicit review preserves these obligations without making the classifier pretend to prove them.
+
+**Add a separate JSON review object and hash its evidence.** The user rejected duplicating the existing Compatibility and Verification prose. Extra input fields and renewal rules add authoring work without establishing semantic safety. An explicit same-version choice and the existing acknowledgement keep the decision visible without a second evidence format.
 
 ## Consequences
 
