@@ -648,6 +648,7 @@ describe('CI workflow', () => {
 
   it('publishes the scaled benchmark report even when a budget fails', () => {
     const benchmark = workflowJob(loadWorkflow('.github/workflows/ci.yml'), 'node-24-bench')
+    if (!Array.isArray(benchmark.steps)) throw new TypeError('benchmark job must define steps')
 
     expect(benchmark.steps).toContainEqual({
       name: 'Upload scaled benchmark report',
@@ -657,10 +658,14 @@ describe('CI workflow', () => {
         name: 'benchmark-report',
         path: 'benchmarks/.dsh-report/',
         'include-hidden-files': true,
-        'if-no-files-found': 'ignore',
+        'if-no-files-found': 'warn',
         'retention-days': 7,
       },
     })
+
+    const uploadIndex = benchmark.steps.findIndex(step => isRecord(step) && step.name === 'Upload scaled benchmark report')
+    const benchmarkIndex = benchmark.steps.findIndex(step => isRecord(step) && step.name === 'Run performance benchmarks')
+    expect(uploadIndex).toBeGreaterThan(benchmarkIndex)
   })
 
   it('gives the Wine Host TypeScript compile the repository heap budget', () => {
