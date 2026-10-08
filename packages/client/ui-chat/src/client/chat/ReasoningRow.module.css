@@ -14,7 +14,7 @@
 
 /* The uncapped body scrolls with the conversation; keep its collapse toggle
    reachable. Compact Markdown code banners stay in flow below this header. */
-.root[data-expanded] [data-open] [data-disclosure-row] {
+.root[data-expanded] [data-open] [data-disclosure-header] {
   position: sticky;
   top: 0;
   z-index: 1;
@@ -27,6 +27,48 @@
 
 .title {
   font-weight: 400;
+}
+
+.root .headerAction {
+  flex: none;
+  height: calc(24px + var(--dsh-content-font-delta, 0px));
+  padding: 0 2px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: calc(var(--dsh-content-font-size-secondary, 13px) - 1px);
+  line-height: 18px;
+}
+
+.root .headerAction:hover,
+.root .headerAction:active {
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.root .headerAction:focus-visible {
+  outline: var(--dsw-focus-ring-width, 2px) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: -2px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .headerAction:not([data-persistent]) {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 100ms ease;
+  }
+
+  .root:hover .headerAction,
+  .root:focus-within .headerAction {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .headerAction:not([data-persistent]) {
+    transition: none;
+  }
 }
 
 .separator {

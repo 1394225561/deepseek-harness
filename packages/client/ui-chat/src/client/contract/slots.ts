@@ -68,12 +68,22 @@ export interface QuotaNoticeState {
   seq: number
 }
 
+/** A display-only action beside the expanded reasoning title. */
+export interface ReasoningHeaderAction {
+  label: string
+  persistent: boolean
+  disabled: boolean
+  onClick: () => void
+}
+
 /** Original reasoning offered to optional display-only renderers. */
 export interface ReasoningBodyOwnerProps {
   /** Complete or streaming model-provided reasoning, unchanged by display extensions. */
   text: string
   /** Whether the reasoning tail is still streaming. */
   running: boolean
+  /** Publish the body's action; clear it when the body unmounts. */
+  setHeaderAction: (action: ReasoningHeaderAction | undefined) => void
 }
 
 /** Owner currency of one quota notice offered to the frame-wide chain. */

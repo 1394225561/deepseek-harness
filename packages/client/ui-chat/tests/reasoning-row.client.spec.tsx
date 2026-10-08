@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { useEffect, type ComponentProps } from 'react'
+import type { ReasoningBodyOwnerProps } from '../src/client/contract/slots.ts'
 import type { ChainRenderOpts } from '@deepseek-ai/dsh-client-ui-slots'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render } from '@testing-library/react'
@@ -28,9 +30,37 @@ describe('ReasoningRow', () => {
     expect(extension).not.toHaveBeenCalled()
     fireEvent.click(view.getByRole('button'))
     expect(extension.mock.calls[0]?.[0]).toBe('conversation.chat.reasoning-body')
-    expect(extension.mock.calls[0]?.[1]).toEqual({ text: 'Original thought', running: false })
+    expect(extension.mock.calls[0]?.[1]).toMatchObject({ text: 'Original thought', running: false })
     expect(extension.mock.calls[0]?.[2]?.fallback).toBeDefined()
     expect(view.getAllByText('Original thought')).toHaveLength(1)
+  })
+
+  it.each([false, true])('keeps the body action outside the disclosure and shimmer (persistent: %s)', (persistent) => {
+    const onClick = vi.fn()
+    function Body({ setHeaderAction }: ReasoningBodyOwnerProps) {
+      useEffect(() => {
+        setHeaderAction({ label: '查看原文', persistent, disabled: false, onClick })
+        return () => { setHeaderAction(undefined) }
+      }, [setHeaderAction])
+      return <p>Body</p>
+    }
+    const extension: NonNullable<ComponentProps<typeof ReasoningRow>['renderReasoningBody']> = (_slot, owner) => <Body {...owner as ReasoningBodyOwnerProps} />
+    const view = render(<ReasoningRow useDisclosure={useDisclosure} text="Original thought" running
+      usePresentation={useDetailedPresentation} renderReasoningBody={extension} t={t} />)
+    const disclosure = view.getByRole('button')
+    fireEvent.click(disclosure)
+    const action = view.getByRole('button', { name: '查看原文' })
+    expect(action.parentElement).toBe(disclosure.parentElement)
+    expect(action.hasAttribute('data-persistent')).toBe(persistent)
+    expect(view.getAllByRole('button', { name: '查看原文' })).toHaveLength(1)
+    fireEvent.click(action)
+    expect(onClick).toHaveBeenCalledTimes(1)
+    expect(disclosure.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(disclosure)
+    expect(view.queryByRole('button', { name: '查看原文' })).toBeNull()
+    expect(view.getByRole('button')).toBe(disclosure)
+    fireEvent.click(disclosure)
+    expect(view.getByRole('button', { name: '查看原文' })).toBeTruthy()
   })
 
   it.each([
@@ -324,7 +354,7 @@ describe('ReasoningRow', () => {
     fireEvent.click(view.getByText('思考'))
     expect(
       view.container.querySelector(
-        '[data-variant="think"][data-expanded] [data-open] [data-disclosure-row]',
+        '[data-variant="think"][data-expanded] [data-open] [data-disclosure-header]',
       ),
     ).not.toBeNull()
   })
