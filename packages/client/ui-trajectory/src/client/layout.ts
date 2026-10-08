@@ -17,7 +17,7 @@ import type {
   TrajectoryCellProps,
   TrajectorySourceBlock,
 } from './trajectory-record.ts'
-import type { TrajectorySnapshot } from './trajectory-contract.ts'
+import type { TrajectoryPartialAssistant, TrajectorySnapshot } from './trajectory-contract.ts'
 import { formatElapsedSeconds } from './trajectory-record.ts'
 import type { TrajectoryTranslate } from './locales.ts'
 import { COMPACTION_INTERRUPTED_ERROR } from './copy-codes.ts'
@@ -731,7 +731,7 @@ function expandAssistant(
   callStarts: ReadonlyMap<string, number>,
   calls: ReadonlyMap<string, ToolCallBlock>,
   t: TrajectoryTranslate,
-  opts?: { streaming?: boolean; timing?: NonNullable<TrajectorySnapshot['partial']>['timing'] },
+  opts?: { streaming?: boolean; timing?: TrajectoryPartialAssistant['timing'] },
 ): LaidCell[] {
   if (opts?.streaming === true && node.blocks.length === 0) return []
   const out: LaidCell[] = []

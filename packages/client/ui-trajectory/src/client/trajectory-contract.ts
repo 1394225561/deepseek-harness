@@ -1,5 +1,5 @@
 import type {
-  AssistantMessageNode, ConversationLocation, ConversationNode, ConversationPromptSnapshot,
+  AssistantMessageNode, AssistantTiming, ConversationLocation, ConversationNode, ConversationPromptSnapshot,
   ConversationViewNode, MessageImagesOwnerProps, PartialAssistant, RequestPromptChange,
   RequestView, RunningToolCall, SystemPromptNode, ToolCallBlock,
 } from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -16,7 +16,7 @@ export interface TrajectoryRequestHeaderState {
 
 /** In-flight assistant output with the loaded Step start and first token timestamps. */
 export interface TrajectoryPartialAssistant extends PartialAssistant {
-  readonly timing?: Pick<NonNullable<AssistantMessageNode['timing']>, 'stepStartTime' | 'firstTokenTime'>
+  readonly timing?: Pick<AssistantTiming, 'stepStartTime' | 'firstTokenTime'>
 }
 
 /** One independently assembled contribution to the legacy Trajectory ledger. */

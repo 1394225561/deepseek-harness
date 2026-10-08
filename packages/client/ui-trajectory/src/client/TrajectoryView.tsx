@@ -256,7 +256,7 @@ export function TrajectoryView({
         const provider = request?.providerMetadata?.provider ?? node?.providerMetadata?.provider
         const model = request?.providerMetadata?.model ?? node?.providerMetadata?.model
         const requestConfig = request?.requestConfig ?? node?.requestConfig
-        const startedAt = request?.startedAt ?? node?.timing?.stepStartTime
+        const startedAt = request?.startedAt
         const completedAt = request === undefined ? node?.time : request.completedAt
         const resultSeq = request?.resultSeq ?? node?.seq
         numbered.push({
@@ -266,7 +266,7 @@ export function TrajectoryView({
           group: t('group.step', { step }),
           number: index + 1,
           status: request?.status ?? (node?.interrupted === true ? 'error' : 'complete'),
-          ...(startedAt == null ? {} : { startedAt }),
+          ...(startedAt === undefined ? {} : { startedAt }),
           ...(completedAt === undefined ? {} : { completedAt }),
           ...(request?.error === undefined ? {} : { error: request.error }),
           ...(request?.errorCode === undefined ? {} : { errorCode: request.errorCode }),
