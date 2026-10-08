@@ -1,9 +1,13 @@
 import { setImmediate } from 'node:timers/promises'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { expect, it, onTestFinished, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { SessionId } from '@deepseek-ai/dsh-session'
+import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import LocalJobRegistry from '@deepseek-ai/dsh-jobs-local'
@@ -65,31 +69,35 @@ it.each([0, 1, 2])('retains Agent resources until all work exits with %i failed 
   expect(ctx.sessions.get(agent.session.id)).toBeUndefined()
 })
 
-it.each(['loop', 'root'] as const)('unloads %s while a background one-shot child is stopping', async (owner) => {
+it.each(['loop', 'root'] as const)('unloads %s while a background child is stopping', async (owner) => {
   const ctx = new Context()
   const release = Promise.withResolvers<undefined>()
+  const root = mkdtempSync(join(tmpdir(), 'dsh-resource-lifecycle-'))
   onTestFinished(async () => {
     release.resolve(undefined)
     await ctx.fiber.dispose()
+    rmSync(root, { recursive: true, force: true })
   })
-  await mountAgentLoopTestDependencies(ctx)
+  await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
+  await ctx.plugin(JsonlSessionPersistence, { root })
   const loop = await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(SubagentRuntime)
   await ctx.plugin(LocalJobRegistry)
   await ctx.plugin(SubagentSpawn)
-  await ctx.plugin(ToolSubagent, { provider: 'spawn', backgroundMode: 'one-shot' })
+  await ctx.plugin(ToolSubagent, { provider: 'spawn' })
   ctx.jobs.attachController('resource-lifecycle')
-  const parentCancelObserved = Promise.withResolvers<undefined>()
+  const parentId = SessionId('background-parent')
+  const childCancelObserved = Promise.withResolvers<undefined>()
   ctx.on('agent/created', ({ agent }) => {
     const cancel = agent.cancel.bind(agent)
     vi.spyOn(agent, 'cancel').mockImplementation((cause, options) => {
-      if (cause.kind === 'parent') parentCancelObserved.resolve(undefined)
+      if (agent.id !== parentId) childCancelObserved.resolve(undefined)
       cancel(cause, options)
     })
   })
   ctx.llm.registerAdapter(['mock'], new MockAdapter([textResponse('unused')]))
   const { agent: parent } = await ctx.agents.create({
-    sessionId: SessionId('background-parent'), agentOptions: { provider: 'mock', model: 'mock' },
+    sessionId: parentId, agentOptions: { provider: 'mock', model: 'mock' },
   })
   const requestEntered = Promise.withResolvers<undefined>()
   ctx.on('agent/request', async (event, next) => {
@@ -101,13 +109,13 @@ it.each(['loop', 'root'] as const)('unloads %s while a background one-shot child
   const started = await ctx.tools.execute({
     agent: parent, signal: new AbortController().signal,
     callId: ToolCallId('background-start'), name: 'subagent',
-    arguments: { description: 'child', prompt: 'wait', run_in_background: true },
+    arguments: { description: 'child', prompt: 'wait' },
   })
   expect(started.isError).toBe(false)
   await requestEntered.promise
   const disposal = owner === 'loop' ? loop.dispose() : ctx.fiber.dispose()
-  // Job teardown aborts its controller while the child is still in agent/request.
-  await parentCancelObserved.promise
+  // Teardown cancels the in-flight child while it is still inside agent/request.
+  await childCancelObserved.promise
   release.resolve(undefined)
   await disposal
 })
