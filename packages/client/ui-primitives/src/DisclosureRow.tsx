@@ -13,7 +13,7 @@ export interface DisclosureRowProps {
   onToggle: () => void
   /** Animate the complete header while its owning operation is running. */
   running?: boolean | undefined
-  /** Makes the complete title row the disclosure target. */
+  /** Makes the title row the disclosure target; with an accessory, it shrinks to its content width. */
   expandOnRowClick?: boolean | undefined
   /** Replaces the collapsed icon with a chevron while the row is hovered. */
   previewChevron?: boolean | undefined

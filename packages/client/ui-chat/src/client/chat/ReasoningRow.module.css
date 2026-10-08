@@ -66,6 +66,13 @@
   }
 }
 
+@media (any-pointer: coarse) {
+  .headerAction:not([data-persistent]) {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .headerAction:not([data-persistent]) {
     transition: none;

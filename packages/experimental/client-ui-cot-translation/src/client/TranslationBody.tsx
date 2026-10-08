@@ -25,7 +25,7 @@ export type TranslationBodyProps = PropsRuntime<'conversation.chat.reasoning-bod
 /**
  * Render translated reasoning, retaining the complete original until a failed request is retried.
  * @param props - original reasoning, translation preferences, and cancellation-aware callback.
- * @returns compact Markdown and its display-only translation controls.
+ * @returns compact Markdown and translation status with a retry action on failure.
  */
 export function TranslationBody(props: TranslationBodyProps) {
   const { text, running, translate, t, setHeaderAction } = props

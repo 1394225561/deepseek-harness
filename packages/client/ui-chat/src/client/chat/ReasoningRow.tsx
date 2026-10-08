@@ -80,6 +80,11 @@ export const ReasoningRow = memo(function ReasoningRow({ text, running, usePrese
         })}
     </div>
   ) : undefined, [expanded, labels, renderReasoningBody, running, text])
+  const headerAccessory = useMemo(() => expanded && headerAction !== undefined && (
+    <Button size="sm" variant="ghost" className={css.headerAction}
+      data-persistent={headerAction.persistent || undefined} disabled={headerAction.disabled}
+      onClick={headerAction.onClick}>{headerAction.label}</Button>
+  ), [expanded, headerAction])
 
   return (
     <div
@@ -102,11 +107,7 @@ export const ReasoningRow = memo(function ReasoningRow({ text, running, usePrese
         expandOnRowClick
         onToggle={toggle}
         collapsedContent={collapsedContent}
-        headerAccessory={expanded && headerAction !== undefined && (
-          <Button size="sm" variant="ghost" className={css.headerAction}
-            data-persistent={headerAction.persistent || undefined} disabled={headerAction.disabled}
-            onClick={headerAction.onClick}>{headerAction.label}</Button>
-        )}
+        headerAccessory={headerAccessory}
       >
         {content}
       </DisclosureRow>

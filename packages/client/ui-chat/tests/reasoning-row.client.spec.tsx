@@ -31,6 +31,7 @@ describe('ReasoningRow', () => {
     fireEvent.click(view.getByRole('button'))
     expect(extension.mock.calls[0]?.[0]).toBe('conversation.chat.reasoning-body')
     expect(extension.mock.calls[0]?.[1]).toMatchObject({ text: 'Original thought', running: false })
+    expect(extension.mock.calls[0]?.[1]).toHaveProperty('setHeaderAction', expect.any(Function))
     expect(extension.mock.calls[0]?.[2]?.fallback).toBeDefined()
     expect(view.getAllByText('Original thought')).toHaveLength(1)
   })
