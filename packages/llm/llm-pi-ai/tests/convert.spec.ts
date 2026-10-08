@@ -84,11 +84,11 @@ describe('toPiContext', () => {
       })],
       tools: [{ name: 'f', description: 'F', parameters: { type: 'object', properties: {} } }],
     })
-    expect(context.messages).toEqual([
-      { role: 'system', content: 'be helpful', timestamp: 0,
-        toolsAdded: [{ name: 'f', description: 'F', parameters: { type: 'object', properties: {} } }] },
-      { role: 'user', content: 'hi', timestamp: 0 },
-    ])
+    expect(context).toEqual({
+      systemPrompt: 'be helpful',
+      tools: [{ name: 'f', description: 'F', parameters: { type: 'object', properties: {} } }],
+      messages: [{ role: 'user', content: 'hi', timestamp: 0 }],
+    })
   })
 
   it('omits empty tools and absent system prompt', () => {
@@ -336,8 +336,8 @@ describe('toPiContext', () => {
         }),
       ],
     })
-    expect(context.messages[0]).toEqual({ role: 'system', content: 'rule', timestamp: 0 })
-    expect(context.messages.map(message => message.role)).toEqual(['system', 'user', 'toolResult'])
+    expect(context.systemPrompt).toBe('rule')
+    expect(context.messages.map(message => message.role)).toEqual(['user', 'toolResult'])
   })
 
   it('skips plugin-added (unknown) blocks in assistant content', () => {

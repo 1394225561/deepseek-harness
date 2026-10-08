@@ -71,7 +71,7 @@ function systemTexts(request: GenerateOptions) {
 function expectPlain(request: GenerateOptions, prompt: string) {
   expect(systemTexts(request)).toEqual([[{ type: 'text', text: prompt }]])
   const converted = toPiContext(request)
-  expect(converted.messages[0]).toMatchObject({ role: 'system', content: prompt })
+  expect(converted.systemPrompt).toBe(prompt)
   expect(converted.messages.filter(message => message.role === 'user').map(message => message.content))
     .not.toContain('prompt one')
   expect(converted.messages.filter(message => message.role === 'user').map(message => message.content))
@@ -189,7 +189,7 @@ describe('prepared-route prompt admission', () => {
     const adapter = provider === 'capable' ? h.capable : h.plain
     const cleared = adapter.requests.at(-1)!
     expect(systemTexts(cleared)).toEqual([])
-    expect(toPiContext(cleared).messages.filter(message => message.role === 'system')).toEqual([])
+    expect(toPiContext(cleared).systemPrompt).toBeUndefined()
     expect(JSON.stringify(toPiContext(cleared))).not.toContain('prompt ')
     const clearEvents = h.agent.session.snapshotEvents().filter(event => event.type === 'system/message').filter(event => event.data.turn === 4)
     expect(clearEvents).toHaveLength(3)

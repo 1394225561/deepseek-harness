@@ -121,8 +121,8 @@ describe('pi-ai request context conversion', () => {
       user([{ type: 'text', text: 'after tool' }]),
       createToolResultMessage({ callId, content: [{ type: 'text', text: '' }], isError: false }),
     ]))).toMatchObject({
+      systemPrompt: 'history system',
       messages: [
-        { role: 'system', content: 'history system' },
         { role: 'assistant' },
         { role: 'user', content: 'after tool' },
         {
@@ -163,6 +163,7 @@ describe('pi-ai request context conversion', () => {
     ]), imageContext(attachments))
 
     expect(context.messages).toEqual([
+      { role: 'user', content: '', timestamp: 0 },
       expect.objectContaining({ role: 'assistant' }),
       {
         role: 'user',
@@ -435,7 +436,7 @@ describe('pi-ai request context conversion', () => {
     expect(replayed.messages).toEqual(expected)
     expect(readImageRequest).toHaveBeenCalledTimes(2)
   })
-  it('omits empty text-only users while preserving result-only messages', () => {
+  it('keeps empty text-only users while separating result-only messages', () => {
     const callId = ToolCallId('unknown-call')
     expect(toPiContext(request([
       user([]),
@@ -446,6 +447,7 @@ describe('pi-ai request context conversion', () => {
       createToolResultMessage({ callId, content: [{ type: 'text', text: 'result' }], isError: false }),
     ]))).toMatchObject({
       messages: [
+        { role: 'user', content: '' },
         { role: 'assistant' },
         { role: 'toolResult', toolName: 'unknown' },
       ],
@@ -467,8 +469,8 @@ describe('pi-ai request context conversion', () => {
       history('assistant', [{ type: 'text', text: 'answer' }]),
       user([{ type: 'text', text: 'plain' }]),
     ]), imageContext(attachments))).resolves.toMatchObject({
+      systemPrompt: 'history system',
       messages: [
-        { role: 'system', content: 'history system' },
         { role: 'assistant' },
         { role: 'user', content: 'plain' },
       ],
@@ -504,10 +506,9 @@ describe('pi-ai system prompt source', () => {
     expect(readImageRequest).not.toHaveBeenCalled()
   })
 
-  it('maps a leading system message to the transcript head on both conversion paths', async () => {
+  it('maps a leading system message to systemPrompt on both conversion paths', async () => {
     const options: GenerateOptions = { ...base, messages: [leading, question] }
-    const expected = { messages: [
-      { role: 'system', content: 'lead rule', timestamp: 0 },
+    const expected = { systemPrompt: 'lead rule', messages: [
       { role: 'user', content: 'hi', timestamp: 0 },
     ] }
     expect(toPiContext(options)).toEqual(expected)
@@ -527,8 +528,7 @@ describe('pi-ai system prompt source', () => {
       history('system', [{ type: 'text', text: 'additional rule' }]),
       leading, history('system', []),
     ] }
-    const expected = { messages: [
-      { role: 'system', content: 'direct\n\nlead rule', timestamp: 0 },
+    const expected = { systemPrompt: 'direct\n\nlead rule', messages: [
       { role: 'user', content: 'hi', timestamp: 0 },
       { role: 'system', content: 'additional rule', timestamp: 0 },
       { role: 'system', content: 'lead rule', timestamp: 0 },
@@ -547,8 +547,7 @@ describe('pi-ai system prompt source', () => {
       createToolResultMessage({ callId, content: [{ type: 'text', text: 'found' }], isError: false }),
       snapshot,
     ] }
-    const expected = { messages: [
-      { role: 'system', content: 'direct\n\nlead rule\n\nlead rule\nnew rule', timestamp: 0 },
+    const expected = { systemPrompt: 'direct\n\nlead rule\n\nlead rule\nnew rule', messages: [
       { role: 'user', content: 'hi', timestamp: 0 },
       expect.objectContaining({ role: 'assistant' }),
       { role: 'system', content: 'lead rule\nnew rule', timestamp: 0 },
@@ -566,8 +565,7 @@ describe('pi-ai system prompt source', () => {
       user([{ type: 'text', text: 'next question' }]),
       history('assistant', [{ type: 'text', text: 'second answer' }]),
     ] }
-    const expected = { messages: [
-      { role: 'system', content: 'lead rule', timestamp: 0 },
+    const expected = { systemPrompt: 'lead rule', messages: [
       { role: 'user', content: 'hi', timestamp: 0 },
       expect.objectContaining({ role: 'assistant', content: [{ type: 'text', text: 'first answer' }] }),
       { role: 'system', content: 'replacement', timestamp: 0 },
@@ -585,8 +583,7 @@ describe('pi-ai system prompt source', () => {
       history('assistant', [{ type: 'text', text: 'answer' }]),
       history('system', []),
     ] }
-    const expected = { messages: [
-      { role: 'system', content: 'lead rule', timestamp: 0 },
+    const expected = { systemPrompt: 'lead rule', messages: [
       { role: 'user', content: 'hi', timestamp: 0 },
       expect.objectContaining({ role: 'assistant' }),
     ] }
@@ -597,7 +594,6 @@ describe('pi-ai system prompt source', () => {
   it('keeps a later update distinct from an absent initial prompt', async () => {
     const options: GenerateOptions = { ...base, messages: [question, leading] }
     const expected = { messages: [
-      { role: 'system', content: '', timestamp: 0 },
       { role: 'user', content: 'hi', timestamp: 0 },
       { role: 'system', content: 'lead rule', timestamp: 0 },
     ] }
@@ -620,8 +616,7 @@ describe('pi-ai system prompt source', () => {
       { type: 'text', text: 'second' }, { type: 'tool-addition', toolName: 'search' },
     ] })
     const options: GenerateOptions = { ...base, tools: [lookup, search], messages: [leading, update, question] }
-    const expected = { messages: [
-      { role: 'system', content: 'lead rule', timestamp: 0, toolsAdded: [lookup] },
+    const expected = { systemPrompt: 'lead rule', tools: [lookup], messages: [
       { role: 'system', content: [{ type: 'text', text: 'first' }, { type: 'text', text: 'second' }], timestamp: 0,
         toolsAdded: [{ name: 'search', description: 'later', parameters: { type: 'object' } }], toolsRemoved: [{ name: 'lookup' }] },
       { role: 'user', content: 'hi', timestamp: 0 },
@@ -636,7 +631,6 @@ describe('pi-ai system prompt source', () => {
       createDeveloperMessage({ source: { kind: 'test' }, content: [{ type: 'text', text: 'one' }, { type: 'text', text: 'two' }] }),
     ] }
     const expected = { messages: [
-      { role: 'system', content: '', timestamp: 0 },
       { role: 'user', content: 'hi', timestamp: 0 },
       { role: 'system', content: [{ type: 'text', text: 'one' }, { type: 'text', text: 'two' }], timestamp: 0 },
     ] }
