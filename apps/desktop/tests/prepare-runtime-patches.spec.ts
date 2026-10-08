@@ -94,12 +94,12 @@ it('refuses to write to the workspace or replace an unrelated existing override'
   expect(() => { prepareRuntimePatches(project, source, { 'fixture@1.0.0': shared }, { internal: '2.0.0' }) }).toThrow('conflicting')
 })
 
-it.each(['version', 'lock hash', 'file bytes', 'workspace-only'] as const)('rejects invalid resolved installation: %s', (failure) => {
+it.each(['version', 'lock hash', 'file bytes', 'workspace-only', 'unused'] as const)('rejects invalid resolved installation: %s', (failure) => {
   const { source, project } = fixture()
   const plan = prepareRuntimePatches(project, source, { 'fixture@1.0.0': failure === 'workspace-only' ? excluded : shared }, {})
   writeFileSync(join(project, 'pnpm-lock.yaml'), yaml.dump({
     patchedDependencies: Object.fromEntries(plan.patches.map(entry => [entry.spec, failure === 'lock hash' ? 'wrong' : entry.hash])),
-    packages: { [failure === 'version' ? 'fixture@1.0.1' : 'fixture@1.0.0']: {} },
+    packages: failure === 'unused' ? {} : { [failure === 'version' ? 'fixture@1.0.1' : 'fixture@1.0.0']: {} },
   }))
   if (failure === 'file bytes') writeFileSync(join(project, plan.patches[0]!.path), 'changed')
   expect(() => { verifyRuntimePatches(project, plan) }).toThrow(/desktop patches:/u)
@@ -115,7 +115,7 @@ it.each([false, true])('pnpm applies runtime-only bytes and rejects an inapplica
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => (
     /^(?:path|systemroot|windir|comspec|temp|tmp)$/iu.test(name)
   )))
-  await run('tar', ['-czf', join(project, 'fixture.tgz'), '-C', root, 'package'], { env, timeout: 15_000, windowsHide: true })
+  await run('tar', ['-czf', 'fixture.tgz', '-C', root, 'package'], { cwd: project, env, timeout: 15_000, windowsHide: true })
   writeFileSync(join(project, 'package.json'), JSON.stringify({ private: true, dependencies: { fixture: 'file:./fixture.tgz' } }))
   writeFileSync(join(project, 'npmrc'), '')
   if (invalid) writeFileSync(join(source, 'private.patch'), patch.replace('-original', '-does-not-exist'))

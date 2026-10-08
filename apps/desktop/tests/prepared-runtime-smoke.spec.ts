@@ -32,13 +32,14 @@ it('retains payload progress and termination details when the child fails', asyn
   writeDesktopRuntime(root, fixture.release, fixture.sharedPackages.map(entry => entry.name), target)
   const descriptor = await verifyDesktopRuntime(root, fixture.release.version, target)
   const failure = Object.assign(new Error('payload timed out'), {
-    stdout: 'runtime payload: pty\n', killed: true, signal: 'SIGTERM',
+    stdout: 'payload output\n', stderr: 'runtime payload: pty\n', killed: true, signal: 'SIGTERM',
   })
   payload.mockRejectedValueOnce(failure)
   const stdout = vi.spyOn(process.stdout, 'write').mockReturnValue(true)
   const stderr = vi.spyOn(process.stderr, 'write').mockReturnValue(true)
   await expect(smokePreparedRuntime(root, join(root, 'electron'), join(root, 'runtime'), descriptor)).rejects.toBe(failure)
-  expect(stdout).toHaveBeenCalledWith('runtime payload: pty\n')
+  expect(stdout).toHaveBeenCalledWith('payload output\n')
+  expect(stderr).toHaveBeenCalledWith('runtime payload: pty\n')
   expect(stderr).toHaveBeenCalledWith('runtime payload: killed=true, signal=SIGTERM\n')
   expect(smokeDesktopRuntime).not.toHaveBeenCalled()
 })

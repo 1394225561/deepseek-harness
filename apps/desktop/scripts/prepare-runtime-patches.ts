@@ -86,7 +86,7 @@ export function prepareRuntimePatches(
   mkdirSync(join(projectRoot, 'patches'), { recursive: true })
   for (const entry of selected) writeFileSync(join(projectRoot, entry.path), entry.bytes)
   writeFileSync(targetPath, yaml.dump({ ...target, overrides: { ...target.overrides, ...overrides },
-    patchedDependencies: Object.fromEntries(selected.map(entry => [entry.spec, entry.path])), allowUnusedPatches: true }))
+    patchedDependencies: Object.fromEntries(selected.map(entry => [entry.spec, entry.path])), allowUnusedPatches: false }))
   return { patches: selected.map(({ bytes: _bytes, ...entry }) => entry),
     workspaceOnly: Object.entries(policy).filter(([, rule]) => rule.scope === 'workspace-only').map(([spec]) => patchIdentity(spec).name) }
 }
@@ -102,6 +102,9 @@ export function verifyRuntimePatches(projectRoot: string, plan: PreparedRuntimeP
     packages?: Record<string, { version?: string }>
   }
   for (const patch of plan.patches) {
+    if (!Object.keys(lock.packages ?? {}).some(spec => spec.startsWith(`${patch.name}@`))) {
+      throw new Error(`desktop patches: selected patch has no runtime dependency: ${patch.spec}`)
+    }
     if (patchHash(readFileSync(join(projectRoot, patch.path))) !== patch.hash) {
       throw new Error(`desktop patches: staged patch bytes changed: ${patch.spec}`)
     }

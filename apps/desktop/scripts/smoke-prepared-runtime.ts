@@ -34,6 +34,7 @@ export async function smokePreparedRuntime(
       env: desktopNodeEnvironment(node, join(resourcesRuntime, 'bin'), environment) }).catch((error: unknown) => {
       if (error instanceof Error) {
         if ('stdout' in error && typeof error.stdout === 'string') process.stdout.write(error.stdout)
+        if ('stderr' in error && typeof error.stderr === 'string') process.stderr.write(error.stderr)
         if ('killed' in error && 'signal' in error) {
           process.stderr.write(`runtime payload: killed=${String(error.killed)}, signal=${String(error.signal)}\n`)
         }

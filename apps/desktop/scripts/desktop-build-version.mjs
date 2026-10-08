@@ -2,6 +2,9 @@
  * Resolve the version one build publishes, which is not always the version the
  * repository declares.
  *
+ * Manual Windows CI uses UTC date, workflow run number and attempt as
+ * `.YYYYMMDD.run.attempt`; these identify unpublished builds, not release sequences.
+ *
  * A production release publishes the version in the manifests, aligned with the
  * `dsh` npm package. A test build publishes a version that appends a date and a
  * sequence number, so one test feed can carry several builds of a single
