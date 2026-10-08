@@ -21,7 +21,7 @@ export interface ViewportLanding {
 
 interface ViewportEvents {
   scroll: (event: ViewportScroll) => void
-  scrollEnd: () => void
+  scrollEnd: (outer: boolean) => void
   resize: () => void
   interact: () => void
   /** Any reading gesture, before paging ownership is consulted. */
@@ -33,7 +33,7 @@ interface ViewportElements {
   readonly column: HTMLElement
   readonly scroller: HTMLElement
   readonly composer: HTMLElement | null
-  /** Room below the flow, added when rows above the reader close and given back only as content grows. */
+  /** Room below closing rows, retained until scrolling or content growth makes it unnecessary. */
   readonly spacer: HTMLElement | null
 }
 
@@ -161,18 +161,19 @@ export class ChatViewport {
   }
 
   /**
-   * Give reserved room back only as content grows into it, never by scrolling back down: growth fills
-   * the blank before it moves the floor. Holds still while rows are closing, because trimming mid-close
-   * would let the next frame clamp.
+   * Give reserved room back after acknowledged scrolling or content growth without clamping the reader.
+   * Holds still during folds and unsampled movement; tail following targets content without this room.
    */
   reclaimBelow(): void {
     const elements = this.elements
     if (elements === null || elements.spacer === null) return
     const current = this.spacerHeight()
     if (current === 0 || this.motion.foldActive()) return
-    const { scroller } = elements
-    const floorWithoutSpacer = scroller.scrollHeight - current - scroller.clientHeight
-    this.setSpacer(Math.min(current, Math.max(0, scroller.scrollTop - floorWithoutSpacer)))
+    const scroll = this.readScroll()
+    // Trimming the range before sampling could misclassify a reader's move as a layout clamp.
+    if (scroll === null || scroll.movedByReader) return
+    const floorWithoutSpacer = scroll.metrics.floor
+    this.setSpacer(Math.min(current, Math.max(0, scroll.metrics.top - floorWithoutSpacer)))
   }
 
   /**
@@ -180,8 +181,9 @@ export class ChatViewport {
    * @param follow - follow controller bound to this scrollport.
    */
   interruptFollow(follow: ScrollFollow): void {
+    if (!follow.animating) return
     const metrics = this.metrics()
-    if (metrics === null || this.elements === null || !follow.animating) return
+    if (metrics === null || this.elements === null) return
     follow.interrupt(this.elements.scroller, metrics)
     this.observation = { top: metrics.top, landing: null }
   }
@@ -192,6 +194,7 @@ export class ChatViewport {
    */
   acknowledge(metrics: ViewportMetrics): void {
     this.observation = { top: metrics.top, landing: null }
+    this.reclaimBelow()
   }
 
   /**
@@ -202,9 +205,13 @@ export class ChatViewport {
     const metrics = this.metrics()
     if (metrics === null) return null
     return {
-      metrics,
+      metrics: { ...metrics, floor: this.contentFloor(metrics) },
       movedByReader: Math.abs(metrics.top - Math.min(this.observation.top, metrics.floor)) > 0.5,
     }
+  }
+
+  private contentFloor(metrics: ViewportMetrics): number {
+    return this.motion.foldActive() ? metrics.floor : Math.max(0, metrics.floor - this.spacerHeight())
   }
 
   private metrics(): ViewportMetrics | null {
@@ -446,7 +453,7 @@ export class ChatViewport {
   }
 
   /**
-   * Align the scrollport with its current floor.
+   * Align with the content floor, excluding reserved fold space once rows finish closing.
    * @param follow - independent follow intent and scrolling controller.
    * @param behavior - immediate positioning, or one native animation for a reader-caused tail change.
    * @returns the actual floor landing, or null while detached. A smooth landing reports the starting
@@ -456,11 +463,12 @@ export class ChatViewport {
     const metrics = this.metrics()
     if (metrics === null || this.elements === null) return null
     const landing: ViewportLanding = {
-      metrics: follow.toBottom(this.elements.scroller, metrics, behavior),
+      metrics: follow.toBottom(this.elements.scroller, { ...metrics, floor: this.contentFloor(metrics) }, behavior),
       position: null,
       turn: this.latestTurn,
     }
     this.observation = { top: landing.metrics.top, landing }
+    this.reclaimBelow()
     return landing
   }
 
@@ -505,8 +513,10 @@ export class ChatViewport {
   }
 
   private readonly onScrollEnd = (event: Event): void => {
-    if (event.target === this.elements?.scroller
-      || (event.target instanceof HTMLElement && event.target.hasAttribute('data-step-process-body'))) this.events?.scrollEnd()
+    if (event.target === this.elements?.scroller) {
+      this.events?.scrollEnd(true)
+      this.reclaimBelow()
+    } else if (event.target instanceof HTMLElement && event.target.hasAttribute('data-step-process-body')) this.events?.scrollEnd(false)
   }
 
   private readonly onIntent = (event: Event): void => {

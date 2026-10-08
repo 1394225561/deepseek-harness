@@ -3,8 +3,11 @@
 import type { ObservableSnapshot } from '@deepseek-ai/dsh-client-store'
 import type { TranscriptViewMode } from '../chat-settings.ts'
 
+/** Available points when a completed Turn returns to its historical presentation. */
+export const COLLAPSE_TIMINGS = ['completion', 'next-input'] as const
+
 /** When a completed Turn returns to its historical presentation. */
-export type CollapseTiming = 'completion' | 'next-input'
+export type CollapseTiming = typeof COLLAPSE_TIMINGS[number]
 
 /** Presentation capabilities that one work-details mode enables. */
 export interface ChatPresentationPolicy {

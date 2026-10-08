@@ -192,8 +192,7 @@ export interface ChatFlowInjected {
 export interface ChatNodeHookContext {
   readonly turnData: ConversationLocationDataStore<ConversationTurnDataMap> | undefined
   readonly disclosureReset: ObservableSnapshot<number>
-  /** Absent for standalone rendering without a Chat flow. */
-  readonly useGroupAction?: UseGroupAction | undefined
+  readonly useGroupAction: UseGroupAction
 }
 
 /** Slot-level Hook factories for keyed Chat renderers. */

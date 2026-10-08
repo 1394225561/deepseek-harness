@@ -267,6 +267,23 @@ describe('flow motion', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
+  it('keeps the original close clock when the reveal callback changes', async () => {
+    const view = render(<div data-chat-motion=""><SearchableHiddenRow motion={motion} hidden={false} onReveal={vi.fn()} /></div>)
+    const row = view.getByTestId('motion-row')
+    Object.defineProperty(row, 'offsetHeight', { value: 80 })
+    view.rerender(<div data-chat-motion=""><SearchableHiddenRow motion={motion} hidden onReveal={vi.fn()} /></div>)
+    await Promise.resolve()
+    act(() => { vi.advanceTimersByTime(100) })
+    view.rerender(<div data-chat-motion=""><SearchableHiddenRow motion={motion} hidden onReveal={vi.fn()} /></div>)
+    expect(changed.mock.calls).toEqual([[true]])
+    expect(reserve).toHaveBeenCalledExactlyOnceWith(80)
+    act(() => { vi.advanceTimersByTime(140) })
+    expect(row.getAttribute('hidden')).toBe('until-found')
+    expect(changed.mock.calls).toEqual([[true], [false]])
+    expectCleared(row)
+    expect(view.getByTestId('motion-row')).toBe(row)
+  })
+
   it('retains initially hidden content through StrictMode effect replay without starting motion', () => {
     const view = render(<StrictMode><div data-chat-motion=""><PlainHiddenRow motion={motion} hidden onReveal={vi.fn()} /></div></StrictMode>)
     const row = view.getByTestId('motion-row')

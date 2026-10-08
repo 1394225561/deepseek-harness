@@ -135,7 +135,7 @@ export class ChatReading {
     // Native follow animation progress is not reader movement; scrollend settles it.
     if (this.follow.animating) return
     if ((!scroll.movedByReader && this.state.followingTail)
-      || (scroll.movedByReader && scroll.metrics.top >= scroll.metrics.floor)) {
+      || (scroll.movedByReader && scroll.metrics.top === scroll.metrics.floor)) {
       this.followTail()
       this.sampled?.({ position: null, movedByReader: scroll.movedByReader, followingTail: true })
       return
@@ -143,9 +143,13 @@ export class ChatReading {
     this.sampleTimer ??= window.setTimeout(this.flushSample, SCROLL_SAMPLE_INTERVAL_MS)
   }
 
-  /** Settle pending reader movement, or a finished follow animation, at the browser's scrollend. */
-  readonly onScrollEnd = (): void => {
+  /**
+   * Settle pending reader movement; only the outer scroller can finish its native follow animation.
+   * @param outer - whether the event belongs to the outer scroller rather than a process body.
+   */
+  readonly onScrollEnd = (outer = true): void => {
     if (this.follow.animating) {
+      if (!outer) return
       const scroll = this.viewport.readScroll()
       if (scroll === null) return
       if (this.follow.settle(scroll.metrics)) {

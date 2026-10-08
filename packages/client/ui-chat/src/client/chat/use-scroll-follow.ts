@@ -1,7 +1,7 @@
 /** Independent bottom-follow intent and native scrolling, without paging or DOM observers. */
 import { useState } from 'react'
 
-/** Scroll position, maximum top, and viewport height from one geometry read. */
+/** Scroll position, target content floor, and viewport height; reserved fold space may extend past the floor. */
 export interface ViewportMetrics {
   readonly top: number
   readonly floor: number
@@ -64,7 +64,7 @@ export class ScrollFollow {
    * @param metrics - current scroll geometry.
    * @returns whether the position is within the follow threshold.
    */
-  nearBottom(metrics: ViewportMetrics): boolean { return metrics.floor - metrics.top <= this.threshold }
+  nearBottom(metrics: ViewportMetrics): boolean { return Math.abs(metrics.floor - metrics.top) <= this.threshold }
 
   /**
    * Commit caller-owned follow decisions without moving the scrollport.
@@ -137,7 +137,7 @@ export class ScrollFollow {
    */
   toBottom(element: HTMLElement, metrics: ViewportMetrics, behavior: 'instant' | 'smooth'): ViewportMetrics {
     this.following = true
-    if (metrics.top >= metrics.floor) return this.jump(element, metrics, metrics.floor)
+    if (metrics.top === metrics.floor) return this.jump(element, metrics, metrics.floor)
     if (behavior === 'instant' && this.animating) {
       // Content grew under an outstanding animation: retarget it instead of cutting to the floor.
       if (this.target !== metrics.floor) {

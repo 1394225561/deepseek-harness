@@ -56,15 +56,21 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
   // so the closing gap pulls the content below it (including a just-sent input) upward. One follow
   // scroll lands whatever is still short of the floor after the last row closed.
   const cancelFollow = useRef<(() => void) | null>(null)
-  const cancelPendingFollow = useCallback(() => {
+  const clearPendingFollow = useCallback(() => {
     cancelFollow.current?.()
     cancelFollow.current = null
   }, [])
+  const cancelPendingFollow = useCallback(() => {
+    clearPendingFollow()
+    // Retain a cancelled wait until this fold ends, so resize cannot reacquire follow ownership.
+    if (viewport.motion.foldActive()) {
+      cancelFollow.current = viewport.motion.onFoldIdle(() => { cancelFollow.current = null })
+    }
+  }, [clearPendingFollow, viewport])
   const followAfterFold = useCallback(() => {
     if (cancelFollow.current !== null) return
     cancelFollow.current = viewport.motion.onFoldIdle(() => {
       cancelFollow.current = null
-      // Room the fold did not use stays as blank below; only the part still needed to land the floor scrolls.
       viewport.reclaimBelow()
       if (content.current.input.deferCompletedTurns) reading.followTail('smooth')
     })
@@ -87,6 +93,7 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
       return
     }
     if (ownInput) {
+      clearPendingFollow()
       navigation.cancel()
       if (current.deferCompletedTurns && viewport.motion.foldActive()) followAfterFold()
       else reading.followTail(current.deferCompletedTurns ? 'smooth' : 'instant')
@@ -105,13 +112,13 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
       if (current.deferCompletedTurns && viewport.motion.foldActive()) followAfterFold()
       else reading.followTail()
     } else navigation.reconcile()
-  }, [viewport, reading, navigation, followAfterFold])
+  }, [viewport, reading, navigation, followAfterFold, clearPendingFollow])
 
   useLayoutEffect(() => {
     const disconnectViewport = viewport.connect({
       scroll: reading.onScroll,
-      scrollEnd: () => {
-        reading.onScrollEnd()
+      scrollEnd: (outer) => {
+        reading.onScrollEnd(outer)
         navigation.readerSettled()
       },
       interact: () => { navigation.cancel() },
@@ -121,8 +128,9 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
           navigation.reconcile()
           return
         }
-        if (content.current.input.deferCompletedTurns && viewport.motion.foldActive() && reading.followingTail) followAfterFold()
-        else reading.onResize()
+        if (content.current.input.deferCompletedTurns && viewport.motion.foldActive()) {
+          if (!reading.pending && reading.followingTail) followAfterFold()
+        } else reading.onResize()
         navigation.reconcile()
       },
     })
@@ -131,13 +139,13 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
       processContent()
     })
     return () => {
-      cancelPendingFollow()
+      clearPendingFollow()
       disconnectViewport()
       disconnectReading()
       content.current.opened = false
       content.current.applied = null
     }
-  }, [viewport, reading, navigation, processContent, followAfterFold, cancelPendingFollow])
+  }, [viewport, reading, navigation, processContent, followAfterFold, cancelPendingFollow, clearPendingFollow])
 
   useLayoutEffect(() => {
     const previous = content.current.input

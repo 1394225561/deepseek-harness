@@ -4,7 +4,7 @@ import type { SnapshotStore } from '@deepseek-ai/dsh-client-store'
 import type { InjectFace, PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { TRANSCRIPT_VIEW_MODES, type TranscriptViewMode } from '../../chat-settings.ts'
 import type { ChatKey } from '../locale.ts'
-import type { CollapseTiming } from '../presentation-policy.ts'
+import { COLLAPSE_TIMINGS, type CollapseTiming } from '../presentation-policy.ts'
 import { PreferenceRow } from './PreferenceRow.tsx'
 
 /** Registration-side work-details preference face. */
@@ -17,7 +17,7 @@ export interface TranscriptViewRowInjected {
   }
   /** Change the work-details presentation. */
   setTranscriptView: (mode: TranscriptViewMode) => void
-  /** Save collapse timing in this browser without changing Host settings. */
+  /** Retain collapse timing for this Client lifetime without changing Host settings. */
   setCollapseTiming: (timing: CollapseTiming) => void
 }
 
@@ -64,7 +64,7 @@ export function TranscriptViewRow({
         description={t('settings.collapse.description')}
         value={timing}
         selectedLabel={t(COLLAPSE_LABELS[timing])}
-        options={(['completion', 'next-input'] as const).map(id => ({ id, label: t(COLLAPSE_LABELS[id]) }))}
+        options={COLLAPSE_TIMINGS.map(id => ({ id, label: t(COLLAPSE_LABELS[id]) }))}
         onSelect={(value) => { setCollapseTiming(value as CollapseTiming) }}
       />
     </>

@@ -222,7 +222,7 @@ function useFlowTransition(motion: FlowMotionRows | undefined, grow: boolean): H
     const animate = current.current === element && motionEnabled(element)
     current.current = element
     if (hidden) {
-      if (element.hasAttribute('hidden')) return
+      if (hiddenOrCollapsing(element)) return
       if (animate && motion !== undefined) motion.collapse(element, commit)
       else commit()
       return

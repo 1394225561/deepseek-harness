@@ -16,7 +16,7 @@ import { newEnglishPage, openSettings, saveFailureShot, writeComposerDraft } fro
 
 const SNAPSHOT_DIR = fileURLToPath(new URL('../../../snapshots/web/collapse-timing', import.meta.url))
 const SEED = fileURLToPath(new URL('../../../snapshots/web/seeded-history/session.v3.jsonl', import.meta.url))
-const SCREENSHOTS = 'screenshots/0928-local-collapse-storage'
+const SCREENSHOTS = 'screenshots/collapse-timing'
 const SCREENSHOT_DIR = fileURLToPath(new URL(`../../../.artifacts/${SCREENSHOTS}`, import.meta.url))
 const SEED_ID = 'collapse-timing-web-e2e'
 const MODE = webSnapshotMode()

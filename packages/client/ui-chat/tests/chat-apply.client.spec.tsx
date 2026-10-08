@@ -323,7 +323,7 @@ describe('Chat apply wiring', () => {
     const useChat = vi.fn(() => { throw new Error('Turn data must not read the Chat snapshot') })
     const useTurnData = spec.inject.hooks.turnData(
       { useChat } as unknown as Parameters<typeof spec.inject.hooks.turnData>[0],
-      { turnData: data, disclosureReset: createSnapshotStore(0) },
+      { turnData: data, disclosureReset: createSnapshotStore(0), useGroupAction: () => { throw new Error('unused group action') } },
     )
     const Probe = ({ useData }: { useData: UseChatNodeTurnData }) => (
       <output>{useData('metric') ?? 'missing'}</output>
@@ -341,7 +341,7 @@ describe('Chat apply wiring', () => {
 
     view.rerender(<Probe useData={spec.inject.hooks.turnData(
       { useChat } as unknown as Parameters<typeof spec.inject.hooks.turnData>[0],
-      { turnData: undefined, disclosureReset: createSnapshotStore(0) },
+      { turnData: undefined, disclosureReset: createSnapshotStore(0), useGroupAction: () => { throw new Error('unused group action') } },
     )} />)
     expect(view.getByText('missing')).toBeTruthy()
     expect(useChat).not.toHaveBeenCalled()
@@ -371,9 +371,6 @@ describe('Chat apply wiring', () => {
     expect(nodeSpec.inject.hooks.groupAction(standard, {
       turnData: undefined, disclosureReset: createSnapshotStore(0), useGroupAction: useFirst,
     })).toBe(useFirst)
-    const useStandalone = nodeSpec.inject.hooks.groupAction(standard, {
-      turnData: undefined, disclosureReset: createSnapshotStore(0),
-    })
     const reveal = vi.fn()
     function Probe({ useHidden, hidden, label }: { useHidden: UseGroupAction; hidden: boolean; label: string }) {
       const ref = useHidden(hidden, reveal)
@@ -388,7 +385,6 @@ describe('Chat apply wiring', () => {
       <div data-chat-motion="">
         <Probe useHidden={useFirst} hidden={firstHidden} label="first" />
         <Probe useHidden={useSecond} hidden={secondHidden} label="second" />
-        <Probe useHidden={useStandalone} hidden={firstHidden} label="standalone" />
         <Header useHeader={useFirstHeader} hidden={firstHeaderHidden} label="first-header" />
         <Header useHeader={useSecondHeader} hidden={secondHeaderHidden} label="second-header" />
       </div>
@@ -399,17 +395,14 @@ describe('Chat apply wiring', () => {
       view = render(rows(false, false))
       const firstRow = view.getByTestId('first')
       const secondRow = view.getByTestId('second')
-      const standaloneRow = view.getByTestId('standalone')
       const firstHeader = view.getByTestId('first-header')
       const secondHeader = view.getByTestId('second-header')
       Object.defineProperty(firstHeader, 'offsetHeight', { value: 30 })
       Object.defineProperty(secondHeader, 'offsetHeight', { value: 40 })
       Object.defineProperty(firstRow, 'offsetHeight', { value: 80 })
       Object.defineProperty(secondRow, 'offsetHeight', { value: 90 })
-      Object.defineProperty(standaloneRow, 'offsetHeight', { value: 70 })
       view.rerender(rows(true, false))
       expect(firstRow.hasAttribute('hidden')).toBe(false)
-      expect(standaloneRow.getAttribute('hidden')).toBe('until-found')
       expect(first.foldActive()).toBe(true)
       expect(second.foldActive()).toBe(false)
       await act(async () => { await Promise.resolve() })
@@ -464,7 +457,7 @@ describe('Chat apply wiring', () => {
       const reset = createSnapshotStore(0)
       const useDisclosure = spec.inject.hooks.disclosure(
         {} as Parameters<typeof spec.inject.hooks.disclosure>[0],
-        { turnData: undefined, disclosureReset: reset },
+        { turnData: undefined, disclosureReset: reset, useGroupAction: () => { throw new Error('unused group action') } },
       )
       function Probe({ useDisclosure }: { useDisclosure: UseDisclosure }) {
         const { expanded, toggle } = useDisclosure()

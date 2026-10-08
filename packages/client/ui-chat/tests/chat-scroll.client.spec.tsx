@@ -52,24 +52,34 @@ function mountScroll(deferCompletedTurns = true) {
     loadThrough: vi.fn(async () => {}),
     chatScroll: { read: () => null, save: vi.fn() },
   }
-  const callbacks: { motion?: FlowMotionRows } = {}
+  const callbacks: { motion?: FlowMotionRows; resize?: () => void } = {}
+  class Observer implements ResizeObserver {
+    constructor(callback: ResizeObserverCallback) { callbacks.resize = () => { callback([], this) } }
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void { delete callbacks.resize }
+  }
+  vi.stubGlobal('ResizeObserver', Observer)
   const onMotion = (motion: FlowMotionRows): void => { callbacks.motion = motion }
   const view = render(<ScrollHarness input={input} onMotion={onMotion} />)
   const scroller = within(view.container).getByTestId('scrollport')
+  const spacer = scroller.querySelector<HTMLElement>('[data-chat-turn-spacer]')
+  if (spacer === null) throw new Error('Missing fold spacer')
   let height = 1_000
   const scrollTo = vi.fn((options: ScrollToOptions) => {
     if (options.behavior === 'instant') scroller.scrollTop = options.top ?? scroller.scrollTop
   })
   Object.defineProperties(scroller, {
     clientHeight: { value: 400 },
-    scrollHeight: { get: () => height },
+    scrollHeight: { get: () => height + (Number.parseFloat(spacer.style.height) || 0) },
     scrollTo: { value: scrollTo },
   })
   const row = document.createElement('div')
   Object.defineProperty(row, 'offsetHeight', { value: 80 })
   within(view.container).getByTestId('column').append(row)
   return {
-    view, scroller, scrollTo,
+    view, scroller, scrollTo, row,
+    resize: () => { act(() => { callbacks.resize?.() }) },
     grow: (next: number) => { height = next },
     update: (patch: Partial<ChatScrollInput>) => {
       input = { ...input, ...patch }
@@ -141,6 +151,65 @@ describe('Chat scroll collapse timing', () => {
       expect(h.scroller.scrollTop).toBe(0)
     },
   )
+
+  it.each([false, true])('keeps a fold cancelled through resize until new input owns follow (new input=%s)', async (newInput) => {
+    const h = mountScroll()
+    h.scroller.scrollTop = 500
+    h.startFold()
+    h.update({ submissionId: 'first' })
+    await act(async () => { await Promise.resolve() })
+    fireEvent.wheel(h.scroller, { deltaY: -80 })
+    h.scroller.scrollTop = 420
+    fireEvent.scroll(h.scroller)
+    h.resize()
+    h.update({ order: ['streaming-change'], running: true })
+    if (newInput) h.update({ submissionId: 'second' })
+    h.finishFold()
+    if (newInput) expect(h.scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 600, behavior: 'smooth' })
+    else {
+      expect(h.scrollTo).not.toHaveBeenCalled()
+      expect(h.scroller.scrollTop).toBe(420)
+      act(() => { vi.advanceTimersByTime(500) })
+      h.resize()
+      expect(h.scrollTo).not.toHaveBeenCalled()
+      expect(h.scroller.scrollTop).toBe(420)
+    }
+  })
+
+  it('keeps intent cancellation through a resize before the first scroll delivery', () => {
+    const h = mountScroll()
+    h.startFold()
+    h.update({ submissionId: 'first' })
+    fireEvent.wheel(h.scroller, { deltaY: -80 })
+    h.resize()
+    h.finishFold()
+    expect(h.scrollTo).not.toHaveBeenCalled()
+    h.update({ submissionId: 'second' })
+    expect(h.scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 600, behavior: 'smooth' })
+  })
+
+  it('does not let process-body scrollend settle an outer native follow', () => {
+    const h = mountScroll()
+    const body = document.createElement('div')
+    body.dataset.stepProcessBody = ''
+    h.row.append(body)
+    h.update({ submissionId: 'first' })
+    h.scroller.scrollTop = 150
+    fireEvent.scroll(h.scroller)
+    fireEvent(body, new Event('scrollend', { bubbles: true }))
+    h.grow(1_200)
+    h.resize()
+    expect(h.scrollTo.mock.calls).toEqual([
+      [{ top: 600, behavior: 'smooth' }],
+      [{ top: 800, behavior: 'smooth' }],
+    ])
+    h.scroller.scrollTop = 800
+    fireEvent.scroll(h.scroller)
+    fireEvent(h.scroller, new Event('scrollend'))
+    h.grow(1_300)
+    h.resize()
+    expect(h.scroller.scrollTop).toBe(900)
+  })
 
   it('cancels queued follow when the Chat view unmounts', () => {
     const h = mountScroll()

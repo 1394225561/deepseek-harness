@@ -23,7 +23,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-workspace/client'
 import type {
   ChatFlowDataInjected, ChatFlowInjected, ChatNodeInjected, ChatScrollPosition, ChatViewInjected,
-  QuotaNoticeInjected, QuotaNoticeState, TurnTailOwnerProps, UseGroupAction,
+  QuotaNoticeInjected, QuotaNoticeState, TurnTailOwnerProps,
 } from './contract/slots.ts'
 import type { ChatSnapshot } from './contract/snapshot.ts'
 import { EMPTY_CHAT_SNAPSHOT } from './contract/snapshot.ts'
@@ -59,8 +59,6 @@ export const CHAT_FLOW_INJECT: ChatFlowInjected = {
   },
 }
 
-const useStandaloneGroupAction: UseGroupAction = (hidden, reveal) => useFlowHidden(hidden, reveal, undefined)
-
 /** Bind node-local sources and forward the flow's existing visibility hook. */
 export const CHAT_NODE_INJECT: ChatNodeInjected = {
   hooks: {
@@ -68,7 +66,7 @@ export const CHAT_NODE_INJECT: ChatNodeInjected = {
       return useTurnDataValue(turnData, key)
     },
     disclosure: (_standard, { disclosureReset }) => bindDisclosure(disclosureReset),
-    groupAction: (_standard, { useGroupAction }) => useGroupAction ?? useStandaloneGroupAction,
+    groupAction: (_standard, { useGroupAction }) => useGroupAction,
   },
 }
 

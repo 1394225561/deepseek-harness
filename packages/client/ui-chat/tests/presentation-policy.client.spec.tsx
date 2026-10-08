@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
 import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import type { TranscriptViewMode } from '../src/chat-settings.ts'
-import { derivePresentationPolicy, presentationPolicyFor, type ChatPresentationPolicy, type CollapseTiming } from '../src/client/presentation-policy.ts'
+import { COLLAPSE_TIMINGS, derivePresentationPolicy, presentationPolicyFor, type ChatPresentationPolicy, type CollapseTiming } from '../src/client/presentation-policy.ts'
 
 afterEach(cleanup)
 
@@ -28,7 +28,7 @@ describe('Chat presentation policy', () => {
   it('keeps all eight mode and timing policies distinct and stable', () => {
     const policies = new Set<ChatPresentationPolicy>()
     for (const mode of ['compact', 'standard', 'detailed', 'verbose'] as const) {
-      for (const timing of ['completion', 'next-input'] as const) {
+      for (const timing of COLLAPSE_TIMINGS) {
         policies.add(presentationPolicyFor(mode, timing))
       }
     }
