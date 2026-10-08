@@ -65,6 +65,8 @@ async function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
 /** Registry of independently owned top-level fields for official DeepSeek requests. */
 export class DeepSeekLlmApiExtensionRegistry extends Service {
   private readonly providers = new Map<string, ErasedProvider>()
+  /** Fields whose preparation failure was already logged; later failures stay silent. */
+  private readonly warnedFields = new Set<string>()
 
   constructor(ctx: Context) {
     super(ctx, 'deepseekLlmApiExtensions')
@@ -100,8 +102,8 @@ export class DeepSeekLlmApiExtensionRegistry extends Service {
 
   /**
    * Prepare every currently registered field from one immutable base request.
-   * A provider whose preparation throws, or whose value cannot be cloned, is logged
-   * and omitted from this request; only cancellation rejects. Field values are cloned
+   * A provider whose preparation throws, or whose value cannot be cloned, is omitted
+   * from this request; the first such failure per field is logged. Only cancellation rejects. Field values are cloned
    * and frozen; providers retain no mutable alias to the outgoing request.
    * @param request - exact serialized request facts before extension fields.
    * @returns detached fields and their idempotent joint acceptance transaction.
@@ -114,7 +116,8 @@ export class DeepSeekLlmApiExtensionRegistry extends Service {
         const result = await provider.prepare(request)
         return result === undefined ? undefined : { field, value: freezeJson(structuredClone(result.value)), result }
       } catch (error) {
-        if (!request.signal.aborted) {
+        if (!request.signal.aborted && !this.warnedFields.has(field)) {
+          this.warnedFields.add(field)
           this.ctx.logger.warn(`deepseek-llm-api-extensions: omitting field ${JSON.stringify(field)} from this request because its preparation failed: %o`, error)
         }
         return undefined

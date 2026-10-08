@@ -123,7 +123,7 @@ describe('Messages request extensions', () => {
     expect(accept).toHaveBeenCalledTimes(failure === 'stream' ? 1 : 0)
   })
 
-  it('logs an acceptance failure and still streams the response', async () => {
+  it('logs an acceptance failure once per route and still streams the response', async () => {
     const ctx = await boot()
     const warnings: unknown[][] = []
     ctx.logger.exporter({ levels: { default: LoggerLevel.WARN }, export: (message) => { if (message.type === 'warn') warnings.push(message.args) } })
@@ -131,9 +131,11 @@ describe('Messages request extensions', () => {
     ctx.deepseekLlmApiExtensions.register('dsh_messages_test', {
       prepare: () => ({ value: { value: 'log' }, accept() { throw failure } }),
     })
-    vi.stubGlobal('fetch', vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(sse(textEvents))))
-    const result = await assemble(ctx.llm.stream(options()))
-    expect(result.assembler.finish.kind).toBe('stop')
+    vi.stubGlobal('fetch', vi.fn<typeof globalThis.fetch>().mockImplementation(() => Promise.resolve(new Response(sse(textEvents)))))
+    for (let request = 0; request < 2; request++) {
+      const result = await assemble(ctx.llm.stream(options()))
+      expect(result.assembler.finish.kind).toBe('stop')
+    }
     expect(warnings).toEqual([[
       'llm-deepseek: route "deepseek-official/deepseek-v4-flash" request extension acceptance failed;'
         + ' contributors resend on a later request: %o',
@@ -147,9 +149,12 @@ describe('Messages request extensions', () => {
     ctx.logger.exporter({ levels: { default: LoggerLevel.WARN }, export: (message) => { if (message.type === 'warn') warnings.push(message.args) } })
     const accept = vi.fn()
     ctx.deepseekLlmApiExtensions.register('dsh_messages_test', { prepare: () => ({ value: { value: 'log' }, accept }) })
-    const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(new Response(sse(textEvents)))
+    const fetch = vi.fn<typeof globalThis.fetch>().mockImplementation(() => Promise.resolve(new Response(sse(textEvents))))
     vi.stubGlobal('fetch', fetch)
-    const { result, overflow } = await withSerializationOverflow('dsh_messages_test', () => assemble(ctx.llm.stream(options())))
+    const { result, overflow } = await withSerializationOverflow('dsh_messages_test', async () => {
+      await assemble(ctx.llm.stream(options()))
+      return await assemble(ctx.llm.stream(options()))
+    })
     expect(JSON.stringify({ dsh_messages_test: { value: 'log' } })).toBe('{"dsh_messages_test":{"value":"log"}}')
     expect(result.assembler.finish.kind).toBe('stop')
     expect(accept).not.toHaveBeenCalled()

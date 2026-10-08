@@ -121,7 +121,7 @@ describe('DeepSeekLlmApiExtensionRegistry', () => {
     await expect(prepared.accept()).rejects.toBe(failure)
   })
 
-  it('rejects invalid field names and omits a field whose preparation fails', async () => {
+  it('rejects invalid field names and omits a failing field, warning once', async () => {
     const ctx = await harness()
     const warnings: unknown[][] = []
     ctx.logger.exporter({ levels: { default: LoggerLevel.WARN }, export: (message) => { if (message.type === 'warn') warnings.push(message.args) } })
@@ -132,10 +132,12 @@ describe('DeepSeekLlmApiExtensionRegistry', () => {
     const accept = vi.fn()
     ctx.deepseekLlmApiExtensions.register('test_alpha', { prepare: () => { throw failure } })
     ctx.deepseekLlmApiExtensions.register('test_beta', { prepare: () => ({ value: [1], accept }) })
-    const prepared = await ctx.deepseekLlmApiExtensions.prepare({ body: {}, signal: SIGNAL })
-    expect(prepared.fields).toEqual({ test_beta: [1] })
-    await prepared.accept()
-    expect(accept).toHaveBeenCalledOnce()
+    for (let request = 0; request < 2; request++) {
+      const prepared = await ctx.deepseekLlmApiExtensions.prepare({ body: {}, signal: SIGNAL })
+      expect(prepared.fields).toEqual({ test_beta: [1] })
+      await prepared.accept()
+    }
+    expect(accept).toHaveBeenCalledTimes(2)
     expect(warnings).toEqual([[
       'deepseek-llm-api-extensions: omitting field "test_alpha" from this request because its preparation failed: %o',
       failure,
