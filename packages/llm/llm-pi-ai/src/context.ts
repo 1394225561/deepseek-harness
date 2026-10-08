@@ -130,7 +130,7 @@ function piTool(tool: NonNullable<GenerateOptions['tools']>[number]): PiTool {
 }
 
 /**
- * Serialize complete prompt snapshots and projected tool updates. Pending
+ * Serialize system-message text and projected tool updates. Pending
  * updates are emitted immediately before the next assistant message or at the
  * end of the history, and must follow a user or tool-result message.
  */
@@ -144,7 +144,7 @@ function conversationContext(
   const messages: PiMessage[] = []
   const systemUpdates: PiMessage[] = []
   const toolNames = new Map<ToolCallId, string>()
-  let historySystem: string | undefined
+  const historySystem: string[] = []
   const flushSystemUpdates = () => {
     if (systemUpdates.length === 0) return
     const previous = messages.at(-1)
@@ -163,11 +163,11 @@ function conversationContext(
         throw new LlmError('pi-ai cannot represent non-text system messages', 'UNSUPPORTED_CONTENT')
       }
       const text = flattenText(message)
+      if (text.length === 0) continue
       if (systemPromptUpdate === 'in-history' && messages.length > 0) {
-        if (text.length === 0) throw new LlmError('pi-ai cannot represent an empty in-history system update', 'UNSUPPORTED_CONTENT')
         systemUpdates.push({ role: 'system', content: text, timestamp: 0 })
       } else {
-        historySystem = text
+        historySystem.push(text)
       }
       continue
     }
@@ -184,7 +184,7 @@ function conversationContext(
     }
   }
   flushSystemUpdates()
-  const system = [options.system, historySystem].filter(Boolean).join('\n\n')
+  const system = [options.system, ...historySystem].filter(Boolean).join('\n\n')
   const tools = options.tools?.filter(tool => !tool.deferLoading).map(piTool)
   // An explicit empty head keeps the first later update from becoming the initial prompt.
   if (system.length > 0 || (tools?.length ?? 0) > 0 || messages.some(message => message.role === 'system')) {

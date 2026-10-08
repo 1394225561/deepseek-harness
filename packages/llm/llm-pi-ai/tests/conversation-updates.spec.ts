@@ -143,15 +143,14 @@ describe('serialized conversation updates', () => {
     ])
   })
 
-  it('sends only the latest prompt and current tools on unsupported routes', async () => {
+  it('sends concatenated system messages and current tools on unsupported routes', async () => {
     const update = addition()
     const { requests } = await send('openai', 'gpt-4.1', {
       messages: [system('initial'), user('first'), system('current'), user('next'), update], tools: [added],
       toolHistory: { tools: [baseline], updates: [{ messageId: update.id, additions: [added] }] },
     })
     expect(requests).toHaveLength(1)
-    expect(JSON.stringify(requests[0])).toContain('current')
-    expect(JSON.stringify(requests[0])).not.toContain('initial')
+    expect(requests[0]).toHaveProperty('input.0', { role: 'system', content: 'initial\n\ncurrent' })
     expect(JSON.stringify(requests[0])).not.toContain('Instruction one.')
     expect(JSON.stringify(requests[0])).not.toContain('additional_tools')
   })
