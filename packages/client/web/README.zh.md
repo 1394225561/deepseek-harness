@@ -52,6 +52,8 @@ kind: "package-library"
 <a id="understand-the-implementation"></a>
 ## 理解实现
 
+菜单采用共享 `MenuSurface` 材质，包括用于背景模糊的 macOS 底层；自定义内容遵循[菜单规则](../../../docs/web-styling.zh.md#component-rules)。
+
 <details>
 <summary>实现细节——点击展开</summary>
 
@@ -129,5 +131,3 @@ kind: "package-library"
 无。
 
 </details>
-
-**运行时不变式：** 不发布伴生入口。这是 Vite entry shell，只负责 boot glue 与 module-table seeding，不发出 Cordis 事件或持有跨插件可变状态；boot chain（加载页 → 启动就绪 → 一次切换至 UI）由真实 carrier 上的 web e2e 冒烟测试验证。

@@ -325,7 +325,6 @@ export const InputBar = memo(function InputBar({
     : running && steeringAvailable && !disabled && !uploadsPending && plainMessageDraft
       ? t(primarySubmitMode === 'steer' ? 'input.send.steer' : 'input.send.queue')
       : t('input.send')
-  const stopHint = stopKeys.length ? t('shortcut.hint', { label: t('input.stop'), keys: stopKeys.join(' ') }) : t('input.stop')
   const onPrimary = (): void => {
     if (primaryStops) {
       stop?.()
@@ -333,7 +332,7 @@ export const InputBar = memo(function InputBar({
     }
     if (keyboard === undefined) return // absent machine: the button is disabled
     /* v8 ignore next -- defensive: the primary button is disabled for empty, disabled, and pending-upload states. */
-    if (!empty && !disabled && !machineBusy && !uploadsPending) keyboard.submit(primarySubmitMode)
+    if (!empty && !disabled && !machineBusy && !uploadsPending) keyboard.submit(primarySubmitMode, 'click')
   }
 
   // Claim ghost hint: rendered by CSS as generated content after the last
@@ -474,7 +473,7 @@ export const InputBar = memo(function InputBar({
               {renderSlot('conversation.input.activity', { locked, onActiveChange: setActivity })}
             </div>}
             {interruptible && (
-              <Tooltip label={stopHint} side="top" delayMs={500} disabled={stop === undefined}>
+              <Tooltip label={t('input.stop')} shortcutKeys={stopKeys} side="top" delayMs={500} disabled={stop === undefined}>
                 <button
                   type="button"
                   className={css.primary}
@@ -489,7 +488,7 @@ export const InputBar = memo(function InputBar({
                 </button>
               </Tooltip>
             )}
-            <Tooltip label={primaryStops ? stopHint : primaryLabel} side="top" delayMs={500} disabled={primaryDisabled}>
+            <Tooltip label={primaryStops ? t('input.stop') : primaryLabel} shortcutKeys={primaryStops ? stopKeys : undefined} side="top" delayMs={500} disabled={primaryDisabled}>
               <button
                 type="button"
                 className={css.primary}
@@ -512,7 +511,7 @@ export const InputBar = memo(function InputBar({
           </div>
         </div>
       </div>
-      <div className={css.dock}>
+      <div className={css.dock} data-composer-dock>
         {variant === 'composer' && input !== undefined && sessionId !== undefined
           ? renderSlot('conversation.composer.dock', {})
           : null}

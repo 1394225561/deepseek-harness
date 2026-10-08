@@ -55,7 +55,7 @@ interface CredentialInfo {
 
 ## Embedded Platform credentials
 
-PlatformSession is a Host-only snapshot from getPlatformSession: origin names the configured Platform issuer and token contains its stored account credential. Signed-out accounts return null; a mismatched issuer fails. Native consumers own document invalidation when credentials change. This snapshot is excluded from account-controller RPC, AccountView, and AccountDetails.
+PlatformSession is a Host-only snapshot from getPlatformSession: origin names the configured Platform issuer and token contains its stored account credential. userId repeats the stable account ID from the most recent successful getProfile, and is null until one succeeds or when that profile carries no ID. The snapshot reuses that ID without issuing a profile request of its own, so an unknown ID leaves userId null instead of delaying the caller; a profile read whose stable ID first becomes available or changes notifies watch subscribers, which lets identity consumers re-read the snapshot. Consumers key persistent browser storage by origin and userId and fall back to temporary storage for null. Signed-out accounts and credentials changed during the credential read return no snapshot; a mismatched issuer fails. Native consumers own document invalidation when credentials change. This snapshot is excluded from account-controller RPC, AccountView, and AccountDetails.
 
 AccountDetails.balance projects recharge wallets in value and promotional wallets in bonusWallets, with independent currency and decimal balance strings. Failed queries contain no wallet arrays.
 
@@ -276,6 +276,8 @@ abstract getState(): Promise<AccountView>
 
 /**
  * Query Platform profile independently of wallet balances.
+ * A ready result whose stable profile ID first becomes available or changes notifies watch
+ * consumers, so identity consumers re-read getPlatformSession; repeated IDs stay silent.
  * @param client - identity of the requesting UI for this call.
  * @returns profile outcome, or null if signed out or the grant changed during the query.
  */
@@ -349,10 +351,17 @@ abstract resolveToken(url: string): Promise<string | undefined>
 abstract rejectToken(token: string): Promise<void>
 
 /**
- * Read credentials for the configured Platform origin, bound to their issuing environment.
- * @returns a Host-only snapshot, or null while signed out.
+ * Read credentials for the configured Platform origin, bound to their issuing environment, and
+ * pair them with the account ID from the last successful profile read; no profile request is made.
+ * @returns a Host-only snapshot, or null while signed out or when the credential changed during the read.
  */
 abstract getPlatformSession(): Promise<PlatformSession | null>
+
+/**
+ * Read existing login identity without creating a device or returning credentials.
+ * @returns optional device/account identifiers and the provider's OS version string.
+ */
+abstract getDeviceIdentity(): Promise<{ deviceId?: string; userId?: AccountUserId; osVersion: string }>
 ```
 
 Source: [`packages/credentials/deepseek-account/src/index.ts`](../../packages/credentials/deepseek-account/src/index.ts)
@@ -411,7 +420,7 @@ Source: [`packages/credentials/credentials/src/types.ts`](../../packages/credent
 
 #### `credentials/reference-updated` — emit
 
-Committed change to a provider-managed credential source: a `set`, an `unset`, or an external edit observed in storage. Ambient process-environment changes are not observable and never emit. Listener failures are contained and logged — a sync throw and an async rejection alike — without changing the committed operation's outcome, except `INVARIANT`-coded failures, which rethrow after every listener ran; that rethrow reaches the emitter only from synchronous listeners, so invariant checks on this event must not be async functions.
+Committed change to a provider-managed credential source: a `set`, an `unset`, or an external edit observed in storage. Ambient process-environment changes are not observable and never emit. Listener failures are contained and logged — a sync throw and an async rejection alike — without changing the committed operation's outcome.
 
 ```ts cordis-catalog
 /**
@@ -419,10 +428,7 @@ Committed change to a provider-managed credential source: a `set`, an `unset`, o
  * `unset`, or an external edit observed in storage. Ambient
  * process-environment changes are not observable and never emit. Listener
  * failures are contained and logged — a sync throw and an async rejection
- * alike — without changing the committed operation's outcome, except
- * `INVARIANT`-coded failures, which rethrow after every listener ran;
- * that rethrow reaches the emitter only from synchronous listeners, so
- * invariant checks on this event must not be async functions.
+ * alike — without changing the committed operation's outcome.
  * @param ref - the reference whose stored value changed.
  * @mode emit
  */

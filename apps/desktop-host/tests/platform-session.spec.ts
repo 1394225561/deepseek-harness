@@ -9,11 +9,12 @@ const state: AccountView = {
 }
 
 class Account extends DeepSeekAccount {
+  getDeviceIdentity = async () => ({ osVersion: 'test-os' })
   fail = false
   ended = Promise.withResolvers<undefined>()
   reading = Promise.withResolvers<undefined>()
   finished = Promise.withResolvers<undefined>()
-  read: () => Promise<PlatformSession | null> = async () => ({ origin: 'https://platform.example', token: 'test' })
+  read: () => Promise<PlatformSession | null> = async () => ({ origin: 'https://platform.example', userId: null, token: 'test' })
   override async getState() { return state }
   override async getProfile() { return null }
   override async getBalance() { return null }
@@ -53,7 +54,7 @@ it('clears removed credentials and publishes the replacement provider session', 
     delivered = Promise.withResolvers<undefined>()
     await ctx.plugin((scope) => {
       const replacement = new Account(scope)
-      replacement.read = async () => ({ origin: 'https://platform.example', token: 'replacement' })
+      replacement.read = async () => ({ origin: 'https://platform.example', userId: null, token: 'replacement' })
     })
     await delivered.promise
     expect(sessions.at(-1)?.token).toBe('replacement')
@@ -97,7 +98,7 @@ it('suppresses a credential read that completes during provider disposal', async
     await account.reading.promise
     const disposed = provider.dispose()
     await cleared.promise
-    pending.resolve({ origin: 'https://platform.example', token: 'stale' })
+    pending.resolve({ origin: 'https://platform.example', userId: null, token: 'stale' })
     await disposed
     expect(sessions).toEqual([null])
     await account.finished.promise

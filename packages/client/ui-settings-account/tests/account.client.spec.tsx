@@ -1,27 +1,31 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, act, within } from '@testing-library/react'
+import { useMemo, useSyncExternalStore } from 'react'
 import { afterEach, expect, it, onTestFinished, vi } from 'vitest'
 import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
 import type { AccountDetails, AccountView, SignInAttemptId } from '@deepseek-ai/dsh-deepseek-account/types'
 import type { ThemeSnapshot } from '@deepseek-ai/dsh-client-ui-theme/client'
 import type { PlatformBridge } from '../src/client/PlatformOverlay.tsx'
+import { createPlatformPages, type PlatformPages } from '../src/client/platform-pages.ts'
+import { AccountPlatformHost } from '../src/client/AccountPlatformHost.tsx'
 import { AccountSection, type AccountSectionInjected, type AccountSnapshot } from '../src/client/AccountSection.tsx'
 import type { BonusNotice } from '../src/client/bonus-notices.ts'
 import type { AccountMenuProps } from '../src/client/AccountMenu.tsx'
 import type {} from '../src/client/index.ts'
 import { en, zh, type AccountKey } from '../src/client/locales.ts'
+import css from '../src/client/AccountSection.module.css'
 
 afterEach(() => { cleanup(); vi.unstubAllGlobals() })
 
 /** One resolved theme snapshot per scheme; the slot's theme hook serves these in the application. */
 const themeOf = (colorScheme: 'light' | 'dark'): ThemeSnapshot => ({
-  preference: colorScheme, fontSize: 14,
+  preference: colorScheme, fontSizes: { text: 14, code: 11, terminal: 13 }, fontFamilies: { text: '', code: '', terminal: '' },
   active: { id: colorScheme, colorScheme, tokens: {} }, themes: [], revision: 0,
 })
 
-function operationsOf(state: Omit<AccountView, 'links'>, details?: Partial<AccountDetails>, platform?: PlatformBridge): AccountSectionInjected {
+function operationsOf(state: Omit<AccountView, 'links'>, details?: Partial<AccountDetails>, pages?: PlatformPages): AccountSectionInjected {
   return {
-    ...platform === undefined ? {} : { platform },
+    ...pages === undefined ? {} : { openPlatformPage: pages.open },
     hooks: {
       account: {
         getSnapshot: () => ({ view: { ...state, links: { usageUrl: 'http://localhost:8081/usage', topUpUrl: 'http://localhost:8081/top_up' } }, details, failed: false }),
@@ -38,14 +42,45 @@ function operationsOf(state: Omit<AccountView, 'links'>, details?: Partial<Accou
 }
 
 function mount(state: Omit<AccountView, 'links'>, copy: typeof en | typeof zh = en, details?: Partial<AccountDetails>, platform?: PlatformBridge) {
-  const operations = operationsOf(state, details, platform)
+  const pages = platform === undefined ? undefined : createPlatformPages()
+  const operations = operationsOf(state, details, pages)
   // AccountSection consumes no global hooks; the slot supplies them in the application.
   const globals = {} as GlobalStandardProps
-  render(<AccountSection {...globals} {...operations}
-    useAccount={selector => selector(operations.hooks.account.getSnapshot())}
-    useTheme={selector => selector(operations.hooks.theme.getSnapshot())}
-    close={() => {}} t={key => key in copy ? copy[key as AccountKey] : key} />)
+  render(<>
+    <AccountSection {...globals} {...operations}
+      useAccount={selector => selector(operations.hooks.account.getSnapshot())}
+      useTheme={selector => selector(operations.hooks.theme.getSnapshot())}
+      close={() => {}} t={key => key in copy ? copy[key as AccountKey] : key} />
+    {/* The application renders this from `shell.overlay`; the settings page only requests a page. */}
+    {platform !== undefined && pages !== undefined
+      && <SharedPlatformHost Globals={globals} pages={pages} platform={platform} copy={copy}
+        refreshAccount={operations.refreshAccount} />}
+  </>)
   return operations
+}
+
+/** Test scaffold for the shell's host: real page subscription plus the opener's return read. */
+function SharedPlatformHost({ Globals, pages, platform, copy, refreshAccount }: {
+  Globals: GlobalStandardProps
+  pages: PlatformPages
+  platform: PlatformBridge
+  copy: typeof en | typeof zh
+  refreshAccount: () => Promise<void>
+}) {
+  const subscribe = useMemo(() => (listener: () => void) => pages.subscribe(listener), [pages])
+  const usePage = useMemo(
+    () => <T,>(selector: (claim: ReturnType<PlatformPages['getSnapshot']>) => T): T =>
+      selector(useSyncExternalStore(subscribe, () => pages.getSnapshot())),
+    [pages, subscribe],
+  )
+  return <AccountPlatformHost {...Globals} platform={platform} usePage={usePage}
+    closePage={() => {
+      // Scaffold-only emulation of the opener's return read; in the application
+      // the injected opener owns it and this host only closes the page.
+      const page = pages.getSnapshot()?.page
+      pages.close()
+      if (page === 'top-up') void refreshAccount()
+    }} t={key => key in copy ? copy[key as AccountKey] : key} />
 }
 
 /**
@@ -153,12 +188,12 @@ it.each([en, zh])('offers settings, contact and sign-in from the signed-out acco
   expect(trigger.textContent).toBe(copy.more)
   expect(trigger.querySelector('svg')).not.toBeNull()
   fireEvent.click(trigger)
-  expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([copy.settings, copy.contactUsSignedOut, copy.signIn])
+  expect(screen.getAllByRole('menuitem').map(item => item.textContent)).toEqual([copy.settings, copy.contactUs, copy.signIn])
   await expect(`${screen.getByRole('menu').textContent}\n`).toMatchFileSnapshot(`./expected/menu-signed-out-${copy === en ? 'en' : 'zh'}.txt`)
   fireEvent.click(screen.getByRole('menuitem', { name: copy.settings }))
   expect(openSettings).toHaveBeenCalledOnce()
   fireEvent.click(screen.getByRole('button', { name: copy.menu }))
-  fireEvent.click(screen.getByRole('menuitem', { name: copy.contactUsSignedOut }))
+  fireEvent.click(screen.getByRole('menuitem', { name: copy.contactUs }))
   expect(operations.contactUs).toHaveBeenCalledOnce()
 })
 
@@ -237,7 +272,9 @@ it('opens usage inside Desktop and returns to the same Account settings', async 
   vi.stubGlobal('ResizeObserver', class { observe() {} disconnect() {} })
   const platform: PlatformBridge = { open: vi.fn(async () => {}), setBounds: vi.fn(async () => {}), close: vi.fn(async () => {}) }
   mount({ status: 'credential-stored', attempt: null }, en, undefined, platform)
-  await act(async () => { fireEvent.click(screen.getByRole('link', { name: en.usage })) })
+  const usage = screen.getByRole('link', { name: en.usage })
+  act(() => { usage.focus() })
+  await act(async () => { fireEvent.click(usage) })
   expect(platform.open).toHaveBeenCalledWith('usage', { x: 0, y: 0, width: 0, height: 0 })
   const back = screen.getByRole('button', { name: en.backToHarness })
   await expect(`${back.parentElement!.parentElement!.textContent}\n`).toMatchFileSnapshot('./expected/platform-header-en.txt')
@@ -245,6 +282,9 @@ it('opens usage inside Desktop and returns to the same Account settings', async 
   expect(platform.close).toHaveBeenCalledOnce()
   expect(screen.queryByRole('button', { name: en.backToHarness })).toBeNull()
   expect(screen.getByRole('region', { name: en.nav })).toBeTruthy()
+  // The overlay's layout cleanup hands the page's return focus back to the link
+  // that opened it, with no dialog to take it instead.
+  expect(document.activeElement).toBe(usage)
 })
 
 it('keeps a return action available when the native document fails to load', async () => {
@@ -276,13 +316,20 @@ it.each([en, zh])('retries the failed Platform destination and removes the error
     .toMatchFileSnapshot(`./expected/platform-error-${copy === en ? 'en' : 'zh'}.txt`)
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: copy.platformRetry })) })
   expect(screen.getByText(copy.platformFailed)).toBeTruthy()
-  await act(async () => { fireEvent.click(screen.getByRole('button', { name: copy.platformRetry })) })
+  const retry = screen.getByRole('button', { name: copy.platformRetry })
+  act(() => { retry.focus() })
+  await act(async () => { fireEvent.click(retry) })
   expect(open.mock.calls.map(([page]) => page)).toEqual(['top-up', 'top-up', 'top-up'])
   expect(screen.queryByRole('button', { name: copy.platformRetry })).toBeNull()
   expect(screen.getByRole('status', { name: copy.loading })).toBeTruthy()
+  // Retrying removes the button that was focused, so the return action keeps
+  // keyboard focus instead of dropping it onto the document body.
+  const backAgain = screen.getByRole('button', { name: copy.backToHarness })
+  expect(document.activeElement).toBe(backAgain)
   await act(async () => { loaded.resolve(undefined); await loaded.promise })
   expect(screen.queryByText(copy.platformFailed)).toBeNull()
   expect(screen.queryByRole('status', { name: copy.loading })).toBeNull()
+  expect(document.activeElement).toBe(backAgain)
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: copy.backToHarness })) })
   expect(screen.queryByRole('dialog')).toBeNull()
   expect(platform.close).toHaveBeenCalledTimes(3)
@@ -395,18 +442,19 @@ it.each([en, zh])('renders positive bonus wallets separately from recharge balan
   })
   expect(screen.getByText(copy.balance).parentElement!.textContent).toBe(`${copy.balance}¥209.00$20.07`)
   expect(screen.getByText(copy.bonusBalance).parentElement!.textContent).toBe(`${copy.bonusBalance}¥5.00<$0.01`)
+  expect(screen.getByRole('region').querySelectorAll(`.${css.divider}`)).toHaveLength(2)
   await expect(`${screen.getByRole('region').textContent}\n`)
     .toMatchFileSnapshot(`./expected/bonus-${copy === en ? 'en' : 'zh'}.txt`)
 })
 
 it.each([[], [{ currency: 'CNY' as const, balance: '0.00' }, { currency: 'USD' as const, balance: '-1.00' }]].map(bonusWallets => ({ bonusWallets })))(
-  'keeps the bonus row without inventing credit for zero or negative wallets', ({ bonusWallets }) => {
+  'omits the bonus row for zero or negative wallets', ({ bonusWallets }) => {
     mount({ status: 'credential-stored', attempt: null }, en, {
       balance: { status: 'ready', value: [{ currency: 'CNY', balance: '0' }], bonusWallets },
     })
-    // The row itself stays and states the absence.
-    expect(screen.getByText(en.bonusBalance)).toBeTruthy()
-    expect(screen.getByText(en.bonusEmpty)).toBeTruthy()
+    expect(screen.queryByText(en.bonusBalance)).toBeNull()
+    // The divider above the bonus row goes with it.
+    expect(screen.getByRole('region').querySelectorAll(`.${css.divider}`)).toHaveLength(1)
     expect(screen.getByText('¥0.00')).toBeTruthy()
     expect(screen.queryByText('¥-1.00')).toBeNull()
   },
