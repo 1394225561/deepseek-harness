@@ -2,6 +2,8 @@
 
 Status: implemented
 
+[English](2026-10-09-reasoning-content-slot-factory.md) | 中文
+
 ## 问题
 
 思考正文需要允许第三方替换或包装展示，同时复用官方的 Markdown、本地化文案和紧凑排版。将扩展做成可选的 renderer 参数，再由宿主选择直接渲染或 chain fallback，会让默认正文存在于注册体系之外，插件也只能另行维护 Markdown 调用。
@@ -10,7 +12,7 @@ Status: implemented
 
 ## 决策
 
-沿用现有 [Component Factory](2026-09-10-component-factories-and-local-slots.md) 和普通 Slot，不增加框架分发机制。
+沿用现有 [Component Factory](2026-09-10-component-factories-and-local-slots.zh.md) 和普通 Slot，不增加框架分发机制。
 
 | 名称 | 类型 | 所有者与职责 |
 | --- | --- | --- |
@@ -64,7 +66,7 @@ renderFactorySlot('conversation.chat.reasoning.content', {
 
 ### 翻译插件接入
 
-[免登录翻译设计](../../implemented/architecture/2026-10-05-anonymous-reasoning-translation.zh.md)保留外部请求、隐私、失败与取消决策；其正文组合方式由本方案取代。翻译插件注册到标准 Body Slot，在自己的工具栏内渲染原文／译文切换、状态及重试按钮，使用自己的状态和可选自定义 labels 包装官方 Content Factory，不直接调用 `MarkdownText`。
+[免登录翻译设计](2026-10-05-anonymous-reasoning-translation.zh.md)保留外部请求、隐私、失败与取消决策；其正文组合方式由本方案取代。翻译插件注册到标准 Body Slot，在自己的工具栏内渲染原文／译文切换、状态及重试按钮，使用自己的状态和可选自定义 labels 包装官方 Content Factory，不直接调用 `MarkdownText`。
 
 翻译请求、分片、缓存、持久化和设置保持不变。翻译切换按钮属于插件正文，不再由官方思考标题承载；不增加正文外的 Slot，不处理用户消息遮挡，也不改动通用 Markdown 解析器。
 
