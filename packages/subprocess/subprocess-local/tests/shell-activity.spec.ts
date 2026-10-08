@@ -4,6 +4,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
+import type { SubprocessTerminalActivity } from '@deepseek-ai/dsh-subprocess'
 import { afterEach, describe, expect, it } from 'vitest'
 import LocalSubprocessRuntime from '../src/index.ts'
 
@@ -32,9 +33,8 @@ async function shell(path: string, rc = '', envFile = '') {
 }
 
 type Shell = Awaited<ReturnType<typeof shell>>
-type ActivityState = Awaited<ReturnType<Shell['activity']>>
 
-/** Collapse repeated samples and bound the total, so a long poll cannot print thousands. */
+/** Collapse repeated samples and bound how many groups the message can carry. */
 function summarizeSamples(samples: readonly string[]): string {
   const groups: Array<{ sample: string; count: number }> = []
   for (const sample of samples) {
@@ -42,18 +42,18 @@ function summarizeSamples(samples: readonly string[]): string {
     if (last?.sample === sample) last.count += 1
     else groups.push({ sample, count: 1 })
   }
-  const text = groups.map(group => group.count === 1 ? group.sample : `${group.sample} x${group.count}`)
-  return text.length <= 8 ? text.join(' ') : `${text.slice(0, 6).join(' ')} … ${text.slice(-2).join(' ')}`
+  const rendered = groups.map(group => group.count === 1 ? group.sample : `${group.sample} x${group.count}`)
+  return rendered.length <= 8 ? rendered.join(' ') : `${rendered.slice(0, 6).join(' ')} … ${rendered.slice(-2).join(' ')}`
 }
 
 /**
- * Poll one activity expectation. A timeout names sampled states and revisions, how many
- * prompts the shell printed while it waited, and keeps the original failure as cause. The
- * prompt count rules out a shell that never returned, and the sampled sequence shows whether
- * anything changed during the window. Both are bounded summaries: neither the state record
- * nor the process observation behind `unknown` is exposed here.
+ * Poll one activity expectation. A timeout names the sampled `state:revision` values, how many
+ * prompts the shell printed while it waited, and keeps the original failure as cause. A prompt
+ * in the window shows the shell returned to one; a count of zero shows none appeared while the
+ * message waited. The samples are a bounded summary: the state record and the process
+ * observation behind `unknown` are not exposed here.
  */
-async function expectActivity(h: Shell, expected: ActivityState, label?: string): Promise<void> {
+async function expectActivity(h: Shell, expected: SubprocessTerminalActivity['state'], label?: string): Promise<void> {
   const observed: string[] = []
   const promptsBefore = h.prompts()
   try {
@@ -65,7 +65,7 @@ async function expectActivity(h: Shell, expected: ActivityState, label?: string)
   } catch (cause) {
     const prompts = h.prompts() - promptsBefore
     const samples = observed.length === 0 ? 'no sample' : summarizeSamples(observed)
-    throw new Error(`${label === undefined ? 'terminal activity' : `terminal activity for "${label}"`} reported ${samples} with ${prompts} further prompt${prompts === 1 ? '' : 's'} instead of reaching ${expected}`, { cause })
+    throw new Error(`${label === undefined ? 'terminal activity' : `terminal activity for "${label}"`} reported state:revision ${samples} with ${prompts} further prompt${prompts === 1 ? '' : 's'} instead of reaching ${expected}`, { cause })
   }
 }
 
