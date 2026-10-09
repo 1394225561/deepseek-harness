@@ -1,5 +1,5 @@
-# Short names for repository builds, cleanup, and Web/Desktop commands.
-# package.json owns the scripts; docs/development.md documents these commands.
+# Short names for the Web and Desktop application commands. The package.json
+# scripts they call stay the source of truth; docs/development.md documents both.
 .DEFAULT_GOAL := help
 .PHONY: help build clean web desktop dev-web dev-desktop
 
