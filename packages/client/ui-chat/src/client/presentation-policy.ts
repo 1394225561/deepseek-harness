@@ -11,7 +11,7 @@ export type CollapseTiming = typeof COLLAPSE_TIMINGS[number]
 
 /** Presentation capabilities that one work-details mode enables. */
 export interface ChatPresentationPolicy {
-  /** Mode this policy was derived from; for diagnostics, never for branching in renderers. */
+  /** Preference identity for layout resets and diagnostics; renderers select the capabilities below. */
   readonly mode: TranscriptViewMode
   /** Browser-local experiment; completion retains the default immediate folding and scrolling. */
   readonly collapseTiming: CollapseTiming
