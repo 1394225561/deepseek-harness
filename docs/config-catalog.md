@@ -2439,11 +2439,13 @@ export interface Config {
 ## `@deepseek-ai/dsh-ptc-runtime-node`
 
 - `inject`: `fs` · `subprocess` · `sandbox` · `sandboxPolicy`
-- `source`: [`packages/ptc-runtime/ptc-runtime-node/src/index.ts:26`](../packages/ptc-runtime/ptc-runtime-node/src/index.ts)
+- `source`: [`packages/ptc-runtime/ptc-runtime-node/src/index.ts:27`](../packages/ptc-runtime/ptc-runtime-node/src/index.ts)
 
 ```ts config-catalog
 /** Deployment-varying runtime bounds and launch choices. */
-export interface Config extends LaunchConfig {
+export interface Config {
+  /** Worker invocation in the subprocess world; omitted selects the local carrier. */
+  launch?: LaunchConfig
   /** Default elapsed deadline, including nested tool and approval waits. */
   timeoutMs?: number
   /** Maximum numeric elapsed budget accepted by resolve. */
@@ -2460,12 +2462,19 @@ export interface Config extends LaunchConfig {
   graceMs?: number
 }
 
-/** Deployment-owned Node executable and optional preinstalled built bootstrap. */
-export interface LaunchConfig {
-  /** Executable in the subprocess world; defaults to the current Node executable. */
-  nodeExecutable?: string
-  /** Absolute preinstalled built bootstrap in the execution world. */
+/** Deployment-owned worker invocation in the subprocess execution world. */
+export type LaunchConfig = {
+  /** Start a separately installed Node executable and JavaScript bootstrap. */
+  kind: 'node-script'
+  /** Executable name or path resolved by the subprocess provider. */
+  executable: string
+  /** Absolute preinstalled bootstrap; omitted maps this package's bootstrap into the execution world. */
   bootstrapPath?: string
+} | {
+  /** Start the private PTC worker embedded in a packaged executable. */
+  kind: 'embedded'
+  /** Packaged executable name or path resolved by the subprocess provider. */
+  executable: string
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-ptc-runtime-node -->
@@ -3112,25 +3121,21 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-ssh`
 
-- `source`: [`packages/ssh/ssh/src/index.ts:17`](../packages/ssh/ssh/src/index.ts)
+- `source`: [`packages/ssh/ssh/src/index.ts:33`](../packages/ssh/ssh/src/index.ts)
 
 ```ts config-catalog
 /** Deployment-owned SSH identity and installed helper; no model argument selects these values. */
 export interface Config {
   /** OpenSSH host alias, including its existing user, key and known-host configuration. */
   host: string
-  /** Absolute remote Node executable. */
-  node: string
+  /** Explicit script or self-contained executable invocation. */
+  launch: HelperLaunch
   /** Absolute path to the installed, bundled helper entry. */
   helper: string
   /** SHA-256 of that bundled helper; mismatches refuse the connection. */
   helperHash: string
   /** Absolute remote default workspace. */
   workspace: string
-  /** Optional preinstalled built PTC entry, paired with its expected digest. */
-  bootstrapPath?: string
-  /** SHA-256 of bootstrapPath; both fields must be supplied together. */
-  bootstrapHash?: string
   /** Connection and administrative-request deadline, at most 2,147,483,647 milliseconds. */
   requestTimeoutMs?: number
   /** Maximum JSON payload bytes per helper request or response. */
@@ -3139,6 +3144,21 @@ export interface Config {
   maxPending?: number
   /** Remote helper lease; loss of heartbeats starts remote managed cleanup. */
   leaseMs?: number
+}
+
+/** Installed helper invocation; script deployments may also install a PTC bootstrap. */
+export type HelperLaunch = {
+  /** Run the installed script with a separately installed Node executable. */
+  kind: 'node-script'
+  /** Absolute remote Node executable. */
+  node: string
+  /** Absolute remote PTC bootstrap; requires bootstrapHash. */
+  bootstrapPath?: string
+  /** Lowercase SHA-256 of bootstrapPath; requires that path. */
+  bootstrapHash?: string
+} | {
+  /** Run the helper executable with its embedded Node and PTC worker. */
+  kind: 'executable'
 }
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-ssh -->
@@ -4664,6 +4684,7 @@ Imported as libraries by other packages; a `cordis.yml` cannot load them.
 | `@deepseek-ai/dsh-session-snapshot` | — | [`packages/test-support/session-snapshot/src/index.ts`](../packages/test-support/session-snapshot/src/index.ts) |
 | `@deepseek-ai/dsh-session-telemetry` | — | [`packages/session/session-telemetry/src/index.ts`](../packages/session/session-telemetry/src/index.ts) |
 | `@deepseek-ai/dsh-session-title-llm` | — | [`packages/session/session-title-llm/src/index.ts`](../packages/session/session-title-llm/src/index.ts) |
+| `@deepseek-ai/dsh-ssh-helper-runtime` | — | [`packages/ssh/ssh-helper-runtime/src/index.ts`](../packages/ssh/ssh-helper-runtime/src/index.ts) |
 | `@deepseek-ai/dsh-timeout` | — | [`packages/util/timeout/src/index.ts`](../packages/util/timeout/src/index.ts) |
 | `@deepseek-ai/dsh-typert-generator` | — | [`packages/typert/generator/src/index.ts`](../packages/typert/generator/src/index.ts) |
 | `@deepseek-ai/dsh-typert-protocol` | — | [`packages/typert/protocol/src/index.ts`](../packages/typert/protocol/src/index.ts) |
