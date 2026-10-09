@@ -22,7 +22,7 @@ A teardown that issues kills/aborts but returns before the work stops leaves orp
 
 ## Contain callback exceptions in the dispatcher
 
-A user-supplied listener that throws must not reject the promise it runs inside or starve the listeners after it. Wrap the dispatch loop in try/catch and log; one bad subscriber never breaks core lifecycle.
+Catch and report each listener's exception without rejecting the dispatch promise or starving independent listeners. Continue only while shared state remains valid; catching does not undo mutations. If validity is unknown, stop dependent work and escalate to its handling owner with a user-visible report ([error handling](../.agents/skills/dsh-error-handling/SKILL.md)).
 
 ## Never hand untrusted output the ambient environment or predictable paths
 
