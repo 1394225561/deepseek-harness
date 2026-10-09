@@ -160,17 +160,9 @@ export class ChatViewport {
     this.setSpacer(this.spacerHeight() + px)
   }
 
-  /** Limit an automatic fold's visible movement to the remaining tail distance before paint. */
-  limitFoldDisplacement(): void {
-    const metrics = this.metrics()
-    if (metrics === null) return
-    const floor = Math.max(0, metrics.floor - this.spacerHeight())
-    if (metrics.top > floor) this.write(floor, metrics, null)
-  }
-
   /**
    * Give reserved room back after acknowledged scrolling or content growth without clamping the reader.
-   * Holds still during folds and unsampled movement; tail following targets content without this room.
+   * Holds still during folds and unsampled movement; following includes the room that remains.
    */
   reclaimBelow(): void {
     const elements = this.elements
@@ -180,7 +172,7 @@ export class ChatViewport {
     const scroll = this.readScroll()
     // Trimming the range before sampling could misclassify a reader's move as a layout clamp.
     if (scroll === null || scroll.movedByReader) return
-    const floorWithoutSpacer = scroll.metrics.floor
+    const floorWithoutSpacer = scroll.metrics.floor - current
     this.setSpacer(Math.min(current, Math.max(0, scroll.metrics.top - floorWithoutSpacer)))
   }
 
@@ -213,13 +205,9 @@ export class ChatViewport {
     const metrics = this.metrics()
     if (metrics === null) return null
     return {
-      metrics: { ...metrics, floor: this.contentFloor(metrics) },
+      metrics,
       movedByReader: Math.abs(metrics.top - Math.min(this.observation.top, metrics.floor)) > 0.5,
     }
-  }
-
-  private contentFloor(metrics: ViewportMetrics): number {
-    return this.motion.foldActive() ? metrics.floor : Math.max(0, metrics.floor - this.spacerHeight())
   }
 
   private metrics(): ViewportMetrics | null {
@@ -461,7 +449,7 @@ export class ChatViewport {
   }
 
   /**
-   * Align with the content floor, excluding reserved fold space once rows finish closing.
+   * Align with the physical floor, including fold room that newer content has not yet filled.
    * @param follow - independent follow intent and scrolling controller.
    * @param behavior - immediate positioning, or one native animation for a reader-caused tail change.
    * @returns the actual floor landing, or null while detached. A smooth landing reports the starting
@@ -470,13 +458,14 @@ export class ChatViewport {
   scrollToBottom(follow: ScrollFollow, behavior: 'instant' | 'smooth' = 'instant'): ViewportLanding | null {
     const metrics = this.metrics()
     if (metrics === null || this.elements === null) return null
+    this.observation = { top: metrics.top, landing: null }
+    this.reclaimBelow()
     const landing: ViewportLanding = {
-      metrics: follow.toBottom(this.elements.scroller, { ...metrics, floor: this.contentFloor(metrics) }, behavior),
+      metrics: follow.toBottom(this.elements.scroller, scrollMetrics(this.elements.scroller), behavior),
       position: null,
       turn: this.latestTurn,
     }
     this.observation = { top: landing.metrics.top, landing }
-    this.reclaimBelow()
     return landing
   }
 

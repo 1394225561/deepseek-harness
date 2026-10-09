@@ -135,7 +135,7 @@ describe('Chat scroll collapse timing', () => {
     expect(h.scroller.style.overflowAnchor).toBe('')
   })
 
-  it('consumes excess collapse during the fold without a reverse native follow afterward', async () => {
+  it('keeps excess collapse as bottom room without reversing the scrollport', async () => {
     const h = mountScroll()
     h.scroller.scrollTop = 600
     h.startFold()
@@ -147,13 +147,13 @@ describe('Chat scroll collapse timing', () => {
     expect(h.scroller.scrollTop).toBe(600)
     h.grow(980)
     act(() => { vi.advanceTimersByTime(20) })
-    expect(h.scroller.scrollTop).toBe(580)
+    expect(h.scroller.scrollTop).toBe(600)
     fireEvent.scroll(h.scroller)
-    expect(h.scroller.scrollTop).toBe(580)
+    expect(h.scroller.scrollTop).toBe(600)
     h.finishFold()
-    expect(h.scroller.scrollTop).toBe(580)
+    expect(h.scroller.scrollTop).toBe(600)
     expect(h.scrollTo).not.toHaveBeenCalled()
-    expect(h.scroller.querySelector<HTMLElement>('[data-chat-turn-spacer]')?.style.height).toBe('')
+    expect(h.scroller.querySelector<HTMLElement>('[data-chat-turn-spacer]')?.style.height).toBe('20px')
   })
 
   it('follows only the distance left after a smaller fold', async () => {

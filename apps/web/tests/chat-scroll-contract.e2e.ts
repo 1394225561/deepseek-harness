@@ -557,13 +557,17 @@ describe('web e2e: long Chat scroll contract', () => {
       const beforeHeight = await page.locator('[data-chat-flow]:has(> [data-slot="conversation.chat.flow"])')
         .evaluate(element => element.getBoundingClientRect().height)
       const release = holdTextAfter(world, 0)
-      const trace = page.evaluate((marker) => new Promise<{
-        readonly t: number; readonly top: number; readonly messageY: number;
-        readonly columnHeight: number; readonly folding: boolean;
-      }[]>(resolve => {
+      const trace = page.evaluate(marker => new Promise<{
+        readonly t: number
+        readonly top: number
+        readonly messageY: number
+        readonly columnHeight: number
+        readonly spacer: number
+        readonly folding: boolean
+      }[]>((resolve) => {
         const host = document.querySelector<HTMLElement>('[data-conversation-scroll]')!
         const column = host.querySelector<HTMLElement>('[data-chat-flow]:has(> [data-slot="conversation.chat.flow"])')!
-        const samples: { t: number; top: number; messageY: number; columnHeight: number; folding: boolean }[] = []
+        const samples: { t: number; top: number; messageY: number; columnHeight: number; spacer: number; folding: boolean }[] = []
         let frame = 0
         let timer = 0
         const sample = (): void => {
@@ -572,6 +576,7 @@ describe('web e2e: long Chat scroll contract', () => {
           if (message === undefined) return
           samples.push({ t: performance.now(), top: host.scrollTop, messageY: message.getBoundingClientRect().top,
             columnHeight: column.getBoundingClientRect().height,
+            spacer: Number.parseFloat(host.querySelector<HTMLElement>('[data-chat-turn-spacer]')?.style.height ?? '') || 0,
             folding: column.querySelector('[data-chat-motion="collapse"]') !== null })
         }
         const tick = (): void => {
@@ -607,17 +612,24 @@ describe('web e2e: long Chat scroll contract', () => {
       const first = samples[0]!
       let minimum = first.messageY
       let reversal = 0
+      let maximumScroll = first.top
+      let viewportBacktrack = 0
       for (const sample of samples) {
         minimum = Math.min(minimum, sample.messageY)
         if (first.messageY - minimum > 4) reversal = Math.max(reversal, sample.messageY - minimum)
+        maximumScroll = Math.max(maximumScroll, sample.top)
+        viewportBacktrack = Math.max(viewportBacktrack, maximumScroll - sample.top)
       }
-      const afterHeight = samples.at(-1)!.columnHeight
-      await writeFile(join(evidence, 'motion.json'), JSON.stringify({ beforeHeight, afterHeight, reversal, samples }, null, 2))
+      const last = samples.at(-1)!
+      const afterHeight = last.columnHeight
+      await writeFile(join(evidence, 'motion.json'), JSON.stringify({ beforeHeight, afterHeight, reversal, viewportBacktrack, samples }, null, 2))
       await page.screenshot({ path: join(evidence, 'settled.png') })
-      console.log(`fold-input e2e: reversal=${reversal}px, samples=${samples.length}, evidence=${evidence}`)
+      console.log(`fold-input e2e: message reversal=${reversal}px, viewport backtrack=${viewportBacktrack}px, spacer=${last.spacer}px, evidence=${evidence}`)
       expect(beforeHeight - afterHeight).toBeGreaterThan(250)
       expect(first.messageY - minimum).toBeGreaterThan(40)
       expect(reversal).toBeLessThanOrEqual(GEOMETRY_TOLERANCE)
+      expect(viewportBacktrack).toBeLessThanOrEqual(GEOMETRY_TOLERANCE)
+      expect(Math.abs(last.spacer - (beforeHeight - afterHeight))).toBeLessThanOrEqual(GEOMETRY_TOLERANCE)
       await expectBottom(page)
       assertClean(world)
     })

@@ -52,8 +52,8 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
   const content = useRef<{ input: ChatScrollInput; applied: ChatScrollInput | null; opened: boolean }>({
     input, applied: null, opened: false,
   })
-  // Fold movement consumes the same tail distance as scrolling. It cannot overshoot that distance;
-  // after the rows close, native following covers only the remaining forward movement.
+  // A fold larger than the new content leaves bottom room rather than reversing the scrollport.
+  // Growth consumes that room before automatic following advances toward newer content.
   const cancelFollow = useRef<(() => void) | null>(null)
   const clearPendingFollow = useCallback(() => {
     cancelFollow.current?.()
@@ -69,22 +69,11 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
   const followAfterFold = useCallback(() => {
     if (cancelFollow.current !== null) return
     reading.interruptFollow()
-    const advance = (): void => {
-      viewport.limitFoldDisplacement()
-      frame = requestAnimationFrame(advance)
-    }
-    let frame = requestAnimationFrame(advance)
-    const disconnect = viewport.motion.onFoldIdle(() => {
-      cancelAnimationFrame(frame)
+    cancelFollow.current = viewport.motion.onFoldIdle(() => {
       cancelFollow.current = null
-      viewport.limitFoldDisplacement()
       viewport.reclaimBelow()
       if (content.current.input.deferCompletedTurns) reading.followTail('smooth')
     })
-    cancelFollow.current = () => {
-      cancelAnimationFrame(frame)
-      disconnect()
-    }
   }, [reading, viewport])
 
   const processContent = useCallback(() => {

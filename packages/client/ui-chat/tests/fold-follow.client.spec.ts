@@ -67,6 +67,7 @@ function fixture() {
   })
   return {
     list, spacer, row, viewport, follow, reading, scrollTo,
+    grow: (height: number) => { contentHeight = height },
     close: async () => {
       viewport.motion.collapse(row, () => { row.hidden = true })
       await Promise.resolve()
@@ -83,20 +84,27 @@ function fixture() {
   }
 }
 
-it('follows the real content floor after a large close without dropping reserved space ahead of motion', async () => {
+it('retains fold room and lets content growth consume it without reversing the scrollport', async () => {
   const h = fixture()
   await h.close()
   h.viewport.reclaimBelow()
-  expect(h.list.scrollTop).toBe(2_000)
   h.reading.followTail('smooth')
-  expect(h.scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 200, behavior: 'smooth' })
   expect(h.list.scrollTop).toBe(2_000)
-  h.scroll(1_000)
-  expect(h.reading.followingTail).toBe(true)
-  h.scroll(200)
-  h.list.dispatchEvent(new Event('scrollend'))
+  expect(h.spacer.style.height).toBe('1800px')
+  expect(h.scrollTo).not.toHaveBeenCalled()
+  h.grow(1_000)
+  h.viewport.reclaimBelow()
+  h.reading.onResize()
+  expect(h.list.scrollTop).toBe(2_000)
+  expect(h.spacer.style.height).toBe('1400px')
+  h.grow(2_400)
+  h.viewport.reclaimBelow()
+  h.reading.onResize()
+  expect(h.list.scrollTop).toBe(2_000)
   expect(h.spacer.style.height).toBe('')
-  expect(h.list.scrollTop).toBe(200)
+  h.grow(2_520)
+  h.reading.onResize()
+  expect(h.list.scrollTop).toBe(2_120)
   expect(h.follow.animating).toBe(false)
 })
 
@@ -117,13 +125,13 @@ it('keeps manual off-bottom ownership and reclaims only space below the reader',
   expect(h.follow.animating).toBe(false)
 })
 
-it('releases fold room immediately for reduced-motion following', async () => {
+it('retains existing fold room when reduced-motion following has no forward distance', async () => {
   const h = fixture()
   await h.close()
   vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })))
   h.reading.followTail('smooth')
-  expect(h.list.scrollTop).toBe(200)
-  expect(h.spacer.style.height).toBe('')
+  expect(h.list.scrollTop).toBe(2_000)
+  expect(h.spacer.style.height).toBe('1800px')
   expect(h.follow.animating).toBe(false)
 })
 
