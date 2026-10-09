@@ -2,7 +2,9 @@ import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterEach, expect, it } from 'vitest'
-import { copyOfficeSidecar } from './build-exe-for-python-sdk-office.ts'
+import { createHash } from 'node:crypto'
+import { c as tar } from 'tar'
+import { copyOfficeSidecar, downloadOfficeSidecar } from './build-exe-for-python-sdk-office.ts'
 
 const temporaryDirectories: string[] = []
 
@@ -138,4 +140,29 @@ it('requires a staged Linux WASM engine even when an ancestor has one', async ()
   await expect(copyOfficeSidecar(staging, destination, { platform: 'linux', arch: 'x64' }))
     .rejects.toThrow('Office engine @deepseek-ai/libreoffice-kit-wasm required for linux/x64 is missing.')
   await expect(stat(destination)).rejects.toMatchObject({ code: 'ENOENT' })
+})
+
+it('downloads pinned npm packages into the sidecar without resolving or executing package scripts', async () => {
+  const { root, destination } = await fixture()
+  const source = join(root, 'package')
+  await mkdir(source)
+  await writeFile(join(source, 'package.json'), JSON.stringify({ name: 'fixture', version: '1.0.0', scripts: { install: 'must-not-run' } }))
+  await writeFile(join(source, 'worker.js'), 'worker')
+  const archive = join(root, 'package.tgz')
+  await tar({ file: archive, cwd: root, gzip: true }, ['package'])
+  const bytes = await readFile(archive)
+  const checksum = createHash('sha512').update(bytes).digest()
+  const cache = join(root, 'archives')
+  await mkdir(cache)
+  await writeFile(join(cache, checksum.toString('hex')), bytes)
+  const artifact = { name: 'fixture', version: '1.0.0', directory: 'node_modules/fixture',
+    url: 'https://unused.invalid/fixture.tgz', integrity: `sha512-${checksum.toString('base64')}` }
+  await downloadOfficeSidecar([artifact], destination, cache)
+  expect(await readFile(join(destination, 'node_modules/fixture/worker.js'), 'utf8')).toBe('worker')
+  await expect(downloadOfficeSidecar([{ ...artifact, directory: 'node_modules/../../outside' }], destination, cache))
+    .rejects.toThrow('invalid package directory')
+  await expect(downloadOfficeSidecar([{ ...artifact, version: '2.0.0' }], destination, cache))
+    .rejects.toThrow('package identity mismatch')
+  await writeFile(join(cache, checksum.toString('hex')), 'corrupted archive')
+  await expect(downloadOfficeSidecar([artifact], destination, cache)).rejects.toThrow('checksum mismatch')
 })
