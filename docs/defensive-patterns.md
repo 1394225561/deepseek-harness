@@ -22,7 +22,7 @@ A teardown that issues kills/aborts but returns before the work stops leaves orp
 
 ## Contain callback exceptions in the dispatcher
 
-Catch and report each listener's exception without rejecting the dispatch promise or starving independent listeners. Continue only while shared state remains valid; catching does not undo mutations. If validity is unknown, stop dependent work and escalate to its handling owner with a user-visible report ([error handling](../.agents/skills/dsh-error-handling/SKILL.md)).
+Catch and report each listener's exception without rejecting the dispatch promise or starving later listeners. The listener's owner must handle state it mutates under the [error-handling rules](../.agents/skills/dsh-error-handling/SKILL.md#catch-recover-or-stop); catching alone does not restore state.
 
 ## Never hand untrusted output the ambient environment or predictable paths
 
