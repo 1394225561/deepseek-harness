@@ -83,7 +83,7 @@
   transition: transform 120ms ease;
 }
 
-/* Narrow composer: mode text collapses while icons and badges stay visible.
+/* Narrow composer: mode text collapses while icons stay visible.
    Only triggers that actually carry a mode glyph drop their label —
    a host-configured mode without one keeps its text as the sole identifier.
    The 460px cut is the point where the row (attach + modes + model + send)

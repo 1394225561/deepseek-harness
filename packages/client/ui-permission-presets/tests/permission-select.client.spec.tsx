@@ -156,8 +156,8 @@ describe('PermissionSelect', () => {
     act(() => { selection.set({ value: { currentValue: 'auto' } }) })
     await act(async () => {})
 
-    expect(trigger().getAttribute('aria-label')).toBe('访问模式，当前：自动审查 EXP')
-    expect(trigger().textContent).toBe('自动审查EXP')
+    expect(trigger().getAttribute('aria-label')).toBe('访问模式，当前：自动审查')
+    expect(trigger().textContent).toBe('自动审查')
     expect(trigger().querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(2)
     expect(trigger().getAttribute('title')).toBe('无沙箱运行；每次原生工具调用和 PTC 内层调用前由同一模型进行实验性审查。')
   })
@@ -206,7 +206,7 @@ describe('PermissionSelect', () => {
       fireEvent.click(screen.getByRole('checkbox'))
       fireEvent.click(screen.getByRole('button', { name: '启用自动审查' }))
       expect(select).toHaveBeenCalledExactlyOnceWith('auto')
-      expect(trigger().textContent).toBe('自动审查EXP')
+      expect(trigger().textContent).toBe('自动审查')
 
       act(() => {
         selection.set({ value: { currentValue: 'danger-full-access' } })

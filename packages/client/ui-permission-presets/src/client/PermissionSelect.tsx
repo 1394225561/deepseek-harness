@@ -160,8 +160,6 @@ export function PermissionSelect({
   const confirmationEnable = confirmation === AUTO_REVIEW
     ? t('auto.confirm.enable')
     : t('confirm.enable')
-  const currentBadge = optionBadge(currentValue, t)
-  const currentAccessibleLabel = currentBadge === undefined ? currentLabel : `${currentLabel} ${currentBadge}`
 
   return (
     <>
@@ -177,7 +175,7 @@ export function PermissionSelect({
           <button
             type="button"
             className={css.trigger}
-            aria-label={t('mode', { name: currentAccessibleLabel })}
+            aria-label={t('mode', { name: currentLabel })}
             title={current === undefined ? undefined : optionDescription(current, t)}
             disabled={locked || busy}
             onClick={() => { setOpen(!open) }}
@@ -186,9 +184,6 @@ export function PermissionSelect({
               <span className={css.triggerIcon} aria-hidden>{permissionGlyph(currentValue)}</span>
             )}
             <span className={css.triggerLabel}>{currentLabel}</span>
-            {currentBadge !== undefined && (
-              <span className={css.badge}>{currentBadge}</span>
-            )}
             <span className={clsx(css.chevron, open && css.chevronOpen)} aria-hidden>
               <IconChevronDownOutlineRegular />
             </span>
