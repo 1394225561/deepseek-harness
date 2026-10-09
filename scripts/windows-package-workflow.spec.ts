@@ -8,6 +8,7 @@ const root = resolve(import.meta.dirname, '..')
 const workflow = yaml.load(readFileSync(resolve(root, '.github/workflows/windows-package.yml'), 'utf8')) as {
   on: Record<string, { inputs: Record<string, { required?: boolean }> }>
   permissions: Record<string, string>
+  concurrency: { group: string; 'cancel-in-progress': boolean }
   jobs: Record<string, {
     'runs-on': string
     steps: Array<{
@@ -23,11 +24,16 @@ const workflow = yaml.load(readFileSync(resolve(root, '.github/workflows/windows
 }
 const job = workflow.jobs.package!
 
-it('requires explicit manual dispatch on a hosted Windows runner', () => {
+it('requires explicit manual dispatch on the dedicated Windows runner', () => {
   expect(Object.keys(workflow.on)).toEqual(['workflow_dispatch'])
-  expect(job['runs-on']).toBe('windows-2025')
+  expect(job['runs-on']).toBe('dsh-win-package-trial')
+  expect(workflow.concurrency).toEqual({ group: 'windows-desktop-package', 'cancel-in-progress': false })
   expect(workflow.permissions).toEqual({ contents: 'read' })
   expect(workflow.on.workflow_dispatch!.inputs.policy_origin!.required).toBe(true)
+  const checkout = job.steps.find(step => step.id === 'checkout')!
+  expect(checkout.with).toMatchObject({ clean: true, 'persist-credentials': false })
+  expect(job.steps.find(step => step.uses?.startsWith('pnpm/action-setup@'))?.with?.dest)
+    .toBe('${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}')
 })
 
 it('passes user input through environment variables and shares the validated version', () => {
@@ -50,7 +56,7 @@ it('passes user input through environment variables and shares the validated ver
 
 it('retains failure diagnostics and only uploads successful installers from the owned output directory', () => {
   const uploads = job.steps.filter(step => step.uses?.startsWith('actions/upload-artifact@'))
-  const logs = uploads.find(step => step.if === 'always()')!
+  const logs = uploads.find(step => step.if === "always() && steps.checkout.outcome == 'success'")!
   expect(logs.with).toMatchObject({ path: 'apps/desktop/.desktop-build/packaging-runs/', 'include-hidden-files': true })
   const installer = uploads.find(step => step !== logs)!
   expect(installer.if).toBeUndefined()
@@ -58,6 +64,7 @@ it('retains failure diagnostics and only uploads successful installers from the 
     path: `${relative(root, desktopTargetBuildPaths('win-x64').unsignedArtifacts).replaceAll('\\', '/')}/*.exe`,
     'include-hidden-files': true, 'if-no-files-found': 'error',
   })
-  const cleanup = job.steps.find(step => step.run === 'Remove-Item -LiteralPath apps/desktop/.env.windows')!
-  expect(cleanup.if).toBe("always() && steps.settings.outcome == 'success'")
+  const cleanup = job.steps.find(step => step.run?.includes('Remove-Item -LiteralPath apps/desktop/.env.windows'))!
+  expect(cleanup.if).toBe("always() && steps.checkout.outcome == 'success'")
+  expect(cleanup.run).toContain('Test-Path -LiteralPath apps/desktop/.env.windows')
 })
