@@ -29,6 +29,7 @@ const permissionGlyphs = new Map<string, ReactNode>([
   ['read-only', <PermissionIconReadOnlyRegular />],
   ['workspace-write', <PermissionIconWorkspaceWriteRegular />],
   [FULL_ACCESS, <PermissionIconFullAccessRegular />],
+  [AUTO_REVIEW, <PermissionIconFullAccessRegular />],
 ])
 
 /** Glyph for a permission option value; host-configured names outside the design set get none. */
@@ -112,7 +113,7 @@ export function PermissionSelect({
         : (
           <span className={css.optionLabel} aria-label={`${label} ${badge}`}>
             <span className={css.optionLabelText}>{label}</span>
-            <sup className={css.badge}>{badge}</sup>
+            <span className={css.badge}>{badge}</span>
           </span>
         ),
       ...icon === undefined ? {} : { icon },
@@ -186,7 +187,7 @@ export function PermissionSelect({
             )}
             <span className={css.triggerLabel}>{currentLabel}</span>
             {currentBadge !== undefined && (
-              <sup className={css.badge}>{currentBadge}</sup>
+              <span className={css.badge}>{currentBadge}</span>
             )}
             <span className={clsx(css.chevron, open && css.chevronOpen)} aria-hidden>
               <IconChevronDownOutlineRegular />
