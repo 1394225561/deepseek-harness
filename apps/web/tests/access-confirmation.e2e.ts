@@ -216,6 +216,9 @@ describe('web e2e: experimental Auto and Full access confirmation', () => {
       expect(await slash.getByText(name, { exact: true }).evaluate(node => node.scrollWidth <= node.clientWidth)).toBe(true)
     }
     await page.keyboard.press('Escape')
+    await writeComposerDraft(page, input, '/permission danger-full-access')
+    await input.press('Enter')
+    await expect.poll(() => access.getAttribute('aria-label')).toBe('访问模式，当前：完全权限')
     expect(tripwire.pageErrors).toEqual([])
   })
 
