@@ -66,9 +66,9 @@ describe('TranscriptViewRow', () => {
   })
 
   it.each([
-    [en, 'Work details', 'Collapse work details',
-      'Collapse work details when a task finishes, or keep them until you send the next message', 'On completion', 'On next message'],
-    [zh, '工作步骤展示', '过程收起时机', '任务完成后立即收起过程，或保留到下次发送消息时再收起', '完成时收起', '下次发送时收起'],
+    [en, 'Work details', 'When to Collapse Work Details',
+      'Choose when to automatically collapse work details', 'On completion', 'On next message'],
+    [zh, '工作步骤展示', '工作步骤收起时机', '选择何时自动收起工作步骤', '回答结束后', '下次有新消息时'],
   ] as const)('selects either collapse timing independently with localized labels (%s)', (dictionary, detailTitle, title, description, completion, nextInput) => {
     const b = mount('standard', dictionary)
     const titleElement = screen.getByText(title)

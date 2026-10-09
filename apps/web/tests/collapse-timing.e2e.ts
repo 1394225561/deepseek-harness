@@ -123,16 +123,16 @@ describe.skipIf(MODE === 'record')('web e2e: recorded collapse timing', () => {
     await expectProcess(1, false)
     await capture('completion.expected.md')
 
-    await selectPreference('Collapse work details', 'On next message')
+    await selectPreference('When to Collapse Work Details', 'On next message')
     await expectProcess(1, true)
     await page.getByRole('button', { name: 'Read a.txt', exact: true }).waitFor()
     await capture('next-input.expected.md')
 
-    await selectPreference('Collapse work details', 'On completion')
+    await selectPreference('When to Collapse Work Details', 'On completion')
     await expectProcess(1, false)
     await capture('completion-restored.expected.md')
 
-    await selectPreference('Collapse work details', 'On next message')
+    await selectPreference('When to Collapse Work Details', 'On next message')
     await expectProcess(1, true)
     const input = page.locator('[data-composer-input]').last()
     await writeComposerDraft(page, input, prompt)
@@ -178,7 +178,7 @@ describe.skipIf(MODE === 'record')('web e2e: recorded collapse timing', () => {
     await capture('next-message.expected.md')
 
     await selectPreference('Work details', 'Verbose')
-    await selectPreference('Collapse work details', 'On completion')
+    await selectPreference('When to Collapse Work Details', 'On completion')
     await expectDetails(1, true)
     await expectDetails(2, true)
     expect(await page.locator('[data-turn-process]:enabled').count()).toBe(0)

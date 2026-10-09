@@ -52,9 +52,8 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
   const content = useRef<{ input: ChatScrollInput; applied: ChatScrollInput | null; opened: boolean }>({
     input, applied: null, opened: false,
   })
-  // While rows close, the scrollport holds still: the reserved room below keeps the floor from dropping,
-  // so the closing gap pulls the content below it (including a just-sent input) upward. One follow
-  // scroll lands whatever is still short of the floor after the last row closed.
+  // Fold movement consumes the same tail distance as scrolling. It cannot overshoot that distance;
+  // after the rows close, native following covers only the remaining forward movement.
   const cancelFollow = useRef<(() => void) | null>(null)
   const clearPendingFollow = useCallback(() => {
     cancelFollow.current?.()
@@ -69,11 +68,23 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
   }, [clearPendingFollow, viewport])
   const followAfterFold = useCallback(() => {
     if (cancelFollow.current !== null) return
-    cancelFollow.current = viewport.motion.onFoldIdle(() => {
+    reading.interruptFollow()
+    const advance = (): void => {
+      viewport.limitFoldDisplacement()
+      frame = requestAnimationFrame(advance)
+    }
+    let frame = requestAnimationFrame(advance)
+    const disconnect = viewport.motion.onFoldIdle(() => {
+      cancelAnimationFrame(frame)
       cancelFollow.current = null
+      viewport.limitFoldDisplacement()
       viewport.reclaimBelow()
       if (content.current.input.deferCompletedTurns) reading.followTail('smooth')
     })
+    cancelFollow.current = () => {
+      cancelAnimationFrame(frame)
+      disconnect()
+    }
   }, [reading, viewport])
 
   const processContent = useCallback(() => {
@@ -116,7 +127,10 @@ export function useChatScroll(input: ChatScrollInput): ChatScrollState {
 
   useLayoutEffect(() => {
     const disconnectViewport = viewport.connect({
-      scroll: reading.onScroll,
+      scroll: (event) => {
+        if (!event.movedByReader && viewport.motion.foldActive()) return
+        reading.onScroll(event)
+      },
       scrollEnd: (outer) => {
         reading.onScrollEnd(outer)
         navigation.readerSettled()

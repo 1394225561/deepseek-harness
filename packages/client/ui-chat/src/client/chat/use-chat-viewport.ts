@@ -160,6 +160,14 @@ export class ChatViewport {
     this.setSpacer(this.spacerHeight() + px)
   }
 
+  /** Limit an automatic fold's visible movement to the remaining tail distance before paint. */
+  limitFoldDisplacement(): void {
+    const metrics = this.metrics()
+    if (metrics === null) return
+    const floor = Math.max(0, metrics.floor - this.spacerHeight())
+    if (metrics.top > floor) this.write(floor, metrics, null)
+  }
+
   /**
    * Give reserved room back after acknowledged scrolling or content growth without clamping the reader.
    * Holds still during folds and unsampled movement; tail following targets content without this room.

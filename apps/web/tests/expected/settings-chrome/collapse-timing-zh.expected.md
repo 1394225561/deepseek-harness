@@ -1,3 +1,3 @@
 - menu:
-  - menuitem "完成时收起"
-  - menuitem "下次发送时收起"
+  - menuitem "回答结束后"
+  - menuitem "下次有新消息时"

@@ -135,6 +135,41 @@ describe('Chat scroll collapse timing', () => {
     expect(h.scroller.style.overflowAnchor).toBe('')
   })
 
+  it('consumes excess collapse during the fold without a reverse native follow afterward', async () => {
+    const h = mountScroll()
+    h.scroller.scrollTop = 600
+    h.startFold()
+    await act(async () => { await Promise.resolve() })
+    h.grow(1_060)
+    h.update({ submissionId: 'new-input' })
+    h.grow(1_020)
+    act(() => { vi.advanceTimersByTime(20) })
+    expect(h.scroller.scrollTop).toBe(600)
+    h.grow(980)
+    act(() => { vi.advanceTimersByTime(20) })
+    expect(h.scroller.scrollTop).toBe(580)
+    fireEvent.scroll(h.scroller)
+    expect(h.scroller.scrollTop).toBe(580)
+    h.finishFold()
+    expect(h.scroller.scrollTop).toBe(580)
+    expect(h.scrollTo).not.toHaveBeenCalled()
+    expect(h.scroller.querySelector<HTMLElement>('[data-chat-turn-spacer]')?.style.height).toBe('')
+  })
+
+  it('follows only the distance left after a smaller fold', async () => {
+    const h = mountScroll()
+    h.scroller.scrollTop = 600
+    h.startFold()
+    await act(async () => { await Promise.resolve() })
+    h.grow(1_200)
+    h.update({ submissionId: 'new-input' })
+    h.grow(1_120)
+    act(() => { vi.advanceTimersByTime(20) })
+    expect(h.scroller.scrollTop).toBe(600)
+    h.finishFold()
+    expect(h.scrollTo).toHaveBeenCalledExactlyOnceWith({ top: 720, behavior: 'smooth' })
+  })
+
   it.each(['wheel', 'touchstart', 'pointerdown', 'keydown'] as const)(
     'cancels queued follow when the reader sends %s input', async (intent) => {
       const h = mountScroll()

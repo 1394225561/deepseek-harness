@@ -965,14 +965,14 @@ describe('web e2e: browser-local collapse timing preference', () => {
     {
       locale: 'zh', browserLocale: ZH_BROWSER_LOCALE, theme: 'dark',
       settings: '设置', close: '关闭', details: '工作步骤展示', compact: '简洁', detailed: '详细',
-      title: '过程收起时机', completion: '完成时收起', nextInput: '下次发送时收起',
-      description: '任务完成后立即收起过程，或保留到下次发送消息时再收起',
+      title: '工作步骤收起时机', completion: '回答结束后', nextInput: '下次有新消息时',
+      description: '选择何时自动收起工作步骤',
     },
     {
       locale: 'en', browserLocale: 'en-US', theme: 'light',
       settings: 'Settings', close: 'Close', details: 'Work details', compact: 'Compact', detailed: 'Detailed',
-      title: 'Collapse work details', completion: 'On completion', nextInput: 'On next message',
-      description: 'Collapse work details when a task finishes, or keep them until you send the next message',
+      title: 'When to Collapse Work Details', completion: 'On completion', nextInput: 'On next message',
+      description: 'Choose when to automatically collapse work details',
     },
   ] as const)('keeps $locale collapse timing on $theme only for the current Client', async (copy) => {
     const contextOptions = {
