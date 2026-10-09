@@ -362,8 +362,8 @@ def test_download_decodes_utf8_in_an_ascii_locale(tmp_path: Path) -> None:
     script.write_text("import sys\nsys.stdout.buffer.write(" + json.dumps(str(destination), ensure_ascii=False).encode('utf-8').__repr__() + ")\n", encoding="utf-8")
     code = ("import sys,locale,deepseek_harness_runtime as r; "
             "assert locale.getpreferredencoding(False).lower() not in ('utf-8','utf8'); "
-            f"r.resolve_bundled_launch_args=lambda:(sys.executable,{str(script)!r}); "
-            f"assert str(r.download_office())=={str(destination)!r}")
+            f"r.resolve_bundled_launch_args=lambda:(sys.executable,{str(script)!a}); "
+            f"assert str(r.download_office())=={str(destination)!a}")
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, encoding="utf-8", env={
         **os.environ, "LC_ALL": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0",
         "PYTHONPATH": str(Path(runtime.__file__).resolve().parents[1]),
