@@ -60,7 +60,7 @@ You can attach images and generic files to a `/plan` message, and they are inclu
 
 When the agent has a finished plan, it calls `exit_plan_mode` with the plan written as markdown and starting with a heading. You review that exact plan and choose `Approve` to leave plan mode, or `Keep planning` to send the agent back with feedback.
 
-Choosing `Keep planning` (optionally with free-text feedback) sends the agent back to revise the plan; closing the review to type a message instead tells the agent to wait for your next message. If no interactive review is available, `exit_plan_mode` cannot run and you can still leave plan mode with `/plan off`.
+Choosing `Keep planning` (optionally with free-text feedback) sends the agent back to revise the plan; closing the review to type a message instead ends the agent's turn, and your next message starts the next request. If no interactive review is available, `exit_plan_mode` cannot run and you can still leave plan mode with `/plan off`.
 
 ### Observing plan state
 
