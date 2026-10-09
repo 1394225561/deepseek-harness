@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import {
-  IconChevronDownOutlineRegular, Menu, PermissionIconFullAccessRegular,
+  IconChevronDownOutlineRegular, Menu, PermissionIconAutoReviewRegular, PermissionIconFullAccessRegular,
   PermissionIconReadOnlyRegular, PermissionIconWorkspaceWriteRegular, RiskConfirmation,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { MenuEntry } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -29,7 +29,7 @@ const permissionGlyphs = new Map<string, ReactNode>([
   ['read-only', <PermissionIconReadOnlyRegular />],
   ['workspace-write', <PermissionIconWorkspaceWriteRegular />],
   [FULL_ACCESS, <PermissionIconFullAccessRegular />],
-  [AUTO_REVIEW, <PermissionIconFullAccessRegular />],
+  [AUTO_REVIEW, <PermissionIconAutoReviewRegular />],
 ])
 
 /** Glyph for a permission option value; host-configured names outside the design set get none. */
