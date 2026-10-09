@@ -2334,11 +2334,17 @@ def build_dynamic_tools_snapshot_files(
     assert changes == [[], [{"type": "tool_addition", "tool": {"type": "tool_reference", "name": "snapshot_ping"}}], []], changes
     assert requests[1]["messages"][:len(requests[0]["messages"])] == requests[0]["messages"], "tool addition changed earlier messages"
     replacements = [(str(cwd), "{{cwd}}"), (result.session_id, "{{session}}")]
+    header_references = {header["seq"]: f"{{{{header:{index + 1}}}}}" for index, header in enumerate(headers)}
+    snapshot_events = [
+        {**event, "data": {**event["data"], "headerSeq": header_references[event["data"]["headerSeq"]]}}
+        if event["type"] == "developer/message" and "headerSeq" in event["data"] else event
+        for event in events if event["type"] in {"request/header", "request/context", "developer/message"}
+    ]
     evidence = {
         "finalResponse": result.final_response,
         "declarations": declarations,
         "requestToolChanges": changes,
-        "events": [event for event in events if event["type"] in {"request/header", "request/context", "developer/message"}],
+        "events": snapshot_events,
         "toolCalls": calls,
         "pingResult": ping,
     }
