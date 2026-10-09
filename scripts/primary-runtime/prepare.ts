@@ -25,8 +25,10 @@ export async function downloadPrimaryRuntimeAsset(url: string, sha256: string, c
   mkdirSync(cache, { recursive: true })
   const destination = join(cache, sha256)
   let bytes: Buffer
+  let cached = true
   try { bytes = readFileSync(destination) } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    cached = false
     const timeout = Number(process.env.DSH_RESOURCE_DOWNLOAD_TIMEOUT_MS ?? '300000')
     if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 2_147_483_647) throw new Error('DSH_RESOURCE_DOWNLOAD_TIMEOUT_MS must be an integer from 1 to 2147483647')
     const response = await fetch(url, { signal: AbortSignal.timeout(timeout) })
@@ -37,6 +39,7 @@ export async function downloadPrimaryRuntimeAsset(url: string, sha256: string, c
     rmSync(destination, { force: true })
     throw new Error(`primary runtime download: checksum mismatch for ${url}`)
   }
+  if (cached) return destination
   const temporary = join(cache, `.${randomUUID()}`)
   try {
     writeFileSync(temporary, bytes)

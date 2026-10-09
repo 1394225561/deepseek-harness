@@ -1,4 +1,4 @@
-"""Validate the authoring resources in staged, installed, or archived runtime wheels."""
+"""Validate wheel download manifests, downloaded resources, and Office process launches."""
 
 from __future__ import annotations
 
@@ -72,6 +72,12 @@ def office_launch_args(root: Path, target: str) -> tuple[str, str]:
     office = Path(os.environ.get("DSH_OFFICE_SIDECAR", str(cache / metadata["identity"] / "office")))
     if not office.is_absolute():
         raise ValueError("DSH_OFFICE_SIDECAR must be an absolute directory")
+    if "DSH_OFFICE_SIDECAR" not in os.environ:
+        complete = office / "complete"
+        if not complete.is_file():
+            raise FileNotFoundError(f"Office download is incomplete: {office}. Call deepseek_harness_runtime.download_office() first.")
+        if complete.read_text(encoding="utf-8") != metadata["identity"]:
+            raise ValueError(f"Office cache identity mismatch: {office}")
     node = office / "node/bin" / ("node.exe" if target == "win-x64" else "node")
     cli = office / "node_modules/@deepseek-ai/libreoffice-kit/lib/cli.js"
     for path in (node, cli):
@@ -80,16 +86,16 @@ def office_launch_args(root: Path, target: str) -> tuple[str, str]:
     return str(node), str(cli)
 
 
-def run_office_process(arguments: Sequence[str], *, capture_output: bool) -> subprocess.CompletedProcess[bytes]:
-    """Run Office with captured or inherited streams; a second interrupt kills its process tree."""
+def run_office_process(arguments: Sequence[str]) -> subprocess.CompletedProcess[bytes]:
+    """Run Office with captured streams; a second interrupt kills its process tree."""
     taskkill = os.path.join(os.environ.get("SystemRoot", ""), "System32", "taskkill.exe")
     if os.name == "nt" and not os.path.isabs(taskkill):
         raise ValueError("Office operations on Windows require an absolute SystemRoot environment value.")
     with subprocess.Popen(
         arguments,
-        stdin=subprocess.DEVNULL if capture_output else None,
-        stdout=subprocess.PIPE if capture_output else None,
-        stderr=subprocess.PIPE if capture_output else None,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         start_new_session=os.name != "nt",
     ) as process:
         try:

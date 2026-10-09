@@ -28,7 +28,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from ._resources import validate_downloads, office_launch_args
+from ._resources import validate_downloads, validate_resources, office_launch_args
 
 PACKAGE_METADATA_FILENAME = "deepseek-harness-runtime.json"
 
@@ -153,8 +153,9 @@ def _node_launch_args() -> tuple[str, str]:
     return (node, str(bin_js))
 
 
-def _download(flag: str) -> Path:
-    result = subprocess.run((*resolve_bundled_launch_args(), flag), capture_output=True, text=True)
+def _download(resource: str) -> Path:
+    result = subprocess.run(resolve_bundled_launch_args(), capture_output=True, encoding="utf-8",
+                            env={**os.environ, "DSH_RUNTIME_DOWNLOAD": resource})
     if result.returncode:
         raise RuntimeError(result.stderr.strip() or f"resource download failed with exit code {result.returncode}")
     path = json.loads(result.stdout)
@@ -171,7 +172,7 @@ def download_office() -> Path:
     This explicit operation requires network access on a cache miss, not a
     Harness home, agent, or model. Other SDK operations never trigger downloads.
     """
-    return _download("--download-office")
+    return _download("office")
 
 
 def download_primary_runtime() -> Path:
@@ -181,7 +182,9 @@ def download_primary_runtime() -> Path:
     Office engine download and does not copy resources into a Harness home.
     Completed downloads are reused; DSH_RESOURCE_CACHE selects the cache root.
     """
-    return _download("--download-primary-runtime")
+    path = _download("primary")
+    validate_resources(path.parent, _current_platform_tag())
+    return path
 
 
 def resolve_office_launch_args() -> tuple[str, str]:

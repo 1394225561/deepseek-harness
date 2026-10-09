@@ -23,15 +23,17 @@ async function fixture() {
   await file(join(root, 'node/node_modules/@deepseek-ai/dsh-sandbox-windows-acl/package.json'), '{"type":"module","exports":{"./runner":"./runner.mjs"}}')
   await file(join(root, 'node/node_modules/@deepseek-ai/dsh-sandbox-windows-acl/runner.mjs'), '')
   await file(join(root, 'node/node_modules/@deepseek-ai/dsh/package.json'), '{"type":"module"}')
-  await file(join(root, 'node/node_modules/@deepseek-ai/dsh/lib/bin.js'), 'export async function runCli() { console.log(JSON.stringify({ primary: process.env.DSH_BUNDLED_PRIMARY_RUNTIME, office: process.env.DSH_BUNDLED_OFFICE_CLI })) }')
+  await file(join(root, 'node/node_modules/@deepseek-ai/dsh/lib/bin.js'), 'export async function runCli() { if (process.argv[2]) { console.log(JSON.stringify({ argv: process.argv.slice(2) })); return } console.log(JSON.stringify({ primary: process.env.DSH_BUNDLED_PRIMARY_RUNTIME, office: process.env.DSH_BUNDLED_OFFICE_CLI })) }')
   await file(join(root, 'node/primary-runtime.mjs'), `
     import { mkdir, writeFile } from 'node:fs/promises';
     import { join } from 'node:path';
     export async function downloadNodeRuntime(target, destination) {
+      if (process.env.DSH_RUNTIME_DOWNLOAD !== undefined) throw new Error("private selector leaked");
       await mkdir(join(destination, 'bin'), { recursive: true });
       await writeFile(join(destination, 'bin', process.platform === 'win32' ? 'node.exe' : 'node'), 'node');
     }
     export async function preparePrimaryRuntime({ output }) {
+      if (process.env.DSH_RUNTIME_DOWNLOAD !== undefined) throw new Error("private selector leaked");
       await mkdir(join(output, 'primary-runtime'), { recursive: true });
       await writeFile(join(output, 'primary-runtime/runtime.json'), '{}');
     }
@@ -51,9 +53,9 @@ async function fixture() {
       }
     }
   `)
-  function run(flag?: string, extra: NodeJS.ProcessEnv = {}) {
-    const child = spawn(process.execPath, [bootstrap, ...flag === undefined ? [] : [flag]], {
-      env: { ...process.env, DSH_RESOURCE_CACHE: cache, DSH_BUNDLED_PRIMARY_RUNTIME: undefined,
+  function run(resource?: string, extra: NodeJS.ProcessEnv = {}, args: string[] = []) {
+    const child = spawn(process.execPath, [bootstrap, ...args], {
+      env: { ...process.env, DSH_RESOURCE_CACHE: cache, DSH_RUNTIME_DOWNLOAD: resource, DSH_BUNDLED_PRIMARY_RUNTIME: undefined,
         DSH_OFFICE_SIDECAR: undefined, DSH_BUNDLED_OFFICE_CLI: undefined, ...extra },
       stdio: ['pipe', 'pipe', 'pipe'],
     })
@@ -78,32 +80,32 @@ it('starts without downloading, independently downloads either resource, and reu
   try {
     expect(await run().done).toMatchObject({ code: 0, stdout: '{}\n' })
     await expect(readdir(cache)).rejects.toMatchObject({ code: 'ENOENT' })
-    const primary = await run('--download-primary-runtime').done
+    const primary = await run('primary').done
     expect(primary.code, primary.stderr).toBe(0)
     expect(JSON.parse(primary.stdout)).toBe(join(cache, 'a'.repeat(64), 'primary', 'primary-runtime'))
     await expect(readdir(join(cache, 'a'.repeat(64), 'office'))).rejects.toMatchObject({ code: 'ENOENT' })
-    const office = await run('--download-office').done
+    const office = await run('office').done
     expect(office.code, office.stderr).toBe(0)
     const location = JSON.parse(office.stdout) as string
     expect(await readFile(join(location, 'node_modules/@deepseek-ai/libreoffice-kit/lib/cli.js'), 'utf8')).toBe('cli')
-    expect(await run('--download-office', { DSH_FIXTURE_FAIL: '1' }).done).toMatchObject({ code: 0, stdout: office.stdout })
+    expect(await run('office', { DSH_FIXTURE_FAIL: '1' }).done).toMatchObject({ code: 0, stdout: office.stdout })
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
 it('cleans failed staging and allows an explicit retry', async () => {
   const { root, cache, run } = await fixture()
   try {
-    const failed = await run('--download-office', { DSH_FIXTURE_FAIL: '1' }).done
+    const failed = await run('office', { DSH_FIXTURE_FAIL: '1' }).done
     expect(failed.code).toBe(1)
     expect(failed.stderr).toContain('fixture download failed')
     expect(await readdir(join(cache, 'a'.repeat(64)))).toEqual([])
-    expect((await run('--download-office').done).code).toBe(0)
+    expect((await run('office').done).code).toBe(0)
   } finally { await rm(root, { recursive: true, force: true }) }
 })
 
 it('publishes one complete cache when two processes download concurrently', async () => {
   const { root, cache, run } = await fixture()
-  const jobs = [run('--download-office', { DSH_FIXTURE_BARRIER: '1' }), run('--download-office', { DSH_FIXTURE_BARRIER: '1' })]
+  const jobs = [run('office', { DSH_FIXTURE_BARRIER: '1' }), run('office', { DSH_FIXTURE_BARRIER: '1' })]
   try {
     await Promise.all(jobs.map(job => job.ready))
     for (const job of jobs) job.child.stdin.end('continue')
@@ -116,4 +118,18 @@ it('publishes one complete cache when two processes download concurrently', asyn
     await Promise.allSettled(jobs.map(job => job.done))
     await rm(root, { recursive: true, force: true })
   }
+})
+
+
+it('leaves ordinary CLI arguments to the CLI and rejects an invalid private download selector', async () => {
+  const { root, cache, run } = await fixture()
+  try {
+    expect(await run(undefined, {}, ['--download-office']).done).toMatchObject({
+      code: 0, stdout: JSON.stringify({ argv: ['--download-office'] }) + '\n',
+    })
+    const rejected = await run('invalid').done
+    expect(rejected.code).toBe(1)
+    expect(rejected.stderr).toContain('DSH_RUNTIME_DOWNLOAD must select office or primary')
+    await expect(readdir(cache)).rejects.toMatchObject({ code: 'ENOENT' })
+  } finally { await rm(root, { recursive: true, force: true }) }
 })

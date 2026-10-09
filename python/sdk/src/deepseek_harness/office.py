@@ -136,7 +136,6 @@ def _run(arguments: list[str], options: OfficeOptions | None, result_type: type[
     process = run_office_process(
         [*deepseek_harness_runtime.resolve_office_launch_args(), *arguments,
          *(options._arguments() if options is not None else [])],
-        capture_output=True,
     )
     stdout, stderr = process.stdout, process.stderr
     if process.returncode != 0:

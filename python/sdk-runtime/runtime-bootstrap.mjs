@@ -80,8 +80,11 @@ const aclRunner = process.platform === 'win32'
   ? fileURLToPath(import.meta.resolve('@deepseek-ai/dsh-sandbox-windows-acl/runner'))
   : undefined
 
-if (process.argv[2] === '--download-office' || process.argv[2] === '--download-primary-runtime') {
-  const path = await downloadResource(process.argv[2] === '--download-office' ? 'office' : 'primary')
+const resource = process.env.DSH_RUNTIME_DOWNLOAD
+if (resource !== undefined) {
+  Reflect.deleteProperty(process.env, 'DSH_RUNTIME_DOWNLOAD')
+  if (resource !== 'office' && resource !== 'primary') throw new Error('DSH_RUNTIME_DOWNLOAD must select office or primary')
+  const path = await downloadResource(resource)
   console.log(JSON.stringify(path))
 } else if (aclRunner !== undefined && process.argv[2] === aclRunner) {
   process.argv.splice(1, 1)

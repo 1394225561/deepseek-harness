@@ -884,9 +884,16 @@ def main() -> None:
 
 def smoke_sdk_authoring(base_url: str, executable: Path, update_snapshots: bool) -> None:
     """Query the bundled Python and switch skills without replacing that environment."""
+
+    with tempfile.TemporaryDirectory(prefix="dsh-sdk-authoring-cache-") as cache_directory:
+        _smoke_sdk_authoring_cached(base_url, executable, update_snapshots, Path(cache_directory))
+
+
+def _smoke_sdk_authoring_cached(base_url: str, executable: Path, update_snapshots: bool, cache: Path) -> None:
     from deepseek_harness import DeepSeekHarness
 
-    primary = Path(json.loads(subprocess.check_output([str(executable), "--download-primary-runtime"], text=True)))
+    cache_environment = {**os.environ, "DSH_RESOURCE_CACHE": str(cache), "DSH_RUNTIME_DOWNLOAD": "primary"}
+    primary = Path(json.loads(subprocess.check_output([str(executable)], encoding="utf-8", env=cache_environment)))
     resources = primary.parent
     manifest = json.loads((primary / "runtime.json").read_text())
     for mode in ("default", "replacement", "disabled"):
@@ -904,7 +911,7 @@ def smoke_sdk_authoring(base_url: str, executable: Path, update_snapshots: bool)
                 provider="deepseek-official", model="smoke-model", cwd=str(root),
                 dsh_bin=str(executable), dsh_home=str(home), patches=(str(patch),),
                 api_key="sk-keyless-smoke", base_url=base_url,
-                env={"DSH_PERMISSION_MODE": "danger-full-access", "DSH_TELEMETRY_DISABLED": "1"},
+                env={"DSH_PERMISSION_MODE": "danger-full-access", "DSH_TELEMETRY_DISABLED": "1", "DSH_RESOURCE_CACHE": str(cache)},
                 request_timeout_seconds=60,
             ) as harness:
                 result = harness.run(AUTHORING_PROMPT, session_id="authoring")
@@ -960,7 +967,7 @@ def smoke_sdk_office(executable: Path) -> None:
             else:
                 shutil.copy2(source, destination)
         cache_environment = {**os.environ, "DSH_RESOURCE_CACHE": str(root / "cache")}
-        office = Path(json.loads(subprocess.check_output([str(relocated), "--download-office"], text=True, env=cache_environment)))
+        office = Path(json.loads(subprocess.check_output([str(relocated)], encoding="utf-8", env={**cache_environment, "DSH_RUNTIME_DOWNLOAD": "office"})))
         assert not (office.parent / "primary").exists(), "Office download unexpectedly prepared the authoring environment"
         adapter = office / "node_modules/@deepseek-ai/libreoffice-kit/package.json"
         native = stem.removeprefix("deepseek-harness-sdk-runtime-").replace("win-", "win32-").replace("macos-", "darwin-")
@@ -1034,7 +1041,7 @@ recalculate(root / 'input.xlsx', root / 'calculated.xlsx')
 with zipfile.ZipFile(root / 'calculated.xlsx') as archive:
     sheet = ElementTree.fromstring(archive.read('xl/worksheets/sheet1.xml'))
     assert sheet.find('.//{*}c[@r="A1"]/{*}v').text == '3'
-""", str(root), expected_backend], env={**cache_environment, "DSH_OFFICE_SIDECAR": str(office)}, check=True, timeout=180)
+""", str(root), expected_backend], env={name: value for name, value in cache_environment.items() if name != "DSH_OFFICE_SIDECAR"}, check=True, timeout=180)
         assert not (office.parent / "primary").exists(), "Python Office API unexpectedly downloaded authoring resources"
         print(f"smoke-python-runtime: relocated Office {result['backend']} DOCX produced {len(pdf)} PDF bytes")
 

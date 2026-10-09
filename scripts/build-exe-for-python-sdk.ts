@@ -342,6 +342,8 @@ class SingleExeBuild {
     const patch = { bin: ENTRY_BIN, pkg: { assets: ASSET_GLOBS, ignore: [
       ...OFFICE_ASSET_IGNORES,
       `${sourceModules}/**`, `${sourceModules}/.pnpm/**`,
+      ...['packages', 'apps', 'vendor', 'native', 'scripts'].map(directory => `${join(root, directory).replaceAll('\\', '/')}/**`),
+      `${root.replaceAll('\\', '/')}/tsconfig*.json`,
       '**/*.map', '**/*.d.ts', '**/*.d.mts', '**/*.d.cts',
     ] } }
     const manifestPath = join(this.staging, 'package.json')
@@ -355,11 +357,24 @@ class SingleExeBuild {
     if (!existsSync(join(this.staging, ENTRY_BIN))) {
       throw new Error(`build-exe-for-python-sdk: staged bootstrap ${join(this.staging, ENTRY_BIN)} is missing.`)
     }
-    await bundle({ config: false, tsconfig: false, inputOptions: { tsconfig: false }, target: 'es2024', entry: { 'primary-runtime': join(root, 'scripts/primary-runtime/prepare.ts'),
-      'office-sidecar': join(root, 'scripts/build-exe-for-python-sdk-office.ts') },
-    outDir: this.staging, clean: false, format: 'esm', platform: 'node', dts: false,
-    deps: { neverBundle: [/^@deepseek-ai\//u], alwaysBundle: [/.*/u] }, shims: true, outExtensions: () => ({ js: '.mjs' }),
-    define: { 'import.meta.main': 'false' } })
+    const helpers = [
+      { name: 'primary-runtime', source: 'scripts/primary-runtime/prepare.ts', exports: 'downloadNodeRuntime, preparePrimaryRuntime' },
+      { name: 'office-sidecar', source: 'scripts/build-exe-for-python-sdk-office.ts', exports: 'downloadOfficeSidecar' },
+    ]
+    const entries: Record<string, string> = {}
+    for (const helper of helpers) {
+      const entry = join(this.staging, `.${helper.name}-entry.ts`)
+      entries[helper.name] = entry
+      await writeFile(entry, `export { ${helper.exports} } from ${JSON.stringify(join(root, helper.source).replaceAll('\\', '/'))}\n`)
+    }
+    try {
+      await bundle({ config: false, tsconfig: false, inputOptions: { tsconfig: false }, target: 'es2024', entry: entries,
+        outDir: this.staging, clean: false, format: 'esm', platform: 'node', dts: false,
+        deps: { neverBundle: [/^@deepseek-ai\//u], alwaysBundle: [/.*/u] }, shims: true, outExtensions: () => ({ js: '.mjs' }),
+        define: { 'import.meta.main': 'false' } })
+    } finally {
+      for (const entry of Object.values(entries)) await rm(entry, { force: true })
+    }
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as Record<string, unknown>
     await writeFile(manifestPath, `${JSON.stringify({ ...manifest, ...patch }, null, 2)}\n`)
     await this.run('resource helper imports', process.execPath, ['--input-type=module', '--eval',
