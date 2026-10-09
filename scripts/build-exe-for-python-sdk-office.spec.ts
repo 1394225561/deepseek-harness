@@ -96,9 +96,9 @@ it('rejects an ancestor dependency outside the deployed closure', async () => {
     .rejects.toThrow('outside the deployed closure')
 })
 
-it('requires the declared WASM engine inside the deployed closure', async () => {
+it.each([true, false])('requires a staged WASM engine when declared=%s even when an ancestor has one', async (declared) => {
   const { root, staging, destination, packageAt } = await fixture()
-  await packageAt('@deepseek-ai/libreoffice-kit', { optionalDependencies: { '@deepseek-ai/libreoffice-kit-wasm': '0.0.1' } })
+  await packageAt('@deepseek-ai/libreoffice-kit', declared ? { optionalDependencies: { '@deepseek-ai/libreoffice-kit-wasm': '0.0.1' } } : {})
   await packageAt('@deepseek-ai/libreoffice-kit-wasm', {}, root)
   await expect(copyOfficeSidecar(staging, destination, { platform: 'linux', arch: 'x64' }))
     .rejects.toThrow('Office engine @deepseek-ai/libreoffice-kit-wasm required for linux/x64 is missing.')
@@ -130,15 +130,6 @@ it.each(['darwin', 'win32', 'linux'])('%s requires its native package even when 
   await packageAt('@deepseek-ai/libreoffice-kit-wasm')
   await expect(copyOfficeSidecar(staging, destination, { platform, arch: 'arm64' }))
     .rejects.toThrow(`Office engine @deepseek-ai/libreoffice-kit-${platform}-arm64 required for ${platform}/arm64 is missing.`)
-  await expect(stat(destination)).rejects.toMatchObject({ code: 'ENOENT' })
-})
-
-it('requires a staged Linux WASM engine even when an ancestor has one', async () => {
-  const { root, staging, destination, packageAt } = await fixture()
-  await packageAt('@deepseek-ai/libreoffice-kit')
-  await packageAt('@deepseek-ai/libreoffice-kit-wasm', {}, root)
-  await expect(copyOfficeSidecar(staging, destination, { platform: 'linux', arch: 'x64' }))
-    .rejects.toThrow('Office engine @deepseek-ai/libreoffice-kit-wasm required for linux/x64 is missing.')
   await expect(stat(destination)).rejects.toMatchObject({ code: 'ENOENT' })
 })
 

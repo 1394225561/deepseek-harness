@@ -235,7 +235,7 @@ def verify_wheel(
     platform: tuple[str, str] | None,
 ) -> None:
     if wheel.stat().st_size > 100_000_000:
-        raise RuntimeError(f"{wheel} exceeds the PyPI single-file limit of 100000000 bytes")
+        raise RuntimeError(f"{wheel} is {wheel.stat().st_size} bytes and exceeds the PyPI single-file limit of 100000000 bytes")
     expected_tag = "py3-none-any" if platform is None else f"py3-none-{platform[0]}"
     expected_distribution = SDK_DISTRIBUTION if package == "sdk" else RUNTIME_DISTRIBUTION
     dist_info = f"{expected_distribution.replace('-', '_')}-{version}.dist-info"

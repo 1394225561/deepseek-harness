@@ -305,7 +305,7 @@ class SingleExeBuild {
       for (const name of DEPLOY_ONLY_DOCS) console.log(`build-exe-for-python-sdk: [dry-run] rm -f ${join(this.staging, name)}`)
     } else {
       await Promise.all(DEPLOY_ONLY_DOCS.map(name => rm(join(this.staging, name), { force: true })))
-      for await (const file of glob('node_modules/**/{README*,CHANGELOG*,HISTORY*}.md', {
+      for await (const file of glob('node_modules/**/{README*.md,CHANGELOG*.md,HISTORY*.md,*.map,*.d.ts,*.d.mts,*.d.cts}', {
         cwd: this.staging, exclude: ['node_modules/**/assets/**'],
       })) await rm(join(this.staging, file), { force: true })
     }
@@ -338,7 +338,12 @@ class SingleExeBuild {
 
   /** Add the executable entry and pkg assets to the staged manifest. */
   async injectPkgConfig(): Promise<void> {
-    const patch = { bin: ENTRY_BIN, pkg: { assets: ASSET_GLOBS, ignore: OFFICE_ASSET_IGNORES } }
+    const sourceModules = join(root, 'node_modules').replaceAll('\\', '/')
+    const patch = { bin: ENTRY_BIN, pkg: { assets: ASSET_GLOBS, ignore: [
+      ...OFFICE_ASSET_IGNORES,
+      `${sourceModules}/**`, `${sourceModules}/.pnpm/**`,
+      '**/*.map', '**/*.d.ts', '**/*.d.mts', '**/*.d.cts',
+    ] } }
     const manifestPath = join(this.staging, 'package.json')
     if (this.cli.dryRun) {
       console.log(`build-exe-for-python-sdk: [dry-run] patch ${manifestPath} with ${JSON.stringify(patch)}`)
@@ -386,6 +391,7 @@ class SingleExeBuild {
     if (!this.cli.dryRun && !existsSync(product)) {
       throw new Error(`build-exe-for-python-sdk: product ${product} is missing after the pkg run; inspect ${this.outDir}.`)
     }
+    if (target.platform === 'linux') await this.run('strip Linux executable', 'strip', ['--strip-unneeded', product])
     const ripgrep = await this.copyRipgrepSidecar(target, product)
     const resources = join(this.outDir, `${target.platform}-${target.arch}`)
     if (this.cli.dryRun) {
