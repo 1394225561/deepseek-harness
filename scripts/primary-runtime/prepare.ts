@@ -12,6 +12,7 @@ import extractZip from 'extract-zip'
 import { x as extractTar } from 'tar'
 import { parsePrimaryRuntime, workspaceDependencyPaths, type PrimaryRuntimeManifest } from '@deepseek-ai/dsh-tool-workspace-dependencies'
 import lock from './lock.json' with { type: 'json' }
+import { prunePrimaryRuntimePythonTests } from './prune-python-tests.ts'
 
 /**
  * Download or reuse an archive only when its bytes match the release lock.
@@ -124,7 +125,7 @@ export function primaryRuntimePayloadDigest(
   // Identity preserves key order within the selected target, wheel records and distribution map, plus wheel-entry order.
   // Bump format when extraction or assembly changes payload bytes without changing locked inputs.
   return createHash('sha256').update(JSON.stringify({
-    format: 4, target, pythonVersion, pythonRelease, nodeVersion: pnpmVersion === undefined ? undefined : nodeVersion,
+    format: 6, target, pythonVersion, pythonRelease, nodeVersion: pnpmVersion === undefined ? undefined : nodeVersion,
     artifact: runtimeLock.targets[target], wheels, pythonPackages, pnpm: pnpmVersion,
   })).digest('hex')
 }
@@ -223,6 +224,7 @@ export async function preparePrimaryRuntime(options: PreparePrimaryRuntimeOption
     for (const wheel of [...lock.targets[target].wheels, ...lock.wheels]) {
       await unpackPrimaryRuntimeWheel(await downloadPrimaryRuntimeAsset(wheel.url, wheel.sha256, paths.downloads), entries.pythonPackages)
     }
+    prunePrimaryRuntimePythonTests(entries.pythonPackages)
     writeFileSync(join(output, 'runtime.json'), `${JSON.stringify(manifest, undefined, 2)}\n`)
     const destination = join(paths.runtime, 'primary-runtime')
     rmSync(destination, { recursive: true, force: true })
