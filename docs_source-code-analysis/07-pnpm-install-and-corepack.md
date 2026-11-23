@@ -8,14 +8,14 @@
 
 逐项检查结果：
 
-| 检查项 | 结果 |
-|---|---|
-| 各 nvm 版本 `~/.nvm/versions/node/*/bin/pnpm` | 均无 → 从未通过 `npm i -g pnpm` 装进现存版本 |
-| Homebrew `/opt/homebrew/bin`、`/usr/local/bin` | 无 |
-| `~/.local/bin`（该目录在 PATH 中，`.zshrc` L46 加入） | 无 |
-| corepack 启用痕迹（node bin 下的 pnpm 软链） | 无 —— v24.19.0 自带 corepack，但从未执行过 `corepack enable` |
-| `.zshrc` / `.zprofile` / `.zshenv` | 无任何 `PNPM_HOME` 或 pnpm 相关 PATH 行（仅 `.zshrc` 有 nvm 三行加载配置） |
-| `~/Library/pnpm/` | 仅剩 `store/` 子目录（2023-09-08 创建），无 pnpm 二进制 |
+| 检查项                                                | 结果                                                                       |
+| ----------------------------------------------------- | -------------------------------------------------------------------------- |
+| 各 nvm 版本 `~/.nvm/versions/node/*/bin/pnpm`         | 均无 → 从未通过 `npm i -g pnpm` 装进现存版本                               |
+| Homebrew `/opt/homebrew/bin`、`/usr/local/bin`        | 无                                                                         |
+| `~/.local/bin`（该目录在 PATH 中，`.zshrc` L46 加入） | 无                                                                         |
+| corepack 启用痕迹（node bin 下的 pnpm 软链）          | 无 —— v24.19.0 自带 corepack，但从未执行过 `corepack enable`               |
+| `.zshrc` / `.zprofile` / `.zshenv`                    | 无任何 `PNPM_HOME` 或 pnpm 相关 PATH 行（仅 `.zshrc` 有 nvm 三行加载配置） |
+| `~/Library/pnpm/`                                     | 仅剩 `store/` 子目录（2023-09-08 创建），无 pnpm 二进制                    |
 
 「记得装过」属实，但可执行本体已消失，现存痕迹只是当年工作时的缓存数据。最可能的来源：pnpm 曾装在后来被 `nvm uninstall` 掉的 Node 版本下（卸载版本会连带删除该版本 bin 内的全局包），或独立脚本安装后被清理。
 
@@ -47,10 +47,10 @@ pnpm（软链）
 
 ### 两层存放位置（macOS）
 
-| 层 | 位置 | 特点 |
-|---|---|---|
-| 入口软链 | `~/.nvm/versions/node/<当时激活版本>/bin/pnpm` | 跟随单个 node 版本，nvm 各版本 bin 相互独立 |
-| pnpm 实体缓存 | `~/Library/Caches/node/corepack/v1/pnpm/<version>/` | 所有 node 版本共享同一份，按 pnpm 版本号分目录 |
+| 层            | 位置                                           | 特点                                           |
+| ------------- | ---------------------------------------------- | ---------------------------------------------- |
+| 入口软链      | `~/.nvm/versions/node/<当时激活版本>/bin/pnpm` | 跟随单个 node 版本，nvm 各版本 bin 相互独立    |
+| pnpm 实体缓存 | `~/.cache/node/corepack/v1/pnpm/<version>/`    | 所有 node 版本共享同一份，按 pnpm 版本号分目录 |
 
 ### 切换 node 版本后的后果
 
@@ -68,11 +68,11 @@ pnpm（软链）
 
 2026-08-25 盘点，共约 410 MB：
 
-| 路径 | 大小 | 内容 |
-|---|---|---|
-| `~/Library/pnpm/` | 409 MB | `store/v3` —— 包内容的寻址存储（大头） |
-| `~/Library/Caches/pnpm/` | 1.5 MB | 元数据/下载缓存 |
-| `~/.pnpm-state` | 4 KB | 安装器的状态标记文件 |
+| 路径                     | 大小   | 内容                                   |
+| ------------------------ | ------ | -------------------------------------- |
+| `~/Library/pnpm/`        | 409 MB | `store/v3` —— 包内容的寻址存储（大头） |
+| `~/Library/Caches/pnpm/` | 1.5 MB | 元数据/下载缓存                        |
+| `~/.pnpm-state`          | 4 KB   | 安装器的状态标记文件                   |
 
 已确认**不存在**的相关路径，无需处理：`~/.config/pnpm`、`~/.local/share/pnpm`、`~/Library/Preferences/pnpm`、`~/Library/Logs/pnpm`、`~/.pnpm-debug.log`。
 
@@ -85,14 +85,14 @@ pnpm（软链）
 
 清理命令：`rm -rf ~/Library/pnpm ~/.pnpm-state ~/Library/Caches/pnpm`
 
-易混淆项提醒：`~/Library/Caches/node/corepack/` 是第三节 corepack 方案的实体缓存目录（执行 enable 并首次运行 pnpm 后才会出现），属于**要保留的新体系**，不要顺手删除。
+易混淆项提醒：`~/.cache/node/corepack/` 是第三节 corepack 方案的实体缓存目录（执行 enable 并首次运行 pnpm 后才会出现），属于**要保留的新体系**，不要顺手删除。
 
 ## 六、两种修复方案对比
 
-| 方案 | 命令 | pnpm 版本 | 评价 |
-|---|---|---|---|
-| corepack（推荐） | `corepack enable pnpm` | 自动跟随各仓库 `packageManager` 字段（本仓库为 11.7.0） | 版本按项目钉死，与仓库声明一致；代价是软链按 node 版本各自维护 |
-| npm 全局安装 | `npm i -g pnpm` | 安装时刻的最新版，可能与 `packageManager` 钉住的版本不一致 | 直接简单，但绕过版本钉，跨仓库易错版 |
+| 方案             | 命令                   | pnpm 版本                                                  | 评价                                                           |
+| ---------------- | ---------------------- | ---------------------------------------------------------- | -------------------------------------------------------------- |
+| corepack（推荐） | `corepack enable pnpm` | 自动跟随各仓库 `packageManager` 字段（本仓库为 11.7.0）    | 版本按项目钉死，与仓库声明一致；代价是软链按 node 版本各自维护 |
+| npm 全局安装     | `npm i -g pnpm`        | 安装时刻的最新版，可能与 `packageManager` 钉住的版本不一致 | 直接简单，但绕过版本钉，跨仓库易错版                           |
 
 ---
 
